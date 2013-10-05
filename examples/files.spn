@@ -1,0 +1,16 @@
+/* 
+ * files.spn
+ * File management using the standard library
+ * 
+ * created by Árpád Goretity on 30/09/2013
+ */
+
+var f = fopen("stuff.txt", "w");
+fwrite(f, "hello world");
+fclose(f);
+
+f = fopen("stuff.txt", "r");
+var l = fgetline(f);
+print(l);
+fclose(f);
+

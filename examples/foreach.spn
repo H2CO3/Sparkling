@@ -1,0 +1,27 @@
+/* 
+ * foreach.spn
+ * iterating over the key-value pairs of an associative array
+ * 
+ * created by Árpád Goretity on 30/09/2013
+ */
+
+
+var arr = array(); /* create empty array */
+
+/* fill it with values */
+arr[0] = "Value for index zero";
+arr[1337] = "Some other value at index leet";
+arr["bar"] = lambda(x, y) {
+	print("this is a lambda function, x = ", x, ", y = ", y);
+};
+arr["quirk"] = 3.14159265358979323846;
+
+
+var pair = array();
+var it = getiter(arr);
+
+/* use an iterator to loop through the array */
+while next(it, pair) {
+	print(pair[0], " -> ", pair[1]);
+}
+

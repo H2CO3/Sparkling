@@ -1,0 +1,171 @@
+More or less formal definition of the grammar of the Sparkling language.
+Any syntactical or semantical errors in the grammar and all the deviations from
+the (theoretically correct) reference implementation are unintentional.
+~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~~
+
+Grammar notations:
+
+- Specifying a production (precedence level 0, lowest):
+
+	production = rule
+	
+- Listing compulsory, successive parts of a rule (precedence level 1):
+
+	part1 part2 part3 ... partN
+
+- Providing multiple (alternative) choices (precedence level 2):
+
+	rule1 | rule2 | rule3 | ... | ruleN
+
+- Optional language construct - zero or one occurrence (acts as grouping, too -> precedence level 3):
+
+	[ rules... ]
+
+- Optional language construction - zero or more occurrences (acts as grouping, too -> precedence level 3):
+
+	{ rules... }
+
+- Grouping without side effects ("parenthesizing"; precedence level 3):
+
+	( rules... )
+
+- Literal strings (terminals):
+
+	'string'
+
+- Other terminals:
+
+	IN-ALL-CAPS
+
+The language ignores whitespace between tokens (terminals). Comments are treated
+as whitespace (they're ignored). Comments are enclosed between '/*' and '*/'
+and they don't nest.
+
+T h e   g r a m m a r
+~~~~~~~~~~~~~~~~~~~~~
+
+program = { function-definition | statement }
+
+function-definition = 'function' IDENT '(' [ argument-declaration-list ] ')' block-statement
+
+argument-declaration-list = IDENT { ',' IDENT }
+
+statement = if-statement | loop-statement | return-statement | loop-control-flow-statement | expression-statement | block-statement | variable-declaration | ";"
+
+if-statement = 'if' expression block-statement [ 'else' block-statement | if-statement ]
+
+loop-statement = for-statement | foreach-statement | while-statement | do-while-statement
+
+for-statement = 'for' expression ';' expression ';' expression block-statement
+
+foreach-statement = 'foreach' IDENT 'as' IDENT 'in' expression block-statement
+
+while-statement = 'while' expression block-statement
+
+do-while-statement = 'do' block-statement 'while' expression ';'
+
+return-statement = 'return' [ expression ] ';'
+
+block-statement = '{' { statement } '}'
+
+loop-control-flow-statement = 'break' | 'continue' ';'
+
+variable-declaration = 'var' IDENT [ '=' expression ] { ',' IDENT [ '=' expression ] } ';'
+
+expression-statement = expression ';'
+
+expression = assignment-expr
+
+assignment-expr = concat-expr [ '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '|=' | '&=' | '^=' | '<<=' | '>>=' assignment-expr ] /* right-assoc */
+
+concat-expr = [cond-expr '..' ] cond-expr /* left-assoc */
+
+cond-expr = logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
+
+logical-or-expr = [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
+
+logical-and-expr = [ comparison-expr '&&' ] comparison-expr 
+
+comparison-expr = [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
+
+bitwise-or-expr = [ bitwise-xor-expr '|' ] bitwise-xor-expr
+
+bitwise-xor-expr = [ bitwise-and-expr '^' ] bitwise-and-expr
+
+bitwise-and-expr = [ shift-expr '&' ] shift-expr
+
+shift-expr = [ additive-expr '<<' | '>>' ] additive-expr
+
+additive-expr = [ multplicative-expr '+' | '-' ] multiplicative-expr
+
+multiplicative-expr = [ prefix-expr '*' | '/' | '%' ] prefix-expr
+
+prefix-expr = ( '+' | '-' | '++' | '--' | '!' | '~' | '#' | 'sizeof' | 'typeof' prefix-expr ) | postfix-expr /* right-assoc */
+
+postfix-expr = term { ( '[' expression ']' ) | ( '(' [ argument-call-list ] ')' ) | '++' | '--' | ( '.' | '->' IDENT ) } /* left-assoc */
+
+term = IDENT | literal | ( '(' expression ')' ) | lambda-expr | array-expr
+
+lambda-expr = 'lambda' '(' [ argument-declaration-list ] ')' block-statement
+
+array-expr = sequence-literal | dict-literal
+
+sequence-literal = '@[' [ expression { ',' expression } ] ']'
+
+dict-literal = '@{' [ expression ':' expression { ',' expression ':' expression } ] '}'
+
+argument-call-list = expression { ',' expression }
+
+literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil' | 'nan'
+
+Reserved keywords
+~~~~~~~~~~~~~~~~~
+
+and		false		nan		sizeof
+argc		for		nil		this
+as		foreach		not		true
+break		function	null		typeof
+continue	if		or		var
+do		in		return		while
+else		lambda		self
+
+The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||' tokens, respectively.
+Furthermore, 'this' is equivalent with 'self' and 'null' is the same as 'nil'.
+
+Literal tokens:
+~~~~~~~~~~~~~~~
+ - character literals: 1...8 characters enclosed in apostrophes ('').
+ 	They are treated as integer literals (the character code of each character is
+ 	interpreted as a byte, then those bytes are used to form, in big-endian order,
+ 	a multi-byte integer. TODO: should the bytes be 8 or CHAR_BIT bits wide?)
+ - string literals: 0 or more characters (or escape sequences) enclosed in (double) quotes
+ - integer literals: sequence of decimal (no prefix), octal (prefix: 0) or hexadecimal (prefix: 0x) digits.
+ 	Hexadecimal digits 'a'...'f' can be either lowercase or uppercase.
+ - floating-point literals: two groups of decimal digits separated by a dot (only one of the
+ 	groups has to be present), optionally followed by an optionally signed exponent
+ 	part which is a sequence of decimal digits, introduced by 'e' or 'E'.
+
+Identifiers (names):
+~~~~~~~~~~~~~~~~~~~~
+ - can begin with a lowercase or capital English letter (a...z, A...Z) or with an underscore (_)
+ - then any of { a...z, A...Z, 0...9, _ (underscore) } follows.
+
+Valid escape sequences:
+~~~~~~~~~~~~~~~~~~~~~~~
+The same as in C:
+ - \\		->		\
+ - \/		->		/
+ - \'		->		'
+ - \"		->		"
+ - \a		->		bell
+ - \b		->		backspace
+ - \f		->		form feed
+ - \n		->		LF
+ - \r		->		CR
+ - \t		->		TAB
+ - \0		->		NUL, char code 0
+ - \xHH		->		the character with code HH, where HH denotes two hexadecimal digits
+
+Sparkling source files preferrably use UTF-8 (or ASCII), but nothing else is prohibited.
+(Read: please facilitate our lives and DO USE UTF-8, unless you really really can't.)
+

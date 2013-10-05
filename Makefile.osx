@@ -1,0 +1,57 @@
+# change this variable only! should be 'debug' or 'release' (without quotes)
+BUILD = debug
+
+CC = clang
+LD = $(CC)
+
+SYSROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk
+SRCDIR = src
+OBJDIR = bld
+EXDIR = examples
+
+WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter
+
+CFLAGS = -isysroot $(SYSROOT) -c -std=c89 -pedantic -pedantic-errors -fstrict-aliasing $(WARNINGS)
+LDFLAGS = -isysroot $(SYSROOT) -w
+
+ifeq ($(BUILD), debug)
+	CFLAGS += -O0 -g -pg -DDEBUG
+	LDFLAGS += -O0 -g -pg
+else
+	CFLAGS += -O2 -flto -DNDEBUG
+	LDFLAGS += -O2 -flto
+endif
+
+OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))
+EXOBJS = $(patsubst $(EXDIR)/%.c, $(EXDIR)/%.o, $(wildcard $(EXDIR)/*.c))
+
+LIB = bld/libspn.a
+
+all: spn
+
+$(LIB): $(OBJECTS)
+	ar -cvr $@ $^
+
+$(EXDIR)/basic: $(EXOBJS) $(LIB)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+spn: install spn.o
+	$(LD) $(LDFLAGS) -o $@ spn.o -lspn
+
+install: $(LIB)
+	mkdir -p $(SYSROOT)/usr/local/lib/
+	cp $(LIB) $(SYSROOT)/usr/local/lib/
+	mkdir -p $(SYSROOT)/usr/local/include/spn/
+	cp src/*.h $(SYSROOT)/usr/local/include/spn/
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(EXDIR)/%.o: $(EXDIR)/%.c
+	$(CC) $(CFLAGS) -Isrc -o $@ $<
+
+clean:
+	rm -f $(OBJECTS) $(EXOBJS) $(LIB) spn spn.o gmon.out .DS_Store src/.DS_Store bld/.DS_Store examples/.DS_Store
+
+.PHONY: all install clean
+

@@ -1,0 +1,29 @@
+/* 
+ * sqrt.spn
+ * Computing square root using the Babylonian method
+ * 
+ * created by Árpád Goretity on 30/09/2013
+ */
+
+/* Babylonian method, a. k. a. Newton-Raphson */
+function bab_sqrt(x)
+{
+	var y, n = 0, eps = 1.0e-8;
+	
+	for y = x / 2.0; abs(y - x / y) > eps; y = (y + x / y) / 2 {
+		n++;
+	}
+	
+	print(n, " iterations");
+	
+	return y;
+}
+
+
+var test = array(0, 1, 2, 3, 4, 9, 16, 25, 100, 123456789);
+var i;
+for i = 0; i < sizeof test; i++ {
+	var x = test[i];
+	print("babylonian: ", bab_sqrt(x), "; C stdlib: ", sqrt(x));
+}
+

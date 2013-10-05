@@ -1,0 +1,58 @@
+# change this variable only! should be 'debug' or 'release' (without quotes)
+BUILD = debug
+
+CC = gcc
+LD = $(CC)
+
+SRCDIR = src
+OBJDIR = bld
+EXDIR = examples
+
+WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-unused-parameter
+
+CFLAGS = -c -std=c89 -pedantic -pedantic-errors -fstrict-aliasing $(WARNINGS)
+LDFLAGS = -w -lm
+
+# WARNING: I heavily rely on link-time optimization because it's cool. But
+# I can't simply add the -flto flag to the release build switches, because
+# not all Linux distros have GCC 4.5+ installed. So if you happen to have
+# a version of GCC (or clang) that understands `-flto', then *pretty please*
+# DO ADD `-flto' to both CFLAGS and LDFLAGS in the release build.
+ifeq ($(BUILD), debug)
+	CFLAGS += -O0 -g -pg -DDEBUG
+	LDFLAGS += -O0 -g -pg
+else
+	CFLAGS += -O2 -DNDEBUG
+	LDFLAGS += -O2
+endif
+
+OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))
+EXOBJS = $(patsubst $(EXDIR)/%.c, $(EXDIR)/%.o, $(wildcard $(EXDIR)/*.c))
+
+LIB = bld/libspn.a
+
+all: install spn
+
+$(LIB): $(OBJECTS)
+	ar -cvr $@ $^
+
+spn: install spn.o
+	$(LD) $(LDFLAGS) -o $@ spn.o -lspn
+
+install: $(LIB)
+	mkdir -p /usr/local/lib/
+	cp $(LIB) /usr/local/lib/
+	mkdir -p /usr/local/include/spn/
+	cp src/*.h /usr/local/include/spn/
+
+$(OBJDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+$(EXDIR)/%.o: $(EXDIR)/%.c
+	$(CC) $(CFLAGS) -Isrc -o $@ $<
+
+clean:
+	rm -f $(OBJECTS) $(EXOBJS) $(LIB) spn spn.o gmon.out
+
+.PHONY: all install clean
+

@@ -1,0 +1,16 @@
+/* 
+ * cmdargs.spn
+ * using command-line arguments
+ * 
+ * created by Árpád Goretity on 30/09/2013
+ */
+
+/* get registered argument vector */
+var argv = getargs();
+
+/* loop through it, treat each entry as the name of an environment variable */
+var i;
+for i = 0; i < sizeof argv; i++ {
+	print(argv[i], "=", getenv(argv[i]));
+}
+

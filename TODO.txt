@@ -1,0 +1,219 @@
+TODOs
+~~~~~
+
+Code:
+	- More documentation									***Urgent***
+	- More testing										***Urgent***
+
+	- grep for "TODO", "FIXME" and "XXX" in the source files
+	- Implement a way to pass down variadic arguments! ("..." operator?)			***Urgent***
+	- REFACTOR (especially in vm.c), and try very hard not to exceed the
+		80-character line length limit.
+	- Implement standard library (and make the functions in there print meaningful		***Urgent***
+		exception messages when they encounter an error condition)
+	- Fix the whole mechanism for accessing the implicit `this` argument in			***Urgent***
+		OO-style function calls
+	
+Language, syntax:
+	- is the context-free grammar in grammar.txt correct? especially with regards to
+		expressions (associativity, precedence!)
+	- what's a better fit for the 3rd argument of cond-expr?
+		cond-expr (current, as in C) or assignment-expr (as in C++)?
+	- write the specification (yeah)
+	- should the && and || operators return their RHS/LHS instead of a boolean?
+	- OO, classes? anyone wants them? good for performance - fields can be
+		numbered at compile-time, names thrown away, no need for string
+		hashing (similarly to C `struct`s)
+	- Or at least namespaces?
+	- And how about one-line comments? // Do we need a comment that ends with \r\n?
+	- 'concat-equals' (..=) operator							done
+	- named constants, "enum"s (whatever you call them) (How? They can't be
+		referenced across object files unless they are put in the symbol
+		table - but in that case, they would have a significant overhead...)	***
+	- arrays should be able to be indexed by any object (polymorphic hash function
+		based on pointers to an object)							done
+	- switch-case statement (with block syntax instead of labels: `case 0: { }' etc.)
+	- implement concatenation operator (..) into lexer & parser				done
+	- treat `this'/`self' and `argc' appropriately... (*)
+	- ...and add the `#` variadic argument operator (#0 is the first arg) (*)		done
+		(*) these two concern the VM too, see the same TODOs below too
+	- Do something with strings. How to access single characters in a string?
+		(maybe no built-in approach, only stdlib functions?)
+	- variable declarations									done
+	- comma-separated variable declarations! `var i = 0, j = 1;`				done
+	- support C99- and C++-style in-loop variable initialization, as in:
+		for var i = 0; i < sizeof(arr); i++
+	- optimize chained concatenations (x .. y .. z .. .. foo .. bar ..quirk)
+		so that they aren't done in separate steps (as specified by the
+		associativity of the .. operator), because creating huge temp
+		strings in O(n ^ 2) is wasteful. Instead, these should be somehow
+		compiled into one great CONCAT_ALL(x, y, z, foo, bar, quirk)
+		instruction (yes, this needs VM support too)
+	- fill in array-expr in the grammar							***Urgent***
+
+Parser:
+	- Is it appropriate to always release the value of the current token if an
+		unexpected token is encountered (compilation error)? If it is not
+		released, then it will leak memory (what if we got an identifier or
+		a string instead of an expected operator or keyword?), right? But
+		what happens if it *is* released? Is this approach correct throughout
+		the implementation of the parser?
+	- array literals (@{}, @[], or something else?)					***Urgent***
+	- support C99- and C++-style in-loop variable initialization (see above)
+	- include line number information in AST						done
+	- check some mistakes that are obvious to detect at compile time,
+		and throw errors (like assignment to rvalues, etc.)
+	- Use top-down operator precedence ("Pratt parser") for parsing expressions
+		instead of the currently purely recursive descent approach
+
+Compiler:
+	- Issue a warning if a top-level expression (i. e. an expression statement)
+		is neither a function call, an assignment nor an increment/decrement
+		operation. Nothing else should be used as an expression statement,
+		really.
+	- Issue a warning when an assignment is used in the condition of an if,
+		while, do-while or for statement.
+	- Eliminate expression statements that have no side effects (i. e. check
+		the AST recursively for function calls, assignments and increment
+		or decrement operators. If none of them are found, then don't
+		emit code for the expression statement node.) Also, warn about it
+		because this is a potentially dangerous optimization.
+	- Do some basic constant folding on arithmetic and logical expressions and
+		on string concatenation as well.
+	- implement ++ and -- operators on array members					***Urgent***
+	- implement break and continue statements						***Urgent***
+	- Somehow calculate the total number of registers in `compile_funcdef()`		done
+		as well as in `compile_program()` (grep for "TODO 3" comments!)
+		We do have the number of local variables as
+		`rts_count(&cmp->lvars)`, but there are additional temporary
+		registers used by `compile_expr()` and its subroutines (for
+		computing intermediate results), and we need to take those
+		into account as well.
+	- do something with `if` statements that have no `else` part in order to
+		avoid the extra 0-sized unconditional jump
+	- Pass back the symtab index of a just compiled lambda function				done
+		from `compile_funcdef()` to its caller so it can refer to it
+		using that index.
+	- Optimization: if at least one of the children of an expression AST node		done
+		is a temporary (i. e. it's a literal/constant or the result of
+		another sub-operation), then the register which the result of
+		that child resides in can be re-used as the destination register
+		of the current (parent) AST node, no need for an extra "push".
+	- pay attention to name collisions:
+		function and variable with the same name					***Urgent***
+		re-declared variables								done
+		re-defined functions								done
+	- Functions returning nothing should return `nil'.					done
+		(a. k. a., auto-insert `return nil` at the end of function
+		bodies and the main pgrogran too).
+	- recognize `self`, `this` and `argc` and treat them in a special way			***Urgent***
+	- use scoping (defined by blocks) for variable names					done
+		(idea: use a hashtable in compile_function and compile_block,
+		store variables of which the scope is only the current block,
+		remove them from "global" hash table when the current scope ends)
+	- use line number information in AST							done
+
+VM:
+	- !!! EXAMINE AND TEST REFERENCE COUNTING !!! Specifically, does the
+		"release(dst); *dst = *retain(src)" idiom work? What if the same
+		object is being assigned onto itself and its refcount is 1?
+		If it's deallocated then the freed pointer is retained, it's wrong.
+	- make strings compute their hash value on-demand and store it:				done
+		strings should be only hashed once, because they are immutable,
+		and it's also superfluous to hash them immediately upon creation
+		if they're never used as a key in an array. Basically, the
+		optimal solution looks like this:
+		
+		unsigned long hash_key(key)
+		{
+			if (is_string(key)) {
+				if (key->is_hashed == false) {
+					key->hash = hash_raw(key->c_string);
+					key->is_hashed = true;
+				}
+				
+				return key->hash;
+			}
+			
+			// etc., do something else with non-strings
+		}
+	
+	- hook object constructor and destructor functions in order to test memory
+		leaks and premature deallocation (there must be the same number
+		of calls to ctors and dtors)
+	- treat `this'/`self' and `argc' appropriately...
+		Conceptually, from the language-lawyer point of view,
+		these are KEYWORDS, i. e. they are reserved and considered part
+		of the language (just like 'if', 'nil' or '+'). This is because
+		I consider hard-coded variable names a bad concept (similarly,
+		I find it necessary to make a very strict distinction between
+		the core language and the standard library functions). However,
+		under the hoods, in the compiler/VM, they're simply implemented
+		as compiler-recognized special variable (register?) names.
+	- ...and add the `#` variadic argument operator (#0 is the first arg)			done
+	- handle variadic arguments
+	- Debugging info in the bytecode (to show meaningful information, i. e. line
+		numbers, to the user instead of VM addresses when a runtime error
+		occurs. XXX: there could be a separate debug symbol file, in order
+		the real bytecode not to be cluttered and slowed down.)
+	- Enable user to get a stack trace while running or after a runtime error
+	- Symbol table in the bytecode for functions, lambdas and string constants,	***	done
+		in order the VM not to have to create a new SpnString
+		every time it reads the name of a function (before each call!)
+		or when it encounters a string constant.
+	- array iterators: add an SPN_INS_NEXT (?) instruction (foreach loops)			***Urgent***
+		(also, actually *implement* the `foreach' statement)
+	- hate str[i|u]ct aliasing...								done
+	- ...and test the VM with various compilers, at various optimization levels,		***Urgent***
+		with and without strict aliasing and vectorization turned on/off,
+		because **the VM stack needs to be steady and safe!**
+
+
+***: these call for some less hackish implementation of linkage (firstly, there
+should be linkage at all...)
+
+Standard library:
+	- `sort()` function for arrays
+	- document the run-time error codes (-1 generally means "bad number
+		of arguments", but not always, etc.)
+	- add the documentation of currently unimplemented standard library
+		functions (especially those in libarray) once they are
+		implemented.
+
+Miscellaneous:
+	- add ability to load multiple source files						done
+	- rewrite the parser, compiler and runtime/VM error functions to take			done
+		format strings and variadic arguments
+	- feel sorry for flower boxes in parser.c						done
+	- add possibility to call Sparkling functions from C-land				***Urgent***
+	- C99 and POSIX-specific extension APIs (in addition to the "standard"
+		runtime support library)
+	- benchmark array setters to see if
+	
+		retain(newobj);
+		release(arr->oldobj);
+		arr->oldobj = newobj;
+		
+	is faster or slower than
+	
+		if (array->oldobj == newobj) {
+		    	return;
+		}
+		
+		release(array->oldobj);
+		array->oldobj = retain(newobj);
+
+	- real error handling when `malloc()` fails instead of just `abort()`ing
+	- support for user data/custom ojects							done
+	- Bindings for popular and useful C libraries: SQLite3, libxml2, cURL
+		(and perhaps even raw socket access), a graphics and/or GUI
+		library (SDL, GTK+ maybe?), regular expressions (POSIX/PCRE),
+		data compression and decompression (zip, tar, 7z, ...), media
+		metadata handling (ID3 tags!), a JSON parser, etc...
+	- do something with the `&& within ||' warning.
+		That particular expression is why I have put the
+		`-Wno-error=logical-op-parentheses' flag in the Makefile. I am
+		sorry, but even in maths, AND has higher precedence than OR,
+		and I am not going to insert ((((even ((more) unreadable)
+		(superfluous) ((parentheses)))))) just becase clang is being picky.
+

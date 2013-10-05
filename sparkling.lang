@@ -1,0 +1,82 @@
+<?xml version="1.0" encoding="UTF-8" ?>
+<!--
+  Syntax highlight specification of the Sparkling scripting language
+  for the Gedit text editor
+  
+  Created by Árpád Goretity on 17/03/2013
+  Licensed under the 2-clause BSD License
+-->
+
+<language id="sparkling" _name="Sparkling" version="2.0" _section="Scripts">
+  <metadata>
+    <property name="mimetypes">text/plain;text/x-sparkling</property>
+    <property name="globs">*.spn</property>
+    <property name="block-comment-start">/*</property>
+    <property name="block-comment-end">*/</property>
+  </metadata>
+
+  <styles>
+    <style id="escape"          _name="Escaped Character"        map-to="def:special-char" />
+    <style id="literal"         _name="Literal"                  map-to="def:special-constant" />
+    <style id="keyword"         _name="Keyword"                  map-to="def:keyword" />
+    <style id="string"          _name="String"                   map-to="def:string" />
+  </styles>
+
+  <definitions>
+
+    <context id="escape" style-ref="escape">
+      <match>\\[abfnrt]|(x[0-9a-fA-F]{2})</match>
+    </context>
+
+    <context id="literals" style-ref="literal">
+      <keyword>null</keyword>
+      <keyword>nil</keyword>
+      <keyword>true</keyword>
+      <keyword>false</keyword>
+      <keyword>nan</keyword>
+    </context>
+
+    <context id="keywords" style-ref="keyword">
+      <keyword>not</keyword>
+      <keyword>and</keyword>
+      <keyword>or</keyword>
+      <keyword>var</keyword>
+      <keyword>break</keyword>
+      <keyword>continue</keyword>
+      <keyword>return</keyword>
+      <keyword>while</keyword>
+      <keyword>do</keyword>
+      <keyword>for</keyword>
+      <keyword>foreach</keyword>
+      <keyword>as</keyword>
+      <keyword>in</keyword>
+      <keyword>if</keyword>
+      <keyword>else</keyword>
+      <keyword>function</keyword>
+      <keyword>lambda</keyword>
+      <keyword>typeof</keyword>
+      <keyword>sizeof</keyword>
+      <keyword>this</keyword>
+      <keyword>self</keyword>
+      <keyword>argc</keyword>
+    </context>
+
+    <context id="sparkling" class="no-spell-check">
+      <include>
+        <context ref="def:c-like-comment-multiline" />
+        <context ref="def:c-like-close-comment-outside-comment" />
+        <context ref="def:string" style-ref="string" />
+        <context ref="def:single-quoted-string" style-ref="string" />
+        <context ref="def:decimal" />
+        <context ref="def:hexadecimal" />
+        <context ref="def:octal" />
+        <context ref="def:float" />
+        <context ref="escape" />
+        <context ref="literals" />
+        <context ref="keywords" />
+      </include>
+    </context>
+
+  </definitions>
+</language>
+
