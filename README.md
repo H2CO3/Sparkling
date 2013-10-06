@@ -104,7 +104,7 @@ asterisks, indentation and alignment, whitespace, comments, etc.)
 
 The Sparkling API also has some very basic debugging facilities: namely, it is
 possible to dump the abstract syntax tree of a parsed program (in order to
-examine the behavior if the parser) and one can disassemble compiled bytecode
+examine the behavior of the parser) and one can disassemble compiled bytecode
 as well (so as to debug the compiler and the virtual machine).
 
 What else?

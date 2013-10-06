@@ -675,7 +675,7 @@ static unsigned long hash_key(const SpnValue *key)
 {
 	switch (key->t) {
 	case SPN_TYPE_NIL:	{ return 0;				}
-	case SPN_TYPE_BOOL:	{ return key->v.boolv; /* 0 or 1 */	}
+	case SPN_TYPE_BOOL:	{ return !key->v.boolv; /* 0 or 1 */	}
 	case SPN_TYPE_NUMBER:	{
 		if (key->f & SPN_TFLG_FLOAT) {
 			return key->v.fltv == (long)(key->v.fltv)

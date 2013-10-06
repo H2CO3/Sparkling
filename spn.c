@@ -74,7 +74,7 @@ static int show_help()
 	printf("\t-i, --interact\tEnter interactive (REPL) mode\n");
 	printf("\t--\t\tIndicates end of options to spn; subsequent argments\n");
 	printf("\t\t\twill be passed to the script\n\n");
-	printf("\tPlease send bug reports thorugh GitHub:\n");
+	printf("\tPlease send bug reports through GitHub:\n");
 	printf("\t<http://github.com/H2CO3/Sparkling>\n\n");
 	return 0;
 }
