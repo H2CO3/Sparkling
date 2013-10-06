@@ -1028,7 +1028,9 @@ static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_uword ins;
 	int dst_left, dst_right, nvars;
-	enum spn_vm_ins opcode;
+
+	/* to silence "may be used uninitialized" warning in release build */
+	enum spn_vm_ins opcode = -1;
 	
 	switch (ast->node) {
 	case SPN_NODE_ADD:	opcode = SPN_INS_ADD;	 break;
@@ -1747,8 +1749,10 @@ static int compile_call(SpnCompiler *cmp, SpnAST *ast, int *dst)
 static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_uword ins;
-	enum spn_vm_ins opcode;
 	int idx = -1, nvars;
+
+	/* to silence "may be used uninitialized" warning in release mode */
+	enum spn_vm_ins opcode = -1;
 
 	switch (ast->node) {
 	case SPN_NODE_SIZEOF:	opcode = SPN_INS_SIZEOF; break;
