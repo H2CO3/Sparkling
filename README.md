@@ -112,9 +112,10 @@ What else?
 If you have any questions or suggestions, you have used Sparkling in your
 project or you want to share anything else with me, feel free to drop me an
 e-mail or a tweet (I run by the name [@H2CO3_iOS](http://twitter.com/H2CO3_iOS)
-on Twitter). I appreciate any feedback, including constructive (and polite)
-criticism, improvement suggestions, questions about usage **(only if the
-documentation is unclear!)**, and even donations :P
+on Twitter). You may also find me on [irc.freenode.net](http://irc.freenode.net)
+by the same nick, on the channel `#sparkling`. I appreciate any feedback,
+including constructive (and polite) criticism, improvement suggestions,
+questions about usage (if the documentation is unclear), and even donations :P
 
 If you are using Gedit
 for coding, check out the `sparkling.lang` file -- install it in the appropriate

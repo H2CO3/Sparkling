@@ -126,6 +126,7 @@ static int run_files_or_args(int argc, char *argv[], int is_file)
 		spn_uword *bc;
 		SpnValue *val;
 		char *buf;
+		size_t len;
 		struct bc_list *next;
 
 		if (argv[i] == NULL) {
@@ -158,7 +159,7 @@ static int run_files_or_args(int argc, char *argv[], int is_file)
 			break;
 		}
 
-		bc = spn_compiler_compile(c, ast, NULL);
+		bc = spn_compiler_compile(c, ast, &len);
 		spn_ast_free(ast);
 
 		if (bc == NULL) {
@@ -181,6 +182,7 @@ static int run_files_or_args(int argc, char *argv[], int is_file)
 
 		if (val == NULL) {
 			printf("Assembly dump of errant bytecode:\n\n");
+			spn_disasm(bc, len);
 			status = -1;
 		} else {
 			spn_value_print(val);

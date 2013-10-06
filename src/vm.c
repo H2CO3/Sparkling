@@ -322,22 +322,22 @@ static void runerror(SpnVMachine *vm, spn_uword *ip, const char *fmt, ...)
 	/* because C89 **still** doesn't have snprintf...! */
 	int stublen, n;
 	va_list args;
-	
-	unsigned long addr = ip - current_bytecode(vm);
-	
+
+	unsigned long addr = ip != NULL ? ip - current_bytecode(vm) : 0;
+
 	/* print error to stderr, count characters printed. */
 	stublen = fprintf(stderr, ERRMSG_FORMAT, addr);
 	if (stublen < 0) {
 		abort();
 	}
-	
+
 	va_start(args, fmt);
 	n = vfprintf(stderr, fmt, args);
 	va_end(args);
 	if (n < 0) {
 		abort();
 	}
-	
+
 	fputc('\n', stderr);
 
 	/* naive implementation, I ain't wasting more time writing this */
@@ -345,9 +345,9 @@ static void runerror(SpnVMachine *vm, spn_uword *ip, const char *fmt, ...)
 	if (vm->errmsg == NULL) {
 		abort();
 	}
-	
+
 	sprintf(vm->errmsg, ERRMSG_FORMAT, addr);
-	
+
 	va_start(args, fmt);
 	vsprintf(vm->errmsg + stublen, fmt, args);
 	va_end(args);
@@ -1422,7 +1422,7 @@ static int dispatch_loop(SpnVMachine *vm)
 static int validate_magic(SpnVMachine *vm, spn_uword *bc)
 {
 	if (bc[SPN_HDRIDX_MAGIC] != SPN_MAGIC) {
-		runerror(vm, 0, "bytecode magic number is invalid");
+		runerror(vm, NULL, "bytecode magic number is invalid");
 		return -1;
 	}
 	
