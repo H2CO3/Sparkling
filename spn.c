@@ -10,12 +10,12 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include <spn/spn.h>
-#include <spn/parser.h>
-#include <spn/compiler.h>
-#include <spn/disasm.h>
-#include <spn/vm.h>
-#include <spn/rtlb.h>
+#include "spn.h"
+#include "parser.h"
+#include "compiler.h"
+#include "disasm.h"
+#include "vm.h"
+#include "rtlb.h"
 
 #define N_FLAGS 4
 
@@ -180,6 +180,7 @@ static int run_files_or_args(int argc, char *argv[], int is_file)
 		val = spn_vm_exec(vm, bc);
 
 		if (val == NULL) {
+			printf("Assembly dump of errant bytecode:\n\n");
 			status = -1;
 		} else {
 			spn_value_print(val);
@@ -259,6 +260,7 @@ static int enter_repl()
 		if (val != NULL) {
 			spn_value_print(val);
 		} else {
+			printf("Assembly dump of errant bytecode:\n\n");
 			spn_disasm(bc, len);
 		}
 
