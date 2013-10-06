@@ -36,7 +36,7 @@ $(LIB): $(OBJECTS)
 	ar -cvr $@ $^
 
 spn: spn.o $(LIB)
-	$(LD) $(LDFLAGS) -o $@ $^
+	$(LD) -o $@ $^ $(LDFLAGS)
 
 install: $(LIB)
 	mkdir -p /usr/local/lib/
