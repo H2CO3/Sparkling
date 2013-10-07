@@ -6,7 +6,6 @@ LD = $(CC)
 
 SRCDIR = src
 OBJDIR = bld
-EXDIR = examples
 
 WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-unused-parameter 
 
