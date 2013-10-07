@@ -211,6 +211,9 @@ SpnVMachine *spn_vm_new()
 	
 	vm->retval.t = SPN_TYPE_NIL;
 	vm->retval.f = 0;
+    
+    /* disable function overriding by default */
+    vm->can_override = 0;
 	
 	return vm;
 }
