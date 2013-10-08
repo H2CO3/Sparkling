@@ -4,9 +4,10 @@ BUILD = debug
 CC = gcc
 LD = $(CC)
 
+DESTDIR ?= /usr/local
+
 SRCDIR = src
 OBJDIR = bld
-EXDIR = examples
 
 WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-unused-parameter 
 
@@ -28,27 +29,25 @@ endif
 
 OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))
 
-LIB = bld/libspn.a
+LIB = $(OBJDIR)/libspn.a
+SPN = $(OBJDIR)/spn
 
-all: spn
+all: $(LIB) $(SPN)
 
 $(LIB): $(OBJECTS)
-	ar -cvr $@ $^
+	ar cr $@ $^
 
-spn: spn.o $(LIB)
+$(SPN): $(OBJDIR)/spn_i.o $(LIB)
 	$(LD) -o $@ $^ $(LDFLAGS)
 
 install: $(LIB)
-	mkdir -p /usr/local/lib/
-	cp $(LIB) /usr/local/lib/
-	mkdir -p /usr/local/include/spn/
-	cp src/*.h /usr/local/include/spn/
+	mkdir -p $(DESTDIR)/lib/
+	cp $(LIB) $(DESTDIR)/lib/
+	mkdir -p $(DESTDIR)/include/spn/
+	cp src/*.h $(DESTDIR)/include/spn/
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
-	$(CC) $(CFLAGS) -o $@ $<
-
-%.o: %.c
-	$(CC) $(CFLAGS) -I src -o $@ $<
+	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 clean:
 	rm -f $(OBJECTS) $(LIB) spn spn.o gmon.out
