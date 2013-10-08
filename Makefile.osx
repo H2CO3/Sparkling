@@ -7,6 +7,7 @@ LD = $(CC)
 SYSROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk
 SRCDIR = src
 OBJDIR = bld
+DSTDIR ?= /usr/local
 
 WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter
 
@@ -23,30 +24,33 @@ endif
 
 OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))
 
-LIB = bld/libspn.a
+LIB = $(OBJDIR)/libspn.a
+REPL = $(OBJDIR)/spn
 
-all: spn
+all: $(LIB) $(REPL)
 
 $(LIB): $(OBJECTS)
 	ar -cvr $@ $^
 
-spn: spn.o $(LIB)
-	$(LD) $(LDFLAGS) -o $@ $^
+$(REPL): repl.o $(LIB)
+	$(LD) -o $@ $^ $(LDFLAGS)
 
-install: $(LIB)
-	mkdir -p $(SYSROOT)/usr/local/lib/
-	cp $(LIB) $(SYSROOT)/usr/local/lib/
-	mkdir -p $(SYSROOT)/usr/local/include/spn/
-	cp src/*.h $(SYSROOT)/usr/local/include/spn/
+install: $(LIB) $(REPL)
+	mkdir -p $(DSTDIR)/lib/
+	cp $(LIB) $(DSTDIR)/lib/
+	mkdir -p $(DSTDIR)/include/spn/
+	cp $(SRCDIR)/*.h $(DSTDIR)/include/spn/
+	mkdir -p $(DSTDIR)/bin/
+	cp $(REPL) $(DSTDIR)/bin/
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -o $@ $<
 
 %.o: %.c
-	$(CC) $(CFLAGS) -I src -o $@ $<
+	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 clean:
-	rm -f $(OBJECTS) $(EXOBJS) $(LIB) spn spn.o gmon.out .DS_Store src/.DS_Store bld/.DS_Store doc/.DS_Store examples/.DS_Store
+	rm -f $(OBJECTS) $(LIB) $(REPL) repl.o gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
 
 .PHONY: all install clean
 

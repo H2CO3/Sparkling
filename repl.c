@@ -1,5 +1,5 @@
 /* 
- * spn.c
+ * repl.c
  * The Sparkling interpreter
  * Created by Árpád Goretity on 05/10/2013.
  * 

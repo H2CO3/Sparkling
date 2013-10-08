@@ -4,12 +4,11 @@ BUILD = debug
 CC = gcc
 LD = $(CC)
 
-DESTDIR ?= /usr/local
-
 SRCDIR = src
 OBJDIR = bld
+DSTDIR ?= /usr/local
 
-WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-unused-parameter 
+WARNINGS = -Wall -Wextra -Werror -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-unused-parameter
 
 CFLAGS = -c -std=c89 -pedantic -pedantic-errors -fstrict-aliasing $(WARNINGS)
 LDFLAGS = -w -lm
@@ -30,27 +29,32 @@ endif
 OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))
 
 LIB = $(OBJDIR)/libspn.a
-SPN = $(OBJDIR)/spn
+REPL = $(OBJDIR)/spn
 
-all: $(LIB) $(SPN)
+all: $(LIB) $(REPL)
 
 $(LIB): $(OBJECTS)
-	ar cr $@ $^
+	ar -cvr $@ $^
 
-$(SPN): $(OBJDIR)/spn_i.o $(LIB)
+$(REPL): repl.o $(LIB)
 	$(LD) -o $@ $^ $(LDFLAGS)
 
-install: $(LIB)
-	mkdir -p $(DESTDIR)/lib/
-	cp $(LIB) $(DESTDIR)/lib/
-	mkdir -p $(DESTDIR)/include/spn/
-	cp src/*.h $(DESTDIR)/include/spn/
+install: $(LIB) $(REPL)
+	mkdir -p $(DSTDIR)/lib/
+	cp $(LIB) $(DSTDIR)/lib/
+	mkdir -p $(DSTDIR)/include/spn/
+	cp $(SRCDIR)/*.h $(DSTDIR)/include/spn/
+	mkdir -p $(DSTDIR)/bin/
+	cp $(REPL) $(DSTDIR)/bin/
 
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+%.o: %.c
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 clean:
-	rm -f $(OBJECTS) $(LIB) spn spn.o gmon.out
+	rm -f $(OBJECTS) $(LIB) $(REPL) repl.o gmon.out
 
 .PHONY: all install clean
 
