@@ -2020,15 +2020,22 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	if (argc != 1) {
+	/* assume successful termination if no exit code is given */
+	int code = 0;
+
+	if (argc > 1) {
 		return -1;
 	}
-	
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
-		return -2;
+
+	if (argc > 0) {
+		if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
+			return -2;
+		}
+
+		code = argv[0].v.intv;
 	}
-	
-	exit(argv[0].v.intv);
+
+	exit(code);
 }
 
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {

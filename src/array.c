@@ -250,13 +250,13 @@ SpnIterator *spn_iter_new(SpnArray *arr)
 	if (it == NULL) {
 		abort();
 	}
-	
+
 	it->arr = arr;
 	it->idx = 0;
 	it->cursor = 0;
 	it->list = NULL;
 	it->inarray = 1;
-	
+
 	return it;
 }
 
