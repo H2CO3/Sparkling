@@ -18,6 +18,7 @@
 
 #include "rtlb.h"
 #include "str.h"
+#include "array.h"
 
 #ifndef LINE_MAX
 #define LINE_MAX 0x1000
@@ -1039,7 +1040,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_getiter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_iter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnArray *arr;
 	SpnIterator *it;
@@ -1129,7 +1130,7 @@ const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "insertarr",	NULL		},
 	{ "delrange",	NULL		},
 	{ "clear",	NULL		},
-	{ "getiter",	rtlb_getiter	},
+	{ "iter",	rtlb_iter	},
 	{ "next",	rtlb_next	}
 };
 

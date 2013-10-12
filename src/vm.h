@@ -15,7 +15,6 @@
 #include <string.h>
 
 #include "spn.h"
-#include "array.h"
 
 /* an extension function written in C. It receives a pointer to the return
  * value, the number of call arguments, a pointer to an array of the arguments.
@@ -77,7 +76,7 @@ SPN_API const char	*spn_vm_errmsg(SpnVMachine *vm);
  */
 
 /* the name used in the bytecode to indicate a lambda function */
-#define SPN_LAMBDA_NAME "@lambda@"
+#define SPN_LAMBDA_NAME		"@lambda@"
 
 /* Bytecode magic number */
 #define SPN_MAGIC		0x4e50537f	/* "\x7fSPN" */

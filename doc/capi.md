@@ -104,6 +104,60 @@ Sets the context info of `vm` to the user-supplied `ctx`.
 
 If a runtime error occurred, returns the last error message.
 
+Using the convenience context API
+---------------------------------
+The Sparkling API also provides an even easier interface, called the context
+API. A context object encapsulates a parser, a compiler, a virtual machine,
+and each bytecode file that has been loaded into that context.
+
+    SpnContext *spn_ctx_new();
+    void spn_ctx_free(SpnContext *ctx);
+
+These functions create and destroy a context object. `spn_ctx_new()` sets
+itself as the context info of the contained virtual machine. If you need to use
+the user info from within an extension function, use the `info` field of the
+context structure.
+
+    spn_uword *spn_ctx_loadstring(SpnContext *ctx, const char *str);
+    spn_uword *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname);
+
+These functions attempt to parse and compile a source string. If an error is
+encountered during either phase, they set the `errmsg` field of the context
+object to the last error message and they return `NULL`. Else they return the
+compiled bytecode. The return value is a non-owning pointer -- it should not be
+`free()`d explicitly, since the context deletes them when you free it.
+
+The bytecode objects are accumulated in the `bclist` member of the context,
+which is a link list. The head of the list contains the most recently created
+bytecode array as well as its length.
+
+    spn_uword *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname);
+
+Reads a compiled object file and returns a non-owning pointer to its contents.
+Prepends the bytecode to the beginning of the `bclist` link list, as described
+above. On error, it returns `NULL` and it sets the `errmsg` member of the
+context.
+
+    SpnValue *spn_ctx_execstring(SpnContext *ctx, const char *str);
+    SpnValue *spn_ctx_execsrcfile(SpnContext *ctx, const char *fname);
+    SPN_API SpnValue *spn_ctx_execobjfile(SpnContext *ctx, const char *fname);
+
+These wrapper functions call the corresponding `spn_ctx_load*` function, but
+they also attempt to execute the resulting compiled bytecode. If a run-time
+error is encountered, they return `NULL` and set the `errmsg` member to the
+error message reported by the virtual machine. Else they return the result
+of the successfully executed program.
+
+    SpnValue *spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc);
+
+Unlike the previously enumerated functions, this function **does not add the
+bytecode to the bytecode list of the context.** Thus, generally, it should only
+be used on bytecode returned by one of the `spn_ctx_load*` or `spn_ctx_exec*`
+functions. (If you use it on any other bytecode object, then make sure to
+preserve it while necessary. But you really do not want to do that.)
+Runs the specified program and returns its result, or `NULL` on error, in which
+case, it sets the `errmsg` context member.
+
 Writing native extension functions
 ----------------------------------
 Native extension functions must have the following signature:

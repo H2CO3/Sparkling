@@ -18,7 +18,7 @@ arr["quirk"] = 3.14159265358979323846;
 
 
 var pair = array();
-var it = getiter(arr);
+var it = iter(arr);
 
 /* use an iterator to loop through the array */
 while next(it, pair) {

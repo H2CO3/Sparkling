@@ -15,6 +15,7 @@
 
 #include "vm.h"
 #include "str.h"
+#include "array.h"
 #include "private.h"
 
 /* stack management macros 

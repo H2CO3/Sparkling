@@ -92,7 +92,7 @@ modern scripting language, running a program involves three simple steps:
 
 The Sparkling C API provides functions for these tasks. For usage information,
 see `examples/basic.c`. You may also want to have a look at implementation
-of the stand-alone interpreter, located in `spn.c`.
+of the stand-alone interpreter, located in `repl.c`.
 
 How do I hack on it?
 ====================
@@ -128,10 +128,10 @@ my code as much as possible, there may still be bugs - let me know if you find
 one and I'll fix it as soon as possible. The syntax and semantics of the
 language are subject to change, too (at least until it leaves alpha), so in
 the early days, code that ran yesterday can break today. But this is done only
-to let the community decide what kind of features, syntactic and semantic
-rules would be the best, and when I gatehered enough suggestions, I'll freeze
-the language specification. (This is also good for me since now I can
-procrastinate writing the full specs until the beta release...)
+in order to let the community decide what kind of features, syntactic and
+semantic rules would be the best, and when I will have gathered enough
+suggestions, I'll freeze the language specification. (This is also good for me
+since now I can procrastinate writing the full specs until the beta release...)
 
 In the meantime, please experiment with the library, write extensions, **try
 to break the code** (I appreciate bug reports), play around with the engine in

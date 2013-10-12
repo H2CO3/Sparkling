@@ -11,13 +11,14 @@
 #include <stdlib.h>
 
 #include "spn.h"
-#include "parser.h"
-#include "compiler.h"
+#include "ctx.h"
 #include "disasm.h"
-#include "vm.h"
-#include "rtlb.h"
 
 #define N_FLAGS 4
+
+#ifndef LINE_MAX
+#define LINE_MAX 0x1000
+#endif
 
 enum cmd_args {
 	CMD_HELP	= 1 << 0,
@@ -65,31 +66,34 @@ static enum cmd_args process_args(int argc, char *argv[])
 
 static int show_help()
 {
-	printf("Sparkling, a C-style scripting language\n\n");
 	printf("Usage: spn <flag> [files...]\n");
 	printf("Where <flag> is one of:\n\n");
 	printf("\t-h, --help\tShow this help then exit\n");
 	printf("\t-r, --run\tRun the specified script files\n");
 	printf("\t-e, --execute\tExecute command-line arguments\n");
 	printf("\t-i, --interact\tEnter interactive (REPL) mode\n");
-	printf("\t--\t\tIndicates end of options to spn; subsequent argments\n");
-	printf("\t\t\twill be passed to the script\n\n");
+	printf("\t--\t\tIndicates end of options to the interpreter;\n");
+	printf("\t\t\tsubsequent argments will be passed to the scripts\n\n");
 	printf("\tPlease send bug reports through GitHub:\n");
 	printf("\t<http://github.com/H2CO3/Sparkling>\n\n");
-	return 0;
+
+	return EXIT_SUCCESS;
 }
 
-/* link list holding all the bytecode files
- * this is necessary because we don't free bytecode arrays after
- * having run them -- let the user run all the lines in the same
- * session. But we definitely do want to free them at the end
- * in order them not to leak memory.
+/* this is used to check the extension of a file in order to
+ * decide if it's a text (source) or a binary (object) file
  */
-struct bc_list {
-	spn_uword *bc;
-	struct bc_list *next;
-};
+static int endswith(const char *haystack, const char *needle)
+{
+	size_t hsl = strlen(haystack);
+	size_t ndl = strlen(needle);
 
+	if (hsl < ndl) {
+		return 0;
+	}
+
+	return strstr(haystack + hsl - ndl, needle) != NULL;
+}
 
 /* the `is_file' Boolean switch specifies if we are executing files whose
  * names are in `argv' (nonzero), or we evaluate the arguments themselves
@@ -97,14 +101,10 @@ struct bc_list {
  */
 static int run_files_or_args(int argc, char *argv[], int is_file)
 {
-	SpnParser *p = spn_parser_new();
-	SpnCompiler *c = spn_compiler_new();
-	SpnVMachine *vm = spn_vm_new();
+	SpnContext *ctx = spn_ctx_new();
+	int status = EXIT_SUCCESS;
 
-	int status = 0;
-
-	struct bc_list *head = NULL;
-
+	/* find the first argument to be passed to the script */
 	int i;
 	for (i = 1; i < argc; i++) {
 		if (argv[i] == NULL) {
@@ -117,17 +117,12 @@ static int run_files_or_args(int argc, char *argv[], int is_file)
 		}
 	}
 
-	/* register command-line arguments and standard library functions */
+	/* register command-line arguments */
 	spn_register_args(argc - i, &argv[i]);
-	spn_load_stdlib(vm);
 
 	for (i = 1; i < argc; i++) {
-		SpnAST *ast;
-		spn_uword *bc;
 		SpnValue *val;
-		char *buf;
-		size_t len;
-		struct bc_list *next;
+		struct spn_bc_list *prev = ctx->bclist;
 
 		if (argv[i] == NULL) {
 			continue;
@@ -138,94 +133,53 @@ static int run_files_or_args(int argc, char *argv[], int is_file)
 		}
 
 		if (is_file) {
-			buf = spn_read_text_file(argv[i]);
-			if (buf == NULL) {
-				fprintf(stderr, "Sparkling: could not open file `%s'\n", argv[i]);
-				status = -1;
+			/* check if file is a binary object or source text */
+			if (endswith(argv[i], ".spn")) {
+				val = spn_ctx_execsrcfile(ctx, argv[i]);
+			} else if (endswith(argv[i], ".spo")) {
+				val = spn_ctx_execobjfile(ctx, argv[i]);
+			} else {
+				fprintf(stderr, "Sparkling: generic error: unrecognized file extension\n");
+				status = EXIT_FAILURE;
 				break;
 			}
 		} else {
-			buf = argv[i];
+			val = spn_ctx_execstring(ctx, argv[i]);
 		}
 
-		ast = spn_parser_parse(p, buf);
-
-		if (is_file) {
-			free(buf);
-		}
-
-		if (ast == NULL) {
-			status = -1;
-			break;
-		}
-
-		bc = spn_compiler_compile(c, ast, &len);
-		spn_ast_free(ast);
-
-		if (bc == NULL) {
-			status = -1;
-			break;
-		}
-
-		next = malloc(sizeof(*next));
-		if (next == NULL) {
-			fprintf(stderr, "Sparkling: could not allocate memory\n\n");
-			status = -1;
-			break;
-		}
-
-		next->bc = bc;
-		next->next = head;
-		head = next;
-
-		val = spn_vm_exec(vm, bc);
-
-		if (val == NULL) {
-			printf("Assembly dump of errant bytecode:\n\n");
-			spn_disasm(bc, len);
-			status = -1;
-		} else {
+		if (val != NULL) {
 			spn_value_print(val);
 			printf("\n");
+		} else {
+			/* the bytecode list changes if and only if a new
+			 * file or statement is run (but not if a parser error
+			 * or a compiler error occurred). This also protects us
+			 * from dereferencing `bclist' if it is (still) NULL.
+			 */
+			if (ctx->bclist != prev) {
+				printf("Assembly dump of errant bytecode:\n\n");
+				spn_disasm(ctx->bclist->bc, ctx->bclist->len);
+			}
+
+			status = EXIT_FAILURE;
+			break;
 		}
 	}
 
-	spn_parser_free(p);
-	spn_compiler_free(c);
-	spn_vm_free(vm);
-
-	/* free bytecode link list */
-	while (head != NULL) {
-		struct bc_list *tmp = head->next;
-		free(head->bc);
-		free(head);
-		head = tmp;
-	}
-
+	spn_ctx_free(ctx);
 	return status;
 }
 
 static int enter_repl()
 {
-	static char buf[0x1000];
-
-	struct bc_list *head = NULL;
-		
-
-	SpnParser *p = spn_parser_new();
-	SpnCompiler *c = spn_compiler_new();
-	SpnVMachine *vm = spn_vm_new();
-
-	spn_load_stdlib(vm);
+	static char buf[LINE_MAX];
+	SpnContext *ctx = spn_ctx_new();
 
 	printf("Entering interactive mode.\n\n");
 
 	while (1) {
-		SpnAST *ast;
-		spn_uword *bc;
-		size_t len;
 		SpnValue *val;
-		struct bc_list *next;
+		struct spn_bc_list *prev = ctx->bclist;
 
 		printf("> ");
 		if (fgets(buf, sizeof buf, stdin) == NULL) {
@@ -233,55 +187,21 @@ static int enter_repl()
 			break;
 		}
 
-		ast = spn_parser_parse(p, buf);
-		if (ast == NULL) {
-			continue;
-		}
-
-		bc = spn_compiler_compile(c, ast, &len);
-
-		spn_ast_free(ast);
-
-		if (bc == NULL) {
-			continue;
-		}
-
-		/* add the bytecode to the "free list" */
-		next = malloc(sizeof(*next));
-		if (next == NULL) {
-			printf("Could not allocate memory\n");
-			break;
-		}
-		
-		next->bc = bc;
-		next->next = head;
-		head = next;
-
-		val = spn_vm_exec(vm, bc);
-
+		val = spn_ctx_execstring(ctx, buf);
 		if (val != NULL) {
 			spn_value_print(val);
 		} else {
-			printf("Assembly dump of errant bytecode:\n\n");
-			spn_disasm(bc, len);
+			if (ctx->bclist != prev) {
+				printf("Assembly dump of errant bytecode:\n\n");
+				spn_disasm(ctx->bclist->bc, ctx->bclist->len);
+			}
 		}
 
 		printf("\n");
 	}
-	
-	spn_parser_free(p);
-	spn_compiler_free(c);
-	spn_vm_free(vm);
-	
-	/* free the bytecode link list */
-	while (head != NULL) {
-		struct bc_list *tmp = head->next;
-		free(head->bc);
-		free(head);
-		head = tmp;
-	}
 
-	return 0;
+	spn_ctx_free(ctx);
+	return EXIT_SUCCESS;
 }
 
 int main(int argc, char *argv[])
@@ -297,8 +217,11 @@ int main(int argc, char *argv[])
 
 	if (flags_on != 1) {
 		fprintf(stderr, "Please specify exactly one of `hrei'\n\n");
-		exit(-1);
+		exit(EXIT_FAILURE);
 	}
+
+	printf("Sparkling, a C-style scripting language\n");
+	printf("Copyright (c) 2013, Árpád Goretity\n\n");
 
 	switch (flags) {
 	case CMD_HELP:
@@ -314,8 +237,8 @@ int main(int argc, char *argv[])
 		status = enter_repl();
 		break;
 	default:
-		fprintf(stderr, "Sparkling: internal inconsistency\n\n");
-		status = -1;
+		fprintf(stderr, "Sparkling: generic error: internal inconsistency\n\n");
+		status = EXIT_FAILURE;
 	}
 	
 	return status;
