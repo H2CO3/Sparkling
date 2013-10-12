@@ -167,7 +167,8 @@ VM:
 	- ...and test the VM with various compilers, at various optimization levels,		***Urgent***
 		with and without strict aliasing and vectorization turned on/off,
 		because **the VM stack needs to be steady and safe!**
-
+	- make the context API manage command-line arguments
+		(in order to get rid of those ugly global variables)
 
 ***: these call for some less hackish implementation of linkage (firstly, there
 should be linkage at all...)

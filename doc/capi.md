@@ -124,8 +124,8 @@ context structure.
 These functions attempt to parse and compile a source string. If an error is
 encountered during either phase, they set the `errmsg` field of the context
 object to the last error message and they return `NULL`. Else they return the
-compiled bytecode. The return value is a non-owning pointer -- it should not be
-`free()`d explicitly, since the context deletes them when you free it.
+compiled bytecode. The return value is a non-owning pointer -- it should not
+be `free()`d explicitly, it is deleted when you free the context object.
 
 The bytecode objects are accumulated in the `bclist` member of the context,
 which is a link list. The head of the list contains the most recently created

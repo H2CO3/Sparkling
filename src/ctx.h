@@ -2,7 +2,7 @@
  * ctx.h
  * Sparkling, a lightweight C-style scripting language
  *
- * Created by Árpád Goretity on 02/05/2013
+ * Created by Árpád Goretity on 12/10/2013
  * Licensed under the 2-clause BSD License
  *
  * A convenience context API

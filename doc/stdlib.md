@@ -223,7 +223,7 @@ All elements in the array must be strings, the array must have integer indices
 only, ranging from `0` to `sizeof arr`. The return value is the concatenation
 of the elements interleaved by `sep`.
 
-    userdata getiter(array arr)
+    userdata iter(array arr)
 
 returns an iterator object that "points to" the first key-value pair in the
 array. You can access and increment the iterator using the `next()` function.
