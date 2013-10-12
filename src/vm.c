@@ -120,6 +120,8 @@ struct SpnVMachine {
 	void		*ctx;		/* user data			*/
 
 	SpnValue	 retval;	/* program return value	*/
+    
+    int         can_override;	/* whether overriding are enabled or not; defaults to 0 (disabled)   */
 };
 
 static int dispatch_loop(SpnVMachine *vm);
@@ -209,6 +211,9 @@ SpnVMachine *spn_vm_new()
 	
 	vm->retval.t = SPN_TYPE_NIL;
 	vm->retval.f = 0;
+    
+    /* disable function overriding by default */
+    vm->can_override = 0;
 	
 	return vm;
 }
@@ -311,7 +316,16 @@ void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
 		val.v.fnv.name = fns[i].name;
 		val.v.fnv.r.fn = fns[i].fn;
 
-		spn_array_set(vm->glbsymtab, &key, &val);
+        if (!vm->can_override && spn_array_get(vm->glbsymtab, &key)->t != SPN_TYPE_NIL) {
+            
+            runerror(vm,
+                     0,
+                     "Trying to override function '%s' while overriding is not allowed",
+                     fns[i].name);
+        } else {
+            spn_array_set(vm->glbsymtab, &key, &val);
+        }
+
 		spn_object_release(key.v.ptrv);
 	}
 }
@@ -357,6 +371,11 @@ static void runerror(SpnVMachine *vm, spn_uword *ip, const char *fmt, ...)
 const char *spn_vm_errmsg(SpnVMachine *vm)
 {
 	return vm->errmsg;
+}
+
+void spn_vm_set_overriding(SpnVMachine *vm, int enabled)
+{
+    vm->can_override = enabled;
 }
 
 void *spn_vm_getcontext(SpnVMachine *vm)

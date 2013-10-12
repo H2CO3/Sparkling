@@ -59,6 +59,9 @@ SPN_API void		 spn_vm_setcontext(SpnVMachine *vm, void *ctx);
 /* retrieves the last runtime error message */
 SPN_API const char	*spn_vm_errmsg(SpnVMachine *vm);
 
+/* toggle function overriding */
+SPN_API void        spn_vm_set_overriding(SpnVMachine *vm, int enabled);
+
 /* layout of a Sparkling bytecode file:
  * 
  * +------------------------------------+

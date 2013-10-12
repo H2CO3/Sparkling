@@ -4,7 +4,9 @@ BUILD = debug
 CC = clang
 LD = $(CC)
 
-SYSROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk
+PLATFORMPATH = $(shell xcrun --show-sdk-platform-path)
+SDKVERSION = 10.8
+SYSROOT = $(PLATFORMPATH)/Developer/SDKs/MacOSX$(SDKVERSION).sdk
 SRCDIR = src
 OBJDIR = bld
 DSTDIR ?= /usr/local
