@@ -240,7 +240,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Sparkling: generic error: internal inconsistency\n\n");
 		status = EXIT_FAILURE;
 	}
-	
+
 	return status;
 }
 

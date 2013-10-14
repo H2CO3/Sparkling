@@ -31,7 +31,7 @@ void spn_value_retain(SpnValue *val)
 		assert(val->t == SPN_TYPE_STRING
 		    || val->t == SPN_TYPE_ARRAY
 		    || val->t == SPN_TYPE_USRDAT);
-		
+
 		spn_object_retain(val->v.ptrv);
 	}
 }
@@ -72,12 +72,12 @@ static int numeric_equal(const SpnValue *lhs, const SpnValue *rhs)
 static int function_equal(const SpnValue *lhs, const SpnValue *rhs)
 {
 	assert(lhs->t == SPN_TYPE_FUNC && rhs->t == SPN_TYPE_FUNC);
-	
+
 	/* a native function cannot be the same as a script function */
 	if ((lhs->f & SPN_TFLG_NATIVE) != (rhs->f & SPN_TFLG_NATIVE)) {
 		return 0;
 	}
-	
+
 	/* if both are native, then they must point to the same function */
 	if (lhs->f & SPN_TFLG_NATIVE) {
 		return lhs->v.fnv.r.fn == rhs->v.fnv.r.fn;
@@ -92,7 +92,7 @@ static int function_equal(const SpnValue *lhs, const SpnValue *rhs)
 		/* an unnamed stub is nonsense (it's impossible to resolve) */
 		assert((lhs->f & SPN_TFLG_PENDING) == 0);
 		assert((rhs->f & SPN_TFLG_PENDING) == 0);
-		
+
 		return lhs->v.fnv.r.bc == rhs->v.fnv.r.bc;
 	} else {
 		/* if one of them has a name but the other one hasn't, then
@@ -110,7 +110,7 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 	if (lhs->t != rhs->t) {
 		return 0;
 	}
-	
+
 	switch (lhs->t) {
 	case SPN_TYPE_NIL:	{ return 1; /* nil can only be nil */		}
 	case SPN_TYPE_BOOL:	{ return !lhs->v.boolv == !rhs->v.boolv;	}
@@ -124,7 +124,7 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 		if ((lhs->f & SPN_TFLG_OBJECT) != (rhs->f & SPN_TFLG_OBJECT)) {
 			return 0;
 		}
-		
+
 		return lhs->f & SPN_TFLG_OBJECT
 		     ? spn_object_equal(lhs->v.ptrv, rhs->v.ptrv)
 		     : lhs->v.ptrv == rhs->v.ptrv;
@@ -156,18 +156,18 @@ void spn_value_print(const SpnValue *val)
 		} else {
 			printf("%ld", val->v.intv);
 		}
-		
+
 		break;
 	case SPN_TYPE_FUNC: {
 		const char *name = val->v.fnv.name ? val->v.fnv.name : SPN_LAMBDA_NAME;
-		
+
 		if (val->f & SPN_TFLG_NATIVE) {
 			printf("<native function %s()>", name);
 		} else {
 			const void *ptr = val->v.fnv.r.bc;
 			printf("<script function %s() %p>", name, ptr);
 		}
-		
+
 		break;
 	}
 	case SPN_TYPE_STRING: {
@@ -196,51 +196,51 @@ static char *read_file2mem(const char *name, size_t *sz, int nulterm)
 	size_t len;
 	char *buf;
 	FILE *f;
-	
-	f = fopen(name, "r");
+
+	f = fopen(name, "rb");
 	if (f == NULL) {
 		return NULL;
 	}
-	
+
 	if (fseek(f, 0, SEEK_END) < 0) {
 		fclose(f);
 		return NULL;
 	}
-	
+
 	n = ftell(f);
 	if (n < 0) {
 		fclose(f);
 		return NULL;
 	}
-	
+
 	if (fseek(f, 0, SEEK_SET) < 0) {
 		fclose(f);
 		return NULL;
 	}
-	
+
 	len = nulterm ? n + 1 : n;
 	buf = malloc(len);
 	if (buf == NULL) {
 		fclose(f);
 		return NULL;
 	}
-	
+
 	if (fread(buf, n, 1, f) < 1) {
 		fclose(f);
 		free(buf);
 		return NULL;
 	}
-	
+
 	fclose(f);
-	
+
 	if (nulterm) {
 		buf[n] = 0;
 	}
-	
+
 	if (sz != NULL) {
 		*sz = n;
 	}
-	
+
 	return buf;
 }
 

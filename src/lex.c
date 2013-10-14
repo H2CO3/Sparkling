@@ -36,7 +36,7 @@ static int is_special(char c)
 	static char flags[1 << CHAR_BIT] = { 0 };
 	static int init = 0;
 	int idx = c; /* suppress 'index is a char' warning */
-	
+
 	if (!init) {
 		flags['+'] = 1;
 		flags['-'] = 1;
@@ -120,11 +120,11 @@ static char *spn_strndup(const char *s, size_t n)
 	if (r == NULL) {
 		abort();
 	}
-	
+
 	while (*t && t < s + n) {
 		*p++ = *t++;
 	}
-	
+
 	*p = 0;
 	return r;
 }
@@ -145,7 +145,7 @@ static int unescape_char(SpnParser *p)
 	case 'r':  p->pos++; return '\r';
 	case 't':  p->pos++; return '\t';
 	case '0':  p->pos++; return '\0';
-	
+
 	case 'x':
 		p->pos++;
 		if (isxdigit(p->pos[0]) && isxdigit(p->pos[1])) {
@@ -172,16 +172,16 @@ static void skip_space(SpnParser *p)
 			if (p->pos[1] == '\r') {
 				p->pos++;
 			}
-			
+
 			p->lineno++;
 		} else if (p->pos[0] == '\r') {
 			if (p->pos[1] == '\n') {
 				p->pos++;
 			}
-			
+
 			p->lineno++;
 		}
-		
+
 		p->pos++;
 	}
 }
@@ -191,31 +191,31 @@ static int skip_comment(SpnParser *p)
 	while (p->pos[0] == '/' && p->pos[1] == '*') {
 		/* skip comment beginning marker */
 		p->pos += 2;
-		
+
 		if (p->pos[0] == 0) {
 			/* error: unterminated comment */
 			spn_parser_error(p, "unterminated comment");
 			return 0;
 		}
-		
+
 		while (p->pos[0] != '*' || p->pos[1] != '/') {
 			if (p->pos[1] == 0) {
 				/* error: unterminated comment */
 				spn_parser_error(p, "unterminated comment");
 				return 0;
 			}
-			
+
 			if (isspace(p->pos[0])) {
 				skip_space(p);
 			} else {
 				p->pos++;
 			}
 		}
-		
+
 		/* skip comment end marker */
 		p->pos += 2;
 	}
-	
+
 	return 1;
 }
 
@@ -223,12 +223,12 @@ static int skip_space_and_comment(SpnParser *p)
 {
 	while (isspace(p->pos[0]) || (p->pos[0] == '/' && p->pos[1] == '*')) {
 		skip_space(p);
-		
+
 		if (!skip_comment(p)) {
 			return 0;
 		}
 	}
-	
+
 	return 1;
 }
 
@@ -237,7 +237,7 @@ static int skip_space_and_comment(SpnParser *p)
 static int lex_op(SpnParser *p)
 {
 	size_t i;
-	
+
 	/* The order of entries in this array matters because linear search is
 	 * performed on it, and if '+' gets caught before '++', we're in trouble
 	 */
@@ -291,7 +291,7 @@ static int lex_op(SpnParser *p)
 		RESERVED_ENTRY("{",	SPN_TOK_LBRACE),
 		RESERVED_ENTRY("}",	SPN_TOK_RBRACE)	
 	};
-	
+
 	for (i = 0; i < COUNT(ops); i++) {
 		if (strncmp(p->pos, ops[i].word, ops[i].len) == 0) {
 			p->curtok.tok = ops[i].tok;
@@ -312,41 +312,42 @@ static int lex_number(SpnParser *p)
 		if (end[0] == 'x' || end[0] == 'X') { /* hexadecimal */
 			char *tmp;
 			long i;
-			
+
 			end++;
-			
+
 			while (isxdigit(end[0])) {
 				end++;
 			}
-			
+
 			i = strtol(p->pos, &tmp, 0);
 			if (tmp != end) {					
 				/* error */
 				spn_parser_error(p, "cannot parse hexadecimal integer literal");
 				return 0;
 			}
-			
+
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_INT;
 			p->curtok.val.t = SPN_TYPE_NUMBER;
 			p->curtok.val.f = 0;
 			p->curtok.val.v.intv = i;
+
 			return 1;
 		} else { /* octal */
 			char *tmp;
 			long i;
-			
+
 			while (is_octal(end[0])) {
 				end++;
 			}
-			
+
 			i = strtol(p->pos, &tmp, 0);
 			if (tmp != end) {
 				/* error */
 				spn_parser_error(p, "cannot parse octal integer literal");
 				return 0;
 			}
-			
+
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_INT;
 			p->curtok.val.t = SPN_TYPE_NUMBER;
@@ -356,12 +357,12 @@ static int lex_number(SpnParser *p)
 		}
 	} else { /* decimal */
 		int isfloat = 0, hadexp = 0;
-	
+
 		/* walk past initial digits of radix */
 		while (isdigit(end[0])) {
 			end++;
 		}
-		
+
 		/* skip decimal point if present */
 		if (end[0] == '.') {
 			isfloat = 1;
@@ -371,16 +372,16 @@ static int lex_number(SpnParser *p)
 			isfloat = 1;
 			hadexp = 1;
 		}
-		
+
 		if (isfloat) {
 			char *tmp;
 			double d;
-			
+
 			/* walk past fractional or exponent part, if any */
 			while (isdigit(end[0])) {
 				end++;
 			}
-			
+
 			if (!hadexp) {
 				/* walk past exponent part, if any */
 				if (end[0] == 'e' || end[0] == 'E') {
@@ -388,47 +389,49 @@ static int lex_number(SpnParser *p)
 					if (end[0] == '+' || end[0] == '-') {
 						end++;
 					}
-					
+
 					if (!isdigit(end[0])) {
 						/* error: missing exponent part */
 						spn_parser_error(p, "exponent in decimal floating-point literal is missing");
 						return 0;
 					}
-				
+
 					while (isdigit(end[0])) {
 						end++;
 					}
 				}
 			}
-			
+
 			d = strtod(p->pos, &tmp);
-			
+
 			if (tmp != end) {
 				/* error */
 				spn_parser_error(p, "cannot parse decimal floating-point literal");
 				return 0;
 			}
-			
+
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_FLOAT;
 			p->curtok.val.t = SPN_TYPE_NUMBER;
 			p->curtok.val.f = SPN_TFLG_FLOAT;
 			p->curtok.val.v.fltv = d;
+
 			return 1;
 		} else {
 			char *tmp;
 			long i = strtol(p->pos, &tmp, 0);
-			
+
 			if (tmp != end) {
 				spn_parser_error(p, "cannot parse decimal integer literal");
 				return 0;
 			}
-			
+
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_INT;
 			p->curtok.val.t = SPN_TYPE_NUMBER;
 			p->curtok.val.f = 0;
 			p->curtok.val.v.intv = i;
+
 			return 1;
 		}
 	}
@@ -475,9 +478,9 @@ static int lex_ident(SpnParser *p)
 	while (is_ident(*end)) {
 		end++;
 	}
-	
+
 	diff = end - p->pos;
-	
+
 	/* check if the word is one of the reserved keywords */
 	
 	for (i = 0; i < COUNT(kwds); i++) {
@@ -488,19 +491,19 @@ static int lex_ident(SpnParser *p)
 		 	return 1; /* if so, mark it as such */
 		 }
 	}
-	
+
 	/* if not, it's a proper identifier */
 	p->curtok.tok = SPN_TOK_IDENT;
-	
+
 	buf = spn_strndup(p->pos, diff);
 	str = spn_string_new_nocopy_len(buf, diff, 1);
-	
+
 	p->curtok.val.t = SPN_TYPE_STRING;
 	p->curtok.val.f = SPN_TFLG_OBJECT;
 	p->curtok.val.v.ptrv = str;
-	
+
 	p->pos = end;
-	
+
 	return 1;
 }
 
@@ -517,14 +520,14 @@ static int lex_char(SpnParser *p)
 		spn_parser_error(p, "empty character literal");
 		return 0;
 	}
-	
+
 	while (p->pos[0] != '\'') {
 		if (p->pos[0] == 0) {
 			/* premature end of char literal */
 			spn_parser_error(p, "end of input before closing apostrophe in character literal");
 			return 0;
 		}
-		
+
 		/* TODO: should this always be 8 instead? */
 		i <<= CHAR_BIT;
 		if (p->pos[0] == '\\') {
@@ -537,19 +540,19 @@ static int lex_char(SpnParser *p)
 		} else {
 			i += *p->pos++;
 		}
-		
+
 		n++;
 	}
-	
+
 	/* skip trailing character literal delimiter apostrophe */
 	p->pos++;
-	
+
 	if (n > 8) {
 		/* character literal is too long */
 		spn_parser_error(p, "character literal longer than 8 bytes");
 		return 0;
 	}
-	
+
 	/* XXX: this: http://goo.gl/WouG5Q says that the assignment operator
 	 * cannot overflow, so long = unsigned long should be defined. Is this right?
 	 */
@@ -557,6 +560,7 @@ static int lex_char(SpnParser *p)
 	p->curtok.val.t = SPN_TYPE_NUMBER;
 	p->curtok.val.f = 0;
 	p->curtok.val.v.intv = i;
+
 	return 1;
 }
 
@@ -569,10 +573,10 @@ static int lex_string(SpnParser *p)
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	/* skip string beginning marker double quotation mark */
 	p->pos++;
-	
+
 	while (p->pos[0] != '"') {
 		if (p->pos[0] == 0) {
 			/* premature end of string literal */
@@ -580,7 +584,7 @@ static int lex_string(SpnParser *p)
 			spn_parser_error(p, "end of input before closing \" in string literal");
 			return 0;
 		}
-		
+
 		if (p->pos[0] == '\\') {
 			int c = unescape_char(p);
 			if (c < 0) {
@@ -588,12 +592,12 @@ static int lex_string(SpnParser *p)
 				free(buf);
 				return 0;
 			}
-			
+
 			buf[n++] = c;
 		} else {
 			buf[n++] = *p->pos++;
 		}
-		
+
 		/* expand the buffer if necessary */
 		if (n >= sz) {
 			sz <<= 1;
@@ -602,19 +606,18 @@ static int lex_string(SpnParser *p)
 				abort();
 			}
 		}
-		
-		
 	}
-	
+
 	buf[n] = 0;
-	
+
 	/* skip string ending marker double quotation mark */
 	p->pos++;
-	
+
 	p->curtok.tok = SPN_TOK_STR;
 	p->curtok.val.t = SPN_TYPE_STRING;
 	p->curtok.val.f = SPN_TFLG_OBJECT;
 	p->curtok.val.v.ptrv = spn_string_new_nocopy_len(buf, n, 1);
+
 	return 1;
 }
 
@@ -626,7 +629,7 @@ int spn_lex(SpnParser *p)
 	if (!skip_space_and_comment(p)) {
 		return 0;
 	}
-	
+
 	/* just so that it can always be released safely if
 	 * an unexpected token is encountered, without having to
 	 * know its exact type. Also, the pointer value (`val.v.ptrv')
@@ -638,7 +641,7 @@ int spn_lex(SpnParser *p)
 	p->curtok.val.t = SPN_TYPE_NIL;
 	p->curtok.val.f = 0;
 	p->curtok.val.v.ptrv = NULL;
-	
+
 	/* this needs to come before the check for `is_special()',
 	 * since numbers can begin with a dot too, therefore checking if the
 	 * decimal floating-point literal starts with `.<digits>' must
@@ -648,30 +651,30 @@ int spn_lex(SpnParser *p)
 	if (is_num_begin(p->pos)) {
 		return lex_number(p);
 	}
-	
+
 	if (is_ident_begin(p->pos[0])) {
 		return lex_ident(p);
 	}
-	
+
 	if (is_special(p->pos[0])) {
 		return lex_op(p);
 	}
-	
+
 	if (p->pos[0] == '\'') {
 		return lex_char(p);
 	}
-	
+
 	if (p->pos[0] == '"') {
 		return lex_string(p);
 	}
-	
+
 	/* end-of-input */
 	if (p->pos[0] == 0) {
 		p->eof = 1;
 		p->curtok.tok = SPN_TOK_EOF;
 		return 0;
 	}
-	
+
 	/* nothing matched so far -- error */
 	spn_parser_error(p, "unexpected character `%c'", *p->pos);
 	return 0;
@@ -683,7 +686,7 @@ int spn_accept(struct SpnParser *p, enum spn_lex_token tok)
 		spn_lex(p);
 		return 1;
 	}
-	
+
 	return 0;
 }
 
@@ -695,7 +698,7 @@ int spn_accept_multi(struct SpnParser *p, const enum spn_lex_token toks[], size_
 			return i;
 		}
 	}
-	
+
 	return -1;
 }
 

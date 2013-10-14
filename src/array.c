@@ -57,7 +57,7 @@ static unsigned long nthsize(int idx)
 		4194301,	8388617,	16777213,	33554467
 #endif
 	};
-	
+
 	return szprims[idx];
 }
 
@@ -74,11 +74,11 @@ typedef struct TList {
 struct SpnArray {
 	SpnObject	  base;		/* for being a valid object		*/
 	SpnValue	  nilval;	/* for returning nil			*/
-	
+
 	SpnValue	 *arr;		/* the array part			*/
 	size_t		  arrcnt;	/* logical size				*/
 	size_t		  arrallsz;	/* allocation (actual) size		*/
-	
+
 	TList		**buckets;	/* the hash table part			*/
 	size_t		  hashcnt;	/* logical size				*/
 	int		  hashszidx;	/* index of allocation (actual) size	*/
@@ -122,18 +122,18 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 SpnArray *spn_array_new()
 {
 	SpnArray *arr = spn_object_new(&spn_class_array);
-	
+
 	arr->nilval.t = SPN_TYPE_NIL;
 	arr->nilval.f = 0;
-	
+
 	arr->arr = NULL;
 	arr->arrcnt = 0;
 	arr->arrallsz = 0;
-	
+
 	arr->buckets = NULL;
 	arr->hashcnt = 0;
 	arr->hashszidx = 0;
-	
+
 	return arr;
 }
 
@@ -145,13 +145,13 @@ static void free_array(void *obj)
 	for (i = 0; i < arr->arrallsz; i++) {
 		spn_value_release(&arr->arr[i]);
 	}
-	
+
 	free(arr->arr);
-	
+
 	for (i = 0; i < nthsize(arr->hashszidx); i++) {
 		list_free_releasing(arr->buckets[i]);
 	}
-	
+
 	free(arr->buckets);
 	free(arr);
 }
@@ -189,15 +189,15 @@ SpnValue *spn_array_get(SpnArray *arr, const SpnValue *key)
 	}
 
 	/* else: the value goes to/comes from the hash table part */
-	
+
 	/* if the hash table is empty, it cannot contain any value at all */
 	if (nthsize(arr->hashszidx) == 0) {
 		return &arr->nilval;
 	}
-	
+
 	/* else return what the hash part can find */
 	hash = hash_key(key) % nthsize(arr->hashszidx);
-	
+
 	/* return what's found in the link list at the computed index
 	 * (behaves correctly if the list is empty/NULL)
 	 */
@@ -274,7 +274,7 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
 {
 	SpnArray *arr = it->arr;
 	size_t hashsz, i;
-	
+
 	/* search the array part first: cursor in [0...arraysize) (*) */
 	if (it->inarray) {
 		for (i = it->cursor; i < arr->arrallsz; i++) {
@@ -283,17 +283,17 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
 				key->t = SPN_TYPE_NUMBER;
 				key->f = 0;
 				key->v.intv = i;
-				
+
 				/* set up value */
 				*val = arr->arr[i];
-				
+
 				/* advance cursor to next base index */
 				it->cursor = i + 1;
-				
+
 				return it->idx++;
 			}
 		}
-	
+
 		/* if not found, search hash part: cursor in [0...hashsize) */
 		it->cursor = 0; /* reset to point to the beginning */
 		it->inarray = 0; /* indicate having finished with the array part */
@@ -304,13 +304,13 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
 			it->list = it->list->next;
 			return it->idx++;
 		}
-		
+
 		/* if the node is NULL, it means we finished the traversal of
 		 * the linked list, so we fall through in order to search for
 		 * the next bucket
 		 */
 	}
-	
+
 	hashsz = nthsize(arr->hashszidx);
 	for (i = it->cursor; i < hashsz; i++) {
 		if (arr->buckets[i] != NULL) {
@@ -323,7 +323,7 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
 			return spn_iter_next(it, key, val);
 		}
 	}
-	
+
 	/* if not found, there are no more entries */
 	assert(it->idx == spn_array_count(arr)); /* sanity check */
 	return it->idx;
@@ -353,7 +353,7 @@ static TList *list_prepend(TList *head, SpnValue *key, SpnValue *val)
 	if (node == NULL) {
 		abort();
 	}
-	
+
 	node->pair.key = *key;
 	node->pair.val = *val;
 	node->next = head;
@@ -365,14 +365,14 @@ static KVPair *list_find(TList *head, const SpnValue *key)
 	while (head != NULL) {
 		KVPair *pair = &head->pair;
 		SpnValue *pkey = &pair->key;
-		
+
 		if (spn_value_equal(key, pkey)) {
 			return pair;
 		}
-		
+
 		head = head->next;
 	}
-	
+
 	return NULL;
 }
 
@@ -381,17 +381,17 @@ static TList *list_delete_releasing(TList *head, const SpnValue *key)
 	if (head == NULL) {
 		return NULL;
 	}
-	
+
 	if (spn_value_equal(&head->pair.key, key)) {
 		TList *tmp = head->next;
 
 		spn_value_release(&head->pair.key);
 		spn_value_release(&head->pair.val);
-		
+
 		free(head);
 		return tmp;
 	}
-	
+
 	head->next = list_delete_releasing(head->next, key);
 	return head;
 }
@@ -422,17 +422,17 @@ static void expand_array_if_needed(SpnArray *arr, unsigned long idx)
 	if (arr->arrallsz == 0) {	/* if it was empty, allocate space	*/
 		arr->arrallsz = 0x4;
 	}
-	
+
 	while (idx >= arr->arrallsz) {	/* expand until index fits in vector	*/
 		arr->arrallsz <<= 1;
 	}
-	
+
 	/* ask the OS to do its job */
 	arr->arr = realloc(arr->arr, sizeof(arr->arr[0]) * arr->arrallsz);
 	if (arr->arr == NULL) {
 		abort();
 	}
-	
+
 	/* and fill all the not-yet-existent fields with nil */
 	for (i = prevsz; i < arr->arrallsz; i++) {
 		arr->arr[i].t = SPN_TYPE_NIL;
@@ -535,7 +535,7 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 		if (val->t == SPN_TYPE_NIL) {
 			return;
 		}
-		
+
 		expand_hash(arr);
 	}
 
@@ -564,10 +564,10 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 			 * insert them at the beginning of the link list
 			 */
 			arr->hashcnt++;
-			
+
 			spn_value_retain(key);
 			spn_value_retain(val);
-			
+
 			arr->buckets[hash] = list_prepend(arr->buckets[hash], key, val);
 		}
 

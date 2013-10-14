@@ -21,7 +21,7 @@ SpnAST *spn_ast_new(int node, unsigned long lineno)
 	if (ast == NULL) {
 		abort();
 	}
-	
+
 	ast->node	= node;
 	ast->value.t	= SPN_TYPE_NIL;
 	ast->value.f	= 0;
@@ -29,7 +29,7 @@ SpnAST *spn_ast_new(int node, unsigned long lineno)
 	ast->lineno	= lineno;
 	ast->left	= NULL;
 	ast->right	= NULL;
-	
+
 	return ast;
 }
 
@@ -38,13 +38,13 @@ void spn_ast_free(SpnAST *ast)
 	if (ast == NULL) {
 		return;
 	}
-	
+
 	spn_value_release(&ast->value);
-	
+
 	if (ast->name != NULL) {
 		spn_object_release(ast->name);
 	}
-	
+
 	spn_ast_free(ast->left);
 	spn_ast_free(ast->right);
 
@@ -69,19 +69,19 @@ static void dump_ast(SpnAST *ast, int indent)
 		"program",
 		"block-statement",
 		"function-definition",
-	
+
 		"while",
 		"do-while",
 		"for",
 		"foreach",
 		"if",
-	
+
 		"break",
 		"continue",
 		"return",
 		"empty-statement",
 		"vardecl",
-		
+
 		"assign",
 		"assign-add",
 		"assign-subtract",
@@ -97,13 +97,13 @@ static void dump_ast(SpnAST *ast, int indent)
 
 		"concatenate",
 		"conditional-ternary",
-	
+
 		"add",
 		"subtract",
 		"multiply",
 		"divide",
 		"modulo",
-	
+
 		"logical-and",
 		"logical-or",
 		"bitwise-and",
@@ -111,14 +111,14 @@ static void dump_ast(SpnAST *ast, int indent)
 		"bitwise-xor",
 		"left-shift",
 		"right-shift",
-	
+
 		"equals",
 		"not-equal",
 		"less-than",
 		"less-than-or-equal",
 		"greater-than",
 		"greater-than-or-equal",
-	
+
 		"unary-plus",
 		"unary-minus",
 		"preincrement",
@@ -128,17 +128,17 @@ static void dump_ast(SpnAST *ast, int indent)
 		"logical-not",
 		"bitwise-not",
 		"nth-arg",
-	
+
 		"postincrement",
 		"postdecrement",
 		"array-subscript",
 		"memberof",
 		"function-call",
-	
+
 		"identifier",
 		"literal",
 		"lambda",
-	
+
 		"decl-argument",
 		"call-argument",
 		"branches",
@@ -148,12 +148,12 @@ static void dump_ast(SpnAST *ast, int indent)
 
 	dump_indent(indent);
 	printf("(%s", nodnam[ast->node]);
-	
+
 	/* print name, if any */
 	if (ast->name != NULL) {
 		printf(" name = \"%s\"", ast->name->cstr);
 	}
-	
+
 	/* print formatted value */
 	if ((ast->value.t == SPN_TYPE_NIL && ast->node == SPN_NODE_LITERAL)
 	  || ast->value.t != SPN_TYPE_NIL) {
@@ -173,11 +173,11 @@ static void dump_ast(SpnAST *ast, int indent)
 	if (ast->right != NULL) {
 		dump_ast(ast->right, indent + 1);
 	}
-	
+
 	if (ast->left != NULL || ast->right != NULL) {
 		dump_indent(indent);
 	}
-	
+
 	puts(")");
 }
 

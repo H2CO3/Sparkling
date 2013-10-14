@@ -40,9 +40,9 @@ static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	char buf[LINE_MAX];
 	char *p;
-	
+
 	fgets(buf, sizeof(buf), stdin);
-	
+
 	/* remove trailing newline */
 	p = strchr(buf, '\n');
 	if (p != NULL) {
@@ -67,9 +67,9 @@ static int rtlb_print(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	for (i = 0; i < argc; i++) {
 		spn_value_print(&argv[i]);
 	}
-	
+
 	printf("\n");
-	
+
 	return 0;
 }
 
@@ -77,15 +77,15 @@ static int rtlb_fopen(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	FILE *fp;
 	SpnString *fname, *mode;
-	
+
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	fname = argv[0].v.ptrv;
 	mode = argv[1].v.ptrv;
 	fp = fopen(fname->cstr, mode->cstr);
@@ -97,22 +97,22 @@ static int rtlb_fopen(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		ret->t = SPN_TYPE_NIL;
 		ret->f = 0;
 	}
-	
+
 	return 0;
 }
 
 static int rtlb_fclose(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	FILE *fp;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_USRDAT) {
 		return -2;
 	}
-	
+
 	fp = argv[0].v.ptrv;
 	fclose(fp);
 	return 0;
@@ -133,7 +133,7 @@ static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	fp = argv[0].v.ptrv;
-	
+
 	if (fgets(buf, sizeof(buf), fp) != NULL) {
 		ret->t = SPN_TYPE_STRING;
 		ret->f = SPN_TFLG_OBJECT;
@@ -142,7 +142,7 @@ static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		ret->t = SPN_TYPE_NIL;
 		ret->f = 0;
 	}
-	
+
 	return 0;
 }
 
@@ -211,7 +211,7 @@ static int rtlb_aux_stdstream(SpnValue *ret, FILE *stream)
 	ret->t = SPN_TYPE_USRDAT;
 	ret->f = 0;
 	ret->v.ptrv = stream;
-	
+
 	return 0;
 }
 
@@ -246,11 +246,11 @@ static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argv[0].t == SPN_TYPE_USRDAT) {
 		fp = argv[0].v.ptrv;
 	}
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 	ret->v.boolv = !fflush(fp);
-	
+
 	return 0;
 }
 
@@ -267,11 +267,11 @@ static int rtlb_ftell(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	fp = argv[0].v.ptrv;
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = 0;
 	ret->v.intv = ftell(fp);
-	
+
 	return 0;
 }
 
@@ -296,7 +296,7 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	fp = argv[0].v.ptrv;
 	off = argv[1].v.intv;
 	whence =  argv[2].v.ptrv;
-	
+
 	if (strcmp(whence->cstr, "set") == 0) {
 		flag = SEEK_SET;
 	} else if (strcmp(whence->cstr, "cur") == 0) {
@@ -306,11 +306,11 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	} else {
 		return -3;
 	}
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 	ret->v.boolv = !fseek(fp, off, flag);
-	
+
 	return 0;
 }
 
@@ -327,54 +327,54 @@ static int rtlb_feof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	fp = argv[0].v.ptrv;
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 	ret->v.boolv = feof(fp);
-	
+
 	return 0;
 }
 
 static int rtlb_remove(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *fname;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	fname = argv[0].v.ptrv;
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 	ret->v.boolv = !remove(fname->cstr);
-	
+
 	return 0;
 }
 
 static int rtlb_rename(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *oldname, *newname;
-	
+
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	oldname = argv[0].v.ptrv;
 	newname = argv[1].v.ptrv;
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 	ret->v.boolv = !rename(oldname->cstr, newname->cstr);
-	
+
 	return 0;
 }
 
@@ -436,7 +436,6 @@ const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
 };
 
 
-
 /******************
  * String library *
  ******************/
@@ -494,31 +493,31 @@ static int rtlb_aux_substr(SpnValue *ret, SpnString *str, long begin, long lengt
 {
 	char *buf;
 	long slen = str->len;
-	
+
 	if (begin < 0 || begin > slen) {
 		return -1;
 	}
-	
+
 	if (length < 0 || length > slen) {
 		return -2;
 	}
-	
+
 	if (begin + length > slen) {
 		return -3;
 	}
-	
+
 	buf = malloc(length + 1);
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	memcpy(buf, str->cstr + begin, length);
 	buf[length] = 0;
-	
+
 	ret->t = SPN_TYPE_STRING;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = spn_string_new_nocopy_len(buf, length, 1);
-	
+
 	return 0;
 }
 
@@ -526,21 +525,21 @@ static int rtlb_substr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *str;
 	long begin, length;
-	
+
 	if (argc != 3) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING
 	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0
 	 || argv[2].t != SPN_TYPE_NUMBER || argv[2].f != 0) {
 		return -2;
 	}
-	
+
 	str = argv[0].v.ptrv;
 	begin = argv[1].v.intv;
 	length = argv[2].v.intv;
-	
+
 	return rtlb_aux_substr(ret, str, begin, length);
 }
 
@@ -548,19 +547,19 @@ static int rtlb_substrto(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *str;
 	long length;
-	
+
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING
 	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
 		return -2;
 	}
-	
+
 	str = argv[0].v.ptrv;
 	length = argv[1].v.intv;
-	
+
 	return rtlb_aux_substr(ret, str, 0, length);
 }
 
@@ -571,17 +570,17 @@ static int rtlb_substrfrom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING
 	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
 		return -2;
 	}
-	
+
 	str = argv[0].v.ptrv;
 	slen = str->len;
 	begin = argv[1].v.intv;
 	length = slen - begin;
-	
+
 	return rtlb_aux_substr(ret, str, begin, length);
 }
 
@@ -625,40 +624,39 @@ static int rtlb_nthchar(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-
 	const char *s, *t;
 	long i = 0;
-	
+
 	SpnString *haystack, *needle;
 	SpnArray *arr;
 	SpnValue key, val;
-	
+
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	haystack = argv[0].v.ptrv;
 	needle = argv[1].v.ptrv;
-	
+
 	arr = spn_array_new();
-	
+
 	ret->t = SPN_TYPE_ARRAY;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = arr;
-	
+
 	key.t = SPN_TYPE_NUMBER;
 	key.f = 0;
-	
+
 	val.t = SPN_TYPE_STRING;
 	val.f = SPN_TFLG_OBJECT;
-	
+
 	s = haystack->cstr;
 	t = strstr(s, needle->cstr);
-	
+
 	while (1) {
 		const char *p = t != NULL ? t : haystack->cstr + haystack->len;
 		size_t len = p - s;
@@ -666,23 +664,23 @@ static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		if (buf == NULL) {
 			abort();
 		}
-		
+
 		memcpy(buf, s, len);
 		buf[len] = 0;
-		
+
 		key.v.intv = i++;
 		val.v.ptrv = spn_string_new_nocopy_len(buf, len, 1);
 		spn_array_set(arr, &key, &val);
 		spn_object_release(val.v.ptrv);
-		
+
 		if (t == NULL) {
 			break;
 		}
-		
+
 		s = t + needle->len;
 		t = strstr(s, needle->cstr);
 	}
-	
+
 	return 0;
 }
 
@@ -695,37 +693,37 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING
 	 || argv[1].t != SPN_TYPE_NUMBER
 	 || argv[1].f != 0) {
 		return -2;
 	}
-	
+
 	if (argv[1].v.intv < 0) {
 		return -3;
 	}
-	
+
 	str = argv[0].v.ptrv;
 	n = argv[1].v.intv;
 	len = str->len * n;
-	
+
 	buf = malloc(len + 1);
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	for (i = 0; i < n; i++) {
 		memcpy(buf + i * str->len, str->cstr, str->len);
 	}
-	
+
 	buf[len] = 0;
 	rep = spn_string_new_nocopy_len(buf, len, 1);
-	
+
 	ret->t = SPN_TYPE_STRING;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = rep;
-	
+
 	return 0;
 }
 
@@ -734,34 +732,34 @@ static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc)
 	const char *p;
 	char *buf, *s;
 	SpnString *str;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	str = argv[0].v.ptrv;
 	p = str->cstr;
-	
+
 	buf = malloc(str->len + 1);
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	s = buf;
 	while (*p) {
 		*s++ = upc ? toupper(*p++) : tolower(*p++);
 	}
-	
+
 	*s = 0;
-	
+
 	ret->t = SPN_TYPE_STRING;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = spn_string_new_nocopy_len(buf, str->len, 1);
-	
+
 	return 0;
 }
 
@@ -785,51 +783,51 @@ static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *str;
 	long base;
-	
+
 	if (argc < 1 || argc > 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	if (argc == 2 && (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0)) {
 		return -3;
 	}
-	
+
 	str = argv[0].v.ptrv;
 	base = argc == 2 ? argv[1].v.intv : 0;
-	
+
 	if (base == 1 || base < 0 || base > 36) {
 		return -4;
 	}
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = 0;
 	ret->v.intv = strtol(str->cstr, NULL, base);
-	
+
 	return 0;
 }
 
 static int rtlb_tofloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *str;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	str = argv[0].v.ptrv;
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = SPN_TFLG_FLOAT;
 	ret->v.fltv = strtod(str->cstr, NULL);
-	
+
 	return 0;
 }
 
@@ -840,12 +838,13 @@ static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	str = argv[0].v.ptrv;
+
 	if (strpbrk(str->cstr, ".eE") != NULL) {
 		return rtlb_tofloat(ret, argc, argv, ctx);
 	} else {
@@ -877,7 +876,6 @@ const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
 };
 
 
-
 /*****************
  * Array library *
  *****************/ /* TODO: implement */
@@ -886,7 +884,7 @@ static int rtlb_array(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnArray *arr;
 	int i;
-	
+
 	arr = spn_array_new();
 	for (i = 0; i < argc; i++) {
 		SpnValue idx;
@@ -895,11 +893,11 @@ static int rtlb_array(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		idx.v.intv = i;
 		spn_array_set(arr, &idx, &argv[i]);
 	}
-	
+
 	ret->t = SPN_TYPE_ARRAY;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = arr;
-	
+
 	return 0;
 }
 
@@ -907,21 +905,21 @@ static int rtlb_dict(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnArray *arr;
 	int i;
-	
+
 	if (argc % 2 != 0) {
 		fprintf(stderr, "odd number of values in dict()\n");
 		return -1;
 	}
-	
+
 	arr = spn_array_new();
 	for (i = 0; i < argc; i += 2) {
 		spn_array_set(arr, &argv[i], &argv[i + 1]);
 	}
-	
+
 	ret->t = SPN_TYPE_ARRAY;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = arr;
-	
+
 	return 0;
 }
 
@@ -931,30 +929,30 @@ static int rtlb_contains(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	SpnIterator *it;
 	SpnArray *arr;
 	SpnValue key, val;
-	
+
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_ARRAY) {
 		return -2;
 	}
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 	ret->v.boolv = 0;
-	
+
 	arr = argv[0].v.ptrv;
 	n = spn_array_count(arr);
 	it = spn_iter_new(arr);
-	
+
 	while (spn_iter_next(it, &key, &val) < n) {
 		if (spn_value_equal(&argv[1], &val)) {
 			ret->v.boolv = 1;
 			break;
 		}
 	}
-	
+
 	spn_iter_free(it);
 	return 0;
 }
@@ -965,55 +963,55 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	char *buf = NULL;
 	SpnArray *arr;
 	SpnString *delim;
-	
+
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_ARRAY || argv[1].t != SPN_TYPE_STRING) {
 		return -2;
 	}
 
 	arr = argv[0].v.ptrv;
 	n = spn_array_count(arr);
-	
+
 	delim = argv[1].v.ptrv;
 
 	for (i = 0; i < n; i++) {
 		size_t addlen;
 		SpnValue *val;
 		SpnString *str;
-		
+
 		SpnValue key;
 		key.t = SPN_TYPE_NUMBER;
 		key.f = 0;
 		key.v.intv = i;
-		
+
 		val = spn_array_get(arr, &key);
 		if (val->t != SPN_TYPE_STRING) {
 			free(buf);
 			return -3;
 		}
-		
+
 		/* XXX: this should really be solved using
 		 * exponential buffer expansion. Maybe in alpha 2...
 		 */
-		
+
 		str = val->v.ptrv;
 		addlen = i > 0 ? delim->len + str->len : str->len;
-		
+
 		buf = realloc(buf, len + addlen + 1);
 		if (buf == NULL) {
 			abort();
 		}
-		
+
 		if (i > 0) {
 			memcpy(buf + len, delim->cstr, delim->len);
 			memcpy(buf + len + delim->len, str->cstr, str->len);
 		} else {
 			memcpy(buf + len, str->cstr, str->len);
 		}
-		
+
 		len += addlen;
 	}
 
@@ -1023,13 +1021,13 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (i > 0) {
 		/* this may catch one error or two */
 		assert(buf != NULL);
-		
+
 		/* add NUL terminator */
 		buf[len] = 0;
 		ret->v.ptrv = spn_string_new_nocopy_len(buf, len, 1);
 	} else {
 		assert(buf == NULL);
-		
+
 		/* if there were no items to concatenate, return empty string
 		 * (this is necessary because `buf` is now NULL,
 		 * and we definitely don't want this to segfault)
@@ -1044,22 +1042,22 @@ static int rtlb_iter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnArray *arr;
 	SpnIterator *it;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_ARRAY) {
 		return -2;
 	}
-	
+
 	arr = argv[0].v.ptrv;
 	it = spn_iter_new(arr);
-	
+
 	ret->t = SPN_TYPE_USRDAT;
 	ret->f = 0;
 	ret->v.ptrv = it;
-	
+
 	return 0;
 }
 
@@ -1075,20 +1073,20 @@ static int rtlb_next(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	SpnArray *inarray, *outarr;
 	SpnIterator *it;
 	SpnValue key, val;
-	
+
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_USRDAT || argv[1].t != SPN_TYPE_ARRAY) {
 		return -2;
 	}
-	
+
 	it = argv[0].v.ptrv;
 	outarr = argv[1].v.ptrv;
 	inarray = spn_iter_getarray(it);
 	n = spn_array_count(inarray);
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 
@@ -1099,10 +1097,10 @@ static int rtlb_next(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		SpnValue idx;
 		idx.t = SPN_TYPE_NUMBER;
 		idx.f = 0;
-		
+
 		idx.v.intv = 0;
 		spn_array_set(outarr, &idx, &key);
-		
+
 		idx.v.intv = 1;
 		spn_array_set(outarr, &idx, &val);
 
@@ -1181,25 +1179,25 @@ static double rtlb_aux_round(double x)
 static int rtlb_aux_intize(SpnValue *ret, int argc, SpnValue *argv, void *ctx, double (*fn)(double))
 {
 	double x;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	x = val2float(&argv[0]);
 
 	if (x < LONG_MIN || x > LONG_MAX) {
 		return -3;
 	}
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = 0;
 	ret->v.intv = fn(x);
-	
+
 	return 0;
 }
 
@@ -1221,21 +1219,21 @@ static int rtlb_round(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, void *ctx, double (*fn)(double))
 {
 	double x;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	x = val2float(&argv[0]);
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = SPN_TFLG_FLOAT;
 	ret->v.fltv = fn(x);
-	
+
 	return 0;
 }
 
@@ -1331,16 +1329,16 @@ static int rtlb_atan2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER
 	 || argv[1].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = SPN_TFLG_FLOAT;
 	ret->v.fltv = atan2(val2float(&argv[0]), val2float(&argv[1]));
-	
+
 	return 0;
 }
 
@@ -1372,15 +1370,15 @@ static int rtlb_deg2rad(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = SPN_TFLG_FLOAT;
 	ret->v.fltv = val2float(&argv[0]) / 180.0 * M_PI;
-	
+
 	return 0;
 }
 
@@ -1389,15 +1387,15 @@ static int rtlb_rad2deg(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = SPN_TFLG_FLOAT;
 	ret->v.fltv = val2float(&argv[0]) / M_PI * 180.0;
-	
+
 	return 0;
 }
 
@@ -1411,7 +1409,7 @@ static int rtlb_random(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = SPN_TFLG_FLOAT;
 	ret->v.fltv = rand() * 1.0 / RAND_MAX;
-	
+
 	return 0;
 }
 
@@ -1420,13 +1418,13 @@ static int rtlb_seed(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
 		return -2;
 	}
-	
+
 	srand(argv[0].v.intv);
-	
+
 	return 0;
 }
 
@@ -1457,15 +1455,15 @@ static int rtlb_aux_fltclass(SpnValue *ret, int argc, SpnValue *argv, void *ctx,
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
 	ret->v.boolv = fn(val2float(&argv[0]));
-	
+
 	return 0;
 }
 
@@ -1489,13 +1487,13 @@ static int rtlb_abs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	*ret = argv[0];
-	
+
 	if (ret->f & SPN_TFLG_FLOAT) {
 		ret->v.fltv = fabs(ret->v.fltv);
 	} else if (ret->v.intv < 0) {
@@ -1510,13 +1508,13 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[1].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	ret->t = SPN_TYPE_NUMBER;
-	
+
 	/* if either of the base or the exponent is real,
 	 * then the result is real too.
 	 * Furthermore, if both the base and the exponent are integers,
@@ -1535,13 +1533,13 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		long b = argv[0].v.intv;
 		long e = argv[1].v.intv;
 		long r = 1;
-		
+
 		/* exponentation by squaring - http://stackoverflow.com/q/101439/ */
 		while (e != 0) {
 			if (e & 0x01) {
 				r *= b;
 			}
-			
+
 			b *= b;
 			e >>= 1;
 		}
@@ -1549,29 +1547,29 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		ret->f = 0;
 		ret->v.intv = r;
 	}
-	
+
 	return 0;
 }
 
 static int rtlb_min(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	int i;
-	
+
 	if (argc < 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	*ret = argv[0];
-	
+
 	for (i = 1; i < argc; i++) {
 		if (argv[i].t != SPN_TYPE_NUMBER) {
 			return -2;
 		}
-		
+
 		if (argv[i].f & SPN_TFLG_FLOAT) {
 			if (ret->f & SPN_TFLG_FLOAT) {
 				if (argv[i].v.fltv < ret->v.fltv) {
@@ -1594,29 +1592,29 @@ static int rtlb_min(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			}
 		}
 	}
-	
+
 	return 0;
 }
 
 static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	int i;
-	
+
 	if (argc < 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER) {
 		return -2;
 	}
-	
+
 	*ret = argv[0];
-	
+
 	for (i = 1; i < argc; i++) {
 		if (argv[i].t != SPN_TYPE_NUMBER) {
 			return -2;
 		}
-		
+
 		if (argv[i].f & SPN_TFLG_FLOAT) {
 			if (ret->f & SPN_TFLG_FLOAT) {
 				if (argv[i].v.fltv > ret->v.fltv) {
@@ -1639,7 +1637,7 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			}
 		}
 	}
-	
+
 	return 0;
 }
 
@@ -1692,7 +1690,7 @@ static int rtlb_time(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = 0;
 	ret->v.intv = time(NULL);
-	
+
 	return 0;
 }
 
@@ -1705,81 +1703,81 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, void *ctx, in
 {
 	time_t tmstp;
 	struct tm *ts;
-	
+
 	SpnArray *arr;
 	SpnValue key, val;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
 		return -2;
 	}
-	
+
 	/* the argument of this function is an integer returned by time() */
 	tmstp = argv[0].v.intv;
 	ts = islocal ? localtime(&tmstp) : gmtime(&tmstp);
-	
+
 	arr = spn_array_new();
-	
+
 	key.t = SPN_TYPE_STRING;
 	key.f = SPN_TFLG_OBJECT;
-	
+
 	val.t = SPN_TYPE_NUMBER;
 	val.f = 0;
-	
+
 	/* make an SpnArray out of the returned struct tm */
 	key.v.ptrv = spn_string_new_nocopy("sec", 0);
 	val.v.intv = ts->tm_sec;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("min", 0);
 	val.v.intv = ts->tm_min;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("hour", 0);
 	val.v.intv = ts->tm_hour;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("mday", 0);
 	val.v.intv = ts->tm_mday;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("mon", 0);
 	val.v.intv = ts->tm_mon;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("year", 0);
 	val.v.intv = ts->tm_year;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("wday", 0);
 	val.v.intv = ts->tm_wday;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("yday", 0);
 	val.v.intv = ts->tm_yday;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("isdst", 0);
 	val.v.intv = ts->tm_isdst;
 	spn_array_set(arr, &key, &val);
 	spn_object_release(key.v.ptrv);
-	
+
 	/* return the array */
 	ret->t = SPN_TYPE_ARRAY;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = arr;
-	
+
 	return 0;
 }
 
@@ -1800,7 +1798,7 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	char *buf;
 	struct tm ts;
 	size_t len;
-	
+
 	SpnValue key;
 	SpnValue *val;
 	SpnString *fmt;
@@ -1809,20 +1807,20 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_ARRAY) {
 		return -2;
 	}
-	
+
 	/* first argument is the format, second one is the array that 
 	 * rtlb_aux_gettm() returned
 	 */
 	fmt = argv[0].v.ptrv;
 	arr = argv[1].v.ptrv;
-	
+
 	key.t = SPN_TYPE_STRING;
 	key.f = SPN_TFLG_OBJECT;
-	
+
 	/* convert array back to a struct tm
 	 * (TODO: ensure that all values are integers)
 	 */
@@ -1830,60 +1828,60 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	val = spn_array_get(arr, &key);
 	ts.tm_sec = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("min", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_min = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("hour", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_hour = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("mday", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_mday = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("mon", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_mon = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("year", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_year = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("wday", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_wday = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("yday", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_yday = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	key.v.ptrv = spn_string_new_nocopy("isdst", 0);
 	val = spn_array_get(arr, &key);
 	ts.tm_isdst = val->v.intv;
 	spn_object_release(key.v.ptrv);
-	
+
 	buf = malloc(RTLB_STRFTIME_BUFSIZE);
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	/* actually do the formatting */
 	len = strftime(buf, RTLB_STRFTIME_BUFSIZE, fmt->cstr, &ts);
-	
+
 	/* set return value */
 	ret->t = SPN_TYPE_STRING;
 	ret->f = SPN_TFLG_OBJECT;
 	ret->v.ptrv = spn_string_new_nocopy_len(buf, len, 1);
-	
+
 	return 0;
 }
 
@@ -1892,16 +1890,16 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0
 	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
 		return -2;
 	}
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = SPN_TFLG_FLOAT;
 	ret->v.fltv = difftime(argv[0].v.intv, argv[1].v.intv);
-	
+
 	return 0;
 }
 
@@ -1922,25 +1920,25 @@ static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *name;
 	const char *env;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	name = argv[0].v.ptrv;
 	env = getenv(name->cstr);
-	
+
 	if (env != NULL) {
 		ret->t = SPN_TYPE_STRING;
 		ret->f = SPN_TFLG_OBJECT;
 		ret->v.ptrv = spn_string_new_nocopy(env, 0);
 	}
 	/* else implicitly return nil */
-	
+
 	return 0;
 }
 
@@ -1952,7 +1950,7 @@ static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static void rtlb_aux_argv(SpnArray **array)
 {
 	static SpnArray *argv = NULL;
-	
+
 	if (*array == NULL) {
 		*array = argv;
 	} else {
@@ -1964,7 +1962,7 @@ static int rtlb_getargs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnArray *arr = NULL;
 	rtlb_aux_argv(&arr);
-	
+
 	if (arr != NULL) {
 		spn_object_retain(arr);
 		ret->t = SPN_TYPE_ARRAY;
@@ -1972,7 +1970,7 @@ static int rtlb_getargs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		ret->v.ptrv = arr;
 	}
 	/* if not set, leave the return value nil */
-	
+
 	return 0;
 }
 
@@ -1980,22 +1978,22 @@ static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *cmd;
 	int code;
-	
+
 	if (argc != 1) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	cmd = argv[0].v.ptrv;
 	code = system(cmd->cstr);
-	
+
 	ret->t = SPN_TYPE_NUMBER;
 	ret->f = 0;
 	ret->v.intv = code;
-	
+
 	return 0;
 }
 
@@ -2004,11 +2002,11 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	if (argc != 2) {
 		return -1;
 	}
-	
+
 	if (argv[0].t != SPN_TYPE_BOOL || argv[1].t != SPN_TYPE_STRING) {
 		return -2;
 	}
-	
+
 	/* actual assertion */
 	if (argv[0].v.boolv == 0) {
 		SpnString *msg = argv[1].v.ptrv;
@@ -2037,6 +2035,7 @@ static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	exit(code);
+	return 0;
 }
 
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
@@ -2051,16 +2050,16 @@ void spn_register_args(int argc, char **argv)
 {
 	int i;
 	SpnArray *arr = NULL;
-	
+
 	/* get old array and release it */
 	rtlb_aux_argv(&arr);	
 	if (arr != NULL) {
 		spn_object_release(arr);
 	}
-	
+
 	/* initialize new array */
 	arr = spn_array_new();
-	
+
 	for (i = 0; i < argc; i++) {
 		SpnValue key, val;		
 		SpnString *arg = spn_string_new_nocopy(argv[i], 0);
@@ -2076,7 +2075,7 @@ void spn_register_args(int argc, char **argv)
 		spn_array_set(arr, &key, &val);
 		spn_object_release(arg);
 	}
-	
+
 	/* write it back */
 	rtlb_aux_argv(&arr);
 }

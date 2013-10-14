@@ -28,24 +28,24 @@ static int myext_foo(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	ret->f = 0;
 	/* pass back 1337 for fun's sake */
 	ret->v.intv = 1337;
-	
+
 	return 0; /* normal execution finishes by returning 0 */
 }
 
 int main(int argc, char *argv[])
 {
 	int i;
-	
+
 	SpnParser *p;
 	SpnCompiler *c;
 	SpnVMachine *vm;
 
 	spn_uword **bytecodes;
-	
+
 	const SpnExtFunc myextlib[] = {
 		{ "foo", myext_foo }
 	};
-	
+
 	if (argc < 2) {
 		fprintf(stderr, "Sparkling: please specify at least one source file\n");
 		exit(-1);
@@ -58,13 +58,13 @@ int main(int argc, char *argv[])
 
 	/* load standard library */
 	spn_load_stdlib(vm);
-	
+
 	/* load our own extension function */
 	spn_vm_addlib(vm, myextlib, 1);
 
 	/* add command line arguments */
 	spn_register_args(argc - 1, argv + 1);
-	
+
 	for (i = 1; i < argc; i++) {
 		char *src;
 		size_t len;
@@ -76,13 +76,13 @@ int main(int argc, char *argv[])
 			fprintf(stderr, "Sparkling: can't open source file `%s'\n", argv[i]);
 			exit(-1);
 		}
-	
+
 		/* parse the source text to an AST */
 		ast = spn_parser_parse(p, src);
 		if (ast == NULL) {
 			exit(-1);
 		}
-	
+
 		free(src);
 
 		/* dump textual representation of AST */
@@ -104,12 +104,12 @@ int main(int argc, char *argv[])
 		if (res == NULL) {
 			exit(-1);
 		}
-	
+
 		/* print a human-readable description of the program's return value */
 		printf("\nthe result of running `%s' is: ", argv[i]);
 		spn_value_print(res);
 		printf("\n");
-		
+
 		/* no need to release the returned value, the VM owns it */
 	}
 
@@ -122,13 +122,13 @@ int main(int argc, char *argv[])
 	for (i = 1; i < argc; i++) {
 		free(bytecodes[i - 1]);
 	}
-	
+
 	free(bytecodes);
-	
+
 	spn_vm_free(vm);
 	spn_compiler_free(c);
 	spn_parser_free(p);
-	
+
 	return 0;
 }
 

@@ -31,22 +31,26 @@ that of `printf()` in the C standard library. Valid conversion specifiers are:
  - `%%` prints a literal percent symbol
  - `%[N]s` prints a string description (as if the value was printed using
  `print()`. If field width (`N`) is present, it prints at most N characters.
- - `%[+][W]{d|o|x|b}` formats an integer as decimal, octal, hexadecimal or
- binary, respectively. If a floating-point number is given, it tries to truncate
- to an integer. Raises a run-time error if the floating-point number to be
- truncated exceeds the range of `long`. If `W` is present, prepends space before
- the digits so that at least W characters are outputted. If `+` is present,
- always adds an explicit leading sign (`+` or `-`). Octal, hex and binary
- conversion specifiers always treat the integer as unsigned.
+ - `%[+][W]{d|o|x|X|b}` formats an integer as decimal, octal, lowercase and
+ uppercase hexadecimal or binary, respectively. If a floating-point number is
+ given, it is truncated to an integer. Raises a run-time error if the
+ floating-point number to be truncated exceeds the range of `long`. If `W` is
+ present, prepends space before the digits so that at least W characters are
+ outputted. If `+` is present, always adds an (explicit) leading sign (`+` or
+ `-`). Octal, hex and binary conversion specifiers always treat the integer as
+ unsigned.
  - `%[+][W][.P]f` formats a floating-point number. If an integer number is
  given, it is converted to a floating-point number. The rules for using `W` and
  `+` are the same as they were in the case of `%d`. If an explicit precision
  (`.P`) is specified, then prints exactly P decimal digits after the decimal
- point.
+ point, rounding the result if necessary.
  - `%[+][W][.P][+]e` formats a floating-point number in the same manner as `%f`,
  but it uses scientific (exponential) notation, e. g. `1.337e+3`. If a second
  `+` sign, after the decimal point, is present, then the exponent will always
  have an explicit sign.
+ - `%[N]q` formats an escaped string. If the field width modifier is present,
+ it prints at most `N` characters.
+ - `%B` formats a Boolean value. Prints either true or false.
 
 <!-- this comment is needed because Markdown sucks. -->
 

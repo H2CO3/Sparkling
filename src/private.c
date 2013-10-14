@@ -14,10 +14,10 @@ int nth_arg_idx(spn_uword *ip, int idx)
 {
 	int wordidx = idx / SPN_WORD_OCTETS;
 	int shift = 8 * (idx % SPN_WORD_OCTETS);
-	
+
 	spn_uword word = ip[wordidx];
 	int regidx = (word >> shift) & 0xff;
-	
+
 	return regidx;
 }
 

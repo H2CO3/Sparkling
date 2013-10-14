@@ -22,7 +22,7 @@ static void bail(const char *fmt, ...)
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);
 	va_end(args);
-	
+
 	fprintf(stderr, "\n");
 	exit(-1);
 }
@@ -33,17 +33,17 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 void spn_disasm(spn_uword *bc, size_t len)
 {
 	unsigned long symtaboff, symtablen, nregs, magic;
-	
+
 	/* read program header */
 	magic = bc[SPN_HDRIDX_MAGIC];
 	if (magic != SPN_MAGIC) {
 		bail("invalid magic number");
 	}
-	
+
 	symtaboff = bc[SPN_HDRIDX_SYMTABOFF];
 	symtablen = bc[SPN_HDRIDX_SYMTABLEN];
 	nregs     = bc[SPN_HDRIDX_FRMSIZE];
-	
+
 	/* print program header */
 	printf("# program header:\n");
 	printf("# magic number: 0x%08lx\n", magic);
@@ -53,7 +53,7 @@ void spn_disasm(spn_uword *bc, size_t len)
 	 * is the symbol table offset minus the length of the program header.
 	 */
 	disasm_exec(bc, symtaboff - SPN_PRGHDR_LEN);
-	
+
 	/* print symtab header */
 	printf("\n\n# local symbol table:\n");
 	printf("# start address: 0x%08lx\n", symtaboff);
@@ -80,13 +80,13 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 	int i, fnlevel = 0;
 
 	printf("# executable section:\n\n");
-	
+
 	fnend[fnlevel++] = text + textlen;
 	while (ip < text + textlen) {
 		spn_uword ins = *ip++;
 		enum spn_vm_ins opcode = OPCODE(ins);
 		unsigned long addr = ip - 1 - bc;
-		
+
 		if (fnlevel >= MAX_FUNC_NEST) {
 			bail(
 				"more than %d nested function definitions\n"
@@ -94,7 +94,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 				MAX_FUNC_NEST - 1
 			);
 		}
-		
+
 		/* if we reached a function's end, we print some newlines
 		 * and "pop" an index off the function end address "stack"
 		 * (`ip - 1` is used because we already incremented `ip`)
@@ -103,7 +103,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			fnlevel--;
 			printf("\n");
 		}
-		
+
 		/* if this is the entry point of a function, then print some
 		 * newlines and "push" the entry point onto the "stack"
 		 */
@@ -111,15 +111,15 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			printf("\n");
 			fnlevel++;
 		}
-		
+
 		/* print address (`ip - 1` for the same reason as above) */
 		printf("0x%08lx", addr);
-		
+
 		/* print indentation */
 		for (i = 0; i < fnlevel - 1; i++) {
 			printf("\t");
 		}
-		
+
 		/* the dump of the function header is not indented, only the
 		 * body (a function *is* at the same syntactic level as its
 		 * "sibling" instructions are. It is the code of the function
@@ -128,29 +128,29 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 		if (opcode != SPN_INS_GLBSYM) {
 			printf("\t");
 		}
-		
+
 		switch (opcode) {
 		case SPN_INS_CALL: {
 			int retv = OPA(ins);
 			int func = OPB(ins);
 			int argc = OPC(ins);
 			int i;
-			
+
 			printf("call\tr%d = r%d(", retv, func);
-			
+
 			for (i = 0; i < argc; i++) {
 				if (i > 0) {
 					printf(", ");
 				}
-				
+
 				printf("r%d", nth_arg_idx(ip, i));
 			}
-			
+
 			printf(")\n");
 
 			/* skip call arguments */
 			ip += ROUNDUP(argc, SPN_WORD_OCTETS);
-			
+
 			break;
 		}
 		case SPN_INS_RET: {
@@ -161,9 +161,9 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 		case SPN_INS_JMP: {
 			spn_sword offset = *ip++;
 			unsigned long dstaddr = ip + offset - bc;
-			
+
 			printf("jmp\t%+" SPN_SWORD_FMT "\t# target: 0x%08lx\n", offset, dstaddr);
-			
+
 			break;
 		}
 		case SPN_INS_JZE:
@@ -171,17 +171,16 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			spn_sword offset = *ip++;
 			unsigned long dstaddr = ip + offset - bc;
 			int reg = OPA(ins);
-			
+
 			printf("%s\tr%d, %+" SPN_SWORD_FMT "\t# target: 0x%08lx\n",
 				opcode == SPN_INS_JZE ? "jze" : "jnz",
 				reg,
 				offset,
 				dstaddr
 			);
-			
+
 			break;
 		}
-		
 		case SPN_INS_EQ:
 		case SPN_INS_NE:
 		case SPN_INS_LT:
@@ -211,11 +210,11 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 				"div",
 				"mod"
 			};
-			
+
 			int opidx = opcode - SPN_INS_EQ; /* XXX black magic */
 			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
 			printf("%s\tr%d, r%d, r%d\n", opnames[opidx], opa, opb, opc);
-			
+
 			break;
 		}
 		case SPN_INS_NEG: {
@@ -242,12 +241,12 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 				"shl",
 				"shr"
 			};
-			
+
 			/* XXX and the usual woodoo */
 			int opidx = opcode - SPN_INS_AND;
 			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
 			printf("%s\tr%d, r%d, r%d\n", opnames[opidx], opa, opb, opc);
-			
+
 			break;
 		}
 		case SPN_INS_BITNOT:
@@ -261,11 +260,11 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 				"sizeof",
 				"typeof"
 			};
-			
+
 			int opidx = opcode - SPN_INS_BITNOT;
 			int opa = OPA(ins), opb = OPB(ins);
 			printf("%s\tr%d, r%d\n", opnames[opidx], opa, opb);
-			
+
 			break;
 		}
 		case SPN_INS_CONCAT: {
@@ -276,9 +275,9 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 		case SPN_INS_LDCONST: {
 			int dest = OPA(ins);
 			int type = OPB(ins);
-			
+
 			printf("ld\tr%d, ", dest);
-			
+
 			switch (type) {
 			case SPN_CONST_NIL:	printf("nil\n");	break;
 			case SPN_CONST_TRUE:	printf("true\n");	break;
@@ -286,11 +285,11 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			case SPN_CONST_INT: {
 				long inum;
 				unsigned long unum; /* formatted as hex */
-				
+
 				memcpy(&inum, ip, sizeof(inum));
 				memcpy(&unum, ip, sizeof(unum));
 				ip += ROUNDUP(sizeof(inum), sizeof(spn_uword));
-				
+
 				printf("%ld\t# 0x%lx\n", inum, unum);
 				break;
 			}
@@ -298,7 +297,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 				double num;
 				memcpy(&num, ip, sizeof(num));
 				ip += ROUNDUP(sizeof(num), sizeof(spn_uword));
-				
+
 				printf("%.15f\n", num);
 				break;
 			}
@@ -307,18 +306,12 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 				     "at address %08lx\n", addr);
 				break;
 			}
-			
+
 			break;
 		}
 		case SPN_INS_LDSYM: {
 			int regidx = OPA(ins), symidx = OPMID(ins);
 			printf("ld\tr%d, symbol %d\n", regidx, symidx);
-			break;
-		}
-		case SPN_INS_LDTHIS:
-		case SPN_INS_STRTHIS: {
-			int opa = OPA(ins);
-			printf("%s\tr%d\n", opcode == SPN_INS_LDTHIS ? "load self" : "store self", opa);
 			break;
 		}
 		case SPN_INS_MOV: {
@@ -352,10 +345,10 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
 
 			size_t reallen = strlen(symname);
-			
+
 			unsigned long bodylen, entry;
 			int argc, nregs;
-			
+
 			if (namelen != reallen) {
 				bail(
 					"\n\nfunction name length (%lu) does not match"
@@ -365,27 +358,27 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 					addr
 				);
 			}
-			
+
 			/* skip symbol name, obtain function entry point */
 			ip += nwords;
 			entry = ip - bc;
-			
+
 			/* ip += bodylen; --> NO! we want to disassemble the
 			 * function body, so we don't skip it, obviously.
 			 *
 			 * we do calculate the end of the function, though,
 			 * so it is possible to indicate it in the disassembly
 			 */
-			
+
 			bodylen = ip[SPN_FUNCHDR_IDX_BODYLEN];
 			argc = ip[SPN_FUNCHDR_IDX_ARGC];
 			nregs = ip[SPN_FUNCHDR_IDX_NREGS];
 			printf("function %s (%d args, %d regs, code length: %lu, entry: 0x%08lx)\n",
 				symname, argc, nregs, bodylen, entry);
-			
+
 			/* store the end address of the function body */
 			fnend[fnlevel - 1] = ip + SPN_FUNCHDR_LEN + bodylen;
-			
+
 			/* sanity check */
 			if (argc > nregs) {
 				bail(
@@ -395,12 +388,12 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 					nregs
 				);
 			}
-			
+
 			/* we only skip the header -- then `ip` will point to
 			 * the actual instruction stream of the function body
 			 */
 			ip += SPN_FUNCHDR_LEN;
-			
+
 			break;
 		}
 		default:
@@ -420,7 +413,7 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 		spn_uword ins = *ip++;
 		int kind = OPCODE(ins);
 		unsigned long addr = ip - 1 - bc;
-		
+
 		/* print address */
 		printf("0x%08lx\tsymbol %d:\t", addr, i);
 
@@ -430,7 +423,7 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 			size_t len = strlen(cstr);
 			size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
 			unsigned long explen = OPLONG(ins);
-			
+
 			if (len != explen) {
 				bail(
 					"string literal at address %08lx: "
@@ -441,9 +434,9 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 					explen
 				);
 			}
-			
+
 			printf("string, length = %lu \"%s\"\n", explen, cstr);
-			
+
 			ip += nwords;
 			break;
 		}
@@ -463,9 +456,9 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 					explen
 				);
 			}
-			
+
 			printf("function %s()\n", fnname);
-			
+
 			ip += nwords;
 			break;	
 		}
@@ -479,13 +472,13 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 			break;
 		}
 	}
-	
+
 	if (ip > bc + offset + datalen) {
 		bail("bytecode is longer than length in header\n");
 	} else if (ip < bc + offset + datalen) {
 		bail("bytecode is shorter than length in header\n");
 	}
-	
+
 	printf("\n");
 }
 

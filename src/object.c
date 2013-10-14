@@ -25,7 +25,7 @@ int spn_object_equal(const void *lhs, const void *rhs)
 	if (lo->isa != ro->isa) {
 		return 0;
 	}
-	
+
 	if (lo->isa->equal != NULL) {
 		return lo->isa->equal(lo, ro);
 	} else {
@@ -36,10 +36,10 @@ int spn_object_equal(const void *lhs, const void *rhs)
 int spn_object_cmp(const void *lhs, const void *rhs)
 {
 	const SpnObject *lo = lhs, *ro = rhs;
-	
+
 	assert(lo->isa == ro->isa);
 	assert(lo->isa->compare != NULL);
-	
+
 	return lo->isa->compare(lo, ro);
 }
 
@@ -49,10 +49,10 @@ void *spn_object_new(const SpnClass *isa)
 	if (obj == NULL) {
 		abort();
 	}
-	
+
 	obj->isa = isa;
 	obj->refcnt = 1;
-	
+
 	return obj;
 }
 

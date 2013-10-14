@@ -178,7 +178,7 @@ static void free_local_symtab(TSymtab *symtab)
 	for (i = 0; i < symtab->size; i++) {
 		spn_value_release(&symtab->vals[i]);
 	}
-	
+
 	free(symtab->vals);
 }
 
@@ -188,7 +188,7 @@ SpnVMachine *spn_vm_new()
 	if (vm == NULL) {
 		abort();
 	}
-	
+
 	/* initialize stack */
 	vm->stackallsz = 0;
 	vm->stack = NULL;
@@ -205,43 +205,43 @@ SpnVMachine *spn_vm_new()
 
 	/* set up error reporting, user data and return value */
 	vm->errmsg = NULL;
-	
+
 	vm->ctx = NULL;
-	
+
 	vm->retval.t = SPN_TYPE_NIL;
 	vm->retval.f = 0;
-	
+
 	return vm;
 }
 
 void spn_vm_free(SpnVMachine *vm)
 {
 	size_t i;
-	
+
 	/* free the stack */
 	free_frames(vm);
 	free(vm->stack);
 
 	/* free the global symbol table */
 	spn_object_release(vm->glbsymtab);
-	
+
 	/* free each local symbol table... */
 	for (i = 0; i < vm->lscount; i++) {
 		free_local_symtab(&vm->lsymtabs[i]);
 	}
-	
+
 	/* ...then free the array that contains them */
 	free(vm->lsymtabs);
-	
+
 	/* free the argument vector */
 	free(vm->argv);
-	
+
 	/* free the error message buffer */
 	free(vm->errmsg);
-	
+
 	/* release return value */
 	spn_value_release(&vm->retval);
-	
+
 	free(vm);
 }
 
@@ -302,11 +302,11 @@ void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
 	size_t i;
 	for (i = 0; i < n; i++) {
 		SpnValue key, val;
-		
+
 		key.t = SPN_TYPE_STRING;
 		key.f = SPN_TFLG_OBJECT;
 		key.v.ptrv = spn_string_new_nocopy(fns[i].name, 0);
-		
+
 		val.t = SPN_TYPE_FUNC;
 		val.f = SPN_TFLG_NATIVE;
 		val.v.fnv.name = fns[i].name;
@@ -380,21 +380,21 @@ static void expand_stack(SpnVMachine *vm, size_t nregs)
 	/* because `NULL - NULL` is UB */
 	size_t oldsize = stacksize(vm);
 	size_t newsize = oldsize + nregs;
-	
+
 	if (vm->stackallsz == 0) {
 		vm->stackallsz = 8;
 		/* or however many; something greater than 0 so the << works */
 	}
-	
+
 	while (vm->stackallsz < newsize) {
 		vm->stackallsz <<= 1;
 	}
-	
+
 	vm->stack = realloc(vm->stack, vm->stackallsz * sizeof(vm->stack[0]));
 	if (vm->stack == NULL) {
 		abort();
 	}
-	
+
 	/* re-initialize stack pointer because we realloc()'d the stack */
 	vm->sp = vm->stack + oldsize;
 }
@@ -413,26 +413,26 @@ static void push_frame(
 )
 {
 	int i;
-	
+
 	/* real frame allocation size, including extra call-time arguments,
 	 * frame header and implicit self
 	 */
 	int real_nregs = nregs + extra_argc + EXTRA_SLOTS;
-	
+
 	/* just a bit of sanity check in case someone misinterprets how
 	 * `extra_argc` is computed...
 	 */
 	assert(extra_argc >= 0);
-	
+
 	/* reallocate stack if necessary */
 	if (vm->stackallsz == 0					/* empty stack	*/
 	 || vm->stackallsz < stacksize(vm) + real_nregs) {	/* too small	*/
 		expand_stack(vm, real_nregs);
 	}
-	
+
 	/* adjust stack pointer */
 	vm->sp += real_nregs;
-	
+
 	/* initialize registers to nil */
 	for (i = -real_nregs; i < -EXTRA_SLOTS; i++) {
 		vm->sp[i].v.t = SPN_TYPE_NIL;
@@ -442,7 +442,7 @@ static void push_frame(
 	/* also initialize implicit self to nil */
 	vm->sp[IDX_SELF].v.t = SPN_TYPE_NIL;
 	vm->sp[IDX_SELF].v.f = 0;
-	
+
 	/* initialize activation record header */
 	vm->sp[IDX_FRMHDR].h.size = real_nregs;
 	vm->sp[IDX_FRMHDR].h.decl_argc = decl_argc;
@@ -457,7 +457,7 @@ static void push_first_frame(SpnVMachine *vm, int symtabidx)
 	/* the next word in the bytecode is the number of global registers */
 	TSymtab *symtab = &vm->lsymtabs[symtabidx];
 	size_t nregs = symtab->bc[SPN_HDRIDX_FRMSIZE];
-	
+
 	/* push a large enough frame - return address: NULL (nowhere to
 	 * return from top-level program scope). A return value index < 0
 	 * (-1 in this case) indicates that the program itself returns,
@@ -477,16 +477,16 @@ static void pop_frame(SpnVMachine *vm)
 	 */
 	TFrame *hdr = &vm->sp[IDX_FRMHDR].h;
 	int nregs = hdr->size;
-	
+
 	/* release registers */
 	int i;
 	for (i = -nregs; i < -EXTRA_SLOTS; i++) {
 		spn_value_release(&vm->sp[i].v);
 	}
-	
+
 	/* release implicit self (if any) */
 	spn_value_release(&vm->sp[IDX_SELF].v);
-	
+
 	/* adjust stack pointer */
 	vm->sp -= nregs;
 }
@@ -508,9 +508,9 @@ static SpnValue *nth_vararg(TSlot *sp, int idx)
 {
 	TFrame *hdr = &sp[IDX_FRMHDR].h;
 	int vararg_off = hdr->size - EXTRA_SLOTS - hdr->extra_argc;
-	
+
 	assert(idx >= 0 && idx < hdr->extra_argc);
-	
+
 	return VALPTR(sp, vararg_off + idx);
 }
 
@@ -522,11 +522,11 @@ static SpnValue *nth_vararg(TSlot *sp, int idx)
 static int dispatch_loop(SpnVMachine *vm)
 {
 	spn_uword *ip = current_bytecode(vm) + SPN_PRGHDR_LEN;
-	
+
 	while (1) {
 		spn_uword ins = *ip++;
 		enum spn_vm_ins opcode = OPCODE(ins);
-		
+
 		switch (opcode) {
 		case SPN_INS_CALL: {
 			/* XXX: the return value of a call to a Sparkling
@@ -549,23 +549,23 @@ static int dispatch_loop(SpnVMachine *vm)
 
 			SpnValue *retval = &retslot->v;
 			ptrdiff_t retidx = retslot - vm->stack;
-			
+
 			/* this is the minimal number of `spn_uword`s needed
 			 * to store the register numbers representing
 			 * call-time arguments
 			 */
 			int narggroups = ROUNDUP(argc, SPN_WORD_OCTETS);
-			
+
 			if (func->t != SPN_TYPE_FUNC) {
 				runerror(vm, ip - 1, "calling non-function value");
 				return -1;
 			}
-			
+
 			/* loading a symbol should have already resolved it
 			 * if it's a function -- assert that condition here
 			 */
 			assert((func->f & SPN_TFLG_PENDING) == 0);
-			
+
 			if (func->f & SPN_TFLG_NATIVE) {
 				/* call native function */
 				int i, err;
@@ -579,22 +579,22 @@ static int dispatch_loop(SpnVMachine *vm)
 						abort();
 					}
 				}
-				
+
 				/* copy the arguments into the argument array */
 				for (i = 0; i < argc; i++) {
 					SpnValue *val = nth_call_arg(vm->sp, ip, i);
 					vm->argv[i] = *val;
 				}
-				
+
 				/* return nil unless otherwise specified */
 				tmpret.t = SPN_TYPE_NIL;
 				tmpret.f = 0;
-				
+
 				/* then call the native function. its return
 				 * value must have a reference count of one.
 				 */
 				err = func->v.fnv.r.fn(&tmpret, argc, vm->argv, vm->ctx);
-				
+
 				/* clear and set return value register
 				 * (it's released only now because it may be
 				 * the same as one of the arguments:
@@ -603,7 +603,7 @@ static int dispatch_loop(SpnVMachine *vm)
 				 */
 				spn_value_release(retval);
 				*retval = tmpret;
-				
+
 				/* check if the native function returned
 				 * an error. If so, abort execution.
 				 */
@@ -617,7 +617,7 @@ static int dispatch_loop(SpnVMachine *vm)
 					);
 					return -1;
 				}
-				
+
 				/* advance IP past the argument indices (round
 				 * up to nearest number of `spn_uword`s that
 				 * can accomodate `argc` octets)
@@ -626,7 +626,7 @@ static int dispatch_loop(SpnVMachine *vm)
 			} else {
 				/* call Sparkling function */
 				int i;
-				
+
 				/* see Remark (VI) in vm.h in order to get an
 				 * understanding of the layout of the
 				 * bytecode representing a function
@@ -636,16 +636,16 @@ static int dispatch_loop(SpnVMachine *vm)
 				int decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
 				int nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
 				spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
-				
+
 				/* if there are less call arguments than formal
 				 * parameters, we set extra_argc to 0 (and all
 				 * the unspecified arguments are implicitly set
 				 * to `nil` by push_frame)
 				 */
 				int extra_argc = argc > decl_argc ? argc - decl_argc : 0;
-				
+
 				spn_uword *retaddr = ip + narggroups;
-				
+
 				/* store the offset of the stack frame of the
 				 * caller so we can read the call arguments
 				 * later, when the active frame is that of the
@@ -655,7 +655,7 @@ static int dispatch_loop(SpnVMachine *vm)
 				 */
 				ptrdiff_t calleroff = vm->sp - vm->stack;
 				TSlot *caller;
-				
+
 				/* sanity check: decl_argc should be <= nregs,
 				 * else arguments wouldn't fit in the registers
 				 */
@@ -666,12 +666,12 @@ static int dispatch_loop(SpnVMachine *vm)
 				 * the stack frame of the *called* function.
 				 */
 				push_frame(vm, nregs, decl_argc, extra_argc, retaddr, retidx, symtabidx);
-				
+
 				/* and grab the (now potentially changed)
 				 * frame pointer of the caller function
 				 */
 				caller = vm->stack + calleroff;
-				
+
 				/* first, fill in arguments that fit into the
 				 * first `decl_argc` registers (i. e. those
 				 * that are declared as formal parameters). The
@@ -689,7 +689,7 @@ static int dispatch_loop(SpnVMachine *vm)
 					 * releases its previous value.
 					 */
 					SpnValue *src = nth_call_arg(caller, ip, i);
-					
+
 					/* the first `decl_argc` registers hold
 					 * the named arguments
 					 */
@@ -697,23 +697,23 @@ static int dispatch_loop(SpnVMachine *vm)
 					spn_value_retain(src);
 					*dst = *src;
 				}
-				
+
 				/* next, copy over the extra (unnamed) args */
 				for (i = decl_argc; i < argc; i++) {
 					SpnValue *src = nth_call_arg(caller, ip, i);
 					int dstidx = i - decl_argc;
 					SpnValue *dst = nth_vararg(vm->sp, dstidx);
-					
+
 					spn_value_retain(src);
 					*dst = *src;
 				}
-				
+
 				/* set instruction pointer to entry point
 				 * to kick off the function call
 				 */
 				ip = entry;
 			}
-			
+
 			break;
 		}
 		case SPN_INS_RET: {
@@ -727,14 +727,14 @@ static int dispatch_loop(SpnVMachine *vm)
 			 * away, then pop_frame() would release it, and that's
 			 * not what we want.
 			 */
-			
+
 			/* get and retain the return value */
 			SpnValue *res = VALPTR(vm->sp, OPA(ins));
 			spn_value_retain(res);
 
 			/* pop the callee's frame */
 			pop_frame(vm);
-			
+
 			/* transfer return value to caller's frame */
 			if (callee->retidx < 0) {	/* return from main program */
 				vm->retval = *res;
@@ -743,7 +743,7 @@ static int dispatch_loop(SpnVMachine *vm)
 				spn_value_release(retptr);
 				*retptr = *res;
 			}
-			
+
 			/* check the return address. If it's NULL, then
 			 * we were at global (program) scope, so we terminate;
 			 * else we just adjust the instruction pointer.
@@ -755,7 +755,7 @@ static int dispatch_loop(SpnVMachine *vm)
 			} else {
 				ip = callee->retaddr;
 			}
-			
+
 			break;
 		}
 		case SPN_INS_JMP: {
@@ -774,14 +774,14 @@ static int dispatch_loop(SpnVMachine *vm)
 		case SPN_INS_JZE:
 		case SPN_INS_JNZ: {
 			SpnValue *reg = VALPTR(vm->sp, OPA(ins));
-			
+
 			/* XXX: if offset is supposed to be negative, the
 			 * implicit unsigned -> signed conversion is
 			 * implementation-defined. Should `memcpy()` be used
 			 * here instead of an assignment?
 			 */
 			spn_sword offset = *ip++;
-			
+
 			if (reg->t != SPN_TYPE_BOOL) {
 				runerror(
 					vm,
@@ -807,7 +807,7 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
-			
+
 			/* warning: computing the result first and storing
 			 * it only later is necessary since the destination
 			 * register may be the same as one of the operands
@@ -816,13 +816,13 @@ static int dispatch_loop(SpnVMachine *vm)
 			int res = opcode == SPN_INS_EQ
 				? spn_value_equal(b, c)
 				: spn_value_noteq(b, c);
-			
+
 			/* clean and update destination register */
 			spn_value_release(a);
 			a->t = SPN_TYPE_BOOL;
 			a->f = 0;
 			a->v.boolv = res;
-			
+
 			break;
 		}
 		case SPN_INS_LT:
@@ -836,9 +836,9 @@ static int dispatch_loop(SpnVMachine *vm)
 			/* values must be checked for being orderable */
 			if (b->t == SPN_TYPE_NUMBER
 			 && c->t == SPN_TYPE_NUMBER) {
-			 
+
 				int res = numeric_compare(b, c, opcode);
-				
+
 				spn_value_release(a);
 				a->t = SPN_TYPE_BOOL;
 				a->f = 0;
@@ -846,11 +846,11 @@ static int dispatch_loop(SpnVMachine *vm)
 				
 			} else if (b->f & SPN_TFLG_OBJECT
 				&& c->f & SPN_TFLG_OBJECT) {
-				
+
 				SpnObject *lhs = b->v.ptrv;
 				SpnObject *rhs = c->v.ptrv;
 				int res;
-				
+
 				if (lhs->isa != rhs->isa) {
 					runerror(
 						vm,
@@ -859,7 +859,7 @@ static int dispatch_loop(SpnVMachine *vm)
 					);
 					return -1;
 				}
-				
+
 				if (lhs->isa->compare == NULL) {
 					runerror(
 						vm,
@@ -868,7 +868,7 @@ static int dispatch_loop(SpnVMachine *vm)
 					);
 					return -1;
 				}
-				
+
 				/* compute answer */
 				res = spn_object_cmp(lhs, rhs);
 
@@ -885,7 +885,7 @@ static int dispatch_loop(SpnVMachine *vm)
 				);
 				return -1;
 			}
-			
+
 			break;
 		}
 		case SPN_INS_ADD:
@@ -896,16 +896,16 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 			SpnValue res;
-			
+
 			if (b->t != SPN_TYPE_NUMBER
 			 || c->t != SPN_TYPE_NUMBER) {
 				runerror(vm, ip - 1, "arithmetic on non-numbers");
 				return -1;
 			}
-			
+
 			/* compute result */
 			res = arith_op(b, c, opcode);
-			
+
 			/* clean and update destination register */
 			spn_value_release(a);
 			*a = res;
@@ -917,63 +917,63 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 			long res;
-						
+
 			if (b->t != SPN_TYPE_NUMBER
 			 || c->t != SPN_TYPE_NUMBER) {
 				runerror(vm, ip - 1, "modulo division on non-numbers");
 				return -1;
 			}
-			
+
 			if (b->f & SPN_TFLG_FLOAT || c->f & SPN_TFLG_FLOAT) {
 				runerror(vm, ip - 1, "modulo division on non-integers");
 				return -1;
 			}
-			
+
 			res = b->v.intv % c->v.intv;
 
 			spn_value_release(a);
 			a->t = SPN_TYPE_NUMBER;
 			a->f = 0;
 			a->v.intv = res;
+
 			break;
 		}
 		case SPN_INS_NEG: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
-			
+
 			if (b->t != SPN_TYPE_NUMBER) {
 				runerror(vm, ip - 1, "negation of non-number");
 				return -1;
 			}
-			
-			
+
 			if (b->f & SPN_TFLG_FLOAT) {
 				double res = -b->v.fltv;
-				
+
 				spn_value_release(a);
 				a->t = SPN_TYPE_NUMBER;
 				a->f = SPN_TFLG_FLOAT;
 				a->v.fltv = res;
 			} else {
 				long res = -b->v.intv;
-				
+
 				spn_value_release(a);
 				a->t = SPN_TYPE_NUMBER;
 				a->f = 0;
 				a->v.intv = res;
 			}
-			
+
 			break;
 		}
 		case SPN_INS_INC:
 		case SPN_INS_DEC: {
 			SpnValue *val = VALPTR(vm->sp, OPA(ins));
-			
+
 			if (val->t != SPN_TYPE_NUMBER) {
 				runerror(vm, ip - 1, "incrementing or decrementing non-number");
 				return -1;
 			}
-			
+
 			if (val->f & SPN_TFLG_FLOAT) {
 				if (opcode == SPN_INS_INC) {
 					val->v.fltv++;
@@ -999,7 +999,7 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 			long res;
-			
+
 			if (b->t != SPN_TYPE_NUMBER
 			 || c->t != SPN_TYPE_NUMBER) {
 				runerror(vm, ip - 1, "bitwise operation on non-numbers");
@@ -1011,14 +1011,14 @@ static int dispatch_loop(SpnVMachine *vm)
 				runerror(vm, ip - 1, "bitwise operation on non-integers");
 				return -1;
 			}
-			
+
 			res = bitwise_op(b, c, opcode);
-			
+
 			spn_value_release(a);
 			a->t = SPN_TYPE_NUMBER;
 			a->f = 0;
 			a->v.intv = res;
-			
+
 			break;
 		}
 		case SPN_INS_BITNOT: {
@@ -1035,28 +1035,28 @@ static int dispatch_loop(SpnVMachine *vm)
 				runerror(vm, ip - 1, "bitwise NOT on non-integer");
 				return -1;
 			}
-			
+
 			res = ~b->v.intv;
-			
+
 			spn_value_release(a);
 			a->t = SPN_TYPE_NUMBER;
 			a->f = 0;
 			a->v.intv = res;
-			
+
 			break;
 		}
 		case SPN_INS_LOGNOT: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			int res;
-			
+
 			if (b->t != SPN_TYPE_BOOL) {
 				runerror(vm, ip - 1, "logical negation of non-Boolean value");
 				return -1;
 			}
-			
+
 			res = !b->v.boolv;
-			
+
 			spn_value_release(a);
 			a->t = SPN_TYPE_BOOL;
 			a->f = 0;
@@ -1071,10 +1071,10 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue res = opcode == SPN_INS_SIZEOF
 					       ? sizeof_value(b)
 					       : typeof_value(b);
-			
+
 			spn_value_release(a);
 			*a = res;
-			
+
 			break;
 		}
 		case SPN_INS_CONCAT: {
@@ -1082,26 +1082,26 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 			SpnString *res;
-			
+
 			if (b->t != SPN_TYPE_STRING
 			 || c->t != SPN_TYPE_STRING) {
 				runerror(vm, ip - 1, "concatenation of non-string values");
 				return -1;
 			}
-			
+
 			res = spn_string_concat(b->v.ptrv, c->v.ptrv);
-			
+
 			spn_value_release(a);
 			a->t = SPN_TYPE_STRING;
 			a->f = SPN_TFLG_OBJECT;
 			a->v.ptrv = res;
-			
+
 			break;
 		}
 		case SPN_INS_LDCONST: {
 			/* the first argument is the destination register */
 			SpnValue *dst = VALPTR(vm->sp, OPA(ins));
-			
+
 			/* the second argument of the instruction is the
 			 * kind of the constant to be loaded
 			 */
@@ -1109,7 +1109,7 @@ static int dispatch_loop(SpnVMachine *vm)
 
 			/* clear previous value */
 			spn_value_release(dst);
-			
+
 			switch (type) {
 			case SPN_CONST_NIL:
 				dst->t = SPN_TYPE_NIL;
@@ -1129,7 +1129,7 @@ static int dispatch_loop(SpnVMachine *vm)
 				long num;
 				memcpy(&num, ip, sizeof(num));
 				ip += ROUNDUP(sizeof(num), sizeof(spn_uword));
-				
+
 				dst->t = SPN_TYPE_NUMBER;
 				dst->f = 0;
 				dst->v.intv = num;
@@ -1139,7 +1139,7 @@ static int dispatch_loop(SpnVMachine *vm)
 				double num;
 				memcpy(&num, ip, sizeof(num));
 				ip += ROUNDUP(sizeof(num), sizeof(spn_uword));
-				
+
 				dst->t = SPN_TYPE_NUMBER;
 				dst->f = SPN_TFLG_FLOAT;
 				dst->v.fltv = num;
@@ -1164,7 +1164,6 @@ static int dispatch_loop(SpnVMachine *vm)
 
 			SpnValue *dst = VALPTR(vm->sp, OPA(ins));
 
-
 			/* if the symbol is an unresolved reference
 			 * to a global function, then attempt to resolve it
 			 */
@@ -1181,7 +1180,7 @@ static int dispatch_loop(SpnVMachine *vm)
 			 		);
 			 		return -1;
 			 	}
-			 	
+
 			 	/* if the resolution succeeded, then we
 			 	 * cache the symbol into the appropriate
 			 	 * local symbol table so that we don't
@@ -1189,50 +1188,26 @@ static int dispatch_loop(SpnVMachine *vm)
 			 	 */
 			 	*symp = *res;
 			}
-			
+
 			/* suspicion: for symbols, we don't need the RBR idiom
 			 * -- there's always at least one reference to the
 			 * object, in the local and/or global symbol table.
 			 * TODO: prove and test this.
 			 */
-			
+
 			/* clean up previous value */
 			spn_value_retain(symp);
-			
+
 			/* and set the new - now surely resolved - one */
 			spn_value_release(dst);
 			*dst = *symp;
-			
-			break;
-		}
-		case SPN_INS_LDTHIS: {
-			SpnValue *dst = VALPTR(vm->sp, OPA(ins));
-			
-			assert(vm->sp[IDX_SELF].v.t == SPN_TYPE_ARRAY);
-			
-			/* retain-before-release (RBR) idiom; see the all-caps
-			 * to-do in TODO.txt for some context
-			 */
-			spn_value_retain(&vm->sp[IDX_SELF].v);
-			spn_value_release(dst);
-			*dst = vm->sp[IDX_SELF].v;
-			break;
-		}
-		case SPN_INS_STRTHIS: {
-			SpnValue *src = VALPTR(vm->sp, OPA(ins));
-			
-			assert(src->t == SPN_TYPE_ARRAY);
-			
-			/* the RBR idiom strikes again... */
-			spn_value_retain(src);
-			spn_value_release(&vm->sp[IDX_SELF].v);
-			vm->sp[IDX_SELF].v = *src;
+
 			break;
 		}
 		case SPN_INS_MOV: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
-			
+
 			/* ...and again. Here, however, we don't need to
 			 * copy the result (i. e. operand B). If we move a
 			 * value in a register onto itself, that's fine
@@ -1243,15 +1218,17 @@ static int dispatch_loop(SpnVMachine *vm)
 			spn_value_retain(b);
 			spn_value_release(a);
 			*a = *b;
+
 			break;
 		}
 		case SPN_INS_NEWARR: {
 			SpnValue *dst = VALPTR(vm->sp, OPA(ins));
-			
+
 			spn_value_release(dst);
 			dst->t = SPN_TYPE_ARRAY;
 			dst->f = SPN_TFLG_OBJECT;
 			dst->v.ptrv = spn_array_new();
+
 			break;
 		}
 		case SPN_INS_ARRGET: {
@@ -1259,29 +1236,30 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 			SpnValue *val;
-			
+
 			if (b->t != SPN_TYPE_ARRAY) {
 				runerror(vm, ip - 1, "indexing into non-array value");
 				return -1;
 			}
-			
+
 			val = spn_array_get(b->v.ptrv, c);
 			spn_value_retain(val);
-			
+
 			spn_value_release(a);
 			*a = *val;
+
 			break;
 		}
 		case SPN_INS_ARRSET: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
-			
+
 			if (a->t != SPN_TYPE_ARRAY) {
 				runerror(vm, ip - 1, "indexing into non-array value");
 				return -1;
 			}
-			
+
 			spn_array_set(a->v.ptrv, b, c);
 			break;
 		}
@@ -1295,29 +1273,29 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			TFrame *hdr = &vm->sp[IDX_FRMHDR].h;
 			long argidx;
-			
+
 			if (b->t != SPN_TYPE_NUMBER) {
 				runerror(vm, ip - 1, "non-number argument to `#' operator");
 				return -1;
 			}
-			
+
 			if (b->f & SPN_TFLG_FLOAT) {
 				runerror(vm, ip - 1, "non-integer argument to `#' operator");
 				return -1;
 			}
-			
+
 			argidx = b->v.intv;
-			
+
 			if (argidx < 0) {
 				runerror(vm, ip - 1, "negative argument to `#' operator");
 				return -1;
 			}
-			
+
 			if (argidx < hdr->extra_argc) {
 				/* if there are enough args, get one */
 				SpnValue *argp = nth_vararg(vm->sp, argidx);
 				spn_value_retain(argp);
-				
+
 				spn_value_release(a);
 				*a = *argp;
 			} else {
@@ -1326,25 +1304,25 @@ static int dispatch_loop(SpnVMachine *vm)
 				a->t = SPN_TYPE_NIL;
 				a->f = 0;
 			}
-			
+
 			break;
 		}
 		case SPN_INS_GLBSYM: {
 			SpnValue funcval;
 			SpnValue funckey;
-			
+
 			size_t bodylen;
-			
+
 			/* pointer to the symbol header, see the SPN_FUNCHDR_*
 			 * macros in vm.h
 			 */
 			spn_uword *hdr;
-			
+
 			const char *symname = (const char *)(ip);
 			size_t namelen = OPLONG(ins); /* expected length */
-			
+
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
-			
+
 #ifndef NDEBUG
 			/* this is the sanity check described in Remark (VI) */
 			size_t reallen = strlen(symname);
@@ -1353,19 +1331,19 @@ static int dispatch_loop(SpnVMachine *vm)
 
 			/* skip symbol name */
 			ip += nwords;
-			
+
 			/* save header position, fill in properties */
 			hdr = ip;
 			bodylen = hdr[SPN_FUNCHDR_IDX_BODYLEN];
-			
+
 			/* sanity check: argc <= nregs is a must (else how
 			 * arguments could fit in the first `argc` registers?)
 			 */
 			assert(hdr[SPN_FUNCHDR_IDX_ARGC] <= hdr[SPN_FUNCHDR_IDX_NREGS]);
-			
+
 			/* skip the function header and function body */
 			ip += SPN_FUNCHDR_LEN + bodylen;
-			
+
 			/* if the function is a lambda, do not add it
 			 * (XXX: this should be right here after modifying the
 			 * instruction pointer, because we *still* DO want to
@@ -1374,7 +1352,7 @@ static int dispatch_loop(SpnVMachine *vm)
 			if (strcmp(symname, SPN_LAMBDA_NAME) == 0) {
 				break;
 			}
-			
+
 			/* create function value, insert it in global symtab */
 			funcval.t = SPN_TYPE_FUNC;
 			funcval.f = 0;
@@ -1384,11 +1362,11 @@ static int dispatch_loop(SpnVMachine *vm)
 			/* (the environment of a global function is always the
 			 * environment of the compilation unit itself)
 			 */
-			
+
 			funckey.t = SPN_TYPE_STRING;
 			funckey.f = SPN_TFLG_OBJECT;
 			funckey.v.ptrv = spn_string_new_nocopy_len(symname, namelen, 0);
-			
+
 			/* check for a function with the same name -- if one
 			 * exists, it's an error, there should be no functions
 			 * with identical names (except lambdas, they all have
@@ -1404,13 +1382,13 @@ static int dispatch_loop(SpnVMachine *vm)
 				spn_object_release(funckey.v.ptrv);
 				return -1;
 			}
-			
+
 			/* if everything was OK, add the function to the global
 			 * symbol table
 			 */
 			spn_array_set(vm->glbsymtab, &funckey, &funcval);
 			spn_object_release(funckey.v.ptrv);
-			
+
 			break;
 		}
 		default:
@@ -1426,21 +1404,21 @@ static int validate_magic(SpnVMachine *vm, spn_uword *bc)
 		runerror(vm, NULL, "bytecode magic number is invalid");
 		return -1;
 	}
-	
+
 	return 0;
 }
 
 static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 {
 	TSymtab *cursymtab;
-	
+
 	/* read the offset and size from bytecode */
 	ptrdiff_t offset = bc[SPN_HDRIDX_SYMTABOFF];
 	size_t symcount = bc[SPN_HDRIDX_SYMTABLEN];
 
 	spn_uword *stp = bc + offset;
 	size_t lsidx;
-	
+
 	/* we only read the symbol table if it hasn't been read yet before */
 	size_t i;
 	for (i = 0; i < vm->lscount; i++) {
@@ -1449,12 +1427,12 @@ static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			return i;
 		}
 	}
-	
+
 	/* if we got here, the bytecode file is being run for the first time
 	 * on this VM instance, so we proceed to reading its symbol table
 	 */
 	lsidx = vm->lscount++;
-	
+
 	vm->lsymtabs = realloc(vm->lsymtabs, vm->lscount * sizeof(vm->lsymtabs[0]));
 	if (vm->lsymtabs == NULL) {
 		abort();
@@ -1474,32 +1452,31 @@ static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 	for (i = 0; i < symcount; i++) {
 		spn_uword ins = *stp++;
 		enum spn_local_symbol sym = OPCODE(ins);
-		
+
 		switch (sym) {
 		case SPN_LOCSYM_STRCONST: {
 			SpnString *str;
 			const char *cstr = (const char *)(stp);
-			
+
 			size_t len = OPLONG(ins);
 			size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
-			
 
 #ifndef NDEBUG
 			/* sanity check: the string length recorded in the
 			 * bytecode and the actual length
 			 * reported by `strlen()` shall match.
 			 */
-			
+
 			size_t reallen = strlen(cstr);
 			assert(len == reallen);
 #endif
-			
+
 			str = spn_string_new_nocopy_len(cstr, len, 0);
-			
+
 			cursymtab->vals[i].t = SPN_TYPE_STRING;
 			cursymtab->vals[i].f = SPN_TFLG_OBJECT;
 			cursymtab->vals[i].v.ptrv = str;
-			
+
 			stp += nwords;
 			break;
 		}
@@ -1513,7 +1490,7 @@ static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			 * the bytecode and the actual length
 			 * reported by `strlen()` shall match.
 			 */
-			
+
 			size_t reallen = strlen(fnname);
 			assert(len == reallen);
 #endif
@@ -1528,27 +1505,27 @@ static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			 * we don't know yet in which translation unit
 			 * the actual definition will be.
 			 */
-			
+
 			stp += nwords;
 			break;	
 		}
 		case SPN_LOCSYM_LAMBDA: {
 			size_t hdroff = OPLONG(ins);
 			spn_uword *entry = bc + hdroff;
-			
+
 			cursymtab->vals[i].t = SPN_TYPE_FUNC;
 			cursymtab->vals[i].f = 0;
 			cursymtab->vals[i].v.fnv.name = NULL; /* lambda -> unnamed */
 			cursymtab->vals[i].v.fnv.r.bc = entry;
 			cursymtab->vals[i].v.fnv.symtabidx = lsidx;
-			
+
 			/* unlike global functions, lambda functions can only
 			 * be implemented in the same translation unit int
 			 * which their local symtab entry is defined.
 			 * So we *can* (and should) fill in the `symtabidx'
 			 * member of the SpnValue while reading the symtab.
 			 */
-			
+
 			break;
 		}
 		default:
@@ -1558,17 +1535,17 @@ static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 				"incorrect local symbol kind `%d' in read_local_symtab()\n",
 				sym
 			);
-			
+
 			/* so that free_local_symtab() won't attempt to release
 			 * uninitialized values (it's necessary to release the
 			 * already initialized ones, though, else this leaks)
 			 */
 			cursymtab->size = i;
-			
+
 			return -1;
 		}
 	}
-	
+
 	return lsidx;
 }
 
@@ -1613,21 +1590,21 @@ static int numeric_compare(const SpnValue *lhs, const SpnValue *rhs, int op)
 			      :				     0;
 		}
 	}
-	
+
 	return cmp2bool(res, op);
 }
 
 static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 {
 	SpnValue res;
-	
+
 	assert(lhs->t == SPN_TYPE_NUMBER && rhs->t == SPN_TYPE_NUMBER);
 
 	if (lhs->f & SPN_TFLG_FLOAT || rhs->f & SPN_TFLG_FLOAT) {
 		double a = lhs->f & SPN_TFLG_FLOAT ? lhs->v.fltv : lhs->v.intv;
 		double b = rhs->f & SPN_TFLG_FLOAT ? rhs->v.fltv : rhs->v.intv;
 		double y;
-				
+
 		switch (op) {
 		case SPN_INS_ADD: y = a + b; break;
 		case SPN_INS_SUB: y = a - b; break;
@@ -1636,7 +1613,6 @@ static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 		default: y = 0; SHANT_BE_REACHED();
 		}
 
-		
 		res.t = SPN_TYPE_NUMBER;
 		res.f = SPN_TFLG_FLOAT;
 		res.v.fltv = y;
@@ -1644,7 +1620,7 @@ static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 		long a = lhs->v.intv;
 		long b = rhs->v.intv;
 		long y;
-		
+
 		switch (op) {
 		case SPN_INS_ADD: y = a + b; break;
 		case SPN_INS_SUB: y = a - b; break;
@@ -1653,19 +1629,18 @@ static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 		default: y = 0; SHANT_BE_REACHED();
 		}
 
-		
 		res.t = SPN_TYPE_NUMBER;
 		res.f = 0;
 		res.v.intv = y;
 	}
-	
+
 	return res;
 }
 
 static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 {
 	long a, b;
-	
+
 	assert(lhs->t == SPN_TYPE_NUMBER && rhs->t == SPN_TYPE_NUMBER);
 	assert(!(lhs->f & SPN_TFLG_FLOAT) && !(rhs->f & SPN_TFLG_FLOAT));
 
@@ -1692,20 +1667,20 @@ static SpnValue *resolve_symbol(SpnVMachine *vm, const char *name)
 	nameval.t = SPN_TYPE_STRING;
 	nameval.f = SPN_TFLG_OBJECT;
 	nameval.v.ptrv = spn_string_new_nocopy(name, 0);
-	
+
 	res = spn_array_get(vm->glbsymtab, &nameval);
 	spn_object_release(nameval.v.ptrv);
-	
+
 	return res;
 }
 
 static SpnValue sizeof_value(SpnValue *val)
 {
 	SpnValue res;
-	
+
 	res.t = SPN_TYPE_NUMBER;
 	res.f = 0;
-	
+
 	switch (val->t) {
 	case SPN_TYPE_NIL: {
 		res.v.intv = 0;
@@ -1731,7 +1706,7 @@ static SpnValue sizeof_value(SpnValue *val)
 		res.v.intv = 1;
 		break;
 	}
-	
+
 	return res;
 }
 
@@ -1744,54 +1719,54 @@ static SpnValue typeof_value(SpnValue *val)
 			 *strtype	= NULL,
 			 *arrtype	= NULL,
 			 *usrtype	= NULL;
-	
+
 	int retainflag = 1;
-	
+
 	SpnValue res;
 	res.t = SPN_TYPE_STRING;
 	res.f = SPN_TFLG_OBJECT;
-	
+
 	switch (val->t) {
 	case SPN_TYPE_NIL:
 		if (niltype == NULL) {
 			niltype = spn_string_new_nocopy("nil", 0);
 		}
-		
+
 		res.v.ptrv = niltype;
 		break;
 	case SPN_TYPE_BOOL:
 		if (booltype == NULL) {
 			booltype = spn_string_new_nocopy("bool", 0);
 		}
-		
+
 		res.v.ptrv = booltype;
 		break;
 	case SPN_TYPE_NUMBER:
 		if (numtype == NULL) {
 			numtype = spn_string_new_nocopy("number", 0);
 		}
-		
+
 		res.v.ptrv = numtype;
 		break;
 	case SPN_TYPE_FUNC:
 		if (fntype == NULL) {
 			fntype = spn_string_new_nocopy("function", 0);
 		}
-		
+
 		res.v.ptrv = fntype;
 		break;
 	case SPN_TYPE_STRING:
 		if (strtype == NULL) {
 			strtype = spn_string_new_nocopy("string", 0);
 		}
-	
+
 		res.v.ptrv = strtype;
 		break;
 	case SPN_TYPE_ARRAY:
 		if (arrtype == NULL) {
 			arrtype = spn_string_new_nocopy("array", 0);
 		}
-		
+
 		res.v.ptrv = arrtype;
 		break;
 	case SPN_TYPE_USRDAT:
@@ -1805,19 +1780,19 @@ static SpnValue typeof_value(SpnValue *val)
 			if (usrtype == NULL) {
 				usrtype = spn_string_new_nocopy("userdata", 0);
 			}
-			
+
 			res.v.ptrv = usrtype;
 		}
-		
+
 		break;
 	default:
 		SHANT_BE_REACHED();
 	}
-	
+
 	if (retainflag) {
 		spn_value_retain(&res);
 	}
-	
+
 	return res;
 }
 

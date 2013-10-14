@@ -83,13 +83,13 @@ SpnParser *spn_parser_new()
 	if (p == NULL) {
 		abort();
 	}
-	
+
 	p->pos = NULL;
 	p->eof = 0;
 	p->error = 0;
 	p->lineno = 1;
 	p->errmsg = NULL;
-	
+
 	return p;
 }
 
@@ -104,32 +104,32 @@ void spn_parser_error(SpnParser *p, const char *fmt, ...)
 {
 	int stublen, n;
 	va_list args;
-	
+
 	/* indicate error by setting error flag */
 	p->error = 1;
-	
+
 	/* because C89 *still* doesn't have snprintf */
 	stublen = fprintf(stderr, ERRMSG_FORMAT, p->lineno);
 	if (stublen < 0) {
 		abort();
 	}
-	
+
 	va_start(args, fmt);
 	n = vfprintf(stderr, fmt, args);
 	va_end(args);
 	if (n < 0) {
 		abort();
 	}
-	
+
 	fputc('\n', stderr);
-	
+
 	p->errmsg = realloc(p->errmsg, stublen + n + 1);
 	if (p->errmsg == NULL) {
 		abort();
 	}
-	
+
 	sprintf(p->errmsg, ERRMSG_FORMAT, p->lineno);
-	
+
 	va_start(args, fmt);
 	vsprintf(p->errmsg + stublen, fmt, args);
 	va_end(args);
@@ -146,30 +146,31 @@ SpnAST *spn_parser_parse(SpnParser *p, const char *src)
 	p->eof = 0;
 	p->error = 0;
 	p->lineno = 1;
+
 	return parse_program(p);
 }
 
 static SpnAST *parse_program(SpnParser *p)
 {
 	SpnAST *tree = NULL;
-	
+
 	if (spn_lex(p))	{	/* there are tokens */
 		tree = parse_program_nonempty(p);
 	} else {
 		return p->error ? NULL : spn_ast_new(SPN_NODE_PROGRAM, p->lineno);
 	}
-	
+
 	if (p->eof) {		/* if EOF after parsing, then all went fine */
 		return tree;
 	}
-	
+
 	/* if not, then there's garbage after the source */
 	spn_ast_free(tree);
 
 	if (!p->error) {	/* if there's no error message yet */
 		spn_parser_error(p, "garbage after input");
 	}
-	
+
 	return NULL;
 }
 
@@ -185,12 +186,12 @@ static SpnAST *parse_toplevel(SpnParser *p)
 static SpnAST *parse_program_nonempty(SpnParser *p)
 {
 	SpnAST *ast;
-	
+
 	SpnAST *sub = parse_toplevel(p);
 	if (sub == NULL) {
 		return NULL;
 	}
-	
+
 	while (!p->eof) {
 		SpnAST *tmp;
 		SpnAST *right = parse_toplevel(p);
@@ -204,16 +205,16 @@ static SpnAST *parse_program_nonempty(SpnParser *p)
 		tmp->right = right;	/* next node	*/
 		sub = tmp;		/* update head	*/
 	}
-	
+
 	/* here the same hack is performed that is used in parse_block()
 	 * (refer there for an explanation)
 	 */
-	
+
 	if (sub->node == SPN_NODE_COMPOUND) {
 		sub->node = SPN_NODE_PROGRAM;
 		return sub;
 	}
-	
+
 	ast = spn_ast_new(SPN_NODE_PROGRAM, p->lineno);
 	ast->left = sub;
 	return ast;
@@ -226,7 +227,7 @@ static SpnAST *parse_stmt_list(SpnParser *p)
 	if (ast == NULL) {
 		return NULL;
 	}
-	
+
 	while (p->curtok.tok != SPN_TOK_RBRACE) {
 		SpnAST *tmp;
 		SpnAST *right = parse_stmt(p);
@@ -234,13 +235,13 @@ static SpnAST *parse_stmt_list(SpnParser *p)
 			spn_ast_free(ast);
 			return NULL;
 		}
-	
+
 		tmp = spn_ast_new(SPN_NODE_COMPOUND, p->lineno);
 		tmp->left = ast;	/* this node	*/
 		tmp->right = right;	/* next node	*/
 		ast = tmp;		/* update head	*/
 	}
-	
+
 	return ast;
 }
 
@@ -267,7 +268,7 @@ static SpnAST *parse_func(SpnParser *p)
 	enum spn_ast_node node;
 	SpnString *name;
 	SpnAST *ast, *body;
-	
+
 	if (spn_accept(p, SPN_TOK_LAMBDA)) {
 		node = SPN_NODE_LAMBDA;
 		name = NULL;
@@ -289,29 +290,29 @@ static SpnAST *parse_func(SpnParser *p)
 		name = NULL;	/* invalid */
 		SHANT_BE_REACHED();
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_LPAREN)) {
 		spn_parser_error(p, "expected `(' in function header");
 		spn_value_release(&p->curtok.val);
-		
+
 		if (name != NULL) {
 			spn_object_release(name);
 		}
-		
+
 		return NULL;
 	}
-	
+
 	ast = spn_ast_new(node, p->lineno);
 	ast->name = name;
-	
+
 	if (!spn_accept(p, SPN_TOK_RPAREN)) {
 		SpnAST *arglist = parse_decl_args(p);
 		if (arglist == NULL) {
 			return NULL;
 		}
-		
+
 		ast->left = arglist;
-		
+
 		if (!spn_accept(p, SPN_TOK_RPAREN)) { /* error */
 			spn_parser_error(p, "expected `)' after function argument list");
 			spn_value_release(&p->curtok.val);
@@ -319,7 +320,7 @@ static SpnAST *parse_func(SpnParser *p)
 			return NULL;
 		}
 	}
-	
+
 	body = parse_block(p);
 	if (body == NULL) {
 		spn_ast_free(ast);
@@ -333,23 +334,23 @@ static SpnAST *parse_func(SpnParser *p)
 static SpnAST *parse_block(SpnParser *p)
 {
 	SpnAST *list, *ast;
-	
+
 	if (!spn_accept(p, SPN_TOK_LBRACE)) {
 		spn_parser_error(p, "expected `{' in block statement");
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
-	
+
 	if (spn_accept(p, SPN_TOK_RBRACE)) {	/* empty block */
 		return spn_ast_new(SPN_NODE_EMPTY, p->lineno);
 	}
-	
+
 	list = parse_stmt_list(p);
-	
+
 	if (list == NULL) {
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_RBRACE)) {
 		spn_parser_error(p, "expected `}' at end of block statement");
 		spn_value_release(&p->curtok.val);
@@ -368,12 +369,12 @@ static SpnAST *parse_block(SpnParser *p)
 	 * in parse_stmt_list() is that it may return multiple levels of nested
 	 * compounds, but only the top-level node should be marked as a block.
 	 */
-	
+
 	if (list->node == SPN_NODE_COMPOUND) {
 		list->node = SPN_NODE_BLOCK;
 		return list;
 	}
-	
+
 	ast = spn_ast_new(SPN_NODE_BLOCK, p->lineno);
 	ast->left = list;
 	return ast;
@@ -386,7 +387,6 @@ static SpnAST *parse_expr(SpnParser *p)
 
 static SpnAST *parse_assignment(SpnParser *p)
 {
-	
 	static const enum spn_lex_token toks[] = {
 		SPN_TOK_ASSIGN,
 		SPN_TOK_PLUSEQ,
@@ -401,7 +401,7 @@ static SpnAST *parse_assignment(SpnParser *p)
 		SPN_TOK_SHREQ,
 		SPN_TOK_DOTDOTEQ,
 	};
-	
+
 	static const enum spn_ast_node nodes[] = {
 		SPN_NODE_ASSIGN,
 		SPN_NODE_ASSIGN_ADD,
@@ -416,7 +416,7 @@ static SpnAST *parse_assignment(SpnParser *p)
 		SPN_NODE_ASSIGN_SHR,
 		SPN_NODE_ASSIGN_CONCAT,
 	};
-	
+
 	return parse_binexpr_rightassoc(p, toks, nodes, COUNT(toks), parse_concat);
 }
 
@@ -430,22 +430,22 @@ static SpnAST *parse_concat(SpnParser *p)
 static SpnAST *parse_condexpr(SpnParser *p)
 {
 	SpnAST *ast, *br_true, *br_false, *branches, *tmp;
-	
+
 	ast = parse_logical_or(p);
 	if (ast == NULL) {
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_QMARK)) {
 		return ast;
 	}
-	
+
 	br_true = parse_expr(p);
 	if (br_true == NULL) {
 		spn_ast_free(ast);
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_COLON)) {
 		/* error, expected ':' */
 		spn_parser_error(p, "expected `:' in conditional expression");
@@ -454,21 +454,22 @@ static SpnAST *parse_condexpr(SpnParser *p)
 		spn_ast_free(br_true);
 		return NULL;
 	}
-	
+
 	br_false = parse_condexpr(p);
 	if (br_false == NULL) {
 		spn_ast_free(ast);
 		spn_ast_free(br_true);
 		return NULL;
 	}
-	
+
 	branches = spn_ast_new(SPN_NODE_BRANCHES, p->lineno);
 	branches->left  = br_true;
 	branches->right = br_false;
-	
+
 	tmp = spn_ast_new(SPN_NODE_CONDEXPR, p->lineno);
 	tmp->left = ast; /* condition */
 	tmp->right = branches; /* true and false values */
+
 	return tmp;
 }
 
@@ -499,7 +500,7 @@ static SpnAST *parse_comparison(SpnParser *p)
 		SPN_TOK_LEQ,
 		SPN_TOK_GEQ
 	};
-	
+
 	static const enum spn_ast_node nodes[] = {
 		SPN_NODE_EQUAL,
 		SPN_NODE_NOTEQ,
@@ -508,7 +509,7 @@ static SpnAST *parse_comparison(SpnParser *p)
 		SPN_NODE_LEQ,
 		SPN_NODE_GEQ
 	};
-	
+
 	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_bitwise_or);
 }
 
@@ -539,12 +540,12 @@ static SpnAST *parse_shift(SpnParser *p)
 		SPN_TOK_SHL,
 		SPN_TOK_SHR
 	};
-	
+
 	static const enum spn_ast_node nodes[] = {
 		SPN_NODE_SHL,
 		SPN_NODE_SHR
 	};
-	
+
 	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_additive);
 }
 
@@ -554,12 +555,12 @@ static SpnAST *parse_additive(SpnParser *p)
 		SPN_TOK_PLUS,
 		SPN_TOK_MINUS
 	};
-	
+
 	static const enum spn_ast_node nodes[] = {
 		SPN_NODE_ADD,
 		SPN_NODE_SUB
 	};
-	
+
 	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_multiplicative);
 }
 
@@ -570,13 +571,13 @@ static SpnAST *parse_multiplicative(SpnParser *p)
 		SPN_TOK_DIV,
 		SPN_TOK_MOD
 	};
-	
+
 	static const enum spn_ast_node nodes[] = {
 		SPN_NODE_MUL,
 		SPN_NODE_DIV,
 		SPN_NODE_MOD
 	};
-	
+
 	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_prefix);
 }
 
@@ -593,7 +594,7 @@ static SpnAST *parse_prefix(SpnParser *p)
 		SPN_TOK_TYPEOF,
 		SPN_TOK_HASH
 	};
-	
+
 	static const enum spn_ast_node nodes[] = {
 		SPN_NODE_PREINCRMT,
 		SPN_NODE_PREDECRMT,
@@ -605,21 +606,22 @@ static SpnAST *parse_prefix(SpnParser *p)
 		SPN_NODE_TYPEOF,
 		SPN_NODE_NTHARG
 	};
-	
+
 	SpnAST *operand, *ast;
 	int idx = spn_accept_multi(p, toks, COUNT(toks));
 	if (idx < 0) {
 		return parse_postfix(p);
 	}
-	
+
 	/* right recursion for right-associative operators */
 	operand = parse_prefix(p);
 	if (operand == NULL) {	/* error */
 		return NULL;
 	}
-	
+
 	ast = spn_ast_new(nodes[idx], p->lineno);
 	ast->left = operand;
+
 	return ast;
 }
 
@@ -645,12 +647,12 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 	SpnAST *tmp, *expr, *ast;
 	int idx;
-	
+
 	ast = parse_term(p);
 	if (ast == NULL) {	/* error */
 		return NULL;
 	}
-	
+
 	/* iteration instead of left recursion - we want to terminate */
 	while ((idx = spn_accept_multi(p, toks, COUNT(toks))) >= 0) {
 		SpnAST *ident;
@@ -671,7 +673,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 			tmp->left = ast;
 			tmp->right = expr;
-			
+
 			if (!spn_accept(p, SPN_TOK_RBRACKET)) {
 				/* error: expected closing bracket */
 				spn_parser_error(p, "expected `]' after expression in array subscript");
@@ -680,7 +682,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 				spn_ast_free(tmp);
 				return NULL;
 			}
-			
+
 			break;
 		case SPN_NODE_MEMBEROF:
 			if (p->curtok.tok != SPN_TOK_IDENT) { /* error: expected identifier as member */
@@ -689,22 +691,22 @@ static SpnAST *parse_postfix(SpnParser *p)
 				spn_ast_free(tmp);
 				return NULL;
 			}
-			
+
 			ident = parse_term(p);
-			
+
 			if (ident == NULL) { /* error */
 				spn_ast_free(ast);
 				spn_ast_free(tmp);
 				return NULL;
 			}
-			
+
 			tmp->left = ast;
 			tmp->right = ident;
 			
 			break;
 		case SPN_NODE_FUNCCALL:
 			tmp->left = ast;
-			
+
 			if (p->curtok.tok != SPN_TOK_RPAREN) {
 				SpnAST *arglist = parse_call_args(p);
 			
@@ -715,7 +717,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 				tmp->right = arglist;
 			}
-			
+
 			if (!spn_accept(p, SPN_TOK_RPAREN)) {
 				/* error: expected closing parenthesis */
 				spn_parser_error(p, "expected `)' after expression in function call");
@@ -729,10 +731,10 @@ static SpnAST *parse_postfix(SpnParser *p)
 		default:
 			SHANT_BE_REACHED();
 		}
-		
+
 		ast = tmp;
 	}
-	
+
 	return ast;
 }
 
@@ -743,26 +745,26 @@ static SpnAST *parse_term(SpnParser *p)
 	switch (p->curtok.tok) {
 	case SPN_TOK_LPAREN:
 		spn_lex(p);
-		
+
 		ast = parse_expr(p);
 		if (ast == NULL) {
 			return NULL;
 		}
-		
+
 		if (!spn_accept(p, SPN_TOK_RPAREN)) {
 			spn_parser_error(p, "expected `)' after parenthesized expression");
 			spn_value_release(&p->curtok.val);
 			spn_ast_free(ast);
 			return NULL;
 		}
-		
+
 		return ast;
 	case SPN_TOK_LAMBDA:
 		return parse_func(p);
 	case SPN_TOK_IDENT:
 		ast = spn_ast_new(SPN_NODE_IDENT, p->lineno);
 		ast->name = p->curtok.val.v.ptrv;
-		
+
 		spn_lex(p);
 		if (p->error) {
 			spn_ast_free(ast);
@@ -832,7 +834,7 @@ static SpnAST *parse_term(SpnParser *p)
 			spn_ast_free(ast);
 			return NULL;
 		}
-		
+
 		return ast;
 	default:
 		spn_parser_error(p, "unexpected token %d", p->curtok.tok);
@@ -846,7 +848,7 @@ static SpnAST *parse_decl_args(SpnParser *p)
 {
 	SpnAST *ast = NULL, *res;
 	SpnString *name = p->curtok.val.v.ptrv;
-	
+
 	if (!spn_accept(p, SPN_TOK_IDENT)) {
 		spn_parser_error(p, "expected identifier in function argument list");
 		spn_value_release(&p->curtok.val);
@@ -855,45 +857,44 @@ static SpnAST *parse_decl_args(SpnParser *p)
 
 	ast = spn_ast_new(SPN_NODE_DECLARGS, p->lineno);
 	ast->name = name;
-	
+
 	res = ast; /* preserve head */
-	
+
 	while (spn_accept(p, SPN_TOK_COMMA)) {
 		SpnAST *tmp;
 		SpnString *name = p->curtok.val.v.ptrv;
-		
+
 		if (!spn_accept(p, SPN_TOK_IDENT)) {
 			spn_parser_error(p, "expected identifier in function argument list");
 			spn_value_release(&p->curtok.val);
 			spn_ast_free(ast);
 			return NULL;
 		}
-		
-		
+
 		tmp = spn_ast_new(SPN_NODE_DECLARGS, p->lineno);
 		tmp->name = name;	/* this is the actual name */
 		ast->left = tmp;	/* this builds the link list */
 		ast = tmp;		/* update head */
 	}
-	
+
 	return res;
 }
 
 static SpnAST *parse_call_args(SpnParser *p)
 {
 	SpnAST *expr, *ast;
-	
+
 	expr = parse_expr(p);
 	if (expr == NULL) {
 		return NULL; /* fail */
 	}
-	
+
 	ast = spn_ast_new(SPN_NODE_CALLARGS, p->lineno);
 	ast->right = expr;
-	
+
 	while (spn_accept(p, SPN_TOK_COMMA)) {
 		SpnAST *right = parse_expr(p);
-		
+
 		if (right == NULL) { /* fail */
 			spn_ast_free(ast);
 			return NULL;
@@ -904,7 +905,7 @@ static SpnAST *parse_call_args(SpnParser *p)
 			ast = tmp;		/* update head */
 		}
 	}
-	
+
 	return ast;
 }
 
@@ -918,28 +919,29 @@ static SpnAST *parse_binexpr_rightassoc(
 {
 	int idx;
 	SpnAST *ast, *right, *tmp;
-	
+
 	ast = subexpr(p);
 	if (ast == NULL) {
 		return NULL;
 	}
-	
+
 	idx = spn_accept_multi(p, toks, n);
 	if (idx < 0) {
 		return ast;
 	}
-	
+
 	/* apply right recursion */
 	right = parse_binexpr_rightassoc(p, toks, nodes, n, subexpr);
-	
+
 	if (right == NULL) {
 		spn_ast_free(ast);
 		return NULL;
 	}
-	
+
 	tmp = spn_ast_new(nodes[idx], p->lineno);
 	tmp->left = ast;
 	tmp->right = right;
+
 	return tmp;
 }
 
@@ -956,22 +958,22 @@ static SpnAST *parse_binexpr_leftassoc(
 	if (ast == NULL) {
 		return NULL;
 	}
-	
+
 	/* iteration instead of left recursion (which wouldn't terminate) */
 	while ((idx = spn_accept_multi(p, toks, n)) >= 0) {
 		SpnAST *tmp, *right = subexpr(p);
-		
+
 		if (right == NULL) {
 			spn_ast_free(ast);
 			return NULL;
 		}
-		
+
 		tmp = spn_ast_new(nodes[idx], p->lineno);
 		tmp->left = ast;
 		tmp->right = right;
 		ast = tmp;
 	}
-	
+
 	return ast;
 }
 
@@ -985,19 +987,18 @@ static SpnAST *parse_if(SpnParser *p)
 	if (!spn_lex(p)) {
 		return NULL;
 	}
-	
+
 	cond = parse_expr(p);
 	if (cond == NULL) {
 		return NULL;
 	}
-	
-	
+
 	br_then = parse_block(p);
 	if (br_then == NULL) {
 		spn_ast_free(cond);
 		return NULL;
 	}
-	
+
 	/* "else" is optional (hence we set its node to NULL beforehand).
 	 * It may be followed by either a block or another if statement.
 	 * The reason: we want to stay safe by enforcing blocks, but requiring
@@ -1017,28 +1018,29 @@ static SpnAST *parse_if(SpnParser *p)
 			spn_ast_free(br_then);
 			return NULL;
 		}
-		
+
 		if (br_else == NULL) {
 			spn_ast_free(cond);
 			spn_ast_free(br_then);
 			return NULL;
 		}
 	}
-	
+
 	br = spn_ast_new(SPN_NODE_BRANCHES, p->lineno);
 	br->left = br_then;
 	br->right = br_else;
-	
+
 	ast = spn_ast_new(SPN_NODE_IF, p->lineno);
 	ast->left = cond;
 	ast->right = br;
+
 	return ast;
 }
 
 static SpnAST *parse_while(SpnParser *p)
 {
 	SpnAST *cond, *body, *ast;
-	
+
 	/* skip `while' */
 	if (!spn_lex(p)) {
 		return NULL;
@@ -1048,33 +1050,34 @@ static SpnAST *parse_while(SpnParser *p)
 	if (cond == NULL) {
 		return NULL;
 	}
-		
+
 	body = parse_block(p);
 	if (body == NULL) {
 		spn_ast_free(cond);
 		return NULL;
 	}
-	
+
 	ast = spn_ast_new(SPN_NODE_WHILE, p->lineno);
 	ast->left = cond;
 	ast->right = body;
+
 	return ast;
 }
 
 static SpnAST *parse_do(SpnParser *p)
 {
 	SpnAST *cond, *body, *ast;
-	
+
 	/* skip `do' */
 	if (!spn_lex(p)) {
 		return NULL;
 	}
-	
+
 	body = parse_block(p);
 	if (body == NULL) {
 		return NULL;
 	}
-	
+
 	/* expect "while expr;" */
 	if (!spn_accept(p, SPN_TOK_WHILE)) {
 		spn_parser_error(p, "expected `while' after body of do-while statement");
@@ -1082,13 +1085,13 @@ static SpnAST *parse_do(SpnParser *p)
 		spn_ast_free(body);
 		return NULL;
 	}
-	
+
 	cond = parse_expr(p);
 	if (cond == NULL) {
 		spn_ast_free(body);
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
 		spn_parser_error(p, "expected `;' after condition of do-while statement");
 		spn_value_release(&p->curtok.val);
@@ -1096,26 +1099,28 @@ static SpnAST *parse_do(SpnParser *p)
 		spn_ast_free(cond);
 		return NULL;
 	}
-	
+
 	ast = spn_ast_new(SPN_NODE_DO, p->lineno);
 	ast->left = cond;
 	ast->right = body;
+
 	return ast;
 }
 
 static SpnAST *parse_for(SpnParser *p)
 {
 	SpnAST *init, *cond, *incr, *body, *h1, *h2, *h3, *ast;
+
 	/* skip `for' */
 	if (!spn_lex(p)) {
 		return NULL;
 	}
-	
+
 	init = parse_expr(p);
 	if (init == NULL) {
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
 		spn_parser_error(p, "expected `;' after initialization of for loop");
 		spn_value_release(&p->curtok.val);
@@ -1128,7 +1133,7 @@ static SpnAST *parse_for(SpnParser *p)
 		spn_ast_free(init);
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
 		spn_parser_error(p, "expected `;' after condition of for loop");
 		spn_value_release(&p->curtok.val);
@@ -1151,21 +1156,22 @@ static SpnAST *parse_for(SpnParser *p)
 		spn_ast_free(incr);
 		return NULL;
 	}
-	
+
 	/* linked list for the loop header */
 	h1 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
 	h2 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
 	h3 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-	
+
 	h1->left = init;
 	h1->right = h2;
 	h2->left = cond;
 	h2->right = h3;
 	h3->left = incr;
-	
+
 	ast = spn_ast_new(SPN_NODE_FOR, p->lineno);
 	ast->left = h1;
 	ast->right = body;
+
 	return ast;
 }
 
@@ -1173,22 +1179,22 @@ static SpnAST *parse_foreach(SpnParser *p)
 {
 	SpnAST *key, *val, *arr, *body, *h1, *h2, *h3, *ast;
 	SpnString *name;
-	
+
 	/* skip `foreach' */
 	if (!spn_lex(p)) {
 		return NULL;
 	}
-	
+
 	name = p->curtok.val.v.ptrv;
 	if (!spn_accept(p, SPN_TOK_IDENT)) {
 		spn_parser_error(p, "key in foreach loop must be a variable");
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
-	
+
 	key = spn_ast_new(SPN_NODE_IDENT, p->lineno);
 	key->name = name;
-	
+
 	if (!spn_accept(p, SPN_TOK_AS)) {
 		spn_parser_error(p, "expected `as' after key in foreach loop");
 		spn_value_release(&p->curtok.val);
@@ -1203,10 +1209,10 @@ static SpnAST *parse_foreach(SpnParser *p)
 		spn_ast_free(key);
 		return NULL;
 	}
-	
+
 	val = spn_ast_new(SPN_NODE_IDENT, p->lineno);
 	val->name = name;
-		
+
 	if (!spn_accept(p, SPN_TOK_IN)) {
 		spn_parser_error(p, "expected `in' after value in foreach loop");
 		spn_value_release(&p->curtok.val);
@@ -1222,7 +1228,7 @@ static SpnAST *parse_foreach(SpnParser *p)
 		spn_ast_free(val);
 		return NULL;
 	}
-	
+
 	body = parse_block(p);
 	if (body == NULL) {
 		spn_ast_free(key);
@@ -1230,21 +1236,22 @@ static SpnAST *parse_foreach(SpnParser *p)
 		spn_ast_free(arr);
 		return NULL;
 	}
-	
+
 	/* linked list for the loop header */
 	h1 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
 	h2 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
 	h3 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-	
+
 	h1->left = key;
 	h1->right = h2;
 	h2->left = val;
 	h2->right = h3;
 	h3->left = arr;
-	
+
 	ast = spn_ast_new(SPN_NODE_FOREACH, p->lineno);
 	ast->left = h1;
 	ast->right = body;
+
 	return ast;
 }
 
@@ -1254,13 +1261,13 @@ static SpnAST *parse_break(SpnParser *p)
 	if (!spn_lex(p)) {
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
 		spn_parser_error(p, "expected `;' after `break'");
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
-	
+
 	return spn_ast_new(SPN_NODE_BREAK, p->lineno);
 }
 
@@ -1270,42 +1277,43 @@ static SpnAST *parse_continue(SpnParser *p)
 	if (!spn_lex(p)) {
 		return NULL;
 	}
-	
+
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
 		spn_parser_error(p, "expected `;' after `continue'");
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
-	
+
 	return spn_ast_new(SPN_NODE_CONTINUE, p->lineno);
 }
 
 static SpnAST *parse_return(SpnParser *p)
 {
 	SpnAST *expr;
-	
+
 	/* skip `return' */
 	if (!spn_lex(p)) {
 		return NULL;
 	}
-	
+
 	if (spn_accept(p, SPN_TOK_SEMICOLON)) {
 		return spn_ast_new(SPN_NODE_RETURN, p->lineno); /* return without value */
 	}
-	
+
 	expr = parse_expr(p);
 	if (expr == NULL) {
 		return NULL;
 	}
-	
+
 	if (spn_accept(p, SPN_TOK_SEMICOLON)) {
 		SpnAST *ast = spn_ast_new(SPN_NODE_RETURN, p->lineno);
 		ast->left = expr;
 		return ast;
 	}
-	
+
 	spn_parser_error(p, "expected `;' after expression in return statement");
 	spn_ast_free(expr);
+
 	return NULL;
 }
 
@@ -1330,7 +1338,7 @@ static SpnAST *parse_vardecl(SpnParser *p)
 
 		if (spn_accept(p, SPN_TOK_ASSIGN)) {
 			expr = parse_expr(p);
-			
+
 			if (expr == NULL) {
 				spn_object_release(name);
 				spn_ast_free(ast);
@@ -1368,14 +1376,15 @@ static SpnAST *parse_expr_stmt(SpnParser *p)
 	if (ast == NULL) {
 		return NULL;
 	}
-	
+
 	if (spn_accept(p, SPN_TOK_SEMICOLON)) {
 		return ast;
 	}
-	
+
 	spn_parser_error(p, "expected `;' after expression");
 	spn_value_release(&p->curtok.val);
 	spn_ast_free(ast);
+
 	return NULL;
 }
 
@@ -1386,7 +1395,7 @@ static SpnAST *parse_empty(SpnParser *p)
 	if (p->error) {
 		return NULL;
 	}
-	
+
 	return spn_ast_new(SPN_NODE_EMPTY, p->lineno);
 }
 

@@ -33,7 +33,7 @@ static void free_string(void *obj)
 	if (str->dealloc) {
 		free(str->cstr);
 	}
-	
+
 	free(str);
 }
 
@@ -55,12 +55,12 @@ static int equal_strings(const void *l, const void *r)
 static unsigned long hash_string(void *obj)
 {
 	SpnString *str = obj;
-	
+
 	if (!str->ishashed) {
 		str->hash = spn_hash(str->cstr, str->len);
 		str->ishashed = 1;
 	}
-	
+
 	return str->hash;
 }
 
@@ -81,37 +81,43 @@ SpnString *spn_string_new_len(const char *cstr, size_t len)
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	memcpy(buf, cstr, len); /* so that strings can hold binary data */
 	buf[len] = 0;
-	
+
 	return spn_string_new_nocopy_len(buf, len, 1);
 }
 
 SpnString *spn_string_new_nocopy_len(const char *cstr, size_t len, int dealloc)
 {
 	SpnString *str = spn_object_new(&spn_class_string);
-	
+
 	str->dealloc = dealloc;
 	str->len = len;
 	str->cstr = (char *)(cstr);
 	str->ishashed = 0;
-	
+
 	return str;
 }
 
 SpnString *spn_string_concat(SpnString *lhs, SpnString *rhs)
 {
 	size_t len = lhs->len + rhs->len;
-	
+
 	char *buf = malloc(len + 1);
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	strcpy(buf, lhs->cstr);
 	strcpy(buf + lhs->len, rhs->cstr);
-	
+
 	return spn_string_new_nocopy_len(buf, len, 1);
+}
+
+/* TODO: implement this */
+char *spn_string_format(const char *fmt, int argc, SpnValue *argv)
+{
+	return NULL;
 }
 

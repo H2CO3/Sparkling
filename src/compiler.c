@@ -182,9 +182,9 @@ SpnCompiler *spn_compiler_new()
 	if (cmp == NULL) {
 		abort();
 	}
-	
+
 	cmp->errmsg = NULL;
-	
+
 	return cmp;
 }
 
@@ -197,16 +197,16 @@ void spn_compiler_free(SpnCompiler *cmp)
 spn_uword *spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast, size_t *sz)
 {
 	bytecode_init(&cmp->bc);
-	
+
 	/* compile program */
 	if (compile_program(cmp, ast)) { /* success */
 		if (sz != NULL) {
 			*sz = cmp->bc.len;
 		}
-		
+
 		return cmp->bc.insns;
 	}
-	
+
 	/* error */
 	free(cmp->bc.insns);
 	return NULL;
@@ -231,17 +231,17 @@ static void bytecode_append(TBytecode *bc, spn_uword *words, size_t n)
 		if (bc->allocsz == 0) {
 			bc->allocsz = 0x40;
 		}
-		
+
 		while (bc->allocsz < bc->len + n) {
 			bc->allocsz <<= 1;
 		}
-		
+
 		bc->insns = realloc(bc->insns, bc->allocsz * sizeof(bc->insns[0]));
 		if (bc->insns == NULL) {
 			abort();
 		}
 	}
-	
+
 	memcpy(bc->insns + bc->len, words, n * sizeof(bc->insns[0]));
 	bc->len += n;
 }
@@ -259,12 +259,12 @@ static void append_cstring(TBytecode *bc, const char *str, size_t len)
 	if (buf == NULL) {
 		abort();
 	}
-	
+
 	/* this relies on the fact that `strncpy()` pads with NUL characters
 	 * when strlen(src) < sizeof(dest)
 	 */
 	strncpy((char *)(buf), str, padded_len);
-	
+
 	bytecode_append(bc, buf, nwords);
 	free(buf);
 }
@@ -282,22 +282,22 @@ static int rts_add(RoundTripStore *rts, SpnValue *val)
 {
 	int idx = rts_count(rts);
 	int newsize;
-	
+
 	/* insert element into last place */
 	SpnValue idxval;
 	idxval.t = SPN_TYPE_NUMBER;
 	idxval.f = 0;
 	idxval.v.intv = idx;
-	
+
 	spn_array_set(rts->fwd, &idxval, val);
 	spn_array_set(rts->inv, val, &idxval);
-	
+
 	/* keep track of maximal size of the RTS */
 	newsize = rts_count(rts);
 	if (newsize > rts->maxsize) {
 		rts->maxsize = newsize;
 	}
-	
+
 	return idx;
 }
 
@@ -307,7 +307,7 @@ static SpnValue *rts_getval(RoundTripStore *rts, int idx)
 	idxval.t = SPN_TYPE_NUMBER;
 	idxval.f = 0;
 	idxval.v.intv = idx;
-	
+
 	return spn_array_get(rts->fwd, &idxval);
 }
 
@@ -332,13 +332,13 @@ static void rts_delete_top(RoundTripStore *rts, int newsize)
 {
 	int oldsize = rts_count(rts);
 	int i;
-	
+
 	/* because nothing else would make sense */
 	assert(newsize <= oldsize);
 
 	for (i = newsize; i < oldsize; i++) {
 		SpnValue val, *valp;
-		
+
 		SpnValue idx;
 		idx.t = SPN_TYPE_NUMBER;
 		idx.f = 0;
@@ -346,18 +346,18 @@ static void rts_delete_top(RoundTripStore *rts, int newsize)
 
 		valp = spn_array_get(rts->fwd, &idx);
 		assert(valp->t != SPN_TYPE_NIL);
-		
+
 		/* if I used a pointer, then `spn_array_remove(rts->fwd, &idx)`
 		 * would set its type to nil (I know, screw me), so we need to
 		 * make a copy of the value struct (reference counts stay
 		 * correct, though)
 		 */
 		val = *valp;
-		
+
 		spn_array_remove(rts->fwd, &idx);		
 		spn_array_remove(rts->inv, &val);
 	}
-	
+
 	assert(rts_count(rts) == newsize);
 }
 
@@ -374,29 +374,29 @@ static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *f
 	/* because C89 doesn't have snprintf... </3 */
 	int stublen, n;
 	va_list args;
-	
+
 	/* print error to stderr, count characters printed */
 	stublen = fprintf(stderr, ERRMSG_FORMAT, lineno);
 	if (stublen < 0) {
 		abort();
 	}
-	
+
 	va_start(args, fmt);
 	n = vfprintf(stderr, fmt, args);
 	va_end(args);
 	if (n < 0) {
 		abort();
 	}
-	
+
 	fputc('\n', stderr);
-	
+
 	cmp->errmsg = realloc(cmp->errmsg, stublen + n + 1); /* +1 for NUL */
 	if (cmp->errmsg == NULL) {
 		abort();
 	}
-	
+
 	sprintf(cmp->errmsg, ERRMSG_FORMAT, lineno);
-	
+
 	va_start(args, fmt);
 	vsprintf(cmp->errmsg + stublen, fmt, args);
 	va_end(args);
@@ -413,7 +413,7 @@ static int compile(SpnCompiler *cmp, SpnAST *ast)
 	if (ast == NULL) {
 		return 1;
 	}
-	
+
 	switch (ast->node) {
 	case SPN_NODE_COMPOUND:	return compile_compound(cmp, ast);
 	case SPN_NODE_BLOCK:	return compile_block(cmp, ast);
@@ -436,33 +436,33 @@ static int compile(SpnCompiler *cmp, SpnAST *ast)
 static int write_symtab(SpnCompiler *cmp)
 {
 	int i, nsyms = rts_count(cmp->symtab);
-	
+
 	for (i = 0; i < nsyms; i++) {
 		SpnValue *sym = rts_getval(cmp->symtab, i);
-		
+
 		switch (sym->t) {
 		case SPN_TYPE_STRING: {
 			/* string literal */
-			
+
 			SpnString *str = sym->v.ptrv;
-			
+
 			/* append symbol type and length description */
 			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_STRCONST, str->len);
 			bytecode_append(&cmp->bc, &ins, 1);
-			
+
 			/* append actual 0-terminated string */
 			append_cstring(&cmp->bc, str->cstr, str->len);
 			break;
 		}
 		case SPN_TYPE_FUNC: {
 			/* unresolved function stub */
-			
+
 			size_t namelen = strlen(sym->v.fnv.name);
-			
+
 			/* append symbol type */
 			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_FUNCSTUB, namelen);
 			bytecode_append(&cmp->bc, &ins, 1);
-			
+
 			/* append function name */
 			append_cstring(&cmp->bc, sym->v.fnv.name, namelen);
 			break;
@@ -491,7 +491,7 @@ static int write_symtab(SpnCompiler *cmp)
 			return -1;
 		}
 	}
-	
+
 	return 0;
 }
 
@@ -521,16 +521,16 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	/* append stub program header (just make room for it) */
 	spn_uword header[SPN_PRGHDR_LEN] = { 0 };
 	bytecode_append(&cmp->bc, header, SPN_PRGHDR_LEN);
-	
+
 	/* set up variable table and local symbol table */
 	rts_init(&symtab);
 	rts_init(&glbvars);
 	cmp->symtab = &symtab;
 	cmp->varstack = &glbvars;
-	
+
 	/* set up the maximal number of registers needed at global scope */
 	cmp->nregs = 0;
-	
+
 	/* compile children */
 	if (compile(cmp, ast->left) == 0 || compile(cmp, ast->right) == 0) {
 		/* on error, clean up and return error */
@@ -538,10 +538,10 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 		rts_free(&glbvars);
 		return 0;
 	}
-	
+
 	/* unconditionally append `return nil;`, just in case */
 	append_return_nil(cmp);
-	
+
 	/* since `cmp->nregs` is only set if temporary variables are used at
 	 * least once during compilation (i. e. if there's an expression that
 	 * needs temporary registers), it may contain zero even if more than
@@ -550,16 +550,16 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	 * number of registers stored in `cmp->nregs`.
 	 */
 	regcnt = max(cmp->nregs, cmp->varstack->maxsize);
-	
+
 	assert(regcnt >= 0);
 	assert(rts_count(cmp->symtab) >= 0);
-	
+
 	/* now sufficient header info is available - fill in bytecode */
 	cmp->bc.insns[SPN_HDRIDX_MAGIC]	    = SPN_MAGIC;
 	cmp->bc.insns[SPN_HDRIDX_SYMTABOFF] = cmp->bc.len;
 	cmp->bc.insns[SPN_HDRIDX_SYMTABLEN] = rts_count(cmp->symtab);
 	cmp->bc.insns[SPN_HDRIDX_FRMSIZE]   = regcnt;
-	
+
 	/* write local symbol table, check for errors */
 	if (write_symtab(cmp) != 0) {
 		rts_free(&symtab);
@@ -588,13 +588,13 @@ static int compile_block(SpnCompiler *cmp, SpnAST *ast)
 	 * remain in the stack.
 	 */
 	int old_stack_size = rts_count(cmp->varstack);
-	
+
 	/* compile children */
 	int success = compile(cmp, ast->left) && compile(cmp, ast->right);
-	
+
 	/* and now remove the variables declared in the scope of this block */
 	rts_delete_top(cmp->varstack, old_stack_size);
-	
+
 	return success;
 }
 
@@ -608,12 +608,12 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	SpnAST *arg;
 	RoundTripStore vs_this;
 	ScopeInfo sci;
-	
+
 	/* save scope context data: local variables, temporary register stack
 	 * pointer, maximal number of registers, innermost loop offset
 	 */
 	save_scope(cmp, &sci);
-	
+
 	/* init new local variable stack, register counter and loop offset */
 	rts_init(&vs_this);
 	cmp->varstack = &vs_this;
@@ -628,17 +628,17 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 		name = SPN_LAMBDA_NAME;
 		namelen = strlen(name);
 	}
-	
+
 	ins = SPN_MKINS_LONG(SPN_INS_GLBSYM, namelen);
 	bytecode_append(&cmp->bc, &ins, 1);
 	append_cstring(&cmp->bc, name, namelen);
-	
+
 	/* save the offset of the function header */
 	hdroff = cmp->bc.len;
-	
+
 	/* write stub function header */
 	bytecode_append(&cmp->bc, fnhdr, SPN_FUNCHDR_LEN);
-	
+
 	/* if the function is a lambda, create a local symtab entry for it. */
 	if (ast->node == SPN_NODE_LAMBDA) {
 		/* the next index to be used in the local symtab is the length
@@ -649,11 +649,11 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 		offval.t = SPN_TYPE_NUMBER;
 		offval.f = 0;
 		offval.v.intv = hdroff;
-		
+
 		*symidx = rts_add(cmp->symtab, &offval);		
 	}
-	
-	/* bring function arguments in scope (they are put int the  first
+
+	/* bring function arguments in scope (they are put in the first
 	 * `argc' registers), and count them as well
 	 */
 	for (arg = ast->left; arg != NULL; arg = arg->left) {
@@ -663,9 +663,9 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 		argname.v.ptrv = arg->name;
 		rts_add(cmp->varstack, &argname);
 	}
-	
+
 	argc = rts_count(cmp->varstack);
-	
+
 	/* compile body */
 	if (compile(cmp, ast->right) == 0) {
 		/* on error, free local var stack... */
@@ -673,25 +673,25 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 
 		/* ...and restore scope context */
 		restore_scope(cmp, &sci);
-		
+
 		return 0;
 	}
 
 	/* unconditionally append `return nil;` at the end */
 	append_return_nil(cmp);
-	
+
 	/* `max()` is called for the same reason it is called in the
 	 * `compile_program()` function (see the explanation there)
 	 */
 	regcount = max(cmp->nregs, cmp->varstack->maxsize);
-	
+
 	bodylen = cmp->bc.len - (hdroff + SPN_FUNCHDR_LEN);
-	
+
 	/* fill in now-available function header information */
 	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_BODYLEN]	= bodylen;
 	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_ARGC]	= argc;
 	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_NREGS]	= regcount;
-	
+
 	/* free local var stack, restore scope context data */
 	rts_free(&vs_this);
 	restore_scope(cmp, &sci);
@@ -704,39 +704,39 @@ static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 	int cndidx = -1;
 	spn_uword ins[2] = { 0 }; /* stub */
 	spn_sword off_cond, off_cndjmp, off_body, off_jmpback, off_end;
-	
+
 	off_cond = cmp->bc.len;
-	
+
 	/* compile condition */
 	if (compile_expr_toplevel(cmp, ast->left, &cndidx) == 0) {
 		return 0;
 	}
-	
+
 	off_cndjmp = cmp->bc.len;
-	
+
 	/* append jump over the loop body if condition is false (stub) */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
-	
+
 	off_body = cmp->bc.len;
-	
+
 	/* compile loop body */
 	if (compile(cmp, ast->right) == 0) {
 		return 0;
 	}
-	
+
 	off_jmpback = cmp->bc.len;
-	
+
 	/* compile jump back to the condition */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
-	
+
 	off_end = cmp->bc.len;
-	
+
 	cmp->bc.insns[off_cndjmp + 0] = SPN_MKINS_A(SPN_INS_JZE, cndidx);
 	cmp->bc.insns[off_cndjmp + 1] = off_end - off_body;
-	
+
 	cmp->bc.insns[off_jmpback + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
 	cmp->bc.insns[off_jmpback + 1] = off_cond - off_end;
-	
+
 	return 1;
 }
 
@@ -746,12 +746,12 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 	spn_sword off_jmp, diff;
 	spn_uword ins[2];
 	int reg = -1;
-	
+
 	/* compile body */
 	if (compile(cmp, ast->right) == 0) {
 		return 0;
 	}
-	
+
 	/* compile and negate condition (we can only emit a "jump if false"
 	 * instruction, but we want to jump to the beginning if the condition
 	 * is **true**...
@@ -759,15 +759,15 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 	if (compile_expr_toplevel(cmp, ast->left, &reg) == 0) {
 		return 0;
 	}
-	
+
 	off_jmp = cmp->bc.len + COUNT(ins);
 	diff = off_body - off_jmp;
-	
+
 	/* jump back to body if condition is true */
 	ins[0] = SPN_MKINS_A(SPN_INS_JNZ, reg);
 	ins[1] = diff;
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
-	
+
 	return 1;
 }
 
@@ -777,7 +777,7 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	spn_sword off_cond, off_body_begin, off_body_end, off_cond_jmp, off_uncd_jmp;
 	spn_uword jmpins[2] = { 0 }; /* dummy */
 	SpnAST *header, *init, *cond, *icmt;
-	
+
 	/* hand-unrolled loops FTW! */
 	header = ast->left;
 	init = header->left;
@@ -785,48 +785,48 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	cond = header->left;
 	header = header->right;
 	icmt = header->left;
-	
+
 	/* compile initialization ouside the loop */
 	if (compile_expr_toplevel(cmp, init, NULL) == 0) {
 		return 0;
 	}
-	
+
 	/* compile condition */
 	off_cond = cmp->bc.len;
 	if (compile_expr_toplevel(cmp, cond, &regidx) == 0) {
 		return 0;
 	}
-	
+
 	/* compile "skip body if condition is false" jump */
 	off_cond_jmp = cmp->bc.len;
 	bytecode_append(&cmp->bc, jmpins, COUNT(jmpins));
-	
+
 	/* compile body and incrementing expression */
 	off_body_begin = cmp->bc.len;
 	if (compile(cmp, ast->right) == 0) {
 		return 0;
 	}
-	
+
 	if (compile_expr_toplevel(cmp, icmt, NULL) == 0) {
 		return 0;
 	}
-	
+
 	/* compile unconditional jump back to the condition */
 	off_uncd_jmp = cmp->bc.len;
 	bytecode_append(&cmp->bc, jmpins, COUNT(jmpins));
-	
+
 	off_body_end = cmp->bc.len;
-	
+
 	/* fill in stub jump instructions
 	 * 1. jump over body if condition not met
 	 */
 	cmp->bc.insns[off_cond_jmp + 0] = SPN_MKINS_A(SPN_INS_JZE, regidx);
 	cmp->bc.insns[off_cond_jmp + 1] = off_body_end - off_body_begin;
-	
+
 	/* 2. always jump back to beginning and check condition */
 	cmp->bc.insns[off_uncd_jmp + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
 	cmp->bc.insns[off_uncd_jmp + 1] = off_cond - off_body_end;
-	
+
 	return 1;
 }
 
@@ -843,12 +843,12 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 	spn_sword len_then, len_else;
 	spn_uword ins[2] = { 0 };
 	int condidx = -1;
-	
+
 	SpnAST *cond = ast->left;
 	SpnAST *branches = ast->right;
 	SpnAST *br_then = branches->left;
 	SpnAST *br_else = branches->right;
-	
+
 	/* sanity check */
 	assert(branches->node == SPN_NODE_BRANCHES);
 
@@ -856,21 +856,21 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 	if (compile_expr_toplevel(cmp, cond, &condidx) == 0) {
 		return 0;
 	}
-	
+
 	off_jze_b4_then = cmp->bc.len;
-	
+
 	/* append stub "jump if zero" instruction */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
-	
+
 	off_then = cmp->bc.len;
-	
+
 	/* compile "then" branch */
 	if (compile(cmp, br_then) == 0) {
 		return 0;
 	}
-	
+
 	off_jmp_b4_else = cmp->bc.len;
-	
+
 	/* append stub unconditional jump */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
 
@@ -880,18 +880,17 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 	if (compile(cmp, br_else) == 0) {
 		return 0;
 	}
-	
+
 	/* complete stub jumps */
 	len_then = off_else - off_then;
 	len_else = cmp->bc.len - off_else;
-	
 
 	cmp->bc.insns[off_jze_b4_then + 0] = SPN_MKINS_A(SPN_INS_JZE, condidx);
 	cmp->bc.insns[off_jze_b4_then + 1] = len_then;
-	
+
 	cmp->bc.insns[off_jmp_b4_else + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
 	cmp->bc.insns[off_jmp_b4_else + 1] = len_else;
-	
+
 	return 1;
 }
 
@@ -913,15 +912,15 @@ static int compile_continue(SpnCompiler *cmp, SpnAST *ast)
 static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 {
 	SpnAST *head = ast;
-	
+
 	while (head != NULL) {
 		int idx;
-	
+
 		SpnValue name;
 		name.t = SPN_TYPE_STRING;
 		name.f = SPN_TFLG_OBJECT;
 		name.v.ptrv = head->name;
-	
+
 		/* check for erroneous re-declaration - the name must not yet be
 		 * in scope (i. e. in the variable stack)
 		 */
@@ -929,10 +928,10 @@ static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 			compiler_error(cmp, head->lineno, "variable `%s' already declared", head->name->cstr);
 			return 0;
 		}
-	
+
 		/* add identifier to variable stack */
 		idx = rts_add(cmp->varstack, &name);
-	
+
 		/* compile initializer expression, if any; if there is no
 		 * initializer expression, fill variable with nil
 		 */
@@ -944,7 +943,7 @@ static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 			spn_uword ins = SPN_MKINS_AB(SPN_INS_LDCONST, idx, SPN_CONST_NIL);
 			bytecode_append(&cmp->bc, &ins, 1);
 		}
-		
+
 		head = head->right;
 	}
 
@@ -956,18 +955,18 @@ static int compile_return(SpnCompiler *cmp, SpnAST *ast)
 	/* compile expression (left child) if any; else return nil */
 	if (ast->left != NULL) {
 		spn_uword ins;
-		
+
 		int dst = -1;
 		if (compile_expr_toplevel(cmp, ast->left, &dst) == 0) {
 			return 0;
 		}
-		
+
 		ins = SPN_MKINS_A(SPN_INS_RET, dst);
 		bytecode_append(&cmp->bc, &ins, 1);
 	} else {
 		append_return_nil(cmp);	
 	}
-	
+
 	return 1;
 }
 
@@ -985,16 +984,16 @@ static int compile_expr_toplevel(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	 * to the number of variables (local or global, depending on scope)
 	 */
 	cmp->tmpidx = rts_count(cmp->varstack);
-	
+
 	/* actually compile expression */
 	if (compile_expr(cmp, ast, &reg)) {
 		if (dst != NULL) {
 			*dst = reg;
 		}
-		
+
 		return 1;
 	}
-	
+
 	return 0;
 }
 
@@ -1003,19 +1002,19 @@ static void compile_string_literal(SpnCompiler *cmp, SpnValue *str, int *dst)
 {
 	spn_uword ins;
 	int idx;
-	
+
 	assert(str->t == SPN_TYPE_STRING);
-	
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
-	
+
 	/* if the string is not in the symtab yet, add it */
 	idx = rts_getidx(cmp->symtab, str);
 	if (idx < 0) {
 		idx = rts_add(cmp->symtab, str);
 	}
-	
+
 	/* emit load instruction */
 	ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, idx);
 	bytecode_append(&cmp->bc, &ins, 1);
@@ -1031,7 +1030,7 @@ static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	/* to silence "may be used uninitialized" warning in release build */
 	enum spn_vm_ins opcode = -1;
-	
+
 	switch (ast->node) {
 	case SPN_NODE_ADD:	opcode = SPN_INS_ADD;	 break;
 	case SPN_NODE_SUB:	opcode = SPN_INS_SUB;	 break;
@@ -1052,7 +1051,7 @@ static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_CONCAT:	opcode = SPN_INS_CONCAT; break;
 	default:		SHANT_BE_REACHED();	 break;
 	}
-	
+
 	dst_left  = -1;
 	dst_right = -1;
 	if (compile_expr(cmp, ast->left,  &dst_left)  == 0
@@ -1060,23 +1059,23 @@ static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		/* an error occurred */
 		return 0;
 	}
-	
+
 	nvars = rts_count(cmp->varstack);
 
 	/* if result of LHS went into a temporary, then "pop" */
 	if (dst_left >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	/* if result of RHS went into a temporary, then "pop" */
 	if (dst_right >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
-	
+
 	ins = SPN_MKINS_ABC(opcode, *dst, dst_left, dst_right);
 	bytecode_append(&cmp->bc, &ins, 1);
 	return 1;
@@ -1085,13 +1084,13 @@ static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
 static int compile_assignment_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int idx;
-	
+
 	/* get register index of variable using its name */
 	SpnValue ident;
 	ident.t = SPN_TYPE_STRING;
 	ident.f = SPN_TFLG_OBJECT;
 	ident.v.ptrv = ast->left->name;
-	
+
 	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
 		compiler_error(
@@ -1102,12 +1101,12 @@ static int compile_assignment_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		);
 		return 0;
 	}
-	
+
 	/* store RHS to the variable register */
 	if (compile_expr(cmp, ast->right, &idx) == 0) {
 		return 0;
 	}
-	
+
 	/* if we are free to choose the destination register, then we
 	 * just return the left-hand side, the variable that is being
 	 * assigned to. If, however, the destination is determinate,
@@ -1130,10 +1129,10 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	SpnAST *lhs = ast->left;
 	SpnAST *rhs = ast->right;
 	int nvars;
-	
+
 	/* array and subscript indices: just like in `compile_arrsub()` */
 	int arridx = -1, subidx = -1;
-	
+
 	/* compile right-hand side directly into the destination register,
 	 * since the assignment operation needs to yield it anyway
 	 * (formally, the operation yields the LHS, but they are the same
@@ -1142,12 +1141,12 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (compile_expr(cmp, rhs, dst) == 0) {
 		return 0;
 	}
-	
+
 	/* compile array expression */
 	if (compile_expr(cmp, lhs->left, &arridx) == 0) {
 		return 0;
 	}
-	
+
 	/* compile subscript */
 	if (lhs->node == SPN_NODE_ARRSUB) {
 		/* indexing with brackets */
@@ -1162,25 +1161,25 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		nameval.v.ptrv = lhs->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
-	
+
 	/* emit "store to array" instruction */
 	ins = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst);
 	bytecode_append(&cmp->bc, &ins, 1);
-	
+
 	/* XXX: is this correct? since we need neither the value of the
 	 * array nor the value of the subscripting expression, we can
 	 * get rid of them by popping them off the temporary stack.
 	 */
 	nvars = rts_count(cmp->varstack);
-	
+
 	if (arridx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	if (subidx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	return 1;
 }
 
@@ -1189,10 +1188,10 @@ static int compile_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	switch (ast->left->node) {
 	case SPN_NODE_IDENT:	return compile_assignment_var(cmp, ast, dst);
-	
+
 	case SPN_NODE_ARRSUB:
 	case SPN_NODE_MEMBEROF:	return compile_assignment_array(cmp, ast, dst);
-	
+
 	default:
 		compiler_error(
 			cmp,
@@ -1214,7 +1213,7 @@ static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	ident.t = SPN_TYPE_STRING;
 	ident.f = SPN_TFLG_OBJECT;
 	ident.v.ptrv = ast->left->name;
-	
+
 	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
 		compiler_error(
@@ -1225,22 +1224,22 @@ static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 		);
 		return 0;
 	}
-	
+
 	/* evaluate RHS */
 	if (compile_expr(cmp, ast->right, &rhs) == 0) {
 		return 0;
 	}
-	
+
 	/* if RHS went into a temporary register, then pop() */
 	nvars = rts_count(cmp->varstack);
 	if (rhs >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	/* emit instruction to operate on LHS and RHS */
 	ins = SPN_MKINS_ABC(opcode, idx, idx, rhs);
 	bytecode_append(&cmp->bc, &ins, 1);
-	
+
 	/* finally, yield the LHS. (this just means that we set the destination
 	 * register to the index of the variable if we can, and we emit a move
 	 * instruction if we can't.)
@@ -1251,7 +1250,7 @@ static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 		ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
 		bytecode_append(&cmp->bc, &ins, 1);
 	}
-	
+
 	return 1;
 }
 
@@ -1260,23 +1259,23 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	spn_uword ins[3];
 	SpnAST *lhs = ast->left;
 	SpnAST *rhs = ast->right;
-	
+
 	int nvars, arridx = -1, subidx = -1, rhsidx = -1;
-	
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
-	
+
 	/* compile RHS */
 	if (compile_expr(cmp, rhs, &rhsidx) == 0) {
 		return 0;
 	}
-	
+
 	/* compile array expression */
 	if (compile_expr(cmp, lhs->left, &arridx) == 0) {
 		return 0;
 	}
-	
+
 	/* compile subscript */
 	if (lhs->node == SPN_NODE_ARRSUB) {
 		/* indexing with brackets */
@@ -1291,40 +1290,40 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 		nameval.v.ptrv = lhs->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
-	
+
 	/* load LHS into destination register */
 	ins[0] = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
-	
+
 	/* evaluate "LHS = LHS <op> RHS" */
 	ins[1] = SPN_MKINS_ABC(opcode, *dst, *dst, rhsidx);
-	
+
 	/* store value of updated destination register into array */
 	ins[2] = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst);
 
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
-	
+
 	/* pop as many times as we used a temporary register (XXX: correct?) */
 	nvars = rts_count(cmp->varstack);
-	
+
 	if (rhsidx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	if (arridx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	if (subidx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	return 1;
 }
 
 static int compile_compound_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	enum spn_vm_ins opcode;
-	
+
 	switch (ast->node) {
 	case SPN_NODE_ASSIGN_ADD:	opcode = SPN_INS_ADD;	 break;
 	case SPN_NODE_ASSIGN_SUB:	opcode = SPN_INS_SUB;	 break;
@@ -1339,13 +1338,13 @@ static int compile_compound_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_ASSIGN_CONCAT:	opcode = SPN_INS_CONCAT; break;
 	default:			SHANT_BE_REACHED();	 break;
 	}
-	
+
 	switch (ast->left->node) {
 	case SPN_NODE_IDENT:	return compile_cmpd_assgmt_var(cmp, ast, dst, opcode);
-	
+
 	case SPN_NODE_ARRSUB:
 	case SPN_NODE_MEMBEROF:	return compile_cmpd_assgmt_arr(cmp, ast, dst, opcode);
-	
+
 	default:
 		compiler_error(
 			cmp,
@@ -1361,9 +1360,9 @@ static int compile_logical(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_sword off_rhs, off_jump, end_rhs;
 	spn_uword movins, jumpins[2] = { 0 }; /* dummy */
-	
+
 	enum spn_vm_ins opcode = ast->node == SPN_NODE_LOGAND ? SPN_INS_JZE : SPN_INS_JNZ;
-	
+
 	/* we can't compile the result directly into the destination register,
 	 * because if the destination is a variable which will be examined in
 	 * the righ-hand side expression too, we will be in trouble.
@@ -1374,31 +1373,31 @@ static int compile_logical(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (compile_expr(cmp, ast->left, &idx) == 0) {
 		return 0;
 	}
-	
+
 	/* if it evaluates to false (AND) or true (OR),
 	 * then we short-circuit and yield the LHS
 	 */
 	off_jump = cmp->bc.len;
 	bytecode_append(&cmp->bc, jumpins, COUNT(jumpins));
-	
+
 	off_rhs = cmp->bc.len;
-	
+
 	/* compile right-hand side */
 	if (compile_expr(cmp, ast->right, &idx) == 0) {
 		return 0;
 	}
-	
+
 	end_rhs = cmp->bc.len;
-	
+
 	/* fill in stub jump instruction */
 	cmp->bc.insns[off_jump + 0] = SPN_MKINS_A(opcode, idx);
 	cmp->bc.insns[off_jump + 1] = end_rhs - off_rhs;
-	
+
 	/* move result into destination, then get rid of temporary */
 	movins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
 	bytecode_append(&cmp->bc, &movins, 1);
 	tmp_pop(cmp);
-	
+
 	return 1;
 }
 
@@ -1414,62 +1413,62 @@ static int compile_condexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	spn_sword len_then, len_else;
 	spn_uword ins[2] = { 0 }; /* stub */
 	int condidx = -1;
-	
+
 	SpnAST *cond = ast->left;
 	SpnAST *branches = ast->right;
 	SpnAST *val_then = branches->left;
 	SpnAST *val_else = branches->right;
-	
+
 	/* sanity check */
 	assert(branches->node == SPN_NODE_BRANCHES);
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
-	
+
 	/* compile condition */
 	if (compile_expr(cmp, cond, &condidx) == 0) {
 		return 0;
 	}
-	
+
 	/* save offset of jump before "then" branch */
 	off_jze_b4_then = cmp->bc.len;
-	
+
 	/* append stub JZE instruction */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
-	
+
 	/* save offset of "then" branch */
 	off_then = cmp->bc.len;
-	
+
 	/* compile "then" branch */
 	if (compile_expr(cmp, val_then, dst) == 0) {
 		return 0;
 	}
-	
+
 	/* save offset of jump before "else" branch */
 	off_jmp_b4_else = cmp->bc.len;
-	
+
 	/* append stub JMP instruction */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
 
 	/* save offset of "else" branch */
 	off_else = cmp->bc.len;
-	
+
 	/* compile "else" branch */
 	if (compile_expr(cmp, val_else, dst) == 0) {
 		return 0;
 	}
-	
+
 	/* fill in jump instructions */
 	len_then = off_else - off_then;
 	len_else = cmp->bc.len - off_else;
-	
+
 	cmp->bc.insns[off_jze_b4_then + 0] = SPN_MKINS_A(SPN_INS_JZE, condidx);
 	cmp->bc.insns[off_jze_b4_then + 1] = len_then;
-	
+
 	cmp->bc.insns[off_jmp_b4_else + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
 	cmp->bc.insns[off_jmp_b4_else + 1] = len_else;
-	
+
 	return 1;
 }
 
@@ -1477,11 +1476,11 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int idx;
 	SpnValue varname;
-	
+
 	varname.t = SPN_TYPE_STRING;
 	varname.f = SPN_TFLG_OBJECT;
 	varname.v.ptrv = ast->name;
-	
+
 	idx = rts_getidx(cmp->varstack, &varname);
 
 	/* if `rts_getidx()` returns -1, then the variable is undeclared --
@@ -1496,24 +1495,24 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		stub.t = SPN_TYPE_FUNC;
 		stub.f = SPN_TFLG_PENDING;
 		stub.v.fnv.name = ast->name->cstr;
-		
+
 		sym = rts_getidx(cmp->symtab, &stub);
 		if (sym < 0) {
 			/* not found, append to symtab */
 			sym = rts_add(cmp->symtab, &stub);
 		}
-		
+
 		/* compile "load symbol" instruction */
 		if (*dst < 0) {
 			*dst = tmp_push(cmp);
 		}
-		
+
 		ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, sym);
 		bytecode_append(&cmp->bc, &ins, 1);
-		
+
 		return 1;
 	}
-	
+
 	/* if the caller leaves to us where to put the value, then we just
 	 * leave it where it currently is and return the index of the variable
 	 * register itself. However, if we are requested to put the value
@@ -1525,7 +1524,7 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		spn_uword ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
 		bytecode_append(&cmp->bc, &ins, 1);
 	}
-	
+
 	return 1;
 }
 
@@ -1534,7 +1533,7 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
-	
+
 	switch (ast->value.t) {
 	case SPN_TYPE_NIL: {
 		spn_uword ins = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_NIL);
@@ -1553,20 +1552,20 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_TYPE_NUMBER: {
 		if (ast->value.f & SPN_TFLG_FLOAT) {
 			spn_uword ins[1 + ROUNDUP(sizeof(ast->value.v.fltv), sizeof(spn_uword))] = { 0 };
-			
+
 			ins[0] = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_FLOAT);
 			memcpy(&ins[1], &ast->value.v.fltv, sizeof(ast->value.v.fltv));
-			
+
 			bytecode_append(&cmp->bc, ins, COUNT(ins));
 		} else {
 			spn_uword ins[1 + ROUNDUP(sizeof(ast->value.v.intv), sizeof(spn_uword))] = { 0 };
-			
+
 			ins[0] = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_INT);
 			memcpy(&ins[1], &ast->value.v.intv, sizeof(ast->value.v.intv));
-			
+
 			bytecode_append(&cmp->bc, ins, COUNT(ins));
 		}
-		
+
 		break;
 	}
 	case SPN_TYPE_STRING:
@@ -1576,7 +1575,7 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		SHANT_BE_REACHED();
 		return 0;
 	}
-	
+
 	return 1;
 }
 
@@ -1584,7 +1583,7 @@ static int compile_lambda(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int symidx;
 	spn_uword ins;
-	
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
@@ -1593,11 +1592,11 @@ static int compile_lambda(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (compile_funcdef(cmp, ast, &symidx) == 0) {
 		return 0;
 	}
-	
+
 	/* emit load instruction */
 	ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, symidx);
 	bytecode_append(&cmp->bc, &ins, 1);
-	
+
 	return 1;
 }
 
@@ -1605,17 +1604,17 @@ static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_uword ins;
 	int nvars;
-	
+
 	/* array index: register index of the array expression
 	 * subscript index: register index of the subscripting expression
 	 */
 	int arridx = -1, subidx = -1;
-	
+
 	/* compile array expression */
 	if (compile_expr(cmp, ast->left, &arridx) == 0) {
 		return 0;
 	}
-	
+
 	/* compile subscripting expression */
 	if (ast->node == SPN_NODE_ARRSUB) {
 		/* normal subscripting with brackets */
@@ -1630,26 +1629,26 @@ static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		nameval.v.ptrv = ast->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
-	
+
 	/* the usual "pop as many times as we pushed" optimization */
 	nvars = rts_count(cmp->varstack);
 
 	if (arridx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	if (subidx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
-	
+
 	/* emit "load from array" instruction */
 	ins = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
 	bytecode_append(&cmp->bc, &ins, 1);
-	
+
 	return 1;
 }
 
@@ -1669,7 +1668,7 @@ static int compile_callargs(SpnCompiler *cmp, SpnAST *ast, spn_uword **idc, int 
 			/* calloc(0) may return NULL, hence the extra check */
 			abort();
 		}
-		
+
 		/* reset counter to 0 (innermost argument is the first one) */
 		*argc = 0;
 	} else {
@@ -1677,40 +1676,36 @@ static int compile_callargs(SpnCompiler *cmp, SpnAST *ast, spn_uword **idc, int 
 		int wordidx, shift;
 
 		assert(ast->node == SPN_NODE_CALLARGS);
-		
+
 		/* signal that there's one more argument */
 		++*argc;
-		
+
 		if (compile_callargs(cmp, ast->left, idc, argc) == 0) {
 			return 0;
 		}
-		
+
 		if (compile_expr(cmp, ast->right, &dst) == 0) {
 			free(*idc);
 			return 0;
 		}
-		
+
 		/* TODO: this should be a proper error check instead */
 		assert(dst < 256);
-		
+
 		/* fill in the appropriate octet in the bytecode */
 		wordidx = *argc / SPN_WORD_OCTETS;
 		shift = 8 * (*argc % SPN_WORD_OCTETS);
 		(*idc)[wordidx] |= dst << shift;
-		
+
 		/* step over to next register index */
 		++*argc;
 	}
-	
+
 	return 1;
 }
 
 /* left child: function-valued expression
  * right child: link list of call argument expressions
- *
- * TODO: check if ast->left (the function) is a memberof operation; if so,
- * an SPN_INS_STRTHIS instruction must be emitted as well to set up the
- * implicit `self` argument correctly.
  */
 static int compile_call(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
@@ -1718,31 +1713,31 @@ static int compile_call(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* 0-initializing `argc` is needed by `compile_callargs()` */
 	int argc = 0, fnreg = -1;
 	spn_uword ins;
-	
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
-	
+
 	/* load function */
 	if (compile_expr(cmp, ast->left, &fnreg) == 0) {
 		return 0;
 	}
-	
+
 	/* call arguments are in reverse order in the AST, so we can use
 	 * recursion to count and evaluate them	
 	 */
 	if (compile_callargs(cmp, ast->right, &idc, &argc) == 0) {
 		return 0;
 	}
-	
+
 	/* actually emit call instruction */
 	ins = SPN_MKINS_ABC(SPN_INS_CALL, *dst, fnreg, argc);
 	bytecode_append(&cmp->bc, &ins, 1);
 	bytecode_append(&cmp->bc, idc, ROUNDUP(argc, SPN_WORD_OCTETS));
-	
+
 	/* idc has been assigned to `calloc()`ed memory, so free it */
 	free(idc);
-	
+
 	return 1;
 }
 
@@ -1763,7 +1758,7 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_UNMINUS:	opcode = SPN_INS_NEG;	 break;
 	default:		SHANT_BE_REACHED();
 	}
-	
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
@@ -1771,15 +1766,15 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (compile_expr(cmp, ast->left, &idx) == 0) {
 		return 0;
 	}
-	
+
 	ins = SPN_MKINS_AB(opcode, *dst, idx);
 	bytecode_append(&cmp->bc, &ins, 1);
-	
+
 	nvars = rts_count(cmp->varstack);
 	if (idx >= nvars) {
 		tmp_pop(cmp);
 	}
-	
+
 	return 1;
 }
 
@@ -1787,7 +1782,7 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int idx;
 	SpnValue varname;
-	
+
 	if (ast->left->node != SPN_NODE_IDENT) {
 		compiler_error(
 			cmp,
@@ -1796,7 +1791,7 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		);
 		return 0;
 	}
-	
+
 	varname.t = SPN_TYPE_STRING;
 	varname.f = SPN_TFLG_OBJECT;
 	varname.v.ptrv = ast->left->name;
@@ -1810,7 +1805,7 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		);
 		return 0;
 	}
-	
+
 	/* here, case fallthru could avoid a tiny bit of code duplication,
 	 * but I hate falling through because it hurts when I land.
 	 */
@@ -1825,7 +1820,7 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		/* increment or decrement first */
 		ins = SPN_MKINS_A(opcode, idx);
 		bytecode_append(&cmp->bc, &ins, 1);
-		
+
 		/* then yield already changed value */
 		if (*dst < 0) {
 			*dst = idx;
@@ -1833,7 +1828,7 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 			ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
 			bytecode_append(&cmp->bc, &ins, 1);
 		}
-		
+
 		break;
 	}
 	case SPN_NODE_POSTINCRMT:
@@ -1842,7 +1837,7 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		enum spn_vm_ins opcode = ast->node == SPN_NODE_POSTINCRMT
 				       ? SPN_INS_INC
 				       : SPN_INS_DEC;
-		
+
 		/* first, yield unchanged value */
 		if (*dst < 0) {
 			*dst = tmp_push(cmp);
@@ -1852,17 +1847,17 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 			ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
 			bytecode_append(&cmp->bc, &ins, 1);
 		}
-		
+
 		/* increment/decrement only then */
 		ins = SPN_MKINS_A(opcode, idx);
 		bytecode_append(&cmp->bc, &ins, 1);
-		
+
 		break;
 	}
 	default:
 		SHANT_BE_REACHED();
 	}
-	
+
 	return 1;
 }
 
@@ -1886,7 +1881,7 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_LEQ:
 	case SPN_NODE_GREATER:
 	case SPN_NODE_GEQ:		return compile_simple_binop(cmp, ast, dst);
-	
+
 	case SPN_NODE_ASSIGN:		return compile_assignment(cmp, ast, dst);
 
 	case SPN_NODE_ASSIGN_ADD:
@@ -1900,30 +1895,30 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_ASSIGN_SHL:
 	case SPN_NODE_ASSIGN_SHR:
 	case SPN_NODE_ASSIGN_CONCAT:	return compile_compound_assignment(cmp, ast, dst);
-	
+
 	/* short-circuiting logical operators */
 	case SPN_NODE_LOGAND:
 	case SPN_NODE_LOGOR:		return compile_logical(cmp, ast, dst);
-	
+
 	/* conditional ternary */
 	case SPN_NODE_CONDEXPR:		return compile_condexpr(cmp, ast, dst);
-	
+
 	/* variables, functions */
 	case SPN_NODE_IDENT:		return compile_ident(cmp, ast, dst);
-	
+
 	/* immediate values */
 	case SPN_NODE_LITERAL:		return compile_literal(cmp, ast, dst);
-	
+
 	/* lambda functions */	
 	case SPN_NODE_LAMBDA:		return compile_lambda(cmp, ast, dst);
-	
+
 	/* array indexing */
 	case SPN_NODE_ARRSUB:
 	case SPN_NODE_MEMBEROF:		return compile_arrsub(cmp, ast, dst);
-	
+
 	/* function calls */
 	case SPN_NODE_FUNCCALL:		return compile_call(cmp, ast, dst);
-	
+
 	/* unary plus just returns its argument verbatim */
 	case SPN_NODE_UNPLUS:		return compile_expr(cmp, ast->left, dst);
 
@@ -1939,7 +1934,7 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_PREDECRMT:
 	case SPN_NODE_POSTINCRMT:
 	case SPN_NODE_POSTDECRMT:	return compile_incdec(cmp, ast, dst);
-	
+
 	default:
 		compiler_error(cmp, ast->lineno, "unrecognized AST node `%d'", ast->node);
 		return 0;

@@ -182,8 +182,6 @@ enum spn_vm_ins {
 	SPN_INS_CONCAT,		/* a = b .. c				*/
 	SPN_INS_LDCONST,	/* a = <constant> 		(IV)	*/
 	SPN_INS_LDSYM,		/* a = local symtab[b]		(V)	*/
-	SPN_INS_LDTHIS,		/* a = this				*/
-	SPN_INS_STRTHIS,	/* this = a 				*/
 	SPN_INS_MOV,		/* a = b				*/
 	SPN_INS_NEWARR,		/* a = new array			*/
 	SPN_INS_ARRGET,		/* a = b[c]				*/
