@@ -44,7 +44,6 @@ enum spn_lex_token {
 	SPN_TOK_BREAK,
 	SPN_TOK_CONTINUE,
 	SPN_TOK_FUNCTION,
-	SPN_TOK_LAMBDA,
 	SPN_TOK_RETURN,
 	SPN_TOK_TRUE,
 	SPN_TOK_FALSE,
@@ -54,9 +53,8 @@ enum spn_lex_token {
 	SPN_TOK_TYPEOF,
 	SPN_TOK_VAR,
 
-	/* the argc, self and this keywords are handled differently, in the compiler
-	 * `and', `or' and `not' are lexed as the corresponding logical operators
-	 * `nil' and `null' are recognized as the exact same token
+	/* `and', `or' and `not' are lexed as the corresponding logical
+	 * operators; `nil' and `null' are recognized as the exact same token
 	 */
 
 	/* Operators, special characters */

@@ -21,7 +21,7 @@ static SpnAST *parse_program(SpnParser *p);
 static SpnAST *parse_program_nonempty(SpnParser *p);
 static SpnAST *parse_stmt(SpnParser *p);
 static SpnAST *parse_stmt_list(SpnParser *p);
-static SpnAST *parse_func(SpnParser *p);
+static SpnAST *parse_function(SpnParser *p, int is_stmt);
 static SpnAST *parse_expr(SpnParser *p);
 
 static SpnAST *parse_assignment(SpnParser *p);
@@ -174,27 +174,18 @@ static SpnAST *parse_program(SpnParser *p)
 	return NULL;
 }
 
-static SpnAST *parse_toplevel(SpnParser *p)
-{
-	if (p->curtok.tok == SPN_TOK_FUNCTION) {
-		return parse_func(p);
-	} else {
-		return parse_stmt(p);
-	}
-}
-
 static SpnAST *parse_program_nonempty(SpnParser *p)
 {
 	SpnAST *ast;
 
-	SpnAST *sub = parse_toplevel(p);
+	SpnAST *sub = parse_stmt(p);
 	if (sub == NULL) {
 		return NULL;
 	}
 
 	while (!p->eof) {
 		SpnAST *tmp;
-		SpnAST *right = parse_toplevel(p);
+		SpnAST *right = parse_stmt(p);
 		if (right == NULL) {
 			spn_ast_free(sub);
 			return NULL;
@@ -259,36 +250,42 @@ static SpnAST *parse_stmt(SpnParser *p)
 		case SPN_TOK_SEMICOLON:	return parse_empty(p);
 		case SPN_TOK_LBRACE:	return parse_block(p);
 		case SPN_TOK_VAR:	return parse_vardecl(p);
+		case SPN_TOK_FUNCTION:	return parse_function(p, 1);
 		default:		return parse_expr_stmt(p);
 	}
 }
 
-static SpnAST *parse_func(SpnParser *p)
+static SpnAST *parse_function(SpnParser *p, int is_stmt)
 {
 	enum spn_ast_node node;
 	SpnString *name;
 	SpnAST *ast, *body;
 
-	if (spn_accept(p, SPN_TOK_LAMBDA)) {
-		node = SPN_NODE_LAMBDA;
-		name = NULL;
-	} else if (spn_accept(p, SPN_TOK_FUNCTION)) {
-		node = SPN_NODE_FUNCDEF;
-		name = p->curtok.val.v.ptrv;
+	/* skip `function' keyword */
+	if (!spn_accept(p, SPN_TOK_FUNCTION)) {
+		spn_parser_error(p, "internal error, expected `function'");
+		spn_value_release(&p->curtok.val);
+		return NULL;
+	}
 
-		if (!spn_accept(p, SPN_TOK_IDENT)) {
-			spn_parser_error(p, "expected identifier after `function'");
+	if (is_stmt) {
+		/* named global function statement */
+
+		if (p->curtok.tok != SPN_TOK_IDENT) {
+			spn_parser_error(p, "expected function name in function statement");
 			spn_value_release(&p->curtok.val);
 			return NULL;
 		}
+
+		node = SPN_NODE_FUNCSTMT;
+		name = p->curtok.val.v.ptrv;
+
+		/* skip identifier */
+		spn_lex(p);
 	} else {
-		/* gcc warns in release mode about this,
-		 * therefore I must set these variables.
-		 * What's wrong with you, __attribute__((noreturn))!?
-		 */
-		node = -1;	/* invalid */
-		name = NULL;	/* invalid */
-		SHANT_BE_REACHED();
+		/* unnamed function expression, lambda */
+		node = SPN_NODE_FUNCEXPR;
+		name = NULL;
 	}
 
 	if (!spn_accept(p, SPN_TOK_LPAREN)) {
@@ -308,6 +305,7 @@ static SpnAST *parse_func(SpnParser *p)
 	if (!spn_accept(p, SPN_TOK_RPAREN)) {
 		SpnAST *arglist = parse_decl_args(p);
 		if (arglist == NULL) {
+			spn_ast_free(ast);
 			return NULL;
 		}
 
@@ -759,8 +757,8 @@ static SpnAST *parse_term(SpnParser *p)
 		}
 
 		return ast;
-	case SPN_TOK_LAMBDA:
-		return parse_func(p);
+	case SPN_TOK_FUNCTION:
+		return parse_function(p, 0);
 	case SPN_TOK_IDENT:
 		ast = spn_ast_new(SPN_NODE_IDENT, p->lineno);
 		ast->name = p->curtok.val.v.ptrv;

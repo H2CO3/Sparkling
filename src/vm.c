@@ -26,11 +26,9 @@
  * +--------------------------+
  * | activation record header | <- SP - 1
  * +--------------------------+
- * | implicit self            | <- SP - 2
+ * | register #0              | <- SP - 2
  * +--------------------------+
- * | register #0              | <- SP - 3
- * +--------------------------+
- * | register #1              | <- SP - 4
+ * | register #1              | <- SP - 3
  * +--------------------------+
  * |                          |
  * 
@@ -42,10 +40,9 @@
  * [nregs...nregs + extra_argc)	- unnamed (variadic) arguments
  */
 
-#define EXTRA_SLOTS	2
+#define EXTRA_SLOTS	1
 #define IDX_FRMHDR	(-1)
-#define IDX_SELF	(-2)
-#define REG_OFFSET	(-3)
+#define REG_OFFSET	(-2)
 
 /* the debug versions of the following macros are defined in such a horrible
  * way because once I've shot myself in the foot trying to store the result of
@@ -439,10 +436,6 @@ static void push_frame(
 		vm->sp[i].v.f = 0;
 	}
 
-	/* also initialize implicit self to nil */
-	vm->sp[IDX_SELF].v.t = SPN_TYPE_NIL;
-	vm->sp[IDX_SELF].v.f = 0;
-
 	/* initialize activation record header */
 	vm->sp[IDX_FRMHDR].h.size = real_nregs;
 	vm->sp[IDX_FRMHDR].h.decl_argc = decl_argc;
@@ -483,9 +476,6 @@ static void pop_frame(SpnVMachine *vm)
 	for (i = -nregs; i < -EXTRA_SLOTS; i++) {
 		spn_value_release(&vm->sp[i].v);
 	}
-
-	/* release implicit self (if any) */
-	spn_value_release(&vm->sp[IDX_SELF].v);
 
 	/* adjust stack pointer */
 	vm->sp -= nregs;

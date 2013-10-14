@@ -251,6 +251,15 @@ in radians. `round()`, `floor()` and `ceil()` return an `int`. `min()` and
 `max()` take any number of arguments but at least one. `random()` returns
 a `float` between 0 and 1 inclusive.
 
+`isnan()`, `isinf()`, `isfin()`, `isfloat()` and `isint()` return true if the
+number passed in is `NaN` (not a number), infinite, finite, floating-point or
+an integer, respectively.
+
+`fact(n)` and `binom(n, k)` compute factorial and the binomial coefficient.
+These functions operate on integers only. (The C standard library doesn't
+provide the gamma function, and it's not used that often except in highly
+specialized computations, so it's simply excluded from the Sparkling stdlib.)
+
 5. Basic time and date manipulation (spn_libtime)
 -------------------------------------------------
     int time(void)

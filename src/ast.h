@@ -30,29 +30,32 @@
  * three parts of the for(each) loop header (initialization, condition,
  * increment; or key, value, table)
  * 
- * SPN_NODE_IF's left child is the condition, the right child is a
- * BRANCHES node (left child: then-branch, right child: else-branch)
+ * the left child of SPN_NODE_IF is the condition, and its right child is
+ * a BRANCHES node (left child: then-branch, right child: else-branch)
  * 
  * VARDECL has its `name` member set to the identifier of the variable, the
  * optional left child is the initializer expression, or NULL if none
  * 
  * expressions are laid out intuitively: the left child is the LHS, the right
- * child is the RHS. the exception is the conditional ternary operator:
+ * child is the RHS. The exception is the conditional ternary operator:
  * its left child is the condition, the right child is a BRANCHES node.
- * unary operators have their left child set only, except array subscripting,
+ * Unary operators have their left child set only, except array subscripting,
  * the `memberof` operator and function calls, which have their argument(s)
- * packaged into the right child (this is an expression in the case of array
+ * packaged into the right child (which is an expression in the case of array
  * subscripts and memberof, and a link list of CALLARGS nodes in the case
- * of function calls)
+ * of function calls).
  * 
- * the `name` member of an IDENT node is set to the actual identifier string
- * likewise, the `value` member of a LITERAL token is an SpnValue
+ * the `name` member of an `IDENT' node is set to the actual identifier string
+ * likewise, the `value` member of a `LITERAL' token is an SpnValue
  * (integer, floating-point number, string, etc.) describing the token
  * 
- * LAMBDA and FUNCDEF are almost identical, except that the former can only
- * appear at global (file) scope. (the name of a FUNCTION is *still* an
- * expression, though, just like a lambda). The arguments are DECLARGS nodes,
- * with their `name` member set to the name of the formal parameter.
+ * `FUNCEXPR' and `FUNCSTMT' are almost identical, except that the former can
+ * only be part of an expression, whereas the latter can only appear at file
+ * scope. The name of a global function is *still* an expression, though.
+ * The arguments are represented by a link list of `DECLARGS' nodes (the head
+ * of the list is the left child of the node), with their `name` member set to
+ * the name of the formal parameter. The function body is a block stored in
+ * the right child of the function node.
  * 
  * the COMPOUND node is needed when a list of statements is to be represented
  * by a single node. It's used in a right-leaning manner: one statement is the
@@ -63,13 +66,13 @@
 enum spn_ast_node {
 	SPN_NODE_PROGRAM,	/* top-level program, translation unit */
 	SPN_NODE_BLOCK,		/* block, compound statement */
-	SPN_NODE_FUNCDEF,	/* function definition */
+	SPN_NODE_FUNCSTMT,	/* function statement (global definition) */
 
 	/* statements */
 	SPN_NODE_WHILE,
 	SPN_NODE_DO,
 	SPN_NODE_FOR,
-	SPN_NODE_FOREACH,								/* done */
+	SPN_NODE_FOREACH,
 	SPN_NODE_IF,
 
 	SPN_NODE_BREAK,									/* TODO: implement */
@@ -137,21 +140,21 @@ enum spn_ast_node {
 	SPN_NODE_POSTDECRMT,								/* XXX not done for arrays */
 	SPN_NODE_ARRSUB,
 	SPN_NODE_MEMBEROF,	/* syntactic sugar for simulating OO */
-	SPN_NODE_FUNCCALL,								/* XXX: handle `this' properly  */
+	SPN_NODE_FUNCCALL,
 
 	/* terms */
 	SPN_NODE_IDENT,
 	SPN_NODE_LITERAL,
-	SPN_NODE_LAMBDA,
+	SPN_NODE_FUNCEXPR,	/* function expression, lambda */
 
 	/* miscellaneous */
-	SPN_NODE_DECLARGS,	/* argument names in a function definition	*/	/* done (implicit) */
-	SPN_NODE_CALLARGS,	/* function call argument list			*/	/* done (implicit) */
-	SPN_NODE_BRANCHES,	/* then and else branch of `if` and `?:`	*/	/* done (implicit) */
+	SPN_NODE_DECLARGS,	/* argument names in a function definition	*/
+	SPN_NODE_CALLARGS,	/* function call argument list			*/
+	SPN_NODE_BRANCHES,	/* then and else branch of `if` and `?:`	*/
 	SPN_NODE_FORHEADER,	/* link list: "init; cond; incrmt" of `for` and
 				 * "key as value in array" for `foreach` loop
 				 */
-	SPN_NODE_COMPOUND	/* generic "compound node" (not a block, this		/+ done +/
+	SPN_NODE_COMPOUND	/* generic "compound node" (not a block, this
 				 * is to be used when multiple statements
 				 * follow each other, and the AST needs more
 				 * than two children)
@@ -169,7 +172,7 @@ typedef struct SpnAST {
 } SpnAST;
 
 /* lineno is the line number where the parser is currently */
-SPN_API SpnAST	*spn_ast_new(int node, unsigned long lineno);
+SPN_API SpnAST	*spn_ast_new(enum spn_ast_node node, unsigned long lineno);
 SPN_API void	 spn_ast_free(SpnAST *ast);
 
 /* dumps a textual representation of the AST to stdout */

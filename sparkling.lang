@@ -53,11 +53,8 @@
       <keyword>if</keyword>
       <keyword>else</keyword>
       <keyword>function</keyword>
-      <keyword>lambda</keyword>
       <keyword>typeof</keyword>
       <keyword>sizeof</keyword>
-      <keyword>this</keyword>
-      <keyword>self</keyword>
       <keyword>argc</keyword>
     </context>
 

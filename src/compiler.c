@@ -38,32 +38,26 @@ typedef struct RoundTripStore {
 struct SpnCompiler {
 	TBytecode	 bc;
 	char		*errmsg;
-	long		 loopoff;	/* (I)		*/
-	int		 tmpidx;	/* (II)		*/
-	int		 nregs;		/* (III)	*/
-	RoundTripStore	*symtab;	/* (IV)		*/
-	RoundTripStore	*varstack;	/* (V)		*/
+	int		 tmpidx;	/* (I)		*/
+	int		 nregs;		/* (II)		*/
+	RoundTripStore	*symtab;	/* (III)	*/
+	RoundTripStore	*varstack;	/* (IV)		*/
 };
 
 /* Remarks:
  * 
- * (I): last loop offset for `break` and `continue`. -1 if outside any loops
- * (in which case, `break` and `continue` are considered semantic errors).
- * This is an absolute offset, so it is counted from the beginning of the
- * bytecode itself.
- * 
- * (II): the index of the top of the temporary "stack". only registers with
+ * (I): the index of the top of the temporary "stack". only registers with
  * an index greater than this number may be used as temporaries. (this value
  * may change within a single expression (as we walk different levels of an
  * expression AST) as well as across statements (when a new variable is
  * declared between two statements).
  * 
- * (III): number of registers maximally needed. This counter is only set if
+ * (II): number of registers maximally needed. This counter is only set if
  * an expression that needs temporaries is ever compiled. (this is why we
  * check if the number of local variables is greater than this number --
  * see the remark in the `compile_funcdef()` function.)
  * 
- * (IV) - (V): array of local symbols and stack of global and local variable
+ * (III) - (IV): array of local symbols and stack of global and local variable
  * names and the corresponding register indices
  */
 
@@ -72,7 +66,6 @@ struct SpnCompiler {
  * function bodies.
  */
 typedef struct ScopeInfo {
-	long		 loopoff;
 	int		 tmpidx;
 	int		 nregs;
 	RoundTripStore	*varstack;
@@ -80,7 +73,6 @@ typedef struct ScopeInfo {
 
 static void save_scope(SpnCompiler *cmp, ScopeInfo *sci)
 {
-	sci->loopoff = cmp->loopoff;
 	sci->tmpidx = cmp->tmpidx;
 	sci->nregs = cmp->nregs;
 	sci->varstack = cmp->varstack;
@@ -88,7 +80,6 @@ static void save_scope(SpnCompiler *cmp, ScopeInfo *sci)
 
 static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
 {
-	cmp->loopoff = sci->loopoff;
 	cmp->tmpidx = sci->tmpidx;
 	cmp->nregs = sci->nregs;
 	cmp->varstack = sci->varstack;
@@ -417,7 +408,7 @@ static int compile(SpnCompiler *cmp, SpnAST *ast)
 	switch (ast->node) {
 	case SPN_NODE_COMPOUND:	return compile_compound(cmp, ast);
 	case SPN_NODE_BLOCK:	return compile_block(cmp, ast);
-	case SPN_NODE_FUNCDEF:	return compile_funcdef(cmp, ast, NULL);
+	case SPN_NODE_FUNCSTMT:	return compile_funcdef(cmp, ast, NULL);
 	case SPN_NODE_WHILE:	return compile_while(cmp, ast);
 	case SPN_NODE_DO:	return compile_do(cmp, ast);
 	case SPN_NODE_FOR:	return compile_for(cmp, ast);
@@ -614,11 +605,10 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	 */
 	save_scope(cmp, &sci);
 
-	/* init new local variable stack, register counter and loop offset */
+	/* init new local variable stack and register counter */
 	rts_init(&vs_this);
 	cmp->varstack = &vs_this;
 	cmp->nregs = 0;
-	cmp->loopoff = -1;
 
 	/* write VM instruction and function name length to bytecode */
 	if (ast->name != NULL) {
@@ -640,7 +630,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	bytecode_append(&cmp->bc, fnhdr, SPN_FUNCHDR_LEN);
 
 	/* if the function is a lambda, create a local symtab entry for it. */
-	if (ast->node == SPN_NODE_LAMBDA) {
+	if (ast->node == SPN_NODE_FUNCEXPR) {
 		/* the next index to be used in the local symtab is the length
 		 * of the symtab itself (we insert at position 0 when it's
 		 * empty, at position 1 if it contains 1 item, etc.)
@@ -1579,7 +1569,7 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_lambda(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int symidx;
 	spn_uword ins;
@@ -1752,9 +1742,9 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	switch (ast->node) {
 	case SPN_NODE_SIZEOF:	opcode = SPN_INS_SIZEOF; break;
 	case SPN_NODE_TYPEOF:	opcode = SPN_INS_TYPEOF; break;
-	case SPN_NODE_NTHARG:	opcode = SPN_INS_NTHARG; break;
 	case SPN_NODE_LOGNOT:	opcode = SPN_INS_LOGNOT; break;
 	case SPN_NODE_BITNOT:	opcode = SPN_INS_BITNOT; break;
+	case SPN_NODE_NTHARG:	opcode = SPN_INS_NTHARG; break;
 	case SPN_NODE_UNMINUS:	opcode = SPN_INS_NEG;	 break;
 	default:		SHANT_BE_REACHED();
 	}
@@ -1776,6 +1766,48 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	return 1;
+}
+
+static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	/* if the operand is a literal, check if it's actually a number,
+	 * and if it is, compile its negated value.
+	 */
+	SpnAST *op = ast->left;
+	if (op->node == SPN_NODE_LITERAL) {
+		SpnAST *negated;
+		int success;
+
+		if (op->value.t != SPN_TYPE_NUMBER) {
+			compiler_error(
+				cmp,
+				ast->lineno,
+				"unary minus applied to non-number literal"
+			);
+			return 0;
+		}
+
+		negated = spn_ast_new(SPN_NODE_LITERAL, ast->lineno);
+
+		if (op->value.f & SPN_TFLG_FLOAT) {
+			negated->value.t = SPN_TYPE_NUMBER;
+			negated->value.f = SPN_TFLG_FLOAT;
+			negated->value.v.fltv = -1.0 * op->value.v.fltv;
+		} else {
+			negated->value.t = SPN_TYPE_NUMBER;
+			negated->value.f = 0;
+			negated->value.v.intv = -1 * op->value.v.intv;
+		}
+
+		success = compile_literal(cmp, negated, dst);
+		spn_ast_free(negated);
+		return success;
+	}
+
+	/* Else fall back to treating it just like all
+	 * other prefix unary operators are treated.
+	 */
+	return compile_unary(cmp, ast, dst);
 }
 
 static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
@@ -1909,8 +1941,8 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* immediate values */
 	case SPN_NODE_LITERAL:		return compile_literal(cmp, ast, dst);
 
-	/* lambda functions */	
-	case SPN_NODE_LAMBDA:		return compile_lambda(cmp, ast, dst);
+	/* function expression, lambda */	
+	case SPN_NODE_FUNCEXPR:		return compile_funcexpr(cmp, ast, dst);
 
 	/* array indexing */
 	case SPN_NODE_ARRSUB:
@@ -1927,8 +1959,12 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_TYPEOF:
 	case SPN_NODE_LOGNOT:
 	case SPN_NODE_BITNOT:
-	case SPN_NODE_UNMINUS:
 	case SPN_NODE_NTHARG:		return compile_unary(cmp, ast, dst);
+
+	/* unary minus is special and it's handled separately,
+	 * because it is optimized when used with literals.
+	 */
+	case SPN_NODE_UNMINUS:		return compile_unminus(cmp, ast, dst);
 
 	case SPN_NODE_PREINCRMT:
 	case SPN_NODE_PREDECRMT:

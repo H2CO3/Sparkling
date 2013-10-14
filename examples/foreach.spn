@@ -11,7 +11,7 @@ var arr = array(); /* create empty array */
 /* fill it with values */
 arr[0] = "Value for index zero";
 arr[1337] = "Some other value at index leet";
-arr["bar"] = lambda(x, y) {
+arr["bar"] = function(x, y) {
 	print("this is a lambda function, x = ", x, ", y = ", y);
 };
 arr["quirk"] = 3.14159265358979323846;

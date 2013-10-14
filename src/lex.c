@@ -461,7 +461,6 @@ static int lex_ident(SpnParser *p)
 		RESERVED_ENTRY("function",	SPN_TOK_FUNCTION),
 		RESERVED_ENTRY("if",		SPN_TOK_IF),
 		RESERVED_ENTRY("in",		SPN_TOK_IN),
-		RESERVED_ENTRY("lambda",	SPN_TOK_LAMBDA),
 		RESERVED_ENTRY("nan",		SPN_TOK_NAN),
 		RESERVED_ENTRY("nil",		SPN_TOK_NIL),
 		RESERVED_ENTRY("not",		SPN_TOK_LOGNOT),
@@ -553,8 +552,9 @@ static int lex_char(SpnParser *p)
 		return 0;
 	}
 
-	/* XXX: this: http://goo.gl/WouG5Q says that the assignment operator
-	 * cannot overflow, so long = unsigned long should be defined. Is this right?
+	/* XXX: this: http://stackoverflow.com/q/18922601 says that the
+	 * assignment operator cannot overflow, so long = unsigned long
+	 * should be defined. Is this right?
 	 */
 	p->curtok.tok = SPN_TOK_INT;
 	p->curtok.val.t = SPN_TYPE_NUMBER;

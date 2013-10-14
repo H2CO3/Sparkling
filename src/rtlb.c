@@ -1641,6 +1641,107 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_isfloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	if (argc != 1) {
+		return -1;
+	}
+
+	ret->t = SPN_TYPE_BOOL;
+	ret->f = 0;
+
+	if (argv[0].t == SPN_TYPE_NUMBER) {
+		ret->v.boolv = (argv[0].f & SPN_TFLG_FLOAT) != 0;
+	} else {
+		ret->v.boolv = 0;
+	}
+
+	return 0;
+}
+
+static int rtlb_isint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	if (argc != 1) {
+		return -1;
+	}
+
+	ret->t = SPN_TYPE_BOOL;
+	ret->f = 0;
+
+	if (argv[0].t == SPN_TYPE_NUMBER) {
+		ret->v.boolv = (argv[0].f & SPN_TFLG_FLOAT) == 0;
+	} else {
+		ret->v.boolv = 0;
+	}
+
+	return 0;
+}
+
+static int rtlb_fact(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	long i;
+
+	if (argc != 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f & SPN_TFLG_FLOAT) {
+		return -2;
+	}
+
+	if (argv[0].v.intv < 0) {
+		return -3;
+	}
+
+	ret->t = SPN_TYPE_NUMBER;
+	ret->f = 0;
+	ret->v.intv = 1;
+
+	for (i = 2; i <= argv[0].v.intv; i++) {
+		ret->v.intv *= i;
+	}
+
+	return 0;
+}
+
+static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	long n, k, i, j, m, p;
+
+	if (argc != 2) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f & SPN_TFLG_FLOAT
+	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f & SPN_TFLG_FLOAT) {
+		return -2;
+	}
+
+	n = argv[0].v.intv;
+	k = argv[1].v.intv;
+
+	if (n < 0 || k < 0 || n < k) {
+		return -3;
+	}
+
+	p = 1; /* accumulates the product */
+
+	m = k < n - k ? k : n - k; /* min(k, n - k) */
+	k = m; /* so that the multiplied numbers are large enough */
+	i = n - k + 1;
+	j = 1;
+	while (m-- > 0) {
+		/* not equivalent with p *= i++ / j++ due to precedence */
+		p = p * i++ / j++;
+	}
+
+	ret->t = SPN_TYPE_NUMBER;
+	ret->f = 0;
+	ret->v.intv = p;
+
+	return 0;
+}
+
 const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "abs",	rtlb_abs	},
 	{ "min",	rtlb_min	},
@@ -1674,7 +1775,11 @@ const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "seed",	rtlb_seed	},
 	{ "isfin",	rtlb_isfin	},
 	{ "isinf",	rtlb_isinf	},
-	{ "isnan",	rtlb_isnan	}
+	{ "isnan",	rtlb_isnan	},
+	{ "isfloat",	rtlb_isfloat	},
+	{ "isint",	rtlb_isint	},
+	{ "fact",	rtlb_fact	},
+	{ "binom",	rtlb_binom	}
 };
 
 

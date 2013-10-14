@@ -52,9 +52,10 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
  * asin(), acos(), atan(), acot(), asinh(), acosh(), atanh(), acoth(), atan2()
  * deg2rad(), rad2deg()
  * random(), seed()
- * isfin(), isinf(), isnan()
+ * isfin(), isinf(), isnan(), isfloat(), isint(),
+ * fact(), binom()
  */
-#define SPN_LIBSIZE_MATH 33
+#define SPN_LIBSIZE_MATH 37
 SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 
 /* time()

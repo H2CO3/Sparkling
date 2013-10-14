@@ -42,7 +42,7 @@ Keys and values can be set and retrieved at any time. Arrays have a size, which
 is the number of key-value pairs in the collection.
 
 §1.4.7. The user data type represents any custom value. They are to be accessed
-and manipulated using only dedicated functions. User data objects are used
+and manipulated using dedicated functions only. User data objects are used
 typically in conjunction with the native C extension API.
 
 §1.5. Values are obtained by evaluating expressions. An expression is said to
@@ -59,7 +59,7 @@ identifiers, although they satisfy the above conditions.
 
 §1.7. Scope.
 Scope is a the set of places in the code from where an identifier is visible.
-All global functions have global visibility (i. e. they are visible across all
+All named functions have global visibility (i. e. they are visible across all
 source files).
 
 §1.7.1. Function bodies and the top level program have separate scope:
@@ -73,9 +73,9 @@ as per §1.7.1.
 
 §2. Statements
 --------------
-§2.1. The function definition statement (`function-definition`).
-A function definition statement defines a function with zero or more arguments.
-A function is an individual piece of code representing an operation. They can
+§2.1. The function statement (`function-statement`).
+A function statement defines a named function with zero or more arguments.
+A function is an individual piece of code representing an operation. It can
 be called with or without arguments and may or may not return a value. In a
 function call expression, call arguments are evaluated and bound to formal
 parameters, and the code in the function operates on its arguments accordingly.
@@ -330,8 +330,8 @@ operator, except that the operand on the right-hand side must be an identifier,
 (name), and that name itself, as a string key, will be used to retrieve or set
 the array member.
 
-§3.10. Lambda expressions.
-Lambda expressions create unnamed functions on the fly. A lambda function
+§3.10. Function expressions (`function-expression`).
+Function expressions create unnamed functions on the fly. A lambda function
 behaves the same way as a global function, except that it doesn't have a name
 and it isn't at global scope (that is, a lambda function is not visible outside
 its translation unit).

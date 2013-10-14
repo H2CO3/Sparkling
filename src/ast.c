@@ -15,7 +15,7 @@
 
 static void dump_ast(SpnAST *ast, int indent);
 
-SpnAST *spn_ast_new(int node, unsigned long lineno)
+SpnAST *spn_ast_new(enum spn_ast_node node, unsigned long lineno)
 {
 	SpnAST *ast = malloc(sizeof(*ast));
 	if (ast == NULL) {
@@ -68,7 +68,7 @@ static void dump_ast(SpnAST *ast, int indent)
 	static const char *const nodnam[] = {
 		"program",
 		"block-statement",
-		"function-definition",
+		"function-statement",
 
 		"while",
 		"do-while",
@@ -137,7 +137,7 @@ static void dump_ast(SpnAST *ast, int indent)
 
 		"identifier",
 		"literal",
-		"lambda",
+		"function-expr",
 
 		"decl-argument",
 		"call-argument",

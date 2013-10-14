@@ -44,13 +44,15 @@ and they don't nest.
 T h e   g r a m m a r
 ~~~~~~~~~~~~~~~~~~~~~
 
-program = { function-definition | statement }
-
-function-definition = 'function' IDENT '(' [ argument-declaration-list ] ')' block-statement
+program = { statement }
 
 argument-declaration-list = IDENT { ',' IDENT }
 
-statement = if-statement | loop-statement | return-statement | loop-control-flow-statement | expression-statement | block-statement | variable-declaration | ";"
+statement = function-statement | empty-statement | if-statement | loop-statement | return-statement | loop-control-flow-statement | expression-statement | block-statement | variable-declaration
+
+function-statement = 'function' IDENT '(' [ argument-declaration-list ] ')' block-statement
+
+empty-statement = ';'
 
 if-statement = 'if' expression block-statement [ 'else' block-statement | if-statement ]
 
@@ -104,9 +106,9 @@ prefix-expr = ( '+' | '-' | '++' | '--' | '!' | '~' | '#' | 'sizeof' | 'typeof' 
 
 postfix-expr = term { ( '[' expression ']' ) | ( '(' [ argument-call-list ] ')' ) | '++' | '--' | ( '.' | '->' IDENT ) } /* left-assoc */
 
-term = IDENT | literal | ( '(' expression ')' ) | lambda-expr | array-expr
+term = IDENT | literal | ( '(' expression ')' ) | function-expr | array-expr
 
-lambda-expr = 'lambda' '(' [ argument-declaration-list ] ')' block-statement
+function-expr = 'function' '(' [ argument-declaration-list ] ')' block-statement
 
 array-expr = sequence-literal | dict-literal
 
@@ -121,16 +123,15 @@ literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil' | 'nan'
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		false		nan		sizeof
-argc		for		nil		this
-as		foreach		not		true
-break		function	null		typeof
-continue	if		or		var
-do		in		return		while
-else		lambda		self
+and		else		in		return
+argc		false		nan		sizeof
+as		for		nil		true
+break		foreach		not		typeof
+continue	function	null		var
+do		if		or		while
 
-The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||' tokens, respectively.
-Furthermore, 'this' is equivalent with 'self' and 'null' is the same as 'nil'.
+The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
+tokens, respectively. Furthermore, 'null' is the same as 'nil'.
 
 Literal tokens:
 ~~~~~~~~~~~~~~~
