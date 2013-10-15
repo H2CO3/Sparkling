@@ -10,8 +10,6 @@ nice, fast and lightweight, properties I associate with sparks in my mind.
 On the other hand, my nickname (H2CO3) has a lot to do with carbonated water
 and bubbles.
 
-![The official Sparkling logo](./Sparkling_logo.png "The Sparkling scripting language")
-
 Sparkling is influenced by other programming languages, namely:
 
  - **C, above all.** C is a wonderful programming language, it's well-balanced

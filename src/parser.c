@@ -19,7 +19,7 @@
 
 static SpnAST *parse_program(SpnParser *p);
 static SpnAST *parse_program_nonempty(SpnParser *p);
-static SpnAST *parse_stmt(SpnParser *p);
+static SpnAST *parse_stmt(SpnParser *p, int is_global);
 static SpnAST *parse_stmt_list(SpnParser *p);
 static SpnAST *parse_function(SpnParser *p, int is_stmt);
 static SpnAST *parse_expr(SpnParser *p);
@@ -178,14 +178,15 @@ static SpnAST *parse_program_nonempty(SpnParser *p)
 {
 	SpnAST *ast;
 
-	SpnAST *sub = parse_stmt(p);
+	/* parse global statements */
+	SpnAST *sub = parse_stmt(p, 1);
 	if (sub == NULL) {
 		return NULL;
 	}
 
 	while (!p->eof) {
 		SpnAST *tmp;
-		SpnAST *right = parse_stmt(p);
+		SpnAST *right = parse_stmt(p, 1);
 		if (right == NULL) {
 			spn_ast_free(sub);
 			return NULL;
@@ -214,14 +215,15 @@ static SpnAST *parse_program_nonempty(SpnParser *p)
 /* statement lists appear in block statements, so loop until `}' is found */
 static SpnAST *parse_stmt_list(SpnParser *p)
 {
-	SpnAST *ast = parse_stmt(p);
+	/* parse local statement */
+	SpnAST *ast = parse_stmt(p, 0);
 	if (ast == NULL) {
 		return NULL;
 	}
 
 	while (p->curtok.tok != SPN_TOK_RBRACE) {
 		SpnAST *tmp;
-		SpnAST *right = parse_stmt(p);
+		SpnAST *right = parse_stmt(p, 0);
 		if (right == NULL) {
 			spn_ast_free(ast);
 			return NULL;
@@ -236,7 +238,7 @@ static SpnAST *parse_stmt_list(SpnParser *p)
 	return ast;
 }
 
-static SpnAST *parse_stmt(SpnParser *p)
+static SpnAST *parse_stmt(SpnParser *p, int is_global)
 {
 	switch (p->curtok.tok) {
 		case SPN_TOK_IF:	return parse_if(p);
@@ -250,8 +252,16 @@ static SpnAST *parse_stmt(SpnParser *p)
 		case SPN_TOK_SEMICOLON:	return parse_empty(p);
 		case SPN_TOK_LBRACE:	return parse_block(p);
 		case SPN_TOK_VAR:	return parse_vardecl(p);
-		case SPN_TOK_FUNCTION:	return parse_function(p, 1);
-		default:		return parse_expr_stmt(p);
+		case SPN_TOK_FUNCTION:
+			if (is_global) {
+				/* assume function statement at file scope */
+				return parse_function(p, 1);
+			} else {
+				/* and a function expression at local scope */
+				return parse_expr_stmt(p);
+			}
+		default:
+			return parse_expr_stmt(p);
 	}
 }
 
@@ -758,6 +768,7 @@ static SpnAST *parse_term(SpnParser *p)
 
 		return ast;
 	case SPN_TOK_FUNCTION:
+		/* only allow function expressions in an expression */
 		return parse_function(p, 0);
 	case SPN_TOK_IDENT:
 		ast = spn_ast_new(SPN_NODE_IDENT, p->lineno);

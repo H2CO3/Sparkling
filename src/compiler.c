@@ -742,10 +742,7 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 		return 0;
 	}
 
-	/* compile and negate condition (we can only emit a "jump if false"
-	 * instruction, but we want to jump to the beginning if the condition
-	 * is **true**...
-	 */
+	/* compile condition */
 	if (compile_expr_toplevel(cmp, ast->left, &reg) == 0) {
 		return 0;
 	}
