@@ -116,7 +116,7 @@ SpnString *spn_string_concat(SpnString *lhs, SpnString *rhs)
 }
 
 /* TODO: implement this */
-char *spn_string_format(const char *fmt, int argc, SpnValue *argv)
+char *spn_string_format(const char *fmt, size_t *len, int argc, SpnValue *argv)
 {
 	return NULL;
 }

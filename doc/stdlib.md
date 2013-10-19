@@ -51,6 +51,10 @@ that of `printf()` in the C standard library. Valid conversion specifiers are:
  - `%[N]q` formats an escaped string. If the field width modifier is present,
  it prints at most `N` characters.
  - `%B` formats a Boolean value. Prints either true or false.
+ - Width and precision may both be specified as `*`, in which case the actual
+ width or precision is determined by looking at the next argument of the
+ function (one additional argument is used for each such variable-length format
+ specifier).
 
 <!-- this comment is needed because Markdown sucks. -->
 

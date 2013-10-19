@@ -41,7 +41,10 @@ static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	char buf[LINE_MAX];
 	char *p;
 
-	fgets(buf, sizeof(buf), stdin);
+	/* handle EOF correctly */
+	if (fgets(buf, sizeof(buf), stdin) == NULL) {
+		return 0;
+	}
 
 	/* remove trailing newline */
 	p = strchr(buf, '\n');
@@ -138,10 +141,8 @@ static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		ret->t = SPN_TYPE_STRING;
 		ret->f = SPN_TFLG_OBJECT;
 		ret->v.ptrv = spn_string_new(buf);
-	} else {
-		ret->t = SPN_TYPE_NIL;
-		ret->f = 0;
 	}
+	/* on EOF, return nil */
 
 	return 0;
 }
@@ -852,12 +853,6 @@ static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 }
 
-/* TODO: implement. then do not use. */
-static int rtlb_eval(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return -1;
-}
-
 const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
 	{ "indexof",	rtlb_indexof	},
 	{ "substr",	rtlb_substr	},
@@ -872,7 +867,6 @@ const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
 	{ "tonumber",	rtlb_tonumber	},
 	{ "toint",	rtlb_toint	},
 	{ "tofloat",	rtlb_tofloat	},
-	{ "eval",	rtlb_eval	}
 };
 
 

@@ -15,8 +15,8 @@ Code:
 		OO-style function calls
 	
 Language, syntax:
-	- is the context-free grammar in grammar.txt correct? especially with regards to
-		expressions (associativity, precedence!)
+	- is the context-free grammar in grammar.txt correct? especially with
+		regards to expressions (associativity, precedence!)
 	- what's a better fit for the 3rd argument of cond-expr?
 		cond-expr (current, as in C) or assignment-expr (as in C++)?
 	- write the specification (yeah)
@@ -106,7 +106,7 @@ Compiler:
 	- Functions returning nothing should return `nil'.					done
 		(a. k. a., auto-insert `return nil` at the end of function
 		bodies and the main pgrogran too).
-	- recognize `self`, `this` and `argc` and treat them in a special way			***Urgent***
+	- recognize `argc` and implement its functionality					***Urgent***
 	- use scoping (defined by blocks) for variable names					done
 		(idea: use a hashtable in compile_function and compile_block,
 		store variables of which the scope is only the current block,
@@ -141,15 +141,15 @@ VM:
 	- hook object constructor and destructor functions in order to test memory
 		leaks and premature deallocation (there must be the same number
 		of calls to ctors and dtors)
-	- treat `this'/`self' and `argc' appropriately...
+	- treat `argc' appropriately...
 		Conceptually, from the language-lawyer point of view,
-		these are KEYWORDS, i. e. they are reserved and considered part
+		this is a KEYWORDS, i. e. it is reserved and considered part
 		of the language (just like 'if', 'nil' or '+'). This is because
 		I consider hard-coded variable names a bad concept (similarly,
 		I find it necessary to make a very strict distinction between
 		the core language and the standard library functions). However,
 		under the hoods, in the compiler/VM, they're simply implemented
-		as compiler-recognized special variable (register?) names.
+		as a compiler-recognized special variable (register?) name.
 	- ...and add the `#` variadic argument operator (#0 is the first arg)			done
 	- handle variadic arguments
 	- Debugging info in the bytecode (to show meaningful information, i. e. line
@@ -169,6 +169,8 @@ VM:
 		because **the VM stack needs to be steady and safe!**
 	- make the context API manage command-line arguments
 		(in order to get rid of those ugly global variables)
+	- in REPL, when a runtime error occurs: fix wrong assumption that it's always		***Urgent***
+		the last node in the bytecode list that caused the failure
 
 ***: these call for some less hackish implementation of linkage (firstly, there
 should be linkage at all...)
@@ -180,6 +182,8 @@ Standard library:
 	- add the documentation of currently unimplemented standard library
 		functions (especially those in libarray) once they are
 		implemented.
+	- provide proper access to the Sparkling engine (compilefile(),
+		compilestring(), etc. functions) instead of the horrible eval()
 
 Miscellaneous:
 	- add ability to load multiple source files						done

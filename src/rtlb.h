@@ -29,9 +29,8 @@ SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
  * tolower(), toupper()
  * fmtstring()
  * tonumber(), toint(), tofloat()
- * eval()
  */
-#define SPN_LIBSIZE_STRING 14
+#define SPN_LIBSIZE_STRING 13
 SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
 
 /* array(), dict()

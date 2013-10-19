@@ -43,7 +43,7 @@ SPN_API SpnString	*spn_string_concat(SpnString *lhs, SpnString *rhs);
 /* Creates a formatted string.
  * The format specifiers are documented in doc/stdlib.md.
  */
-SPN_API char		*spn_string_format(const char *fmt, int argc, SpnValue *argv);
+SPN_API char		*spn_string_format(const char *fmt, size_t *len, int argc, SpnValue *argv);
 
 #endif /* SPN_STR_H */
 
