@@ -184,11 +184,6 @@ These convert the target string to an integer or a floating-point number.
 searching for a radix point `.` and/or an exponent (`e` or `E`) in it.
 If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 
-    any eval(string script)
-
-Runs the string `script` as if it was some Sparkling source text, and returns
-its result. **Do not use this function.**
-
 3. Array handling (spn_libarray)
 --------------------------------
     array array(...)

@@ -35,8 +35,8 @@ typedef struct SpnExtFunc {
 /* the virtual machine */
 typedef struct SpnVMachine SpnVMachine;
 
-SPN_API SpnVMachine	*spn_vm_new();
-SPN_API void		 spn_vm_free(SpnVMachine *vm);
+SPN_API SpnVMachine	 *spn_vm_new();
+SPN_API void		  spn_vm_free(SpnVMachine *vm);
 
 /* runs the bytecode pointed to by `bc`. Returns the return value of the
  * program. The returned pointer is owned by the VM, so do not release it.
@@ -44,19 +44,24 @@ SPN_API void		 spn_vm_free(SpnVMachine *vm);
  * if you need to store the value for later use, retain it AND make a COPY
  * of the SpnValue struct it points to.
  */
-SPN_API SpnValue	*spn_vm_exec(SpnVMachine *vm, spn_uword *bc);
+SPN_API SpnValue	 *spn_vm_exec(SpnVMachine *vm, spn_uword *bc);
 
 /* this function does NOT copy the names of the native functions,
  * so make sure that they are pointers during the entire runtime
  */
-SPN_API void		 spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n);
+SPN_API void		  spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n);
 
 /* get and set user data */
-SPN_API void		*spn_vm_getcontext(SpnVMachine *vm);
-SPN_API void		 spn_vm_setcontext(SpnVMachine *vm, void *ctx);
+SPN_API void		 *spn_vm_getcontext(SpnVMachine *vm);
+SPN_API void		  spn_vm_setcontext(SpnVMachine *vm, void *ctx);
 
 /* retrieves the last runtime error message */
-SPN_API const char	*spn_vm_errmsg(SpnVMachine *vm);
+SPN_API const char	 *spn_vm_errmsg(SpnVMachine *vm);
+
+/* returns an array of strings containing a symbolicated stack trace.
+ * Must be `free()`'d when you're done with it.
+ */
+SPN_API const char	**spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
 
 /* layout of a Sparkling bytecode file:
  * 

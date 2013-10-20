@@ -93,6 +93,7 @@ typedef struct TFrame {
 	spn_uword	*retaddr;	/* return address (points to bytecode)	*/
 	ptrdiff_t	 retidx;	/* pointer into the caller's frame	*/
 	int		 symtabidx;	/* index of the local symtab in use	*/
+	const char	*fnname;	/* name of the function being called	*/
 } TFrame;
 
 /* see http://stackoverflow.com/q/18310789/ */
@@ -136,7 +137,8 @@ static void push_frame(
 	int extra_argc,
 	spn_uword *retaddr,
 	ptrdiff_t retidx,
-	int symtabidx
+	int symtabidx,
+	const char *fnname
 );
 static void pop_frame(SpnVMachine *vm);
 
@@ -242,6 +244,66 @@ void spn_vm_free(SpnVMachine *vm)
 	free(vm);
 }
 
+const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
+{
+	unsigned long i = 0;
+	const char **buf;
+
+	TSlot *sp = vm->sp;
+
+	/* handle empty stack */
+	if (sp == NULL) {
+		*size = 0;
+		return NULL;
+	}
+
+	/* count frames */
+	while (sp > vm->stack) {
+		TFrame *frmhdr = &sp[IDX_FRMHDR].h;
+		i++;
+		sp -= frmhdr->size;
+	}
+
+	/* allocate buffer */
+	buf = malloc(i * sizeof(*buf));
+	if (buf == NULL) {
+		abort();
+	}
+
+	*size = i;
+
+	i = 0;
+	sp = vm->sp;
+	while (sp > vm->stack) {
+		TFrame *frmhdr = &sp[IDX_FRMHDR].h;
+		buf[i++] = frmhdr->fnname ? frmhdr->fnname : SPN_LAMBDA_NAME;
+		sp -= frmhdr->size;
+	}
+
+	return buf;
+}
+
+static void print_stacktrace(SpnVMachine *vm)
+{
+	TSlot *sp = vm->sp;
+	unsigned long i = 0;
+
+	if (sp == NULL) {
+		return;
+	}
+
+	printf("\nCall stack:\n");
+
+	while (sp > vm->stack) {
+		TFrame *frmhdr = &sp[IDX_FRMHDR].h;
+		const char *fnname = frmhdr->fnname ? frmhdr->fnname : SPN_LAMBDA_NAME;
+		printf("\t[#%lu]\tin %s\n", i++, fnname);
+		sp -= frmhdr->size;
+	}
+
+	printf("\n");
+}
+
 static void free_frames(SpnVMachine *vm)
 {
 	if (vm->stack != NULL) {
@@ -267,6 +329,13 @@ SpnValue *spn_vm_exec(SpnVMachine *vm, spn_uword *bc)
 	/* release previous return value */
 	spn_value_release(&vm->retval);
 
+	/* releases values in stack frames from the previous execution.
+	 * This is not done immediately after the dispatch loop because if
+	 * a runtime error occurred, we want the backtrace functions to
+	 * be able to unwind the stack.
+	 */
+	free_frames(vm);
+
 	/* check bytecode for magic bytes */
 	if (validate_magic(vm, bc) != 0) {
 		return NULL;
@@ -283,12 +352,6 @@ SpnValue *spn_vm_exec(SpnVMachine *vm, spn_uword *bc)
 
 	/* actually run the program */
 	err = dispatch_loop(vm);
-
-	/* there should be no stack frames after running a program, unless
-	 * a runtime error occurred, in which case, this frees any remaining
-	 * frames and registers, so that there won't be any memory leaks.
-	 */
-	free_frames(vm);
 
 	/* return the result of the program (NULL on error) */
 	return err ? NULL : &vm->retval;
@@ -321,7 +384,7 @@ static void runerror(SpnVMachine *vm, spn_uword *ip, const char *fmt, ...)
 	int stublen, n;
 	va_list args;
 
-	unsigned long addr = ip != NULL ? ip - current_bytecode(vm) : 0;
+	unsigned long addr = ip ? ip - current_bytecode(vm) : 0;
 
 	/* print error to stderr, count characters printed. */
 	stublen = fprintf(stderr, ERRMSG_FORMAT, addr);
@@ -349,6 +412,8 @@ static void runerror(SpnVMachine *vm, spn_uword *ip, const char *fmt, ...)
 	va_start(args, fmt);
 	vsprintf(vm->errmsg + stublen, fmt, args);
 	va_end(args);
+
+	print_stacktrace(vm);
 }
 #undef ERRMSG_FORMAT
 
@@ -406,7 +471,8 @@ static void push_frame(
 	int extra_argc,
 	spn_uword *retaddr,
 	ptrdiff_t retidx,
-	int symtabidx
+	int symtabidx,
+	const char *fnname
 )
 {
 	int i;
@@ -443,6 +509,7 @@ static void push_frame(
 	vm->sp[IDX_FRMHDR].h.retaddr = retaddr; /* if NULL, return from main program */
 	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if negative, return from main program */
 	vm->sp[IDX_FRMHDR].h.symtabidx = symtabidx;
+	vm->sp[IDX_FRMHDR].h.fnname = fnname;
 }
 
 static void push_first_frame(SpnVMachine *vm, int symtabidx)
@@ -457,7 +524,7 @@ static void push_first_frame(SpnVMachine *vm, int symtabidx)
 	 * and instead of indexing the stack, the return value should be
 	 * copied directly into vm->retval.
 	 */
-	push_frame(vm, nregs, 0, 0, NULL, -1, symtabidx);
+	push_frame(vm, nregs, 0, 0, NULL, -1, symtabidx, "<main program>");
 }
 
 static void pop_frame(SpnVMachine *vm)
@@ -626,6 +693,7 @@ static int dispatch_loop(SpnVMachine *vm)
 				int decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
 				int nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
 				spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
+				const char *fnname = func->v.fnv.name;
 
 				/* if there are less call arguments than formal
 				 * parameters, we set extra_argc to 0 (and all
@@ -655,7 +723,16 @@ static int dispatch_loop(SpnVMachine *vm)
 				 * `&vm->sp[IDX_FRMHDR].h` is a pointer to
 				 * the stack frame of the *called* function.
 				 */
-				push_frame(vm, nregs, decl_argc, extra_argc, retaddr, retidx, symtabidx);
+				push_frame(
+					vm,
+					nregs,
+					decl_argc,
+					extra_argc,
+					retaddr,
+					retidx,
+					symtabidx,
+					fnname
+				);
 
 				/* and grab the (now potentially changed)
 				 * frame pointer of the caller function
@@ -718,8 +795,12 @@ static int dispatch_loop(SpnVMachine *vm)
 			 * not what we want.
 			 */
 
-			/* get and retain the return value */
+			/* this relies on the fact that pop_frame()
+			 * does NOT reallocate the stack
+			 */
 			SpnValue *res = VALPTR(vm->sp, OPA(ins));
+
+			/* get and retain the return value */
 			spn_value_retain(res);
 
 			/* pop the callee's frame */
@@ -776,9 +857,9 @@ static int dispatch_loop(SpnVMachine *vm)
 				runerror(
 					vm,
 					ip - 2,
-					"register does not contain Boolean value in conditional jump\n\
-					(are you trying to use non-Booleans with logical operators\n\
-					or in the condition of an `if`, `while` or `for` statement?)"
+					"register does not contain Boolean value in conditional jump\n"
+					"(are you trying to use non-Booleans with logical operators\n"
+					"or in the condition of an `if`, `while` or `for` statement?)"
 				);
 				return -1;
 			}

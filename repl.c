@@ -12,7 +12,6 @@
 
 #include "spn.h"
 #include "ctx.h"
-#include "disasm.h"
 #include "repl.h"
 
 #define N_CMDS		4
@@ -127,7 +126,6 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 
 	for (i = 1; i < argc; i++) {
 		SpnValue *val;
-		struct spn_bc_list *prev = ctx->bclist;
 
 		if (argv[i] == NULL) {
 			continue;
@@ -163,11 +161,6 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 			 * or a compiler error occurred). This also protects us
 			 * from dereferencing `bclist' if it is (still) NULL.
 			 */
-			if (ctx->bclist != prev) {
-				printf("Assembly dump of errant bytecode:\n\n");
-				spn_disasm(ctx->bclist->bc, ctx->bclist->len);
-			}
-
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -184,7 +177,6 @@ static int enter_repl(enum cmd_args args)
 
 	while (1) {
 		SpnValue *val;
-		struct spn_bc_list *prev = ctx->bclist;
 
 		printf("> ");
 		if (fgets(buf, sizeof buf, stdin) == NULL) {
@@ -198,12 +190,8 @@ static int enter_repl(enum cmd_args args)
 				spn_value_print(val);
 				printf("\n");
 			}
-		} else {
-			if (ctx->bclist != prev) {
-				printf("Assembly dump of errant bytecode:\n\n");
-				spn_disasm(ctx->bclist->bc, ctx->bclist->len);
-			}
 		}
+		/* else the call stack trace is already printed */
 	}
 
 	spn_ctx_free(ctx);
