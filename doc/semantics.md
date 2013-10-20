@@ -310,9 +310,19 @@ and yields the non-decremented (original) value. Its operand must be a variable
 or an array member. The operand must be of type number.
 
 §3.9.3. The `[]` operator. This operator requires a subscript expression in
-addition to its (left-hand side) operand. The LHS must be an array. The result
-of the operation is a reference to the value in the array that corresponds to
-the key specified by the subscript expression.
+addition to its (left-hand side) operand. The LHS must be an array or a string.
+If the left operand is an array, then the result of the operation is a reference
+to the value in the array that corresponds to the key specified by the subscript
+expression. If the left-hand-side operand is a string, then the RHS must be an
+integer in the range `[-N...N)`, where `N` is the length of the string.
+Then, the result of the operation is an integer - the character code of the
+character at the specified index in the string if the index is non-negative.
+If the index is negative, then the operator counts backwards (returns the
+`idx`th character from the right, where -1 is the index of the last character).
+If the LHS is not an array or a string, the string subscript is not an integer
+expression or it is out of bounds, this operator raises a runtime error.
+**Since strings are not mutable, an error is also thrown when a subscript
+expression with a string on its LHS is assigned to.**
 
 §3.9.4. The `()` operator. The `()` operator may have zero or more additional
 operands between the two parentheses along with the left-hand side, which will

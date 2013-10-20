@@ -1306,18 +1306,55 @@ static int dispatch_loop(SpnVMachine *vm)
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
-			SpnValue *val;
 
-			if (b->t != SPN_TYPE_ARRAY) {
-				runerror(vm, ip - 1, "indexing into non-array value");
+			if (b->t == SPN_TYPE_ARRAY) {
+				SpnValue *val = spn_array_get(b->v.ptrv, c);
+				spn_value_retain(val);
+
+				spn_value_release(a);
+				*a = *val;
+			} else if (b->t == SPN_TYPE_STRING) {
+				SpnString *str = b->v.ptrv;
+				long len = str->len;
+				long idx;
+
+				if (c->t != SPN_TYPE_NUMBER) {
+					runerror(vm, ip - 1, "indexing string with non-number value");
+					return -1;
+				}
+
+				if (c->f != 0) {
+					runerror(vm, ip - 1, "indexing string with non-integer value");
+					return -1;
+				}
+
+				idx = c->v.intv;
+
+				/* negative indices count from the end of the string */
+				if (idx < 0) {
+					idx = len + idx;
+				}
+
+				if (idx < 0 || idx >= len) {
+					runerror(
+						vm,
+						ip - 1,
+						"character at normalized index %ld is\n"
+						"out of bounds for string of length %ld",
+						idx,
+						len
+					);
+					return -1;
+				}
+
+				spn_value_release(a);
+				a->t = SPN_TYPE_NUMBER;
+				a->f = 0;
+				a->v.intv = (unsigned char)(str->cstr[idx]);
+			} else {
+				runerror(vm, ip - 1, "first operand of [] operator must be an array or a string");
 				return -1;
 			}
-
-			val = spn_array_get(b->v.ptrv, c);
-			spn_value_retain(val);
-
-			spn_value_release(a);
-			*a = *val;
 
 			break;
 		}

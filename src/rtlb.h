@@ -14,23 +14,23 @@
 #include "vm.h"
 
 /* getline(), print(), printf()
- * fopen(), fclose(),
- * fprintf(), fgetline(),
- * fread(), fwrite,
- * stdin(), stdout(), stderr(),
+ * fopen(), fclose()
+ * fprintf(), fgetline()
+ * fread(), fwrite()
+ * stdin(), stdout(), stderr()
  * fflush(), ftell(), fseek(), feof()
  * remove(), rename(), tmpnam(), tmpfile()
  */
 #define SPN_LIBSIZE_IO 20
 SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
 
-/* indexof(), substr(), substrto(), substrfrom(), nthchar(),
+/* indexof(), substr(), substrto(), substrfrom()
  * split(), repeat()
  * tolower(), toupper()
  * fmtstring()
  * tonumber(), toint(), tofloat()
  */
-#define SPN_LIBSIZE_STRING 13
+#define SPN_LIBSIZE_STRING 12
 SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
 
 /* array(), dict()
@@ -51,7 +51,7 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
  * asin(), acos(), atan(), acot(), asinh(), acosh(), atanh(), acoth(), atan2()
  * deg2rad(), rad2deg()
  * random(), seed()
- * isfin(), isinf(), isnan(), isfloat(), isint(),
+ * isfin(), isinf(), isnan(), isfloat(), isint()
  * fact(), binom()
  */
 #define SPN_LIBSIZE_MATH 37

@@ -147,12 +147,6 @@ it copies the region `[offset, offset + length)` from the original string).
 These are equivalent with `substr(str, 0, length)` and with
 `substr(str, offset, length - offset)`, respectively.
 
-    int nthchar(string str, int idx)
-
-returns the byte at position `idx` in the string. If the index is negative,
-it looks backwards (returns the `idx`th character counting from the end of
-the string).
-
     array split(string str, string sep)
 
 searches `str` for occurrences of `sep` (the separator), and splits `str` into

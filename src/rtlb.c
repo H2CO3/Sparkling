@@ -585,44 +585,6 @@ static int rtlb_substrfrom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_substr(ret, str, begin, length);
 }
 
-static int rtlb_nthchar(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	long idx, len;
-	SpnString *str;
-
-	if (argc != 2) {
-		return -1;
-	}
-
-	if (argv[0].t != SPN_TYPE_STRING) {
-		return -2;
-	}
-
-	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
-		return -3;
-	}
-
-	str = argv[0].v.ptrv;
-	len = str->len;
-	idx = argv[1].v.intv;
-
-	/* if the index is negative, count backwards */
-	if (idx < 0) {
-		idx = len + idx;
-	}
-
-	/* still out of bounds? */
-	if (idx < 0 || idx >= len) {
-		return -4;
-	}
-
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = str->cstr[idx];
-
-	return 0;
-}
-
 static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	const char *s, *t;
@@ -858,7 +820,6 @@ const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
 	{ "substr",	rtlb_substr	},
 	{ "substrto",	rtlb_substrto	},
 	{ "substrfrom",	rtlb_substrfrom	},
-	{ "nthchar",	rtlb_nthchar	},
 	{ "split",	rtlb_split	},
 	{ "repeat",	rtlb_repeat	},
 	{ "tolower",	rtlb_tolower	},
