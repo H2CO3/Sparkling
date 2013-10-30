@@ -14,7 +14,6 @@
 #include <limits.h>
 
 #include "lex.h"
-#include "parser.h"
 #include "memory.h"
 #include "str.h"
 #include "private.h"
@@ -146,20 +145,31 @@ static int unescape_char(SpnParser *p)
 	case 't':  p->pos++; return '\t';
 	case '0':  p->pos++; return '\0';
 
-	case 'x':
+	case 'x': {
 		p->pos++;
 		if (isxdigit(p->pos[0]) && isxdigit(p->pos[1])) {
 			int hn = hexch_to_int(*p->pos++);
 			int ln = hexch_to_int(*p->pos++);
 			return (hn << 4) | ln;
+		} else {
+			/* invalid hex escape sequence */
+			long lc0 = p->pos[0];
+			long lc1 = p->pos[1];
+			const void *args[2];
+			args[0] = &lc0;
+			args[1] = &lc1;
+			spn_parser_error(p, "invalid hex escape sequence '\\x%c%c'", args);
+			return -1;
 		}
-
-		/* invalid hex escape sequence */
-		spn_parser_error(p, "invalid hex escape sequence '\\x%c%c'", p->pos[0], p->pos[1]);
-		return -1;
+	}
 	default:
-		spn_parser_error(p, "invalid escape sequence '\\%c'", *p->pos);
-		return -1;
+		{
+			long lc = p->pos[0];
+			const void *args[1];
+			args[0] = &lc;
+			spn_parser_error(p, "invalid escape sequence '\\%c'", args);
+			return -1;
+		}
 	}
 }
 
@@ -194,14 +204,14 @@ static int skip_comment(SpnParser *p)
 
 		if (p->pos[0] == 0) {
 			/* error: unterminated comment */
-			spn_parser_error(p, "unterminated comment");
+			spn_parser_error(p, "unterminated comment", NULL);
 			return 0;
 		}
 
 		while (p->pos[0] != '*' || p->pos[1] != '/') {
 			if (p->pos[1] == 0) {
 				/* error: unterminated comment */
-				spn_parser_error(p, "unterminated comment");
+				spn_parser_error(p, "unterminated comment", NULL);
 				return 0;
 			}
 
@@ -322,7 +332,7 @@ static int lex_number(SpnParser *p)
 			i = strtol(p->pos, &tmp, 0);
 			if (tmp != end) {					
 				/* error */
-				spn_parser_error(p, "cannot parse hexadecimal integer literal");
+				spn_parser_error(p, "cannot parse hexadecimal integer literal", NULL);
 				return 0;
 			}
 
@@ -344,7 +354,7 @@ static int lex_number(SpnParser *p)
 			i = strtol(p->pos, &tmp, 0);
 			if (tmp != end) {
 				/* error */
-				spn_parser_error(p, "cannot parse octal integer literal");
+				spn_parser_error(p, "cannot parse octal integer literal", NULL);
 				return 0;
 			}
 
@@ -392,7 +402,7 @@ static int lex_number(SpnParser *p)
 
 					if (!isdigit(end[0])) {
 						/* error: missing exponent part */
-						spn_parser_error(p, "exponent in decimal floating-point literal is missing");
+						spn_parser_error(p, "exponent in decimal floating-point literal is missing", NULL);
 						return 0;
 					}
 
@@ -406,7 +416,7 @@ static int lex_number(SpnParser *p)
 
 			if (tmp != end) {
 				/* error */
-				spn_parser_error(p, "cannot parse decimal floating-point literal");
+				spn_parser_error(p, "cannot parse decimal floating-point literal", NULL);
 				return 0;
 			}
 
@@ -422,7 +432,7 @@ static int lex_number(SpnParser *p)
 			long i = strtol(p->pos, &tmp, 0);
 
 			if (tmp != end) {
-				spn_parser_error(p, "cannot parse decimal integer literal");
+				spn_parser_error(p, "cannot parse decimal integer literal", NULL);
 				return 0;
 			}
 
@@ -516,14 +526,14 @@ static int lex_char(SpnParser *p)
 	p->pos++;
 	if (p->pos[0] == '\'') {
 		/* empty character literal */
-		spn_parser_error(p, "empty character literal");
+		spn_parser_error(p, "empty character literal", NULL);
 		return 0;
 	}
 
 	while (p->pos[0] != '\'') {
 		if (p->pos[0] == 0) {
 			/* premature end of char literal */
-			spn_parser_error(p, "end of input before closing apostrophe in character literal");
+			spn_parser_error(p, "end of input before closing apostrophe in character literal", NULL);
 			return 0;
 		}
 
@@ -548,7 +558,7 @@ static int lex_char(SpnParser *p)
 
 	if (n > 8) {
 		/* character literal is too long */
-		spn_parser_error(p, "character literal longer than 8 bytes");
+		spn_parser_error(p, "character literal longer than 8 bytes", NULL);
 		return 0;
 	}
 
@@ -566,7 +576,7 @@ static int lex_char(SpnParser *p)
 
 static int lex_string(SpnParser *p)
 {
-	size_t sz = 0x20;
+	size_t sz = 0x10;
 	size_t n = 0;
 	char *buf = malloc(sz);
 
@@ -581,7 +591,7 @@ static int lex_string(SpnParser *p)
 		if (p->pos[0] == 0) {
 			/* premature end of string literal */
 			free(buf);
-			spn_parser_error(p, "end of input before closing \" in string literal");
+			spn_parser_error(p, "end of input before closing \" in string literal", NULL);
 			return 0;
 		}
 
@@ -625,6 +635,10 @@ static int lex_string(SpnParser *p)
 
 int spn_lex(SpnParser *p)
 {
+	/* for error reporting */
+	long lc;
+	const void *args[1];
+
 	/* skip whitespace and comments before token */
 	if (!skip_space_and_comment(p)) {
 		return 0;
@@ -676,7 +690,9 @@ int spn_lex(SpnParser *p)
 	}
 
 	/* nothing matched so far -- error */
-	spn_parser_error(p, "unexpected character `%c'", *p->pos);
+	lc = p->pos[0];
+	args[0] = &lc;
+	spn_parser_error(p, "unexpected character `%c'", args);
 	return 0;
 }
 

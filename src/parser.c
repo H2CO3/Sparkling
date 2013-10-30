@@ -14,6 +14,7 @@
 #include <stdarg.h>
 
 #include "parser.h"
+#include "lex.h"
 #include "private.h"
 
 
@@ -99,42 +100,38 @@ void spn_parser_free(SpnParser *p)
 	free(p);
 }
 
-#define ERRMSG_FORMAT "Sparkling: syntax error near line %lu: "
-void spn_parser_error(SpnParser *p, const char *fmt, ...)
+#define ERRMSG_FORMAT "Sparkling: syntax error near line %lu: %s"
+void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
 {
-	int stublen, n;
-	va_list args;
+	char *prefix, *msg;
+	size_t prefix_len, msg_len;
+	const void *prefix_args[1];
+	prefix_args[0] = &p->lineno;
 
-	/* indicate error by setting error flag */
-	p->error = 1;
+	prefix = spn_string_format(
+		"Sparkling: syntax error near line %u: ",
+		&prefix_len,
+		prefix_args,
+		0
+	);
 
-	/* because C89 *still* doesn't have snprintf */
-	stublen = fprintf(stderr, ERRMSG_FORMAT, p->lineno);
-	if (stublen < 0) {
-		abort();
-	}
+	msg = spn_string_format(fmt, &msg_len, args, 0);
 
-	va_start(args, fmt);
-	n = vfprintf(stderr, fmt, args);
-	va_end(args);
-	if (n < 0) {
-		abort();
-	}
+	free(p->errmsg);
+	p->errmsg = malloc(prefix_len + msg_len + 1);
 
-	fputc('\n', stderr);
-
-	p->errmsg = realloc(p->errmsg, stublen + n + 1);
 	if (p->errmsg == NULL) {
 		abort();
 	}
 
-	sprintf(p->errmsg, ERRMSG_FORMAT, p->lineno);
+	strcpy(p->errmsg, prefix);
+	strcpy(p->errmsg + prefix_len, msg);
 
-	va_start(args, fmt);
-	vsprintf(p->errmsg + stublen, fmt, args);
-	va_end(args);
+	free(prefix);
+	free(msg);
+
+	p->error = 1;
 }
-#undef ERRMSG_FORMAT
 
 /* re-initialize the parser object (so that it can be reused for parsing
  * multiple translation units), then kick off the actual recursive descent
@@ -168,7 +165,7 @@ static SpnAST *parse_program(SpnParser *p)
 	spn_ast_free(tree);
 
 	if (!p->error) {	/* if there's no error message yet */
-		spn_parser_error(p, "garbage after input");
+		spn_parser_error(p, "garbage after input", NULL);
 	}
 
 	return NULL;
@@ -273,7 +270,7 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 
 	/* skip `function' keyword */
 	if (!spn_accept(p, SPN_TOK_FUNCTION)) {
-		spn_parser_error(p, "internal error, expected `function'");
+		spn_parser_error(p, "internal error, expected `function'", NULL);
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
@@ -282,7 +279,7 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 		/* named global function statement */
 
 		if (p->curtok.tok != SPN_TOK_IDENT) {
-			spn_parser_error(p, "expected function name in function statement");
+			spn_parser_error(p, "expected function name in function statement", NULL);
 			spn_value_release(&p->curtok.val);
 			return NULL;
 		}
@@ -299,7 +296,7 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 	}
 
 	if (!spn_accept(p, SPN_TOK_LPAREN)) {
-		spn_parser_error(p, "expected `(' in function header");
+		spn_parser_error(p, "expected `(' in function header", NULL);
 		spn_value_release(&p->curtok.val);
 
 		if (name != NULL) {
@@ -322,7 +319,7 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 		ast->left = arglist;
 
 		if (!spn_accept(p, SPN_TOK_RPAREN)) { /* error */
-			spn_parser_error(p, "expected `)' after function argument list");
+			spn_parser_error(p, "expected `)' after function argument list", NULL);
 			spn_value_release(&p->curtok.val);
 			spn_ast_free(ast); /* frees `arglist' and `name' too */
 			return NULL;
@@ -344,7 +341,7 @@ static SpnAST *parse_block(SpnParser *p)
 	SpnAST *list, *ast;
 
 	if (!spn_accept(p, SPN_TOK_LBRACE)) {
-		spn_parser_error(p, "expected `{' in block statement");
+		spn_parser_error(p, "expected `{' in block statement", NULL);
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
@@ -360,7 +357,7 @@ static SpnAST *parse_block(SpnParser *p)
 	}
 
 	if (!spn_accept(p, SPN_TOK_RBRACE)) {
-		spn_parser_error(p, "expected `}' at end of block statement");
+		spn_parser_error(p, "expected `}' at end of block statement", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(list);
 		return NULL;
@@ -456,7 +453,7 @@ static SpnAST *parse_condexpr(SpnParser *p)
 
 	if (!spn_accept(p, SPN_TOK_COLON)) {
 		/* error, expected ':' */
-		spn_parser_error(p, "expected `:' in conditional expression");
+		spn_parser_error(p, "expected `:' in conditional expression", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(ast);
 		spn_ast_free(br_true);
@@ -684,7 +681,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 			if (!spn_accept(p, SPN_TOK_RBRACKET)) {
 				/* error: expected closing bracket */
-				spn_parser_error(p, "expected `]' after expression in array subscript");
+				spn_parser_error(p, "expected `]' after expression in array subscript", NULL);
 				spn_value_release(&p->curtok.val);
 				/* this frees ast and expr as well */
 				spn_ast_free(tmp);
@@ -694,7 +691,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 			break;
 		case SPN_NODE_MEMBEROF:
 			if (p->curtok.tok != SPN_TOK_IDENT) { /* error: expected identifier as member */
-				spn_parser_error(p, "expected identifier after . or -> operator");
+				spn_parser_error(p, "expected identifier after . or -> operator", NULL);
 				spn_ast_free(ast);
 				spn_ast_free(tmp);
 				return NULL;
@@ -728,7 +725,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 			if (!spn_accept(p, SPN_TOK_RPAREN)) {
 				/* error: expected closing parenthesis */
-				spn_parser_error(p, "expected `)' after expression in function call");
+				spn_parser_error(p, "expected `)' after expression in function call", NULL);
 				spn_value_release(&p->curtok.val);
 				/* this frees ast and arglist as well */
 				spn_ast_free(tmp);
@@ -760,7 +757,7 @@ static SpnAST *parse_term(SpnParser *p)
 		}
 
 		if (!spn_accept(p, SPN_TOK_RPAREN)) {
-			spn_parser_error(p, "expected `)' after parenthesized expression");
+			spn_parser_error(p, "expected `)' after parenthesized expression", NULL);
 			spn_value_release(&p->curtok.val);
 			spn_ast_free(ast);
 			return NULL;
@@ -846,9 +843,14 @@ static SpnAST *parse_term(SpnParser *p)
 
 		return ast;
 	default:
-		spn_parser_error(p, "unexpected token %d", p->curtok.tok);
-		spn_value_release(&p->curtok.val);
-		return NULL;
+		{
+			int tok = p->curtok.tok;
+			const void *args[1];
+			args[0] = &tok;
+			spn_parser_error(p, "unexpected token %i", args);
+			spn_value_release(&p->curtok.val);
+			return NULL;
+		}
 	}
 }
 
@@ -859,7 +861,7 @@ static SpnAST *parse_decl_args(SpnParser *p)
 	SpnString *name = p->curtok.val.v.ptrv;
 
 	if (!spn_accept(p, SPN_TOK_IDENT)) {
-		spn_parser_error(p, "expected identifier in function argument list");
+		spn_parser_error(p, "expected identifier in function argument list", NULL);
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
@@ -874,7 +876,7 @@ static SpnAST *parse_decl_args(SpnParser *p)
 		SpnString *name = p->curtok.val.v.ptrv;
 
 		if (!spn_accept(p, SPN_TOK_IDENT)) {
-			spn_parser_error(p, "expected identifier in function argument list");
+			spn_parser_error(p, "expected identifier in function argument list", NULL);
 			spn_value_release(&p->curtok.val);
 			spn_ast_free(ast);
 			return NULL;
@@ -1022,7 +1024,7 @@ static SpnAST *parse_if(SpnParser *p)
 		} else if (p->curtok.tok == SPN_TOK_IF) {
 			br_else = parse_if(p);
 		} else {
-			spn_parser_error(p, "expected block or 'if' after 'else'");
+			spn_parser_error(p, "expected block or 'if' after 'else'", NULL);
 			spn_ast_free(cond);
 			spn_ast_free(br_then);
 			return NULL;
@@ -1089,7 +1091,7 @@ static SpnAST *parse_do(SpnParser *p)
 
 	/* expect "while expr;" */
 	if (!spn_accept(p, SPN_TOK_WHILE)) {
-		spn_parser_error(p, "expected `while' after body of do-while statement");
+		spn_parser_error(p, "expected `while' after body of do-while statement", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(body);
 		return NULL;
@@ -1102,7 +1104,7 @@ static SpnAST *parse_do(SpnParser *p)
 	}
 
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after condition of do-while statement");
+		spn_parser_error(p, "expected `;' after condition of do-while statement", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(body);
 		spn_ast_free(cond);
@@ -1131,7 +1133,7 @@ static SpnAST *parse_for(SpnParser *p)
 	}
 
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after initialization of for loop");
+		spn_parser_error(p, "expected `;' after initialization of for loop", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(init);
 		return NULL;
@@ -1144,7 +1146,7 @@ static SpnAST *parse_for(SpnParser *p)
 	}
 
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after condition of for loop");
+		spn_parser_error(p, "expected `;' after condition of for loop", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(init);
 		spn_ast_free(cond);
@@ -1196,7 +1198,7 @@ static SpnAST *parse_foreach(SpnParser *p)
 
 	name = p->curtok.val.v.ptrv;
 	if (!spn_accept(p, SPN_TOK_IDENT)) {
-		spn_parser_error(p, "key in foreach loop must be a variable");
+		spn_parser_error(p, "key in foreach loop must be a variable", NULL);
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
@@ -1205,7 +1207,7 @@ static SpnAST *parse_foreach(SpnParser *p)
 	key->name = name;
 
 	if (!spn_accept(p, SPN_TOK_AS)) {
-		spn_parser_error(p, "expected `as' after key in foreach loop");
+		spn_parser_error(p, "expected `as' after key in foreach loop", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(key);
 		return NULL;
@@ -1213,7 +1215,7 @@ static SpnAST *parse_foreach(SpnParser *p)
 
 	name = p->curtok.val.v.ptrv;
 	if (!spn_accept(p, SPN_TOK_IDENT)) {
-		spn_parser_error(p, "value in foreach loop must be a variable");
+		spn_parser_error(p, "value in foreach loop must be a variable", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(key);
 		return NULL;
@@ -1223,7 +1225,7 @@ static SpnAST *parse_foreach(SpnParser *p)
 	val->name = name;
 
 	if (!spn_accept(p, SPN_TOK_IN)) {
-		spn_parser_error(p, "expected `in' after value in foreach loop");
+		spn_parser_error(p, "expected `in' after value in foreach loop", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(key);
 		spn_ast_free(val);
@@ -1272,7 +1274,7 @@ static SpnAST *parse_break(SpnParser *p)
 	}
 
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after `break'");
+		spn_parser_error(p, "expected `;' after `break'", NULL);
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
@@ -1288,7 +1290,7 @@ static SpnAST *parse_continue(SpnParser *p)
 	}
 
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after `continue'");
+		spn_parser_error(p, "expected `;' after `continue'", NULL);
 		spn_value_release(&p->curtok.val);
 		return NULL;
 	}
@@ -1320,7 +1322,7 @@ static SpnAST *parse_return(SpnParser *p)
 		return ast;
 	}
 
-	spn_parser_error(p, "expected `;' after expression in return statement");
+	spn_parser_error(p, "expected `;' after expression in return statement", NULL);
 	spn_ast_free(expr);
 
 	return NULL;
@@ -1340,7 +1342,7 @@ static SpnAST *parse_vardecl(SpnParser *p)
 		SpnAST *expr = NULL, *tmp;
 
 		if (!spn_accept(p, SPN_TOK_IDENT)) {
-			spn_parser_error(p, "expected identifier in declaration");
+			spn_parser_error(p, "expected identifier in declaration", NULL);
 			spn_value_release(&p->curtok.val);
 			return NULL;
 		}
@@ -1370,7 +1372,7 @@ static SpnAST *parse_vardecl(SpnParser *p)
 	} while (spn_accept(p, SPN_TOK_COMMA));
 
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected`;' after variable initialization");
+		spn_parser_error(p, "expected`;' after variable initialization", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(ast);
 		return NULL;
@@ -1390,7 +1392,7 @@ static SpnAST *parse_expr_stmt(SpnParser *p)
 		return ast;
 	}
 
-	spn_parser_error(p, "expected `;' after expression");
+	spn_parser_error(p, "expected `;' after expression", NULL);
 	spn_value_release(&p->curtok.val);
 	spn_ast_free(ast);
 

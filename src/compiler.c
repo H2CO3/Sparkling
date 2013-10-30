@@ -121,8 +121,8 @@ static int compile_expr_toplevel(SpnCompiler *cmp, SpnAST *ast, int *dst);
  */
 static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst);
 
-/* takes a printf format string */
-static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *fmt, ...);
+/* takes a printf-like format string */
+static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *fmt, const void *args[]);
 
 /* quick and dirty integer maximum function */
 static int max(int x, int y)
@@ -359,40 +359,35 @@ static void rts_free(RoundTripStore *rts)
 }
 
 
-#define ERRMSG_FORMAT "Sparkling: semantic error near line %lu: "
-static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *fmt, ...)
+static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *fmt, const void *args[])
 {
-	/* because C89 doesn't have snprintf... </3 */
-	int stublen, n;
-	va_list args;
+	char *prefix, *msg;
+	size_t prefix_len, msg_len;
+	const void *prefix_args[1];
+	prefix_args[0] = &lineno;
 
-	/* print error to stderr, count characters printed */
-	stublen = fprintf(stderr, ERRMSG_FORMAT, lineno);
-	if (stublen < 0) {
-		abort();
-	}
+	prefix = spn_string_format(
+		"Sparkling: semantic error near line %u: ",
+		&prefix_len,
+		prefix_args,
+		0
+	);
 
-	va_start(args, fmt);
-	n = vfprintf(stderr, fmt, args);
-	va_end(args);
-	if (n < 0) {
-		abort();
-	}
+	msg = spn_string_format(fmt, &msg_len, args, 0);
 
-	fputc('\n', stderr);
+	free(cmp->errmsg);
+	cmp->errmsg = malloc(prefix_len + msg_len + 1);
 
-	cmp->errmsg = realloc(cmp->errmsg, stublen + n + 1); /* +1 for NUL */
 	if (cmp->errmsg == NULL) {
 		abort();
 	}
 
-	sprintf(cmp->errmsg, ERRMSG_FORMAT, lineno);
+	strcpy(cmp->errmsg, prefix);
+	strcpy(cmp->errmsg + prefix_len, msg);
 
-	va_start(args, fmt);
-	vsprintf(cmp->errmsg + stublen, fmt, args);
-	va_end(args);
+	free(prefix);
+	free(msg);
 }
-#undef ERRMSG_FORMAT
 
 /* this assumes an expression statement if the node is an expression,
  * so it doesn't return the destination register index. DO NOT use this
@@ -477,9 +472,14 @@ static int write_symtab(SpnCompiler *cmp)
 			break;
 		}
 		default:
-			/* got something that's not supposed to be there */
-			compiler_error(cmp, 0, "wrong symbol type %d in write_symtab()\n", sym->t);
-			return -1;
+			{
+				/* got something that's not supposed to be there */
+				int st = sym->t;
+				const void *args[1];
+				args[0] = &st;
+				compiler_error(cmp, 0, "wrong symbol type %i in write_symtab()", args);
+				return -1;
+			}
 		}
 	}
 
@@ -651,19 +651,27 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 		argname.t = SPN_TYPE_STRING;
 		argname.f = SPN_TFLG_OBJECT;
 		argname.v.ptrv = arg->name;
-		rts_add(cmp->varstack, &argname);
+
+		/* check for double declaration of an argument */
+		if (rts_getidx(cmp->varstack, &argname) < 0) {
+			rts_add(cmp->varstack, &argname);
+		} else {
+			/* on error, free local var stack and restore scope context */
+			const void *args[1];
+			args[0] = arg->name->cstr;
+			compiler_error(cmp, arg->lineno, "argument `%s' already declared", args);
+			rts_free(&vs_this);
+			restore_scope(cmp, &sci);
+			return 0;
+		}
 	}
 
 	argc = rts_count(cmp->varstack);
 
 	/* compile body */
 	if (compile(cmp, ast->right) == 0) {
-		/* on error, free local var stack... */
 		rts_free(&vs_this);
-
-		/* ...and restore scope context */
 		restore_scope(cmp, &sci);
-
 		return 0;
 	}
 
@@ -820,7 +828,7 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 /* Why do I have the feeling this will only be implemented in alpha 2 only? */
 static int compile_foreach(SpnCompiler *cmp, SpnAST *ast)
 {
-	compiler_error(cmp, ast->lineno, "compiling `foreach' is currently unimplemented");
+	compiler_error(cmp, ast->lineno, "compiling `foreach' is currently unimplemented", NULL);
 	return 0;
 }
 
@@ -883,13 +891,13 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 
 static int compile_break(SpnCompiler *cmp, SpnAST *ast)
 {
-	compiler_error(cmp, ast->lineno, "compiling `break' is currently unimplemented");
+	compiler_error(cmp, ast->lineno, "compiling `break' is currently unimplemented", NULL);
 	return 0;
 }
 
 static int compile_continue(SpnCompiler *cmp, SpnAST *ast)
 {
-	compiler_error(cmp, ast->lineno, "compiling `continue' is currently unimplemented");
+	compiler_error(cmp, ast->lineno, "compiling `continue' is currently unimplemented", NULL);
 	return 0;
 }
 
@@ -912,7 +920,9 @@ static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 		 * in scope (i. e. in the variable stack)
 		 */
 		if (rts_getidx(cmp->varstack, &name) >= 0) {
-			compiler_error(cmp, head->lineno, "variable `%s' already declared", head->name->cstr);
+			const void *args[1];
+			args[0] = head->name->cstr;
+			compiler_error(cmp, head->lineno, "variable `%s' already declared", args);
 			return 0;
 		}
 
@@ -1080,11 +1090,13 @@ static int compile_assignment_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
+		const void *args[1];
+		args[0] = ast->left->name->cstr;
 		compiler_error(
 			cmp,
 			ast->left->lineno,
 			"variable `%s' is undeclared",
-			ast->left->name->cstr
+			args
 		);
 		return 0;
 	}
@@ -1183,8 +1195,8 @@ static int compile_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		compiler_error(
 			cmp,
 			ast->left->lineno,
-			"left-hand side of assignment must be\n"
-			"a variable or an array member"
+			"left-hand side of assignment must be\na variable or an array member",
+			NULL
 		);
 		return 0;
 	}
@@ -1203,11 +1215,13 @@ static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 
 	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
+		const void *args[1];
+		args[0] = ast->left->name->cstr;
 		compiler_error(
 			cmp,
 			ast->left->lineno,
 			"variable `%s' is undeclared",
-			ast->left->name->cstr
+			args
 		);
 		return 0;
 	}
@@ -1336,8 +1350,8 @@ static int compile_compound_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		compiler_error(
 			cmp,
 			ast->left->lineno,
-			"left-hand side of assignment must be\n"
-			"a variable or an array member"
+			"left-hand side of assignment must be\na variable or an array member",
+			NULL
 		);
 		return 0;
 	}
@@ -1779,7 +1793,8 @@ static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
 			compiler_error(
 				cmp,
 				ast->lineno,
-				"unary minus applied to non-number literal"
+				"unary minus applied to non-number literal",
+				NULL
 			);
 			return 0;
 		}
@@ -1816,7 +1831,8 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		compiler_error(
 			cmp,
 			ast->left->lineno,
-			"argument of ++ and -- operators must be a variable"
+			"argument of ++ and -- operators must be a variable",
+			NULL
 		);
 		return 0;
 	}
@@ -1826,11 +1842,13 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	varname.v.ptrv = ast->left->name;
 	idx = rts_getidx(cmp->varstack, &varname);
 	if (idx < 0) {
+		const void *args[1];
+		args[0] = ast->left->name->cstr;
 		compiler_error(
 			cmp,
 			ast->left->lineno,
 			"variable `%s' is undeclared",
-			ast->left->name->cstr
+			args
 		);
 		return 0;
 	}
@@ -1968,9 +1986,14 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_POSTINCRMT:
 	case SPN_NODE_POSTDECRMT:	return compile_incdec(cmp, ast, dst);
 
-	default:
-		compiler_error(cmp, ast->lineno, "unrecognized AST node `%d'", ast->node);
-		return 0;
+	default: /* my apologies, again */
+		{
+			int node = ast->node;
+			const void *args[1];
+			args[0] = &node;
+			compiler_error(cmp, ast->lineno, "unrecognized AST node `%i'", args);
+			return 0;
+		}
 	}
 }
 
