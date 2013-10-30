@@ -13,13 +13,15 @@
 #include "spn.h"
 #include "ctx.h"
 #include "repl.h"
+#include "disasm.h"
 
-#define N_CMDS		4
+
+#define N_CMDS		6
 #define N_FLAGS		1
 #define N_ARGS		(N_CMDS + N_FLAGS)
 
-#define CMDS_MASK	0x0f
-#define FLAGS_MASK	0xf0
+#define CMDS_MASK	0x00ff
+#define FLAGS_MASK	0xff00
 
 #ifndef LINE_MAX
 #define LINE_MAX	0x1000
@@ -30,24 +32,29 @@ enum cmd_args {
 	CMD_RUN		= 1 << 1,
 	CMD_EXECUTE	= 1 << 2,
 	CMD_INTERACT	= 1 << 3,
+	CMD_COMPILE	= 1 << 4,
+	CMD_DISASM	= 1 << 5,
+
 	FLAG_PRINTNIL	= 1 << 8
 };
 
 static enum cmd_args process_args(int argc, char *argv[])
 {
 	static const struct {
-		const char *shopt; /* short flag */
-		const char *lnopt; /* long flag */
-		enum cmd_args flag;
+		const char *shopt; /* short option */
+		const char *lnopt; /* long option */
+		enum cmd_args mask;
 	} args[N_ARGS] = {
 		{ "-h",	"--help",	CMD_HELP	},
 		{ "-r",	"--run",	CMD_RUN		},
 		{ "-e",	"--execute",	CMD_EXECUTE	},
 		{ "-i", "--interact",	CMD_INTERACT	},
+		{ "-c", "--compile",	CMD_COMPILE	},
+		{ "-d", "--disasm",	CMD_DISASM	},
 		{ "-n", "--print-nil",	FLAG_PRINTNIL	}
 	};
 
-	enum cmd_args flags = 0;
+	enum cmd_args opts = 0;
 
 	int i;
 	for (i = 1; i < argc; i++) {
@@ -55,34 +62,37 @@ static enum cmd_args process_args(int argc, char *argv[])
 
 		/* stop processing at first occurrence of "--" */
 		if (strcmp(argv[i], "--") == 0) {
-			return flags;
+			return opts;
 		}
 
 		for (j = 0; j < N_ARGS; j++) {
 			if (strcmp(argv[i], args[j].shopt) == 0
 			 || strcmp(argv[i], args[j].lnopt) == 0) {
-				flags |= args[j].flag;
+				opts |= args[j].mask;
 				argv[i] = NULL;
 				break;
 			}
 		}
 	}
 
-	return flags;
+	return opts;
 }
 
 static int show_help()
 {
-	printf("Usage: spn <flag> [files...]\n");
-	printf("Where <flag> is one of:\n\n");
+	printf("Usage: spn <command> [flags...] [files...] [-- scriptargs...] \n");
+	printf("Where <command> is one of:\n\n");
 	printf("\t-h, --help\tShow this help then exit\n");
 	printf("\t-r, --run\tRun the specified script files\n");
 	printf("\t-e, --execute\tExecute command-line arguments\n");
 	printf("\t-i, --interact\tEnter interactive (REPL) mode\n");
-	printf("\t-n, --print-nil\tExplicitly print nil values\n");
-	printf("\t--\t\tIndicates end of options to the interpreter;\n");
-	printf("\t\t\tsubsequent argments will be passed to the scripts\n\n");
-	printf("\tPlease send bug reports through GitHub:\n");
+	printf("\t-c, --compile\tCompile source files to bytecode\n");
+	printf("\t-d, --disasm\tDisassemble bytecode files\n\n");
+	printf("Flags consist of zero or more of the following options:\n\n");
+	printf("\t-n, --print-nil\tExplicitly print nil values\n\n");
+	printf("The special option `--' indicates the end of options to the\n");
+	printf("interpreter; subsequent arguments will be passed to the scripts.\n\n");
+	printf("Please send bug reports through GitHub:\n\n");
 	printf("\t<http://github.com/H2CO3/Sparkling>\n\n");
 
 	return EXIT_SUCCESS;
@@ -101,6 +111,27 @@ static int endswith(const char *haystack, const char *needle)
 	}
 
 	return strstr(haystack + hsl - ndl, needle) != NULL;
+}
+
+static void print_stacktrace_if_needed(SpnContext *ctx)
+{
+	/* if the error message of the contex is the same as
+	 * the error message of the virtual machine, then a
+	 * runtime error occurred, so we print a stack trace.
+	 */
+	if (spn_vm_errmsg(ctx->vm) == ctx->errmsg) {
+		size_t n;
+		unsigned i;
+		const char **bt = spn_vm_stacktrace(ctx->vm, &n);
+
+		fprintf(stderr, "Call stack:\n\n");
+
+		for (i = 0; i < n; i++) {
+			fprintf(stderr, "\t[%-4u]\tin %s\n", i, bt[i]);
+		}
+
+		fprintf(stderr, "\n");
+	}
 }
 
 static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
@@ -142,7 +173,7 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 			} else if (endswith(argv[i], ".spo")) {
 				val = spn_ctx_execobjfile(ctx, argv[i]);
 			} else {
-				fprintf(stderr, "Sparkling: generic error: unrecognized file extension\n");
+				fprintf(stderr, "Sparkling: generic error: invalid file extension\n");
 				status = EXIT_FAILURE;
 				break;
 			}
@@ -156,11 +187,8 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 			}
 			printf("\n");
 		} else {
-			/* the bytecode list changes if and only if a new
-			 * file or statement is run (but not if a parser error
-			 * or a compiler error occurred). This also protects us
-			 * from dereferencing `bclist' if it is (still) NULL.
-			 */
+			fprintf(stderr, "%s\n", ctx->errmsg);
+			print_stacktrace_if_needed(ctx);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -190,12 +218,116 @@ static int enter_repl(enum cmd_args args)
 				spn_value_print(val);
 				printf("\n");
 			}
+		} else {
+			fprintf(stderr, "%s\n", ctx->errmsg);
+			print_stacktrace_if_needed(ctx);
 		}
-		/* else the call stack trace is already printed */
 	}
 
 	spn_ctx_free(ctx);
 	return EXIT_SUCCESS;
+}
+
+/* XXX: this function modifies filenames in `argv' */
+static int compile_files(int argc, char *argv[])
+{
+	SpnContext *ctx = spn_ctx_new();
+	int status = EXIT_SUCCESS;
+
+	int i;
+	for (i = 1; i < argc; i++) {
+		static char outname[FILENAME_MAX];
+		char *dotp;
+		FILE *outfile;
+		spn_uword *bc;
+		size_t nwords;
+
+		if (argv[i] == NULL) {
+			continue;
+		}
+
+		if (strcmp(argv[i], "--") == 0) {
+			break;
+		}
+
+		printf("compiling file `%s'...", argv[i]);
+		fflush(stdout);
+		fflush(stderr);
+
+		bc = spn_ctx_loadsrcfile(ctx, argv[i]);
+		if (bc == NULL) {
+			fprintf(stderr, "\n%s\n", ctx->errmsg);
+			status = EXIT_FAILURE;
+			break;
+		}
+
+		/* cut off extension, construct output file name */
+		dotp = strrchr(argv[i], '.');
+		if (dotp != NULL) {
+			*dotp = 0;
+		}
+
+		sprintf(outname, "%s.spo", argv[i]);
+
+		outfile = fopen(outname, "wb");
+		if (outfile == NULL) {
+			fprintf(stderr, "\nSparkling: I/O error: can't open file `%s'\n", outname);
+			status = EXIT_FAILURE;
+			break;
+		}
+
+		nwords = ctx->bclist->len;
+		if (fwrite(bc, sizeof(*bc), nwords, outfile) < nwords) {
+			fprintf(stderr, "\nSparkling: I/O error: can't write to file `%s'\n", outname);
+			fclose(outfile);
+			status = EXIT_FAILURE;
+			break;
+		}
+
+		fclose(outfile);
+
+		printf(" done.\n");
+	}
+
+	spn_ctx_free(ctx);
+	return status;
+}
+
+static int disassemble_files(int argc, char *argv[])
+{
+	int status = EXIT_SUCCESS;
+	int i;
+
+	for (i = 1; i < argc; i++) {
+		spn_uword *bc;
+		size_t fsz, bclen;
+
+		if (argv[i] == NULL) {
+			continue;
+		}
+
+		if (strcmp(argv[i], "--") == 0) {
+			break;
+		}
+
+		bc = spn_read_binary_file(argv[i], &fsz);
+		if (bc == NULL) {
+			fprintf(stderr, "Sparkling: I/O error: could not read file `%s'\n", argv[i]);
+			status = EXIT_FAILURE;
+			break;
+		}
+
+		printf("Assembly dump of file %s:\n\n", argv[i]);
+
+		bclen = fsz / sizeof(bc[0]);
+		spn_disasm(bc, bclen);
+
+		printf("--------\n\n");
+
+		free(bc);
+	}
+
+	return status;
 }
 
 int main(int argc, char *argv[])
@@ -210,7 +342,7 @@ int main(int argc, char *argv[])
 	}
 
 	if (cmds_on != 1) {
-		fprintf(stderr, "Please specify exactly one of `hrei'\n\n");
+		fprintf(stderr, "Please specify exactly one of `hreicd'\n\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -226,6 +358,13 @@ int main(int argc, char *argv[])
 		break;
 	case CMD_INTERACT:
 		status = enter_repl(args);
+		break;
+	case CMD_COMPILE:
+		/* XXX: this function modifies filenames in `argv' */
+		status = compile_files(argc, argv);
+		break;
+	case CMD_DISASM:
+		status = disassemble_files(argc, argv);
 		break;
 	default:
 		fprintf(stderr, "Sparkling: generic error: internal inconsistency\n\n");
