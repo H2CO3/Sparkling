@@ -58,7 +58,7 @@ Parser:
 		a string instead of an expected operator or keyword?), right? But
 		what happens if it *is* released? Is this approach correct throughout
 		the implementation of the parser?
-	- array literals (@{}, @[], or something else?)					***Urgent***
+	- array literals (@{}, @[], or something else?)						***Urgent***
 	- support C99- and C++-style in-loop variable initialization (see above)
 	- include line number information in AST						done
 	- check some mistakes that are obvious to detect at compile time,
@@ -68,7 +68,7 @@ Parser:
 
 Compiler:
 	- support for warnings
-	- check for duplicate names in function arguments (issue a diagnostic)
+	- check for duplicate names in function arguments (issue a diagnostic)			done
 	- Issue a warning if a top-level expression (i. e. an expression statement)
 		is neither a function call, an assignment nor an increment/decrement
 		operation. Nothing else should be used as an expression statement,
@@ -186,6 +186,7 @@ Standard library:
 		implemented.
 	- provide proper access to the Sparkling engine (compilefile(),
 		compilestring(), etc. functions) instead of the horrible eval()
+	- check number of arguments in format strings
 
 Miscellaneous:
 	- add ability to load multiple source files						done

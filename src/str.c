@@ -544,7 +544,7 @@ static int append_format(
 
 /* the actual parser
  * Although it's not in the documentation of `printf()`, but in addition to the
- `%d` conversion specifier, this supports `%i`, which takes an `int` argument
+ * `%d` conversion specifier, this supports `%i`, which takes an `int` argument
  * instead of a `long`. It is used only for formatting error messages (since
  * Sparkling integers are all `long`s), but feel free to use it yourself.
  */
@@ -566,7 +566,6 @@ static char *make_format_string(
 
 	while (*s) {
 		if (*s == '%') {
-
 			struct format_args args;
 			init_format_args(&args);
 
