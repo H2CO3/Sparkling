@@ -423,6 +423,8 @@ static char *double2str(
 		}
 
 		*--begin = '.';
+
+		whole += frac;
 	} else {
 		/* round to integers */
 		whole = floor(x + 0.5);
@@ -662,7 +664,7 @@ static int append_format(
 		/* at this point, `x' is non-negative or -0 */
 
 		if (x > 0.0) {
-			len = ceil(log10(x)) + 1; /* 10^n is n+1 digits long */
+			len = ceil(fabs(log10(x))) + 1; /* 10 ^ n is |n| + 1 digits long */
 		} else {
 			len = 1; /* zero needs exactly one character */
 		}
