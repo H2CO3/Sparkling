@@ -43,8 +43,8 @@ that of `printf()` in the C standard library. Valid conversion specifiers are:
  - `%c` takes an integer argument and prints its corresponding character (based
  on the character code).
  - `%[+| ][W][.P]f` formats a floating-point number. If an integer number is
- given, it is converted to a floating-point number. The rules for using `W`, `+`
- and `' '` are the same as they were in the case of `%d`. If an explicit
+ given, it is converted to a floating-point number. The rules for using `W`,
+ `+` and `' '` are the same as they were in the case of `%d`. If an explicit
  precision (`.P`) is specified, then prints exactly P decimal digits after the
  decimal point, rounding the result if necessary. If an explicit precision is
  not specified, then it's assumed to be `DBL_DIG` (taken from the C standard

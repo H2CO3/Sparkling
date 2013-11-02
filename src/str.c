@@ -12,6 +12,7 @@
 #include <ctype.h>
 #include <limits.h>
 #include <float.h>
+#include <math.h>
 
 #include "str.h"
 #include "array.h"
@@ -252,6 +253,23 @@ static void init_format_args(struct format_args *args)
 	args->spec = 0;
 }
 
+static const void *getarg_raw(void *argv, int *argidx)
+{
+	const void **real_argv = argv;
+	const void *arg = real_argv[*argidx];
+	++*argidx;
+	return arg;
+}
+
+static SpnValue *getarg_val(void *argv, int *argidx)
+{
+	SpnValue *real_argv = argv;
+	SpnValue *arg = &real_argv[*argidx];
+	++*argidx;
+	return arg;
+}
+
+
 /* I've learnt this technique from Apple's vfprintf() (BSD libc heritage?) */
 static char *ulong2str(
 	char *end,
@@ -326,20 +344,125 @@ static char *ulong2str(
 	return begin;
 }
 
-static const void *getarg_raw(void *argv, int *argidx)
+/* helper for print_special_fp(): appends string, pads with space if needed */
+static void append_padded(struct string_builder *bld, const char *str, int width)
 {
-	const void **real_argv = argv;
-	const void *arg = real_argv[*argidx];
-	++*argidx;
-	return arg;
+	size_t len = strlen(str);
+	size_t tmpwidth = width < 0 ? 0 : width;
+
+	if (tmpwidth > len) {
+		size_t pad = tmpwidth - len;
+		expand_buffer(bld, pad);
+		while (pad--) {
+			bld->buf[bld->len++] = ' ';
+		}
+	}
+
+	append_string(bld, str, len);
 }
 
-static SpnValue *getarg_val(void *argv, int *argidx)
+/* appends the formatted string representing a special floating-point number */
+static void print_special_fp(
+	struct string_builder *bld,
+	enum format_flags flags,
+	int width,
+	double x
+)
 {
-	SpnValue *real_argv = argv;
-	SpnValue *arg = &real_argv[*argidx];
-	++*argidx;
-	return arg;
+	if (x != x) {
+		/* NaN */
+		const char *str = flags & FLAG_CAPS ? "NAN" : "nan";
+		append_padded(bld, str, width);
+	} else if (x == +1.0 / 0.0) {
+		/* positive infinity */
+		const char *str;
+
+		if (flags & FLAG_EXPLICITSIGN) {
+			str = flags & FLAG_CAPS ? "+INF" : "+inf";
+		} else if (flags & FLAG_PADSIGN) {
+			str = flags & FLAG_CAPS ? " INF" : " inf";
+		} else {
+			str = flags & FLAG_CAPS ? "INF" : "inf";
+		}
+
+		append_padded(bld, str, width);
+	} else if (x == -1.0 / 0.0) {
+		/* negative infinity */
+		const char *str = flags & FLAG_CAPS ? "-INF" : "-inf";
+		append_padded(bld, str, width);
+	}
+}
+
+/* this takes only non-negative (except -0) numbers that are not NaN or inf */
+static char *double2str(
+	char *end,
+	double x,
+	int width,
+	int prec,
+	enum format_flags flags
+)
+{
+	char *begin = end;
+	double frac, whole;
+	frac = modf(x, &whole);
+
+	if (prec > 0) {
+		/* round fractional part */
+		int i;
+
+		for (i = 0; i < prec; i++) {
+			frac *= 10.0;
+		}
+
+		frac = floor(frac + 0.5);
+
+		for (i = 0; i < prec; i++) {
+			int digit = fmod(frac, 10.0);
+			*--begin = '0' + digit;
+			frac /= 10.0;
+		}
+
+		*--begin = '.';
+	} else {
+		/* round to integers */
+		whole = floor(x + 0.5);
+	}
+
+	do {
+		int digit = fmod(whole, 10.0);
+		*--begin = '0' + digit;
+		whole /= 10.0;
+	} while (whole >= 1.0);
+
+	if (flags & FLAG_ZEROPAD) {
+		while (width >= 0 && width > end - begin + 1) {
+			*--begin = '0';
+		}
+
+		if (flags & FLAG_NEGATIVE) {
+			*--begin = '-';
+		} else if (flags & FLAG_EXPLICITSIGN) {
+			*--begin = '+';
+		} else if (flags & FLAG_PADSIGN) {
+			*--begin = ' ';
+		} else {
+			*--begin = '0';
+		}
+	} else {
+		if (flags & FLAG_NEGATIVE) {
+			*--begin = '-';
+		} else if (flags & FLAG_EXPLICITSIGN) {
+			*--begin = '+';
+		} else if (flags & FLAG_PADSIGN) {
+			*--begin = ' ';
+		}
+
+		while (width >= 0 && width > end - begin) {
+			*--begin = ' ';
+		}
+	}
+
+	return begin;
 }
 
 /* returns zero on success, nonzero on error */
@@ -409,11 +532,15 @@ static int append_format(
 		if (isval) {
 			/* must be an integer */
 			SpnValue *val = getarg_val(argv, argidx);
-			if (val->t != SPN_TYPE_NUMBER || val->f != 0) {
+			if (val->t != SPN_TYPE_NUMBER) {
 				return -1;
 			}
 
-			n = val->v.intv;
+			if (val->f == 0) {
+				n = val->v.intv;
+			} else {
+				n = val->v.fltv; /* truncate */
+			}
 		} else {
 			/* "%i" expects an int, others expect a long */
 			if (args->spec == 'i') {
@@ -451,6 +578,7 @@ static int append_format(
 
 		end = buf + len;
 		begin = ulong2str(end, u, base, args->width, flags);
+		assert(buf <= begin);
 		append_string(bld, begin, end - begin);
 		free(buf);
 
@@ -486,10 +614,87 @@ static int append_format(
 
 		break;
 	}
-	case 'f': {
+	case 'f':
+	case 'F': {
+		char *buf, *end, *begin;
+		size_t len;
+		int prec;
+		double x;
+		enum format_flags flags = args->flags;
+
+		if (isval) {
+			SpnValue *val = getarg_val(argv, argidx);
+			if (val->t != SPN_TYPE_NUMBER) {
+				return -1;
+			}
+
+			if (val->f & SPN_TFLG_FLOAT) {
+				x = val->v.fltv;
+			} else {
+				x = val->v.intv;
+			}
+		} else {
+			x = *(const double *)getarg_raw(argv, argidx);
+		}
+
+		if (args->spec == 'F') {
+			flags |= FLAG_CAPS;
+		}
+
+		/* handle special cases */
+		if (+1.0 / x == +1.0 / -0.0) {
+			/* negative zero: set sign flag and carry on */
+			flags |= FLAG_NEGATIVE;
+		} else if (
+			x != x		/*  NaN */
+		     || x == +1.0 / 0.0	/* +inf */
+		     || x == -1.0 / 0.0	/* -inf */
+		) {
+			print_special_fp(bld, flags, args->width, x);
+			break;
+		}
+
+		if (x < 0.0) {
+			flags |= FLAG_NEGATIVE;
+			x = -x;
+		}
+
+		/* at this point, `x' is non-negative or -0 */
+
+		if (x > 0.0) {
+			len = ceil(log10(x)) + 1; /* 10^n is n+1 digits long */
+		} else {
+			len = 1; /* zero needs exactly one character */
+		}
+
+		prec = args->precision < 0 ? DBL_DIG : args->precision;
+
+		if (prec > 0) {
+			len += prec + 1; /* +1 for decimal point */
+		}
+
+		if (args->width >= 0 && args->width > len) {
+			len = args->width;
+		}
+
+		buf = malloc(len);
+		if (buf == NULL) {
+			abort();
+		}
+
+		end = buf + len;
+		begin = double2str(end, x, args->width, prec, flags);
+		assert(buf <= begin);
+		append_string(bld, begin, end - begin);
+		free(buf);
+
 		break;
 	}
-	case 'e': {
+	case 'e':
+	case 'E': {
+		/* TODO: implement this */
+		fprintf(stderr, "unimplemented conversion specifier: '%%e'\n");
+		return -1;
 		break;
 	}
 	case 'q': {

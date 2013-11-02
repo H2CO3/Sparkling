@@ -134,8 +134,8 @@ since now I can procrastinate writing the full specs until the beta release...)
 In the meantime, please experiment with the library, write extensions, **try
 to break the code** (I appreciate bug reports), play around with the engine in
 various situations, on different platforms. The more people use Sparkling,
-the better it will become. Check out the platform-specific Makefiles (with
-special regards to the `BUILD` variable) as well and tailor them to your needs.
+the better it will become. Check out the Makefile (with special regards to the
+`BUILD` variable) as well and tailor it to your needs.
 
 Happy programming!
 
