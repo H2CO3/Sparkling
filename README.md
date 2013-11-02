@@ -65,7 +65,7 @@ Why Sparkling?
 - Well-designed (at least it is supposed to be well-designed):
   - strict yet dynamic typing and consistent semantics: less programmer errors
   - uses integers to perform integer operations (faster, exact, allows bit ops)
-  - easy-to-grasp, readable C-stlye syntax
+  - easy-to-grasp, readable C-style syntax
   - no global variables
   - no implicit conversions or type coercion
 - Fast: speed comparable to that of Lua

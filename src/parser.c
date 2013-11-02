@@ -108,14 +108,13 @@ void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
 	const void *prefix_args[1];
 	prefix_args[0] = &p->lineno;
 
-	prefix = spn_string_format(
+	prefix = spn_string_format_cstr(
 		"Sparkling: syntax error near line %u: ",
 		&prefix_len,
-		prefix_args,
-		0
+		prefix_args
 	);
 
-	msg = spn_string_format(fmt, &msg_len, args, 0);
+	msg = spn_string_format_cstr(fmt, &msg_len, args);
 
 	free(p->errmsg);
 	p->errmsg = malloc(prefix_len + msg_len + 1);

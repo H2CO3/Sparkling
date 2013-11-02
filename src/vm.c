@@ -364,14 +364,13 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 	const void *prefix_args[1];
 	prefix_args[0] = &addr;
 
-	prefix = spn_string_format(
+	prefix = spn_string_format_cstr(
 		"Sparkling: at address 0x%08x: runtime error: ",
 		&prefix_len,
-		prefix_args,
-		0
+		prefix_args
 	);
 
-	msg = spn_string_format(fmt, &msg_len, args, 0);
+	msg = spn_string_format_cstr(fmt, &msg_len, args);
 
 	free(vm->errmsg);
 	vm->errmsg = malloc(prefix_len + msg_len + 1);

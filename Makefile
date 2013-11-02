@@ -1,5 +1,5 @@
 # change this variable only! should be 'debug' or 'release' (without quotes)
-BUILD ?= debug
+BUILD ?= release
 
 OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
 

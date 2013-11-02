@@ -74,12 +74,15 @@ as per §1.7.1.
 §2. Statements
 --------------
 §2.1. The function statement (`function-statement`).
-A function statement defines a named function with zero or more arguments.
+§2.1.1. A function statement defines a named function with zero or more arguments.
 A function is an individual piece of code representing an operation. It can
 be called with or without arguments and may or may not return a value. In a
 function call expression, call arguments are evaluated and bound to formal
 parameters, and the code in the function operates on its arguments accordingly.
 The type of a function is function.
+
+§2.1.2. Formal parameters act as variables local to the function. As such, all
+formal parameters must have a distinct name within a function statement.
 
 §2.2. The if statement (`if-statement`).
 The if statement implements run-time decision and branching. The condition of
@@ -149,13 +152,16 @@ It is an error to place a continue statement outside a loop.
 The empty statement is a no-op, it does nothing.
 
 §2.12. The variable declaration statement (`variable-declaration`).
-The variable declaration statement brings a variable in scope. The variable can
-be accessed inside the current scope and enclosing scopes (as described in
-§1.6), but only in statements and expressions following the declaration. It is
-illegal to initialize a variable with an expression referring to itself (due to
-an implementation detail, such a variable will have an indeterminate value).
-If there is no initializer expression, the variable is implicitly initialized
-to `nil`.
+§2.12..1 The variable declaration statement brings a variable in scope. The
+variable can be accessed inside the current scope and enclosing scopes (as
+described in §1.6), but only in statements and expressions following the
+declaration. It is illegal to initialize a variable with an expression referring
+to itself (due to an implementation detail, such a variable will have an
+indeterminate value). If there is no initializer expression, the variable is
+implicitly initialized with `nil`.
+
+§2.12.2. It is illegal to declare a variable that has the name of a variable
+which already exists (which is already visible) in a scope.
 
 §2.13 The expression statement (`expression-statement`).
 The expression statement is a statement of which the only purpose is evaluating
@@ -184,7 +190,8 @@ or a member of an array.
 of the right-hand side to the left-hand side and yields their value.
 
 §3.1.2. Compound assignments. Compound assignment operators have the form
-`<LHS> <OP>= <RHS>` and they are equivalent with `<LHS> = <LHS> <OP> <RHS>`.
+`<LHS> <OP>= <RHS>` and they are equivalent with `<LHS> = <LHS> <OP> <RHS>`,
+except that the left-hand side is only evaluated once.
 
 §3.2. The concatenation operator.
 The concatenation operator takes two strings as its operands, and yields its

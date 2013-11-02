@@ -29,7 +29,7 @@ Language, syntax:
 	- 'concat-equals' (..=) operator							done
 	- named constants, "enum"s (whatever you call them) (How? They can't be
 		referenced across object files unless they are put in the symbol
-		table - but in that case, they would have a significant overhead...)	***
+		table - but in that case, they would have a significant (?) overhead...)	***
 	- arrays should be able to be indexed by any object (polymorphic hash function
 		based on pointers to an object)							done
 	- switch-case statement (with block syntax instead of labels: `case 0: { }' etc.)
@@ -67,6 +67,8 @@ Parser:
 		instead of the currently purely recursive descent approach
 
 Compiler:
+	- support for warnings
+	- check for duplicate names in function arguments (issue a diagnostic)
 	- Issue a warning if a top-level expression (i. e. an expression statement)
 		is neither a function call, an assignment nor an increment/decrement
 		operation. Nothing else should be used as an expression statement,

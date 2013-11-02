@@ -102,7 +102,7 @@ spn_uword *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
 	/* the size of the object file is not the same
 	 * as the number of machine words in the bytecode
 	 */
-	nwords = filesize / sizeof(spn_uword);
+	nwords = filesize / sizeof(*bc);
 	prepend_bytecode_list(ctx, bc, nwords);
 
 	return bc;

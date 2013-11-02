@@ -29,27 +29,32 @@ Writes a formatted stream to the standard input. It has similar semantics to
 that of `printf()` in the C standard library. Valid conversion specifiers are:
 
  - `%%` prints a literal percent symbol
- - `%[N]s` prints a string description (as if the value was printed using
- `print()`. If field width (`N`) is present, it prints at most N characters.
- - `%[+][W]{d|o|x|X|b}` formats an integer as decimal, octal, lowercase and
- uppercase hexadecimal or binary, respectively. If a floating-point number is
- given, it is truncated to an integer. Raises a run-time error if the
- floating-point number to be truncated exceeds the range of `long`. If `W` is
- present, prepends space before the digits so that at least W characters are
- outputted. If `+` is present, always adds an (explicit) leading sign (`+` or
- `-`). Octal, hex and binary conversion specifiers always treat the integer as
- unsigned.
- - `%[+][W][.P]f` formats a floating-point number. If an integer number is
- given, it is converted to a floating-point number. The rules for using `W` and
- `+` are the same as they were in the case of `%d`. If an explicit precision
- (`.P`) is specified, then prints exactly P decimal digits after the decimal
- point, rounding the result if necessary.
- - `%[+][W][.P][+]e` formats a floating-point number in the same manner as `%f`,
- but it uses scientific (exponential) notation, e. g. `1.337e+3`. If a second
- `+` sign, after the decimal point, is present, then the exponent will always
- have an explicit sign.
- - `%[N]q` formats an escaped string. If the field width modifier is present,
- it prints at most `N` characters.
+ - `%[W.P]s` prints a string. If the precision (`P`) is present, it prints at
+ most `P` characters. If the field width (`W`) is greater than the length of
+ the string, then the string is padded with spaces until it fits.
+ - `%[+| ][0][W]{d|u|o|x|X|b}` formats an integer as signed decimal, unsigned
+ decimal, octal, lowercase and uppercase hexadecimal or binary, respectively.
+ If `W` is present, prepends space before the digits so that at least `W`
+ characters are outputted. If `+` is present, always adds an (explicit) leading
+ sign (`+` or `-`). If `' '` (a space character) is specified instead of a `+`
+ as the sign, then only the negative sign is printed, and for non-negative
+ numbers, a space is prepended. Octal, hex and binary conversion specifiers
+ always treat the integer as unsigned.
+ - `%c` takes an integer argument and prints its corresponding character (based
+ on the character code).
+ - `%[+| ][W][.P]f` formats a floating-point number. If an integer number is
+ given, it is converted to a floating-point number. The rules for using `W`, `+`
+ and `' '` are the same as they were in the case of `%d`. If an explicit
+ precision (`.P`) is specified, then prints exactly P decimal digits after the
+ decimal point, rounding the result if necessary. If an explicit precision is
+ not specified, then it's assumed to be `DBL_DIG` (taken from the C standard
+ library of the host platform).
+ - `%[+| ][W][.P][+]e` formats a floating-point number in the same manner as
+ `%f`, but it uses scientific (exponential) notation, e. g. `1.337e+3`. If a
+ second `+` sign, after the decimal point, is present, then the exponent will
+ always have an explicit sign.
+ - `%[W]q` formats an escaped string. If the field width modifier is present,
+ it prints at most `W` characters.
  - `%B` formats a Boolean value. Prints either true or false.
  - Width and precision may both be specified as `*`, in which case the actual
  width or precision is determined by looking at the next argument of the
