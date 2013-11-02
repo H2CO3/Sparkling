@@ -34,7 +34,7 @@
 
 /***************
  * I/O library *
- ***************/ /* TODO: implement */
+ ***************/
 
 static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
@@ -72,6 +72,37 @@ static int rtlb_print(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	printf("\n");
+
+	return 0;
+}
+
+static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnString *fmt;
+	SpnString *res;
+
+	if (argc < 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_STRING) {
+		return -2;
+	}
+
+	fmt = argv[0].v.ptrv;
+	res = spn_string_format_obj(fmt, &argv[1]);
+
+	if (res != NULL) {
+		fputs(res->cstr, stdout);
+
+		ret->t = SPN_TYPE_NUMBER;
+		ret->f = 0;
+		ret->v.intv = res->len;
+
+		spn_object_release(res);
+	} else {
+		return -3;
+	}
 
 	return 0;
 }
@@ -118,6 +149,43 @@ static int rtlb_fclose(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	fp = argv[0].v.ptrv;
 	fclose(fp);
+	return 0;
+}
+
+static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnString *fmt;
+	SpnString *res;
+	FILE *stream;
+
+	if (argc < 2) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_USRDAT) {
+		return -2;
+	}
+
+	if (argv[1].t != SPN_TYPE_STRING) {
+		return -2;
+	}
+
+	stream = argv[0].v.ptrv;
+	fmt = argv[1].v.ptrv;
+	res = spn_string_format_obj(fmt, &argv[2]);
+
+	if (res != NULL) {
+		fputs(res->cstr, stream);
+
+		ret->t = SPN_TYPE_NUMBER;
+		ret->f = 0;
+		ret->v.intv = res->len;
+
+		spn_object_release(res);
+	} else {
+		return -3;
+	}
+
 	return 0;
 }
 
@@ -416,10 +484,10 @@ static int rtlb_tmpfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
 	{ "getline",	rtlb_getline	},
 	{ "print",	rtlb_print	},
-	{ "printf",	NULL		},
+	{ "printf",	rtlb_printf	},
 	{ "fopen",	rtlb_fopen	},
 	{ "fclose",	rtlb_fclose	},
-	{ "fprintf",	NULL		},
+	{ "fprintf",	rtlb_fprintf	},
 	{ "fgetline",	rtlb_fgetline	},
 	{ "fread",	rtlb_fread	},
 	{ "fwrite",	rtlb_fwrite	},
@@ -736,10 +804,30 @@ static int rtlb_toupper(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_trcase(ret, argc, argv, 1);
 }
 
-/* TODO: implement */
 static int rtlb_fmtstring(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	return -1;
+	SpnString *fmt;
+	SpnString *res;
+
+	if (argc < 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_STRING) {
+		return -2;
+	}
+
+	fmt = argv[0].v.ptrv;
+	res = spn_string_format_obj(fmt, &argv[1]);
+
+	if (res != NULL) {
+		ret->t = SPN_TYPE_STRING;
+		ret->f = SPN_TFLG_OBJECT;
+		ret->v.ptrv = res;
+	}
+	/* else implicitly return nil */
+
+	return 0;
 }
 
 static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)

@@ -43,7 +43,25 @@ SPN_API SpnString	*spn_string_concat(SpnString *lhs, SpnString *rhs);
 /* Creates a formatted string.
  * The format specifiers are documented in doc/stdlib.md.
  */
-SPN_API char		*spn_string_format(const char *fmt, size_t *len, int argc, SpnValue *argv);
+SPN_API char *spn_string_format_cstr(
+	const char *fmt,	/* printf-style format string	*/
+	size_t *len,		/* on return, length of string	*/
+	const void **argv	/* array of objects to format	*/
+);
+
+SPN_API SpnString *spn_string_format_obj(
+	SpnString *fmt,		/* printf-style format string	*/
+	SpnValue *argv		/* array of objects to format	*/
+);
+
+/* (*): if this flag is zero, then `argv' should point to the first element of
+ * an array of void pointers, each of which have a base type appropriate for
+ * the corresponding conversion specifier, i. e. one of `long' (for integers),
+ * `double' (for floating-point numbers), `const signed char', or `const
+ * unsigned char' (for strings), `int' (for Booleans) and `void` for pointers.
+ * If the flag is nonzero, then `argv' should point to the first element of an
+ * array of `SpnValue' strucs of the appropriate type.
+ */
 
 #endif /* SPN_STR_H */
 
