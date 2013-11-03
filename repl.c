@@ -18,7 +18,7 @@
 
 
 #define N_CMDS		6
-#define N_FLAGS		1
+#define N_FLAGS		2
 #define N_ARGS		(N_CMDS + N_FLAGS)
 
 #define CMDS_MASK	0x00ff
@@ -36,7 +36,8 @@ enum cmd_args {
 	CMD_COMPILE	= 1 << 4,
 	CMD_DISASM	= 1 << 5,
 
-	FLAG_PRINTNIL	= 1 << 8
+	FLAG_PRINTNIL	= 1 << 8,
+	FLAG_PRINTRET	= 1 << 9
 };
 
 static enum cmd_args process_args(int argc, char *argv[])
@@ -52,7 +53,8 @@ static enum cmd_args process_args(int argc, char *argv[])
 		{ "-i", "--interact",	CMD_INTERACT	},
 		{ "-c", "--compile",	CMD_COMPILE	},
 		{ "-d", "--disasm",	CMD_DISASM	},
-		{ "-n", "--print-nil",	FLAG_PRINTNIL	}
+		{ "-n", "--print-nil",	FLAG_PRINTNIL	},
+		{ "-t", "--print-ret",	FLAG_PRINTRET	}
 	};
 
 	enum cmd_args opts = 0;
@@ -90,7 +92,8 @@ static int show_help()
 	printf("\t-c, --compile\tCompile source files to bytecode\n");
 	printf("\t-d, --disasm\tDisassemble bytecode files\n\n");
 	printf("Flags consist of zero or more of the following options:\n\n");
-	printf("\t-n, --print-nil\tExplicitly print nil values\n\n");
+	printf("\t-n, --print-nil\tExplicitly print nil values\n");
+	printf("\t-t, --print-ret\tPrint return value of script\n\n");
 	printf("The special option `--' indicates the end of options to the\n");
 	printf("interpreter; subsequent arguments will be passed to the scripts.\n\n");
 	printf("Please send bug reports through GitHub:\n\n");
@@ -226,10 +229,13 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 			status = EXIT_FAILURE;
 			break;
 		} else {
-			if (ret.t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
-				spn_value_print(&ret);
+			if (args & FLAG_PRINTRET) {
+				if (ret.t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
+					spn_value_print(&ret);
+					printf("\n");
+				}
 			}
-			printf("\n");
+
 			spn_value_release(&ret);
 		}
 	}
