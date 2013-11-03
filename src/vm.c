@@ -604,7 +604,6 @@ static void push_and_copy_args(
 {
 	int i;
 	spn_uword *fnhdr;
-	spn_uword *entry;
 	int symtabidx;
 	int decl_argc;
 	int extra_argc;
@@ -624,7 +623,6 @@ static void push_and_copy_args(
 	symtabidx = fn->v.fnv.symtabidx;
 	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
 	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
-	entry = fnhdr + SPN_FUNCHDR_LEN;
 	fnname = fn->v.fnv.name;
 
 	/* if there are less call arguments than formal

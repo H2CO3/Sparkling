@@ -38,7 +38,6 @@ function fct_rec(n)
 	return n < 2 ? 1 : n * fct_rec(n - 1);
 }
 
-var argv = getargs();
 var n = toint(argv[0]);
 
 print(fib_iter(n));

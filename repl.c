@@ -388,8 +388,6 @@ int main(int argc, char *argv[])
 		exit(EXIT_FAILURE);
 	}
 
-	printf("Sparkling build %s, copyright (C) 2013, Árpád Goretity\n\n", REPL_VERSION);
-
 	switch (args & CMDS_MASK) {
 	case CMD_HELP:
 		status = show_help();
@@ -399,9 +397,11 @@ int main(int argc, char *argv[])
 		status = run_files_or_args(argc, argv, args);
 		break;
 	case CMD_INTERACT:
+		printf("Sparkling build %s, copyright (C) 2013, Árpád Goretity\n\n", REPL_VERSION);
 		status = enter_repl(args);
 		break;
 	case CMD_COMPILE:
+		printf("Sparkling build %s, copyright (C) 2013, Árpád Goretity\n\n", REPL_VERSION);
 		/* XXX: this function modifies filenames in `argv' */
 		status = compile_files(argc, argv);
 		break;
