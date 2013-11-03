@@ -116,6 +116,30 @@ struct SpnVMachine {
 	void		*ctx;		/* user data			*/
 };
 
+/* this is the structure used by `push_and_copy_args()' */
+struct args_copy_descriptor {
+	int caller_is_native;
+	union {
+		struct {
+			spn_uword *ip;
+			spn_uword *retaddr;
+			ptrdiff_t calleroff;
+			ptrdiff_t retidx;
+		} script_env;
+		struct {
+			SpnValue *argv;
+		} native_env;
+	} env;
+};
+
+static void push_and_copy_args(
+	SpnVMachine *vm,
+	SpnValue *fn,
+	const struct args_copy_descriptor *desc,
+	int argc
+);
+
+
 static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *ret);
 
 /* this only releases the values stored in the stack frames */
@@ -322,14 +346,9 @@ int spn_vm_callfunc(
 	SpnValue *argv
 )
 {
-	int i;
-	int symtabidx;
-	int decl_argc;
-	int extra_argc;
-	int nregs;
-	spn_uword *entry;
-	spn_uword *fnhdr;
-	const char *fnname;
+	struct args_copy_descriptor desc;
+	spn_uword *fnhdr = fn->v.fnv.r.bc;
+	spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
 
 	/* check that the callee is indeed a function */
 	if (fn->t != SPN_TYPE_FUNC) {
@@ -342,66 +361,12 @@ int spn_vm_callfunc(
 		return fn->v.fnv.r.fn(retval, argc, argv, vm->ctx);
 	}
 
-	/* if we got here, the callee is a valid Sparkling function.
-	 * The following code does roughly the same as the implementation
-	 * of the SPN_INS_CALL virtual machine instruction.
-	 */
-	fnhdr = fn->v.fnv.r.bc;
-	symtabidx = fn->v.fnv.symtabidx;
-	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
-	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
-	entry = fnhdr + SPN_FUNCHDR_LEN;
-	fnname = fn->v.fnv.name;
+	/* if we got here, the callee is a valid Sparkling function. */
+	desc.caller_is_native = 1; /* because we are the calling function */
+	desc.env.native_env.argv = argv;
 
-	/* if there are less call arguments than formal
-	 * parameters, we set extra_argc to 0 (and all
-	 * the unspecified arguments are implicitly set
-	 * to `nil` by push_frame)
-	 */
-	extra_argc = argc > decl_argc ? argc - decl_argc : 0;
-
-	/* store the offset of the stack frame of the
-	 * caller so we can read the call arguments
-	 * later, when the active frame is that of the
-	 * called function. An offset is stored instead
-	 * of the stack pointer itself because the
-	 * push_frame() function reallocates the stack.
-	 */
-
-	/* sanity check: decl_argc should be <= nregs,
-	 * else arguments wouldn't fit in the registers
-	 */
-	assert(decl_argc <= nregs);
-
-	/* push a new stack frame - after that,
-	 * `&vm->sp[IDX_FRMHDR].h` is a pointer to
-	 * the stack frame of the *called* function.
-	 */
-	push_frame(
-		vm,
-		nregs,
-		decl_argc,
-		extra_argc,
-		NULL,
-		-1,
-		symtabidx,
-		fnname
-	);
-
-	/* copy named (declared) arguments */
-	for (i = 0; i < decl_argc && i < argc; i++) {
-		SpnValue *dst = VALPTR(vm->sp, i);
-		spn_value_retain(&argv[i]);
-		*dst = argv[i];
-	}
-
-	/* copy over the extra (unnamed) args */
-	for (i = decl_argc; i < argc; i++) {
-		int dstidx = i - decl_argc;
-		SpnValue *dst = nth_vararg(vm->sp, dstidx);
-		spn_value_retain(&argv[i]);
-		*dst = argv[i];
-	}
+	/* push frame and bind arguments */
+	push_and_copy_args(vm, fn, &desc, argc);
 
 	/* recurse, because it's convenient */
 	return dispatch_loop(vm, entry, retval);
@@ -611,6 +576,119 @@ static SpnValue *nth_vararg(TSlot *sp, int idx)
 	return VALPTR(sp, vararg_off + idx);
 }
 
+
+/* helper for calling Sparkling functions (pushes frame, copies arguments) */
+static void push_and_copy_args(
+	SpnVMachine *vm,
+	SpnValue *fn,
+	const struct args_copy_descriptor *desc,
+	int argc
+)
+{
+	int i;
+	spn_uword *fnhdr;
+	spn_uword *entry;
+	int symtabidx;
+	int decl_argc;
+	int extra_argc;
+	int nregs;
+	const char *fnname;
+
+	/* this whole copying thingy only applies if we're calling
+	 * a Sparkling function. Native callees are handled separately.
+	 */
+	assert(fn->t == SPN_TYPE_FUNC && fn->f == 0);
+
+	/* see Remark (VI) in vm.h in order to get an
+	 * understanding of the layout of the
+	 * bytecode representing a function
+	 */
+	fnhdr = fn->v.fnv.r.bc;
+	symtabidx = fn->v.fnv.symtabidx;
+	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
+	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
+	entry = fnhdr + SPN_FUNCHDR_LEN;
+	fnname = fn->v.fnv.name;
+
+	/* if there are less call arguments than formal
+	 * parameters, we set extra_argc to 0 (and all
+	 * the unspecified arguments are implicitly set
+	 * to `nil` by push_frame)
+	 */
+	extra_argc = argc > decl_argc ? argc - decl_argc : 0;
+
+	/* sanity check: decl_argc should be <= nregs,
+	 * else arguments wouldn't fit in the registers
+	 */
+	assert(decl_argc <= nregs);
+
+	/* push a new stack frame - after that,
+	 * `&vm->sp[IDX_FRMHDR].h` is a pointer to
+	 * the stack frame of the *called* function.
+	 */
+	push_frame(
+		vm,
+		nregs,
+		decl_argc,
+		extra_argc,
+		desc->caller_is_native ? NULL : desc->env.script_env.retaddr,
+		desc->caller_is_native ?   -1 : desc->env.script_env.retidx,
+		symtabidx,
+		fnname
+	);
+
+	/* first, fill in arguments that fit into the
+	 * first `decl_argc` registers (i. e. those
+	 * that are declared as formal parameters). The
+	 * number of call arguments may be less than
+	 * the number of formal parameters; handle that
+	 * case too (`&& i < argc`).
+	 *
+	 * The values in the source registers
+	 * should be retained, since pop_frame()
+	 * releases all registers. Also, an
+	 * argument may be assigned to from
+	 * within the called function, which
+	 * releases its previous value.
+	 */
+	for (i = 0; i < decl_argc && i < argc; i++) {
+		SpnValue *dst = VALPTR(vm->sp, i);
+		SpnValue *src;
+
+		if (desc->caller_is_native) {
+			SpnValue *argv = desc->env.native_env.argv;
+			src = &argv[i];
+		} else {
+			TSlot *caller = vm->stack + desc->env.script_env.calleroff;
+			spn_uword *ip = desc->env.script_env.ip;
+			src = nth_call_arg(caller, ip, i);
+		}
+
+		spn_value_retain(src);
+		*dst = *src;
+	}
+
+	/* then, copy over the extra (unnamed) args */
+	for (i = decl_argc; i < argc; i++) {
+		int dstidx = i - decl_argc;
+		SpnValue *dst = nth_vararg(vm->sp, dstidx);
+		SpnValue *src;
+
+		if (desc->caller_is_native) {
+			SpnValue *argv = desc->env.native_env.argv;
+			src = &argv[i];
+		} else {
+			TSlot *caller = vm->stack + desc->env.script_env.calleroff;
+			spn_uword *ip = desc->env.script_env.ip;
+			src = nth_call_arg(caller, ip, i);
+		}
+
+		spn_value_retain(src);
+		*dst = *src;
+	}
+}
+
+
 /* This function uses switch dispatch instead of token-threaded dispatch
  * for the sake of conformance to standard C. (in GNU C, I could have used
  * the `goto labels_array[*ip++];` extension, though.)
@@ -634,16 +712,10 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * a function call (in particular, push_frame()) may
 			 * `realloc()` the stack, thus rendering saved pointers
 			 * invalid.
-			 * 
-			 * TODO: the implementation of this instruction needs
-			 * a fair amound of refactoring.
 			 */
 			TSlot *retslot = SLOTPTR(vm->sp, OPA(ins));
 			SpnValue *func = VALPTR(vm->sp, OPB(ins));
 			int argc = OPC(ins);
-
-			SpnValue *retval = &retslot->v;
-			ptrdiff_t retidx = retslot - vm->stack;
 
 			/* this is the minimal number of `spn_uword`s needed
 			 * to store the register numbers representing
@@ -666,6 +738,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				int i, err;
 				SpnValue tmpret;
 				SpnValue *argv;
+				SpnValue *retval = &retslot->v;
 
 				/* allocate a big enough array for the arguments */
 				argv = malloc(argc * sizeof(argv[0]));
@@ -720,27 +793,11 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 */
 				ip += narggroups;
 			} else {
-				/* call Sparkling function */
-				int i;
-
-				/* see Remark (VI) in vm.h in order to get an
-				 * understanding of the layout of the
-				 * bytecode representing a function
+				/* call Sparkling function.
+				 * The return address is the address of the
+				 * instruction immediately following the
+				 * present CALL instruction.
 				 */
-				spn_uword *fnhdr = func->v.fnv.r.bc;
-				int symtabidx = func->v.fnv.symtabidx;
-				int decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
-				int nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
-				spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
-				const char *fnname = func->v.fnv.name;
-
-				/* if there are less call arguments than formal
-				 * parameters, we set extra_argc to 0 (and all
-				 * the unspecified arguments are implicitly set
-				 * to `nil` by push_frame)
-				 */
-				int extra_argc = argc > decl_argc ? argc - decl_argc : 0;
-
 				spn_uword *retaddr = ip + narggroups;
 
 				/* store the offset of the stack frame of the
@@ -748,74 +805,37 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * later, when the active frame is that of the
 				 * called function. An offset is stored instead
 				 * of the stack pointer itself because
-				 * `push_frame()' may reallocate the stack.
+				 * `push_frame()' (called from within the
+				 * `push_and_copy_args()' function)
+				 * may reallocate the stack.
 				 */
 				ptrdiff_t calleroff = vm->sp - vm->stack;
-				TSlot *caller;
 
-				/* sanity check: decl_argc should be <= nregs,
-				 * else arguments wouldn't fit in the registers
+				/* similarly, store the index of the slot that
+				 * will hold the return value (this is inside
+				 * the frame of the caller).
 				 */
-				assert(decl_argc <= nregs);
+				ptrdiff_t retidx = retslot - vm->stack;
 
-				/* push a new stack frame - after that,
-				 * `&vm->sp[IDX_FRMHDR].h` is a pointer to
-				 * the stack frame of the *called* function.
+				spn_uword *fnhdr = func->v.fnv.r.bc;
+				spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
+
+				/* set up environment for push_and_copy_args */
+				struct args_copy_descriptor desc;
+				desc.caller_is_native = 0; /* we, the caller, are a Sparkling function */
+				desc.env.script_env.ip = ip;
+				desc.env.script_env.retaddr = retaddr;
+				desc.env.script_env.calleroff = calleroff;
+				desc.env.script_env.retidx = retidx;
+
+				/* push the frame of the callee, and
+				 * copy over its arguments (I <3 descriptive
+				 * function names!
 				 */
-				push_frame(
-					vm,
-					nregs,
-					decl_argc,
-					extra_argc,
-					retaddr,
-					retidx,
-					symtabidx,
-					fnname
-				);
-
-				/* and grab the (now potentially changed)
-				 * frame pointer of the caller function
-				 */
-				caller = vm->stack + calleroff;
-
-				/* first, fill in arguments that fit into the
-				 * first `decl_argc` registers (i. e. those
-				 * that are declared as formal parameters). The
-				 * number of call arguments may be less than
-				 * the number of formal parameters; handle that
-				 * case too (`&& i < argc`)
-				 */
-				for (i = 0; i < decl_argc && i < argc; i++) {
-					/* copy over register value.
-					 * Now the value in the source register
-					 * should be retained, since pop_frame()
-					 * releases all registers. Also, an
-					 * argument may be assigned to from
-					 * within the called function, which
-					 * releases its previous value.
-					 */
-					SpnValue *src = nth_call_arg(caller, ip, i);
-
-					/* the first `decl_argc` registers hold
-					 * the named arguments
-					 */
-					SpnValue *dst = VALPTR(vm->sp, i);
-					spn_value_retain(src);
-					*dst = *src;
-				}
-
-				/* next, copy over the extra (unnamed) args */
-				for (i = decl_argc; i < argc; i++) {
-					SpnValue *src = nth_call_arg(caller, ip, i);
-					int dstidx = i - decl_argc;
-					SpnValue *dst = nth_vararg(vm->sp, dstidx);
-
-					spn_value_retain(src);
-					*dst = *src;
-				}
+				push_and_copy_args(vm, func, &desc, argc);
 
 				/* set instruction pointer to entry point
-				 * to kick off the function call
+				 * in order to kick off the function call
 				 */
 				ip = entry;
 			}
