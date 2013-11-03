@@ -72,7 +72,7 @@ enum spn_val_flag {
 	SPN_TFLG_OBJECT		= 1 << 0,	/* type is an object type	*/
 	SPN_TFLG_FLOAT		= 1 << 1,	/* number is floating-point	*/
 	SPN_TFLG_NATIVE		= 1 << 2,	/* function is native		*/
-	SPN_TFLG_PENDING	= 1 << 3	/* unresolved (stub) function	*/
+	SPN_TFLG_PENDING	= 1 << 3	/* unresolved (stub) symbol	*/
 };
 
 /* `symtabidx' is the index of the local symbol table

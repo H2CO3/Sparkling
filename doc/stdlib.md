@@ -16,6 +16,14 @@ A complete list of functions can be found in the `rtlb.h` header file.
 
 1. I/O library (spn_libio)
 --------------------------
+
+    usrdat stdin
+    usrdat stdout
+    usrdat stderr
+
+Globals of type "user data", representing the standard input, output and error
+stream, respectively.
+
     string getline(void)
 Reads a new line from the standard input and returns it as a string.
 The maximal size of a line is dictated by the C library macro `LINE_MAX`.
@@ -89,13 +97,6 @@ on success, `nil` on failure.
 
 writes the characters in the string `buf` into the file `file`. Returns true
 on success, false on error.
-
-    userdata stdin(void);
-    userdata stdout(void);
-    userdata stderr(void);
-
-These return user data objects representing the standard input, output and
-error streams.
 
     nil fflush(userdata file)
 
@@ -258,6 +259,23 @@ These functions operate on integers only. (The C standard library doesn't
 provide the gamma function, and it's not used that often except in highly
 specialized computations, so it's simply excluded from the Sparkling stdlib.)
 
+The following global constants (known for their existence in the BSD and GNU C
+libraries) are also available:
+
+    number M_E
+    number M_LOG2E
+    number M_LOG10E
+    number M_LN2
+    number M_LN10
+    number M_PI
+    number M_PI_2
+    number M_PI_4
+    number M_1_PI
+    number M_2_PI
+    number M_2_SQRTPI
+    number M_SQRT2
+    number M_SQRT1_2
+
 5. Basic time and date manipulation (spn_libtime)
 -------------------------------------------------
     int time(void)
@@ -296,11 +314,6 @@ Returns the difference between the two timestamps.
     string getenv(string name)
 
 Returns the value of the environment variable `name`, or `nil` if it's not set.
-
-    array getargs(void)
-
-Returns the array of strings corresponding to an `argv` vector registered by
-`spn_register_args()`.
 
     int system(string cmd)
 

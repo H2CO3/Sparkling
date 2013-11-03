@@ -107,7 +107,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 		/* if this is the entry point of a function, then print some
 		 * newlines and "push" the entry point onto the "stack"
 		 */
-		if (opcode == SPN_INS_GLBSYM) {
+		if (opcode == SPN_INS_GLBFUNC) {
 			printf("\n");
 			fnlevel++;
 		}
@@ -125,7 +125,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 		 * "sibling" instructions are. It is the code of the function
 		 * body that is one level deeper.)
 		 */
-		if (opcode != SPN_INS_GLBSYM) {
+		if (opcode != SPN_INS_GLBFUNC) {
 			printf("\t");
 		}
 
@@ -339,7 +339,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			printf("getarg\tr%d, r%d\t# r%d = argv[r%d]\n", opa, opb, opa, opb);
 			break;
 		}
-		case SPN_INS_GLBSYM: {
+		case SPN_INS_GLBFUNC: {
 			const char *symname = (const char *)(ip);
 			unsigned long namelen = OPLONG(ins);
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
@@ -440,15 +440,15 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 			ip += nwords;
 			break;
 		}
-		case SPN_LOCSYM_FUNCSTUB: {
-			const char *fnname = (const char *)(ip);
-			size_t len = strlen(fnname);
+		case SPN_LOCSYM_SYMSTUB: {
+			const char *symname = (const char *)(ip);
+			size_t len = strlen(symname);
 			size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
 			unsigned long explen = OPLONG(ins);
 
 			if (len != explen) {
 				bail(
-					"function stub at address %08lx: "
+					"symbol stub at address %08lx: "
 					"actual name length (%lu) does not match "
 					"expected (%lu)\n",
 					addr,
@@ -457,7 +457,7 @@ static void disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsym
 				);
 			}
 
-			printf("function %s()\n", fnname);
+			printf("global `%s'\n", symname);
 
 			ip += nwords;
 			break;	

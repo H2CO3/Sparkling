@@ -32,6 +32,12 @@ typedef struct SpnExtFunc {
 	int (*fn)(SpnValue *, int, SpnValue *, void *);
 } SpnExtFunc;
 
+/* A generic global object. This can hold any SpnValue, not just functions. */
+typedef struct SpnExtValue {
+	const char *name;
+	SpnValue value;
+} SpnExtValue;
+
 /* the virtual machine */
 typedef struct SpnVMachine SpnVMachine;
 
@@ -56,6 +62,7 @@ SPN_API int spn_vm_callfunc(
  * so make sure that they are pointers during the entire runtime
  */
 SPN_API void		  spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n);
+SPN_API void		  spn_vm_addglobals(SpnVMachine *vm, SpnExtValue vals[], size_t n);
 
 /* get and set user data */
 SPN_API void		 *spn_vm_getcontext(SpnVMachine *vm);
@@ -144,9 +151,9 @@ enum spn_const_kind {
  * number of `spn_uword`s overlaying the bytes is
  * length / sizeof(spn_uword) + 1)
  * 
- * SPN_LOCSYM_FUNCSTUB: the layout is the same as that of STRCONST, it's just
- * that FUNCSTUB represents a named, unresolved function, not a string literal.
- * (the long `a` operand contains the length of the function name.)
+ * SPN_LOCSYM_SYMSTUB: the layout is the same as that of STRCONST, it's just
+ * that SYMSTUB represents a named, unresolved global, not a string literal.
+ * (the long `a` operand contains the length of the symbol name.)
  * 
  * SPN_LOCSYM_LAMBDA: the long `a` operand of the instruction, interpreted as
  * an `unsigned long`, represents the offset of the entry point of a lambda
@@ -154,7 +161,7 @@ enum spn_const_kind {
  */
 enum spn_local_symbol {
 	SPN_LOCSYM_STRCONST,
-	SPN_LOCSYM_FUNCSTUB,
+	SPN_LOCSYM_SYMSTUB,
 	SPN_LOCSYM_LAMBDA
 };
 
@@ -198,7 +205,7 @@ enum spn_vm_ins {
 	SPN_INS_ARRGET,		/* a = b[c]				*/
 	SPN_INS_ARRSET,		/* a[b] = c				*/
 	SPN_INS_NTHARG,		/* a = argv[b] (accesses varargs only!)	*/
-	SPN_INS_GLBSYM		/* add to global symtab		(VI)	*/
+	SPN_INS_GLBFUNC		/* add function to global symtab (VI)	*/
 };
 
 /* Remarks:
@@ -249,9 +256,9 @@ enum spn_vm_ins {
  * Here's some visualisation for `function foobar(x, y) { return x + y; }`.
  * The vertical bars are boundaries of `spn_uword`s.
  * 
- * +-------------------------------------------------------------------------+
- * | SPN_INS_GLBSYM | 'foob' | 'ar\0\0' | 2 | 2 | 3 | ADD 2, 0, 1 | RETURN 2 |
- * +-------------------------------------------------------------------------+
+ * +--------------------------------------------------------------------------+
+ * | SPN_INS_GLBFUNC | 'foob' | 'ar\0\0' | 2 | 2 | 3 | ADD 2, 0, 1 | RETURN 2 |
+ * +--------------------------------------------------------------------------+
  *                                        ^   ^   ^   ^
  *                                        |   |   |   +--- actual entry point
  *                                        |   |   +--- total register count

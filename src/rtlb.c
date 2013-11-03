@@ -24,13 +24,60 @@
 #define LINE_MAX 0x1000
 #endif
 
-#ifndef M_PI
-#define M_PI 3.14159265358979323846
+/* definitions for maths library and others */
+
+#ifndef M_E
+#define M_E		2.71828182845904523536028747135266250
+#endif
+
+#ifndef M_LOG2E
+#define M_LOG2E		1.44269504088896340735992468100189214
+#endif
+
+#ifndef M_LOG10E
+#define M_LOG10E	0.434294481903251827651128918916605082
 #endif
 
 #ifndef M_LN2
-#define M_LN2 0.693147180559945309417
+#define M_LN2		0.693147180559945309417232121458176568
 #endif
+
+#ifndef M_LN10
+#define M_LN10		2.30258509299404568401799145468436421
+#endif
+
+#ifndef M_PI
+#define M_PI		3.14159265358979323846264338327950288
+#endif
+
+#ifndef M_PI_2
+#define M_PI_2		1.57079632679489661923132169163975144
+#endif
+
+#ifndef M_PI_4
+#define M_PI_4		0.785398163397448309615660845819875721
+#endif
+
+#ifndef M_1_PI
+#define M_1_PI		0.318309886183790671537767526745028724
+#endif
+
+#ifndef M_2_PI
+#define M_2_PI		0.636619772367581343075535053490057448
+#endif
+
+#ifndef M_2_SQRTPI
+#define M_2_SQRTPI	1.12837916709551257389615890312154517
+#endif
+
+#ifndef M_SQRT2
+#define M_SQRT2		1.41421356237309504880168872420969808
+#endif
+
+#ifndef M_SQRT1_2
+#define	M_SQRT1_2	0.707106781186547524400844362104849039
+#endif
+
 
 /***************
  * I/O library *
@@ -275,30 +322,6 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_aux_stdstream(SpnValue *ret, FILE *stream)
-{
-	ret->t = SPN_TYPE_USRDAT;
-	ret->f = 0;
-	ret->v.ptrv = stream;
-
-	return 0;
-}
-
-static int rtlb_stdin(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_stdstream(ret, stdin);
-}
-
-static int rtlb_stdout(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_stdstream(ret, stdout);
-}
-
-static int rtlb_stderr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_stdstream(ret, stderr);
-}
-
 /* if passed `nil`, flushes all streams by calling `fflush(NULL)` */
 static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
@@ -491,9 +514,6 @@ const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
 	{ "fgetline",	rtlb_fgetline	},
 	{ "fread",	rtlb_fread	},
 	{ "fwrite",	rtlb_fwrite	},
-	{ "stdin",	rtlb_stdin	},
-	{ "stdout",	rtlb_stdout	},
-	{ "stderr",	rtlb_stderr	},
 	{ "fflush",	rtlb_fflush	},
 	{ "ftell",	rtlb_ftell	},
 	{ "fseek",	rtlb_fseek	},
@@ -2090,38 +2110,6 @@ static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-/* this function is a getter and a setter at the same time
- * (just so that we can use a local variable)
- * if the array pointed to by `array' is NULL, then it is set to
- * the `argv' array, else the `argv' array is assigned to `*array'.
- */
-static void rtlb_aux_argv(SpnArray **array)
-{
-	static SpnArray *argv = NULL;
-
-	if (*array == NULL) {
-		*array = argv;
-	} else {
-		argv = *array;
-	}
-}
-
-static int rtlb_getargs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	SpnArray *arr = NULL;
-	rtlb_aux_argv(&arr);
-
-	if (arr != NULL) {
-		spn_object_retain(arr);
-		ret->t = SPN_TYPE_ARRAY;
-		ret->f = SPN_TFLG_OBJECT;
-		ret->v.ptrv = arr;
-	}
-	/* if not set, leave the return value nil */
-
-	return 0;
-}
-
 static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *cmd;
@@ -2188,47 +2176,13 @@ static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "getenv",	rtlb_getenv	},
-	{ "getargs",	rtlb_getargs	},
 	{ "system",	rtlb_system	},
 	{ "assert",	rtlb_assert	},
 	{ "exit",	rtlb_exit	}
 };
 
-void spn_register_args(int argc, char **argv)
-{
-	int i;
-	SpnArray *arr = NULL;
 
-	/* get old array and release it */
-	rtlb_aux_argv(&arr);	
-	if (arr != NULL) {
-		spn_object_release(arr);
-	}
-
-	/* initialize new array */
-	arr = spn_array_new();
-
-	for (i = 0; i < argc; i++) {
-		SpnValue key, val;		
-		SpnString *arg = spn_string_new_nocopy(argv[i], 0);
-
-		key.t = SPN_TYPE_NUMBER;
-		key.f = 0;
-		key.v.intv = i;
-
-		val.t = SPN_TYPE_STRING;
-		val.f = SPN_TFLG_OBJECT;
-		val.v.ptrv = arg;
-
-		spn_array_set(arr, &key, &val);
-		spn_object_release(arg);
-	}
-
-	/* write it back */
-	rtlb_aux_argv(&arr);
-}
-
-void spn_load_stdlib(SpnVMachine *vm)
+static void load_stdlib_functions(SpnVMachine *vm)
 {
 	spn_vm_addlib(vm, spn_libio, SPN_LIBSIZE_IO);
 	spn_vm_addlib(vm, spn_libstring, SPN_LIBSIZE_STRING);
@@ -2236,5 +2190,102 @@ void spn_load_stdlib(SpnVMachine *vm)
 	spn_vm_addlib(vm, spn_libmath, SPN_LIBSIZE_MATH);
 	spn_vm_addlib(vm, spn_libtime, SPN_LIBSIZE_TIME);
 	spn_vm_addlib(vm, spn_libsys, SPN_LIBSIZE_SYS);
+}
+
+#define SPN_N_STD_CONSTANTS 16
+
+static void load_stdlib_constants(SpnVMachine *vm)
+{
+	static SpnExtValue values[SPN_N_STD_CONSTANTS];
+
+	/* standard I/O streams */
+	values[0].name = "stdin";
+	values[0].value.t = SPN_TYPE_USRDAT;
+	values[0].value.f = 0;
+	values[0].value.v.ptrv = stdin;
+
+	values[1].name = "stdout";
+	values[1].value.t = SPN_TYPE_USRDAT;
+	values[1].value.f = 0;
+	values[1].value.v.ptrv = stdout;
+
+	values[2].name = "stderr";
+	values[2].value.t = SPN_TYPE_USRDAT;
+	values[2].value.f = 0;
+	values[2].value.v.ptrv = stderr;
+
+	/* mathematical constants */
+	values[3].name = "M_E";
+	values[3].value.t = SPN_TYPE_NUMBER;
+	values[3].value.f = SPN_TFLG_FLOAT;
+	values[3].value.v.fltv = M_E;
+
+	values[4].name = "M_LOG2E";
+	values[4].value.t = SPN_TYPE_NUMBER;
+	values[4].value.f = SPN_TFLG_FLOAT;
+	values[4].value.v.fltv = M_LOG2E;
+
+	values[5].name = "M_LOG10E";
+	values[5].value.t = SPN_TYPE_NUMBER;
+	values[5].value.f = SPN_TFLG_FLOAT;
+	values[5].value.v.fltv = M_LOG10E;
+
+	values[6].name = "M_LN2";
+	values[6].value.t = SPN_TYPE_NUMBER;
+	values[6].value.f = SPN_TFLG_FLOAT;
+	values[6].value.v.fltv = M_LN2;
+
+	values[7].name = "M_LN10";
+	values[7].value.t = SPN_TYPE_NUMBER;
+	values[7].value.f = SPN_TFLG_FLOAT;
+	values[7].value.v.fltv = M_LN10;
+
+	values[8].name = "M_PI";
+	values[8].value.t = SPN_TYPE_NUMBER;
+	values[8].value.f = SPN_TFLG_FLOAT;
+	values[8].value.v.fltv = M_PI;
+
+	values[9].name = "M_PI_2";
+	values[9].value.t = SPN_TYPE_NUMBER;
+	values[9].value.f = SPN_TFLG_FLOAT;
+	values[9].value.v.fltv = M_PI_2;
+
+	values[10].name = "M_PI_4";
+	values[10].value.t = SPN_TYPE_NUMBER;
+	values[10].value.f = SPN_TFLG_FLOAT;
+	values[10].value.v.fltv = M_PI_4;
+
+	values[11].name = "M_1_PI";
+	values[11].value.t = SPN_TYPE_NUMBER;
+	values[11].value.f = SPN_TFLG_FLOAT;
+	values[11].value.v.fltv = M_1_PI;
+
+	values[12].name = "M_2_PI";
+	values[12].value.t = SPN_TYPE_NUMBER;
+	values[12].value.f = SPN_TFLG_FLOAT;
+	values[12].value.v.fltv = M_2_PI;
+
+	values[13].name = "M_2_SQRTPI";
+	values[13].value.t = SPN_TYPE_NUMBER;
+	values[13].value.f = SPN_TFLG_FLOAT;
+	values[13].value.v.fltv = M_2_SQRTPI;
+
+	values[14].name = "M_SQRT2";
+	values[14].value.t = SPN_TYPE_NUMBER;
+	values[14].value.f = SPN_TFLG_FLOAT;
+	values[14].value.v.fltv = M_SQRT2;
+
+	values[15].name = "M_SQRT1_2";
+	values[15].value.t = SPN_TYPE_NUMBER;
+	values[15].value.f = SPN_TFLG_FLOAT;
+	values[15].value.v.fltv = M_SQRT1_2;
+
+	spn_vm_addglobals(vm, values, SPN_N_STD_CONSTANTS);
+}
+
+void spn_load_stdlib(SpnVMachine *vm)
+{
+	load_stdlib_functions(vm);
+	load_stdlib_constants(vm);
 }
 

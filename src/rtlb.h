@@ -13,18 +13,21 @@
 
 #include "vm.h"
 
-/* getline(), print(), printf()
+/* Functions:
+ * getline(), print(), printf()
  * fopen(), fclose()
  * fprintf(), fgetline()
  * fread(), fwrite()
- * stdin(), stdout(), stderr()
  * fflush(), ftell(), fseek(), feof()
  * remove(), rename(), tmpnam(), tmpfile()
+ * 
+ * Constants: stdin, stdout, stderr
  */
-#define SPN_LIBSIZE_IO 20
+#define SPN_LIBSIZE_IO 17
 SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
 
-/* indexof(), substr(), substrto(), substrfrom()
+/* Functions:
+ * indexof(), substr(), substrto(), substrfrom()
  * split(), repeat()
  * tolower(), toupper()
  * fmtstring()
@@ -33,7 +36,8 @@ SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
 #define SPN_LIBSIZE_STRING 12
 SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
 
-/* array(), dict()
+/* Functions:
+ * array(), dict()
  * sort() [uses '<' operator], sortcmp() [uses custom comparator function]
  * linearsrch(), binarysrch(), contains()
  * subarray(), join()
@@ -44,7 +48,8 @@ SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
 #define SPN_LIBSIZE_ARRAY 16
 SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
 
-/* abs(), min(), max()
+/* Functions:
+ * abs(), min(), max()
  * floor(), ceil(), round()
  * hypot(), sqrt(), cbrt(), pow(), exp(), exp2(), exp10(), log(), log2(), log10()
  * sin(), cos(), tan(), cot(), sinh(), cosh(), tanh(), coth()
@@ -53,11 +58,15 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
  * random(), seed()
  * isfin(), isinf(), isnan(), isfloat(), isint()
  * fact(), binom()
+ * 
+ * Constants: M_E, M_LOG2E, M_LOG10E, M_LN2, M_LN10, M_PI, M_PI_2, M_PI_4,
+ * M_1_PI, M_2_PI, M_2_SQRTPI, M_SQRT2, M_SQRT1_2
  */
 #define SPN_LIBSIZE_MATH 37
 SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 
-/* time()
+/* Functions:
+ * time()
  * gmtime()
  * localtime()
  * strftime()
@@ -66,25 +75,26 @@ SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 #define SPN_LIBSIZE_TIME 5
 SPN_API const SpnExtFunc spn_libtime[SPN_LIBSIZE_TIME];
 
-/* getenv()
- * getargs()
+/* Functions:
+ * getenv()
  * system()
  * assert()
  * exit()
  */
-#define SPN_LIBSIZE_SYS 5
+#define SPN_LIBSIZE_SYS 4
 SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 
 /* A convenience function that loads the entire standard library.
  * Please call this at most *once* on each virtual machine instance.
+ * Along with the standard library functions, this also registers some useful
+ * globals such as math constants, standard streams, etc.
  */
 SPN_API void spn_load_stdlib(SpnVMachine *vm);
 
-/* this registers the "argv" vector, i. e. it gives the library function
- * `getargs()' access to command-line arguments. The `argc' and `argv'
- * variables are assumed to be the arguments of `main()' -- the strings are
- * not copied, you have to make sure that they are valid throughout the
- * lifetime of the program.
+/* this registers the "argv" vector, i. e. it creates a global variable called
+ * `argv' which is an array of strings. The `argc' and `argv' arguments are
+ * assumed to be the arguments of `main()', so the strings are not copied, you
+ * have to make sure that they're valid throughout the lifetime of the program.
  */
 SPN_API void spn_register_args(int argc, char **argv);
 

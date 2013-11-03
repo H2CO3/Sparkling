@@ -724,7 +724,7 @@ static unsigned long hash_key(const SpnValue *key)
 	}
 #ifndef NDEBUG
 	default:
-		fputs("Sparkling: wrong type ID in array key\n", stderr);
+		fprintf(stderr, "Sparkling: wrong type ID `%d' in array key\n", key->t);
 		abort();
 #endif
 	}

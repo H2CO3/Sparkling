@@ -57,8 +57,8 @@ struct SpnCompiler {
  * check if the number of local variables is greater than this number --
  * see the remark in the `compile_funcdef()` function.)
  * 
- * (III) - (IV): array of local symbols and stack of global and local variable
- * names and the corresponding register indices
+ * (III) - (IV): array of local symbols and stack of file-scope and local
+ * (block-scope) variable names and the corresponding register indices
  */
 
 /* information describing the state of the global scope or a function scope.
@@ -440,15 +440,15 @@ static int write_symtab(SpnCompiler *cmp)
 			break;
 		}
 		case SPN_TYPE_FUNC: {
-			/* unresolved function stub */
+			/* unresolved symbol stub */
 
 			size_t namelen = strlen(sym->v.fnv.name);
 
 			/* append symbol type */
-			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_FUNCSTUB, namelen);
+			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_SYMSTUB, namelen);
 			bytecode_append(&cmp->bc, &ins, 1);
 
-			/* append function name */
+			/* append symbol name */
 			append_cstring(&cmp->bc, sym->v.fnv.name, namelen);
 			break;
 		}
@@ -618,7 +618,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 		namelen = strlen(name);
 	}
 
-	ins = SPN_MKINS_LONG(SPN_INS_GLBSYM, namelen);
+	ins = SPN_MKINS_LONG(SPN_INS_GLBFUNC, namelen);
 	bytecode_append(&cmp->bc, &ins, 1);
 	append_cstring(&cmp->bc, name, namelen);
 
@@ -1484,13 +1484,19 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	idx = rts_getidx(cmp->varstack, &varname);
 
 	/* if `rts_getidx()` returns -1, then the variable is undeclared --
-	 * assume a global function and search the symtab. If not found,
+	 * assume a global symbol and search the symtab. If not found,
 	 * create a symtab entry.
 	 */
 	if (idx < 0) {
 		spn_uword ins;
 		int sym;
 
+		/* XXX: this is a hack. The compiler treats all global symbols
+		 * as function stubs. While conceptually wrong, this does not
+		 * result in a bug, since at compilation time, we don't know
+		 * the type of any global symbol anyway. The correct type will
+		 * be found by the VM at runtime when it resolves the symbol.
+		 */
 		SpnValue stub;
 		stub.t = SPN_TYPE_FUNC;
 		stub.f = SPN_TFLG_PENDING;

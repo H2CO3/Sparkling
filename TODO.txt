@@ -67,6 +67,17 @@ Parser:
 		instead of the currently purely recursive descent approach
 
 Compiler:
+	- IMPORTANT: FIX COMPILING SYMBOL STUBS. Currently I managed to get away with
+		treating every global symbol as a function (in the `compile_ident()'
+		function), but this is conceptually wrong. Also: use SPN_TYPE_FUNC
+		to represent lambda functions in the local symbol table  instead
+		of the current approach that uses SPN_TYPE_NUMBER and an integer
+		offset to represent the offset of the lambda within the bytecode.
+	- Related: add a facility to declare global non-function values (constants
+		only, since global variables are a nightmare.) This involves extending
+		the parser (a new keyword/file-scope statement), the compiler and the
+		virtual machine (a new VM opcode should be used for that, something
+		like SPN_INS_GLBCONST).
 	- support for warnings
 	- check for duplicate names in function arguments (issue a diagnostic)			done
 	- Issue a warning if a top-level expression (i. e. an expression statement)

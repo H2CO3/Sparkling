@@ -11,6 +11,7 @@
 #include <stdlib.h>
 
 #include "spn.h"
+#include "array.h"
 #include "ctx.h"
 #include "repl.h"
 #include "disasm.h"
@@ -134,6 +135,43 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 	}
 }
 
+static void register_args(SpnContext *ctx, int argc, char *argv[])
+{
+	int i;
+	SpnExtValue vals[2];
+
+	SpnArray *arr = spn_array_new();
+
+	for (i = 0; i < argc; i++) {
+		SpnValue key, val;
+		SpnString *str = spn_string_new_nocopy(argv[i], 0);
+
+		key.t = SPN_TYPE_NUMBER;
+		key.f = 0;
+		key.v.intv = i;
+
+		val.t = SPN_TYPE_STRING;
+		val.f = SPN_TFLG_OBJECT;
+		val.v.ptrv = str;
+
+		spn_array_set(arr, &key, &val);
+		spn_object_release(str);
+	}
+
+	vals[0].name = "argc";
+	vals[0].value.t = SPN_TYPE_NUMBER;
+	vals[0].value.f = 0;
+	vals[0].value.v.intv = argc;
+
+	vals[1].name = "argv";
+	vals[1].value.t = SPN_TYPE_ARRAY;
+	vals[1].value.f = SPN_TFLG_OBJECT;
+	vals[1].value.v.ptrv = arr;
+
+	spn_vm_addglobals(ctx->vm, vals, sizeof(vals) / sizeof(vals[0]));
+	spn_object_release(arr);
+}
+
 static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 {
 	SpnContext *ctx = spn_ctx_new();
@@ -153,7 +191,7 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 	}
 
 	/* register command-line arguments */
-	spn_register_args(argc - i, &argv[i]);
+	register_args(ctx, argc - i, &argv[i]);
 
 	for (i = 1; i < argc; i++) {
 		SpnValue ret;

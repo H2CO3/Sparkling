@@ -377,10 +377,11 @@ void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
 	size_t i;
 	for (i = 0; i < n; i++) {
 		SpnValue key, val;
+		SpnString *name = spn_string_new_nocopy(fns[i].name, 0);
 
 		key.t = SPN_TYPE_STRING;
 		key.f = SPN_TFLG_OBJECT;
-		key.v.ptrv = spn_string_new_nocopy(fns[i].name, 0);
+		key.v.ptrv = name;
 
 		val.t = SPN_TYPE_FUNC;
 		val.f = SPN_TFLG_NATIVE;
@@ -388,7 +389,23 @@ void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
 		val.v.fnv.r.fn = fns[i].fn;
 
 		spn_array_set(vm->glbsymtab, &key, &val);
-		spn_object_release(key.v.ptrv);
+		spn_object_release(name);
+	}
+}
+
+void spn_vm_addglobals(SpnVMachine *vm, SpnExtValue vals[], size_t n)
+{
+	size_t i;
+	for (i = 0; i < n; i++) {
+		SpnValue key;
+		SpnString *name = spn_string_new_nocopy(vals[i].name, 0);
+
+		key.t = SPN_TYPE_STRING;
+		key.f = SPN_TFLG_OBJECT;
+		key.v.ptrv = name;
+
+		spn_array_set(vm->glbsymtab, &key, &vals[i].value);
+		spn_object_release(name);
 	}
 }
 
@@ -723,8 +740,21 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 */
 			int narggroups = ROUNDUP(argc, SPN_WORD_OCTETS);
 
+			/* check if value is really a function */
 			if (func->t != SPN_TYPE_FUNC) {
-				runtime_error(vm, ip - 1, "calling non-function value", NULL);
+				SpnValue typeval = typeof_value(func);
+				SpnString *typestr = typeval.v.ptrv;
+				const void *args[1];
+				args[0] = typestr->cstr;
+				runtime_error(
+					vm,
+					ip - 1,
+					"attempt to call non-function value of type %s",
+					args
+				);
+
+				spn_value_release(&typeval);
+
 				return -1;
 			}
 
@@ -1301,42 +1331,35 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *dst = VALPTR(vm->sp, OPA(ins));
 
 			/* if the symbol is an unresolved reference
-			 * to a global function, then attempt to resolve it
+			 * to a global, then attempt to resolve it
+			 * (it need not be of type function.)
 			 */
-			if (symp->t == SPN_TYPE_FUNC
-			 && symp->f & SPN_TFLG_PENDING) {
-			 	const char *fnname = symp->v.fnv.name;
-				SpnValue *res = resolve_symbol(vm, fnname);
-			 	if (res->t == SPN_TYPE_NIL) {
-			 		const void *args[1];
-			 		args[0] = symp->v.fnv.name;
-			 		runtime_error(
-			 			vm,
-			 			ip - 1,
-			 			"global `%s' was not found",
-			 			args
-			 		);
-			 		return -1;
-			 	}
+			if (symp->f & SPN_TFLG_PENDING) {
+				const char *symname = symp->v.fnv.name;
+				SpnValue *res = resolve_symbol(vm, symname);
 
-			 	/* if the resolution succeeded, then we
-			 	 * cache the symbol into the appropriate
-			 	 * local symbol table so that we don't
-			 	 * need to resolve it anymore
-			 	 */
-			 	*symp = *res;
+				if (res->t == SPN_TYPE_NIL) {
+					const void *args[1];
+					args[0] = symname;
+					runtime_error(
+						vm,
+						ip - 1,
+						"global `%s' does not exist or it is nil",
+						args
+					);
+					return -1;
+				}
+
+				/* if the resolution succeeded, then we
+				 * cache the symbol into the appropriate
+				 * local symbol table so that we don't
+				 * need to resolve it anymore.
+				 */
+				*symp = *res;
 			}
 
-			/* suspicion: for symbols, we don't need the RBR idiom
-			 * -- there's always at least one reference to the
-			 * object, in the local and/or global symbol table.
-			 * TODO: prove and test this.
-			 */
-
-			/* clean up previous value */
+			/* set the new - now surely resolved - value */
 			spn_value_retain(symp);
-
-			/* and set the new - now surely resolved - one */
 			spn_value_release(dst);
 			*dst = *symp;
 
@@ -1484,7 +1507,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_GLBSYM: {
+		case SPN_INS_GLBFUNC: {
 			SpnValue funcval;
 			SpnValue funckey;
 
@@ -1544,10 +1567,9 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			funckey.f = SPN_TFLG_OBJECT;
 			funckey.v.ptrv = spn_string_new_nocopy_len(symname, namelen, 0);
 
-			/* check for a function with the same name -- if one
-			 * exists, it's an error, there should be no functions
-			 * with identical names (except lambdas, they all have
-			 * the same name, but it's unused anyway).
+			/* check for a global symbol with the same name -- if
+			 * one exists, it's an error, there should be no
+			 * global symbols with identical names.
 			 */
 			if (spn_array_get(vm->glbsymtab, &funckey)->t != SPN_TYPE_NIL) {
 				const void *args[1];
@@ -1664,30 +1686,31 @@ static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			stp += nwords;
 			break;
 		}
-		case SPN_LOCSYM_FUNCSTUB: {
-			const char *fnname = (const char *)(stp);
+		case SPN_LOCSYM_SYMSTUB: {
+			const char *symname = (const char *)(stp);
 			size_t len = OPLONG(ins);
 			size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
 
 #ifndef NDEBUG
-			/* sanity check: the funcion name length recorded in
+			/* sanity check: the symbol name length recorded in
 			 * the bytecode and the actual length
 			 * reported by `strlen()` shall match.
 			 */
 
-			size_t reallen = strlen(fnname);
+			size_t reallen = strlen(symname);
 			assert(len == reallen);
 #endif
 
-			cursymtab->vals[i].t = SPN_TYPE_FUNC;
+			/* we don't know the type of the symbol yet */
+			cursymtab->vals[i].t = -1;
 			cursymtab->vals[i].f = SPN_TFLG_PENDING;
-			cursymtab->vals[i].v.fnv.name = fnname;
+			cursymtab->vals[i].v.fnv.name = symname;
 
 			/* note that `cursymtab->vals[i].v.fnv.symtabidx`
-			 * _must not_ be set here: a function stub is merely
-			 * an unresolved reference to a global function,
-			 * we don't know yet in which translation unit
-			 * the actual definition will be.
+			 * _must not_ be set here: a symbol stub is merely
+			 * an unresolved reference to a global symbol,
+			 * we don't know yet where the actual definition
+			 * will be.
 			 */
 
 			stp += nwords;
