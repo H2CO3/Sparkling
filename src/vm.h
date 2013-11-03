@@ -38,13 +38,19 @@ typedef struct SpnVMachine SpnVMachine;
 SPN_API SpnVMachine	 *spn_vm_new();
 SPN_API void		  spn_vm_free(SpnVMachine *vm);
 
-/* runs the bytecode pointed to by `bc`. Returns the return value of the
- * program. The returned pointer is owned by the VM, so do not release it.
- * Furthermore, it is invalidated by a subsequent call to `spn_vm_exec()`, so
- * if you need to store the value for later use, retain it AND make a COPY
- * of the SpnValue struct it points to.
+/* runs the bytecode pointed to by `bc`. Copies the return value of the
+ * program to `*retval'. Returns 0 if successful, nonzero on error.
  */
-SPN_API SpnValue	 *spn_vm_exec(SpnVMachine *vm, spn_uword *bc);
+SPN_API int		  spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
+
+/* calls a Sparkling function from C-land */
+SPN_API int spn_vm_callfunc(
+	SpnVMachine *vm,
+	SpnValue *fn,
+	SpnValue *retval,
+	int argc,
+	SpnValue *argv
+);
 
 /* this function does NOT copy the names of the native functions,
  * so make sure that they are pointers during the entire runtime

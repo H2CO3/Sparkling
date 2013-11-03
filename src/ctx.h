@@ -43,10 +43,10 @@ SPN_API spn_uword	*spn_ctx_loadstring(SpnContext *ctx, const char *str);
 SPN_API spn_uword	*spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname);
 SPN_API spn_uword	*spn_ctx_loadobjfile(SpnContext *ctx, const char *fname);
 
-SPN_API SpnValue	*spn_ctx_execstring(SpnContext *ctx, const char *str);
-SPN_API SpnValue	*spn_ctx_execsrcfile(SpnContext *ctx, const char *fname);
-SPN_API SpnValue	*spn_ctx_execobjfile(SpnContext *ctx, const char *fname);
-SPN_API SpnValue	*spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc);
+SPN_API int		 spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret);
+SPN_API int		 spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret);
+SPN_API int		 spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret);
+SPN_API int		 spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret);
 
 #endif /* SPN_CTX_H */
 

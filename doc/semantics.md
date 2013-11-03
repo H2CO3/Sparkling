@@ -126,8 +126,8 @@ statement.
 §2.7.2. Otherwise (if the return statement is at program scope), the calling
 context is the native runtime environment, and the execution of a return
 statement causes the termination of the Sparkling program. The `spn_vm_exec()`
-C function will then return, in C-land, the value of the expression specified
-in the return statement.
+C function will copy over into C-land the value of the expression specified
+in the return statement, and it will return zero.
 
 §2.7.3. If there is no expression in the return statement, returning `nil` is
 implicitly assumed.

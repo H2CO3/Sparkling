@@ -81,9 +81,11 @@ A virtual machine is an object that manages the execution of bytecode images.
 
 Memory management functions.
 
-    SpnValue *spn_vm_exec(SpnVMachine *vm, spn_uword *bc);
+    int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
 
-Runs the bytecode pointed to by `bc`. Returns the result of the execution.
+Runs the bytecode pointed to by `bc`. Places the result of the execution into
+`retval`. Returns 0 on success, nonzero on error. `retval` is to be released
+when you're done with it.
 
     void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n);
 
@@ -138,25 +140,25 @@ Prepends the bytecode to the beginning of the `bclist` link list, as described
 above. On error, it returns `NULL` and it sets the `errmsg` member of the
 context.
 
-    SpnValue *spn_ctx_execstring(SpnContext *ctx, const char *str);
-    SpnValue *spn_ctx_execsrcfile(SpnContext *ctx, const char *fname);
-    SPN_API SpnValue *spn_ctx_execobjfile(SpnContext *ctx, const char *fname);
+    int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret);
+    int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret);
+    int spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret);
 
 These wrapper functions call the corresponding `spn_ctx_load*` function, but
 they also attempt to execute the resulting compiled bytecode. If a run-time
-error is encountered, they return `NULL` and set the `errmsg` member to the
-error message reported by the virtual machine. Else they return the result
-of the successfully executed program.
+error is encountered, they return nonzero and set the `errmsg` member to the
+error message reported by the virtual machine. Else they copy the result of
+the successfully executed program to `ret` and return zero.
 
-    SpnValue *spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc);
+    int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret);
 
 Unlike the previously enumerated functions, this function **does not add the
 bytecode to the bytecode list of the context.** Thus, generally, it should only
 be used on bytecode returned by one of the `spn_ctx_load*` or `spn_ctx_exec*`
 functions. (If you use it on any other bytecode object, then make sure to
 preserve it while necessary. But you really do not want to do that.)
-Runs the specified program and returns its result, or `NULL` on error, in which
-case, it sets the `errmsg` context member.
+Runs the specified program and copies its result into `ret`; returns zero on
+success and nonzero on error, in which case, it sets `errmsg` in `ctx`.
 
 Writing native extension functions
 ----------------------------------

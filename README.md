@@ -89,8 +89,7 @@ modern scripting language, running a program involves three simple steps:
   3. Execute the bytecode.
 
 The Sparkling C API provides functions for these tasks. For usage information,
-see `examples/basic.c`. You may also want to have a look at implementation
-of the stand-alone interpreter, located in `repl.c`.
+have a look at implementation of the stand-alone interpreter in `repl.c`.
 
 How do I hack on it?
 ====================

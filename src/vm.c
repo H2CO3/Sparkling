@@ -112,16 +112,11 @@ struct SpnVMachine {
 	TSymtab		*lsymtabs;	/* local symbol table		*/
 	size_t		 lscount;	/* number of the local symtabs	*/
 
-	SpnValue	*argv;		/* space for function arguments	*/
-	int		 argvsz;	/* number of call arguments	*/
-
 	char		*errmsg;	/* last (runtime) error message	*/
 	void		*ctx;		/* user data			*/
-
-	SpnValue	 retval;	/* program return value	*/
 };
 
-static int dispatch_loop(SpnVMachine *vm);
+static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *ret);
 
 /* this only releases the values stored in the stack frames */
 static void free_frames(SpnVMachine *vm);
@@ -198,17 +193,9 @@ SpnVMachine *spn_vm_new()
 	vm->lsymtabs = NULL;
 	vm->lscount = 0;
 
-	/* set an (empty) argument vector */
-	vm->argv = NULL;
-	vm->argvsz = 0;
-
-	/* set up error reporting, user data and return value */
+	/* set up error reporting and user data */
 	vm->errmsg = NULL;
-
 	vm->ctx = NULL;
-
-	vm->retval.t = SPN_TYPE_NIL;
-	vm->retval.f = 0;
 
 	return vm;
 }
@@ -232,14 +219,8 @@ void spn_vm_free(SpnVMachine *vm)
 	/* ...then free the array that contains them */
 	free(vm->lsymtabs);
 
-	/* free the argument vector */
-	free(vm->argv);
-
 	/* free the error message buffer */
 	free(vm->errmsg);
-
-	/* release return value */
-	spn_value_release(&vm->retval);
 
 	free(vm);
 }
@@ -300,13 +281,10 @@ static spn_uword *current_bytecode(SpnVMachine *vm)
 	return vm->lsymtabs[symtabidx].bc;
 }
 
-SpnValue *spn_vm_exec(SpnVMachine *vm, spn_uword *bc)
+int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval)
 {
 	int symtabidx;
-	int err;
-
-	/* release previous return value */
-	spn_value_release(&vm->retval);
+	spn_uword *ip;
 
 	/* releases values in stack frames from the previous execution.
 	 * This is not done immediately after the dispatch loop because if
@@ -317,23 +295,116 @@ SpnValue *spn_vm_exec(SpnVMachine *vm, spn_uword *bc)
 
 	/* check bytecode for magic bytes */
 	if (validate_magic(vm, bc) != 0) {
-		return NULL;
+		return -1;
 	}
 
 	/* read the local symbol table, if necessary */
 	symtabidx = read_local_symtab(vm, bc);
 	if (symtabidx < 0) {
-		return NULL;
+		return -1;
 	}
 
 	/* initialize global stack (read 1st frame size from bytecode) */
 	push_first_frame(vm, symtabidx);
 
-	/* actually run the program */
-	err = dispatch_loop(vm);
+	/* initialize instruction pointer to beginning of TU */
+	ip = current_bytecode(vm) + SPN_PRGHDR_LEN;
 
-	/* return the result of the program (NULL on error) */
-	return err ? NULL : &vm->retval;
+	/* actually run the program */
+	return dispatch_loop(vm, ip, retval);
+}
+
+int spn_vm_callfunc(
+	SpnVMachine *vm,
+	SpnValue *fn,
+	SpnValue *retval,
+	int argc,
+	SpnValue *argv
+)
+{
+	int i;
+	int symtabidx;
+	int decl_argc;
+	int extra_argc;
+	int nregs;
+	spn_uword *entry;
+	spn_uword *fnhdr;
+	const char *fnname;
+
+	/* check that the callee is indeed a function */
+	if (fn->t != SPN_TYPE_FUNC) {
+		runtime_error(vm, NULL, "attempt to call non-function value", NULL);
+		return -1;
+	}
+
+	/* native functions are easy to deal with */
+	if (fn->f & SPN_TFLG_NATIVE) {
+		return fn->v.fnv.r.fn(retval, argc, argv, vm->ctx);
+	}
+
+	/* if we got here, the callee is a valid Sparkling function.
+	 * The following code does roughly the same as the implementation
+	 * of the SPN_INS_CALL virtual machine instruction.
+	 */
+	fnhdr = fn->v.fnv.r.bc;
+	symtabidx = fn->v.fnv.symtabidx;
+	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
+	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
+	entry = fnhdr + SPN_FUNCHDR_LEN;
+	fnname = fn->v.fnv.name;
+
+	/* if there are less call arguments than formal
+	 * parameters, we set extra_argc to 0 (and all
+	 * the unspecified arguments are implicitly set
+	 * to `nil` by push_frame)
+	 */
+	extra_argc = argc > decl_argc ? argc - decl_argc : 0;
+
+	/* store the offset of the stack frame of the
+	 * caller so we can read the call arguments
+	 * later, when the active frame is that of the
+	 * called function. An offset is stored instead
+	 * of the stack pointer itself because the
+	 * push_frame() function reallocates the stack.
+	 */
+
+	/* sanity check: decl_argc should be <= nregs,
+	 * else arguments wouldn't fit in the registers
+	 */
+	assert(decl_argc <= nregs);
+
+	/* push a new stack frame - after that,
+	 * `&vm->sp[IDX_FRMHDR].h` is a pointer to
+	 * the stack frame of the *called* function.
+	 */
+	push_frame(
+		vm,
+		nregs,
+		decl_argc,
+		extra_argc,
+		NULL,
+		-1,
+		symtabidx,
+		fnname
+	);
+
+	/* copy named (declared) arguments */
+	for (i = 0; i < decl_argc && i < argc; i++) {
+		SpnValue *dst = VALPTR(vm->sp, i);
+		spn_value_retain(&argv[i]);
+		*dst = argv[i];
+	}
+
+	/* copy over the extra (unnamed) args */
+	for (i = decl_argc; i < argc; i++) {
+		int dstidx = i - decl_argc;
+		SpnValue *dst = nth_vararg(vm->sp, dstidx);
+		spn_value_retain(&argv[i]);
+		*dst = argv[i];
+	}
+
+	/* recurse, because it's convenient */
+	return dispatch_loop(vm, entry, retval);
 }
 
 void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
@@ -475,8 +546,8 @@ static void push_frame(
 	vm->sp[IDX_FRMHDR].h.size = real_nregs;
 	vm->sp[IDX_FRMHDR].h.decl_argc = decl_argc;
 	vm->sp[IDX_FRMHDR].h.extra_argc = extra_argc;
-	vm->sp[IDX_FRMHDR].h.retaddr = retaddr; /* if NULL, return from main program */
-	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if negative, return from main program */
+	vm->sp[IDX_FRMHDR].h.retaddr = retaddr; /* if NULL, return to C-land */
+	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if negative, return to C-land */
 	vm->sp[IDX_FRMHDR].h.symtabidx = symtabidx;
 	vm->sp[IDX_FRMHDR].h.fnname = fnname;
 }
@@ -489,9 +560,9 @@ static void push_first_frame(SpnVMachine *vm, int symtabidx)
 
 	/* push a large enough frame - return address: NULL (nowhere to
 	 * return from top-level program scope). A return value index < 0
-	 * (-1 in this case) indicates that the program itself returns,
-	 * and instead of indexing the stack, the return value should be
-	 * copied directly into vm->retval.
+	 * (-1 in this case) indicates that the program or function returns to
+	 * C-land, and instead of indexing the stack, the return value should
+	 * be copied directly into *vm->retptr.
 	 */
 	push_frame(vm, nregs, 0, 0, NULL, -1, symtabidx, "<main program>");
 }
@@ -545,10 +616,8 @@ static SpnValue *nth_vararg(TSlot *sp, int idx)
  * the `goto labels_array[*ip++];` extension, though.)
  */
 
-static int dispatch_loop(SpnVMachine *vm)
+static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 {
-	spn_uword *ip = current_bytecode(vm) + SPN_PRGHDR_LEN;
-
 	while (1) {
 		spn_uword ins = *ip++;
 		enum spn_vm_ins opcode = OPCODE(ins);
@@ -596,21 +665,18 @@ static int dispatch_loop(SpnVMachine *vm)
 				/* call native function */
 				int i, err;
 				SpnValue tmpret;
+				SpnValue *argv;
 
 				/* allocate a big enough array for the arguments */
-				if (argc > vm->argvsz) {
-					vm->argvsz = argc;
-					free(vm->argv);
-					vm->argv = malloc(argc * sizeof(vm->argv[0]));
-					if (vm->argv == NULL) {
-						abort();
-					}
+				argv = malloc(argc * sizeof(argv[0]));
+				if (argv == NULL) {
+					abort();
 				}
 
 				/* copy the arguments into the argument array */
 				for (i = 0; i < argc; i++) {
 					SpnValue *val = nth_call_arg(vm->sp, ip, i);
-					vm->argv[i] = *val;
+					argv[i] = *val;
 				}
 
 				/* return nil unless otherwise specified */
@@ -620,7 +686,8 @@ static int dispatch_loop(SpnVMachine *vm)
 				/* then call the native function. its return
 				 * value must have a reference count of one.
 				 */
-				err = func->v.fnv.r.fn(&tmpret, argc, vm->argv, vm->ctx);
+				err = func->v.fnv.r.fn(&tmpret, argc, argv, vm->ctx);
+				free(argv);
 
 				/* clear and set return value register
 				 * (it's released only now because it may be
@@ -644,7 +711,7 @@ static int dispatch_loop(SpnVMachine *vm)
 						"error in function %s() (code %i)",
 						args
 					);
-					return -1;
+					return err;
 				}
 
 				/* advance IP past the argument indices (round
@@ -680,8 +747,8 @@ static int dispatch_loop(SpnVMachine *vm)
 				 * caller so we can read the call arguments
 				 * later, when the active frame is that of the
 				 * called function. An offset is stored instead
-				 * of the stack pointer itself because the
-				 * push_frame() function reallocates the stack.
+				 * of the stack pointer itself because
+				 * `push_frame()' may reallocate the stack.
 				 */
 				ptrdiff_t calleroff = vm->sp - vm->stack;
 				TSlot *caller;
@@ -775,20 +842,22 @@ static int dispatch_loop(SpnVMachine *vm)
 			/* get and retain the return value */
 			spn_value_retain(res);
 
-			/* pop the callee's frame */
+			/* pop the callee's frame (the current one) */
 			pop_frame(vm);
 
-			/* transfer return value to caller's frame */
-			if (callee->retidx < 0) {	/* return from main program */
-				vm->retval = *res;
-			} else {			/* return from a Sparkling function */
+			/* transfer return value to caller */
+			if (callee->retidx < 0) {	/* return to C-land */
+				if (retvalptr != NULL) {
+					*retvalptr = *res;
+				}
+			} else {			/* return to Sparkling-land */
 				SpnValue *retptr = &vm->stack[callee->retidx].v;
 				spn_value_release(retptr);
 				*retptr = *res;
 			}
 
 			/* check the return address. If it's NULL, then
-			 * we were at global (program) scope, so we terminate;
+			 * we need to return to C-land;
 			 * else we just adjust the instruction pointer.
 			 * In addition, of course, the top stack frame
 			 * needs to be popped.

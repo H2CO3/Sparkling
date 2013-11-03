@@ -156,7 +156,8 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 	spn_register_args(argc - i, &argv[i]);
 
 	for (i = 1; i < argc; i++) {
-		SpnValue *val;
+		SpnValue ret;
+		int err;
 
 		if (argv[i] == NULL) {
 			continue;
@@ -169,28 +170,29 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 		if (args & CMD_RUN) {
 			/* check if file is a binary object or source text */
 			if (endswith(argv[i], ".spn")) {
-				val = spn_ctx_execsrcfile(ctx, argv[i]);
+				err = spn_ctx_execsrcfile(ctx, argv[i], &ret);
 			} else if (endswith(argv[i], ".spo")) {
-				val = spn_ctx_execobjfile(ctx, argv[i]);
+				err = spn_ctx_execobjfile(ctx, argv[i], &ret);
 			} else {
 				fprintf(stderr, "Sparkling: generic error: invalid file extension\n");
 				status = EXIT_FAILURE;
 				break;
 			}
 		} else {
-			val = spn_ctx_execstring(ctx, argv[i]);
+			err = spn_ctx_execstring(ctx, argv[i], &ret);
 		}
 
-		if (val != NULL) {
-			if (val->t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
-				spn_value_print(val);
-			}
-			printf("\n");
-		} else {
+		if (err != 0) {
 			fprintf(stderr, "%s\n", ctx->errmsg);
 			print_stacktrace_if_needed(ctx);
 			status = EXIT_FAILURE;
 			break;
+		} else {
+			if (ret.t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
+				spn_value_print(&ret);
+			}
+			printf("\n");
+			spn_value_release(&ret);
 		}
 	}
 
@@ -204,7 +206,8 @@ static int enter_repl(enum cmd_args args)
 	SpnContext *ctx = spn_ctx_new();
 
 	while (1) {
-		SpnValue *val;
+		SpnValue ret;
+		int status;
 
 		printf("> ");
 		if (fgets(buf, sizeof buf, stdin) == NULL) {
@@ -212,15 +215,16 @@ static int enter_repl(enum cmd_args args)
 			break;
 		}
 
-		val = spn_ctx_execstring(ctx, buf);
-		if (val != NULL) {
-			if (val->t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
-				spn_value_print(val);
-				printf("\n");
-			}
-		} else {
+		status = spn_ctx_execstring(ctx, buf, &ret);
+		if (status != 0) {
 			fprintf(stderr, "%s\n", ctx->errmsg);
 			print_stacktrace_if_needed(ctx);
+		} else {
+			if (ret.t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
+				spn_value_print(&ret);
+				printf("\n");
+				spn_value_release(&ret);
+			}
 		}
 	}
 

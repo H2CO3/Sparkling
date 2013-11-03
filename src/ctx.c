@@ -108,46 +108,46 @@ spn_uword *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
 	return bc;
 }
 
-SpnValue *spn_ctx_execstring(SpnContext *ctx, const char *str)
+int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret)
 {
 	spn_uword *bc = spn_ctx_loadstring(ctx, str);
 	if (bc == NULL) {
-		return NULL;
+		return -1;
 	}
 
-	return spn_ctx_execbytecode(ctx, bc);
+	return spn_ctx_execbytecode(ctx, bc, ret);
 }
 
-SpnValue *spn_ctx_execsrcfile(SpnContext *ctx, const char *fname)
+int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
 	spn_uword *bc = spn_ctx_loadsrcfile(ctx, fname);
 	if (bc == NULL) {
-		return NULL;
+		return -1;
 	}
 
-	return spn_ctx_execbytecode(ctx, bc);
+	return spn_ctx_execbytecode(ctx, bc, ret);
 }
 
-SpnValue *spn_ctx_execobjfile(SpnContext *ctx, const char *fname)
+int spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
 	spn_uword *bc = spn_ctx_loadobjfile(ctx, fname);
 	if (bc == NULL) {
-		return NULL;
+		return -1;
 	}
 
-	return spn_ctx_execbytecode(ctx, bc);
+	return spn_ctx_execbytecode(ctx, bc, ret);
 }
 
 /* NB: this does **not** add the bytecode to the linked list */
-SpnValue *spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc)
+int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret)
 {
-	SpnValue *val = spn_vm_exec(ctx->vm, bc);
-	if (val == NULL) {
+	int status = spn_vm_exec(ctx->vm, bc, ret);
+	if (status != 0) {
 		ctx->errmsg = spn_vm_errmsg(ctx->vm);
-		return NULL;
+		return status;
 	}
 
-	return val;
+	return status;
 }
 
 /* private bytecode link list functions */
