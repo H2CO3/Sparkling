@@ -347,8 +347,8 @@ int spn_vm_callfunc(
 )
 {
 	struct args_copy_descriptor desc;
-	spn_uword *fnhdr = fn->v.fnv.r.bc;
-	spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
+	spn_uword *fnhdr;
+	spn_uword *entry;
 
 	/* check that the callee is indeed a function */
 	if (fn->t != SPN_TYPE_FUNC) {
@@ -362,6 +362,9 @@ int spn_vm_callfunc(
 	}
 
 	/* if we got here, the callee is a valid Sparkling function. */
+	fnhdr = fn->v.fnv.r.bc;
+	entry = fnhdr + SPN_FUNCHDR_LEN;
+
 	desc.caller_is_native = 1; /* because we are the calling function */
 	desc.env.native_env.argv = argv;
 
