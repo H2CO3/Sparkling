@@ -1,6 +1,6 @@
 # Sparkling Tutorial
 
-1. Semicolons
+## Semicolons
 
 Just like C - but unlike JavaScript -, Sparkling requires every simple statement
 (expression statements, `return`, `break`, `continue` and variable declarations)
@@ -9,7 +9,7 @@ statements (`if`, `while` and `for`) need not end with a semi-colon. A semicolon
 in itself, without a preceding statement, denotes an empty statement that does
 nothing.
 
-2. Keywords:
+## Keywords:
 
 This is a list of all keywords:
 
@@ -38,7 +38,7 @@ This is a list of all keywords:
 - `var`
 - `while`
 
-3. Variables
+## Variables
 
 All variables need to be declared with `var` before they can be used. Variables
 can be initialized when declared. For example:
@@ -59,7 +59,7 @@ Variable names and other identifiers can begin with a lowercase or capital
 English letter  (`a...z`, `A...Z`) or with an underscore (`_`), then any of
 `a...z`, `A...Z`, `0...9`, or `_` follows.
 
-4. Numbers
+## Numbers
 
 You can write integers or floats the same as in C:
 
@@ -69,12 +69,12 @@ You can write integers or floats the same as in C:
  * `2.0` (decimal floating-point)
  * `1.1e-2` (decimal floating-point in scientific notation)
 
-5. Strings
+## Strings
 
-Strings are enclosed in double quotes. You can access single characters of the
-string the same way you can access array members, using the `[]` operator.
-Characters are converted to integers (to their character code). String indices
-start from zero.
+String literals are enclosed in double quotes. You can access single characters
+of the string the same way you can access array members, using the `[]`
+operator. Characters are converted to integers (to their character code).
+String indices start from zero.
 
     > print("hello"[1]);
     101
@@ -104,7 +104,7 @@ string and character literals:
     \xHH	->		the character with code HH, where HH denotes
     two hexadecimal digits
 
-6. Arrays
+## Arrays
 
 To define an array you can use the `array()` standard library function:
 
@@ -114,7 +114,7 @@ To define an array you can use the `array()` standard library function:
 You can create an array contaning different types of values. Arrays are indexed
 from zero, just like strings.
 
-    > print(array(1,2,3, "hello")[3]);
+    > print(array(1, 2, 3, "hello")[3]);
     hello
 
 It is also possible to modify an element in the array by assigning to it:
@@ -137,7 +137,7 @@ keys/indices can have any type). There is a convenience standard library
 function for this purpose called `dict`:
 
     var words = dict(
-        "hello", "bonjour",
+        "hello",  "bonjour",
         "twenty", "vingt",
         "cheese", "fromage"
     );
@@ -145,7 +145,8 @@ function for this purpose called `dict`:
 
 As you can see, this function takes key-value pairs and adds them to the array.
 The order of elements in an array (when enumerated using an iterator) is
-unspecified.
+unspecified. It is required that you pass an even number of arguments to this
+function - calling it with an odd number of elements raises a runtime error.
 
 Array members corresponding to a string key can be accessed using the
 convenience dot notation:
@@ -156,7 +157,7 @@ is the same as
 
     an_array["some_member"]
 
-7. Expressions:
+## Expressions:
 
 This is a short list of the most important operators:
 
@@ -172,37 +173,37 @@ This is a short list of the most important operators:
 assignments
  * `?:` - conditional operator
  * `sizeof`, `typeof` - size and type information
- * `.`, `->`: shorthand for array access (indexes by string)
+ * `.`, `->`: shorthand for array access (indexes with a string)
  * `&&`, `||`: logical AND and OR
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators
  * `&`, `|`, `^`: bitwise AND, OR and XOR
  * `<<`, `>>`: bitwise left and right shift
 
-8. Loops
+## Loops
 
 Unlike in C (and similarly to Python), you don't need to wrap loop conditions
 inside parentheses. Loops work in the same manner as those in C.
 
-8.1. For loop
+For loop:
 
     for i = 0; i < 10; ++i {
         print(i);
     }
 
-8.2. While loop
+While loop:
 
     while i < x {
         print(i++);
     }
 
-8.3. Do..While loop
+Do...while loop:
 
     var i = 0;
     do {
         print(i++);
     } while i < 10;
 
-9. If statement
+## The `if` statement
 
 You don't need to wrap the condition of the `if` stament in parentheses either:
 
@@ -227,7 +228,7 @@ There is no separate `elsif` keyword like in PHP or Python; you need to use
 In the condition of a loop or an if statement, you can only use boolean values.
 Trying to use an expression of any other type will cause a runtime error.
 
-10. Functions
+## Functions
 
 You can create named and anonymous functions with the `function` keyword:
 
@@ -258,7 +259,7 @@ T invoke a function, use the `()` operator:
     > print(square(10));
     100
 
-11. The standard library
+## The standard library
 
 A detailed description of the standard library functions and global constants
 can be found in `doc/stdlib.md`.
