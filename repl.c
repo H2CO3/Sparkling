@@ -175,6 +175,46 @@ static void register_args(SpnContext *ctx, int argc, char *argv[])
 	spn_object_release(arr);
 }
 
+/* This checks if the file starts with a shebang, so that it can be run as a
+ * stand-alone script if the shell supports this notation. This is necessary
+ * because Sparkling doesn't recognize '#' as a line comment delimiter.
+ */
+static int run_script_file(SpnContext *ctx, const char *fname, SpnValue *ret)
+{
+	char *buf = spn_read_text_file(fname);
+	const char *src;
+	int err;
+
+	if (buf == NULL) {
+		ctx->errmsg = "Sparkling: I/O error: cannot read file";
+		return -1;
+	}
+
+	/* if starts with shebang, search for beginning of 2nd line */
+	if (buf[0] == '#' && buf[1] == '!') {
+		const char *pn = strchr(buf, '\n');
+		const char *pr = strchr(buf, '\r');
+
+		if (pn == NULL && pr == NULL) {
+			src = buf + strlen(buf);
+		} else {
+			if (pn == NULL) {
+				src = pr + 1;
+			} else if (pr == NULL) {
+				src = pn + 1;
+			} else {
+				src = pn < pr ? pr + 1 : pn + 1;
+			}
+		}
+	} else {
+		src = buf;
+	}
+
+	err = spn_ctx_execstring(ctx, src, ret);
+	free(buf);
+	return err;
+}
+
 static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 {
 	SpnContext *ctx = spn_ctx_new();
@@ -211,7 +251,7 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 		if (args & CMD_RUN) {
 			/* check if file is a binary object or source text */
 			if (endswith(argv[i], ".spn")) {
-				err = spn_ctx_execsrcfile(ctx, argv[i], &ret);
+				err = run_script_file(ctx, argv[i], &ret);
 			} else if (endswith(argv[i], ".spo")) {
 				err = spn_ctx_execobjfile(ctx, argv[i], &ret);
 			} else {

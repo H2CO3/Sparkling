@@ -254,7 +254,7 @@ introduce a named function (function statement). If you want unnamed functions
 If you don't explicitly return anything from a function, it will implicitly
 return `nil`. The same applies to the entire translation unit itself.
 
-T invoke a function, use the `()` operator:
+To invoke a function, use the `()` operator:
 
     > print(square(10));
     100
