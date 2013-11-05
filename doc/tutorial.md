@@ -249,7 +249,9 @@ statement starting with the `function` keyword will always be assumed to
 introduce a named function (function statement). If you want unnamed functions
 (function expressions) at program scope, put them inside parentheses:
 
-    
+    (function (x) {
+        return x * x;
+    }());
 
 If you don't explicitly return anything from a function, it will implicitly
 return `nil`. The same applies to the entire translation unit itself.
