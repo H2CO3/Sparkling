@@ -471,7 +471,6 @@ static int lex_ident(SpnParser *p)
 		RESERVED_ENTRY("function",	SPN_TOK_FUNCTION),
 		RESERVED_ENTRY("if",		SPN_TOK_IF),
 		RESERVED_ENTRY("in",		SPN_TOK_IN),
-		RESERVED_ENTRY("nan",		SPN_TOK_NAN),
 		RESERVED_ENTRY("nil",		SPN_TOK_NIL),
 		RESERVED_ENTRY("not",		SPN_TOK_LOGNOT),
 		RESERVED_ENTRY("null",		SPN_TOK_NIL),

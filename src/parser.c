@@ -815,19 +815,6 @@ static SpnAST *parse_term(SpnParser *p)
 		}
 
 		return ast;
-	case SPN_TOK_NAN:
-		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value.t = SPN_TYPE_NUMBER;
-		ast->value.f = SPN_TFLG_FLOAT;
-		ast->value.v.fltv = 0.0 / 0.0; /* silent NaN */
-
-		spn_lex(p);
-		if (p->error) {
-			spn_ast_free(ast);
-			return NULL;
-		}
-
-		return ast;
 	case SPN_TOK_INT:
 	case SPN_TOK_FLOAT:
 	case SPN_TOK_STR:

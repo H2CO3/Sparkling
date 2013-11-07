@@ -2192,7 +2192,7 @@ static void load_stdlib_functions(SpnVMachine *vm)
 	spn_vm_addlib(vm, spn_libsys, SPN_LIBSIZE_SYS);
 }
 
-#define SPN_N_STD_CONSTANTS 16
+#define SPN_N_STD_CONSTANTS 18
 
 static void load_stdlib_constants(SpnVMachine *vm)
 {
@@ -2279,6 +2279,17 @@ static void load_stdlib_constants(SpnVMachine *vm)
 	values[15].value.t = SPN_TYPE_NUMBER;
 	values[15].value.f = SPN_TFLG_FLOAT;
 	values[15].value.v.fltv = M_SQRT1_2;
+
+	/* NaN and infinity */
+	values[16].name = "M_NAN";
+	values[16].value.t = SPN_TYPE_NUMBER;
+	values[16].value.f = SPN_TFLG_FLOAT;
+	values[16].value.v.fltv = 0.0 / 0.0; /* silent NaN */
+
+	values[17].name = "M_INF";
+	values[17].value.t = SPN_TYPE_NUMBER;
+	values[17].value.f = SPN_TFLG_FLOAT;
+	values[17].value.v.fltv = 1.0 / 0.0; /* silent +inf */
 
 	spn_vm_addglobals(vm, values, SPN_N_STD_CONSTANTS);
 }

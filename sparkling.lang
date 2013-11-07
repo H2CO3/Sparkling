@@ -33,7 +33,6 @@
       <keyword>nil</keyword>
       <keyword>true</keyword>
       <keyword>false</keyword>
-      <keyword>nan</keyword>
     </context>
 
     <context id="keywords" style-ref="keyword">

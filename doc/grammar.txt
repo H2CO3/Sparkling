@@ -118,17 +118,17 @@ dict-literal = '@{' [ expression ':' expression { ',' expression ':' expression 
 
 argument-call-list = expression { ',' expression }
 
-literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil' | 'nan'
+literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil'
 
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		else		in		return
-argc		false		nan		sizeof
-as		for		nil		true
-break		foreach		not		typeof
-continue	function	null		var
-do		if		or		while
+and		else		in		sizeof
+argc		false		nil		true
+as		for		not		typeof
+break		foreach		null		var
+continue	function	or		while
+do		if		return
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
 tokens, respectively. Furthermore, 'null' is the same as 'nil'.

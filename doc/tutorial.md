@@ -26,7 +26,6 @@ This is a list of all keywords:
 - `function`
 - `if`
 - `in`
-- `nan`
 - `nil`
 - `not`
 - `null`

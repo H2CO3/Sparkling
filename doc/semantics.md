@@ -369,6 +369,6 @@ Non-array literals represent a single constant value. These include nil (or its
 synonym, "null"); decimal, octal and hexadecimal integer numbers, character
 constants (enclosed by apostrophes, interpreted as a big-endian integer number
 composed using the bytes of its characters), floating-point (decimal fractional)
-numbers including the special constant `nan', strings (enclosed between
-quotation marks), and the Boolean literals true and false.
+numbers, strings (enclosed between double quotation marks), and the Boolean
+literals true and false.
 
