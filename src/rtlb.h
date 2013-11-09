@@ -91,12 +91,5 @@ SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
  */
 SPN_API void spn_load_stdlib(SpnVMachine *vm);
 
-/* this registers the "argv" vector, i. e. it creates a global variable called
- * `argv' which is an array of strings. The `argc' and `argv' arguments are
- * assumed to be the arguments of `main()', so the strings are not copied, you
- * have to make sure that they're valid throughout the lifetime of the program.
- */
-SPN_API void spn_register_args(int argc, char **argv);
-
 #endif /* SPN_RTLB_H */
 

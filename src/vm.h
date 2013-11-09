@@ -59,7 +59,7 @@ SPN_API int spn_vm_callfunc(
 );
 
 /* this function does NOT copy the names of the native functions,
- * so make sure that they are pointers during the entire runtime
+ * so make sure that they are valid during the entire runtime
  */
 SPN_API void		  spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n);
 SPN_API void		  spn_vm_addglobals(SpnVMachine *vm, SpnExtValue vals[], size_t n);
