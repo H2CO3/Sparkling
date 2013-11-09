@@ -1577,7 +1577,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				args[0] = symname;
 				runtime_error(
 					vm,
-					ip,
+					ip - bodylen - SPN_FUNCHDR_LEN - nwords - 1,
 					"re-definition of global `%s'",
 					args
 				);
@@ -1591,6 +1591,50 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			spn_array_set(vm->glbsymtab, &funckey, &funcval);
 			spn_object_release(funckey.v.ptrv);
 
+			break;
+		}
+		case SPN_INS_GLBVAL: {
+			/* instruction format is "mid": 8 bit operand A for the
+			 * register number from which to read the expression,
+			 * 16-bit operand B to store the length of the name
+			 * stored in the global symbol table. The symbol name
+			 * follows the instruction word in the bytecode.
+			 */
+			SpnValue *src = VALPTR(vm->sp, OPA(ins));
+			size_t namelen = OPMID(ins);
+			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
+			const char *symname = (const char *)(ip);
+			SpnString *namestr = spn_string_new_nocopy_len(symname, namelen, 0);
+			SpnValue key;
+
+#ifndef NDEBUG
+			size_t reallen = strlen(symname);
+			assert(namelen == reallen);
+#endif
+
+			/* skip symbol name */
+			ip += nwords;
+
+			/* attempt adding value to global symtab */
+			key.t = SPN_TYPE_STRING;
+			key.f = SPN_TFLG_OBJECT;
+			key.v.ptrv = namestr;
+
+			if (spn_array_get(vm->glbsymtab, &key)->t != SPN_TYPE_NIL) {
+				const void *args[1];
+				args[0] = symname;
+				runtime_error(
+					vm,
+					ip - nwords - 1,
+					"re-definition of global `%s'",
+					args
+				);
+				spn_object_release(namestr);
+				return -1;
+			}
+
+			spn_array_set(vm->glbsymtab, &key, src);
+			spn_object_release(namestr);
 			break;
 		}
 		default: /* I am sorry for the indentation here. */

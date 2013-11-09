@@ -56,6 +56,7 @@ static SpnAST *parse_break(SpnParser *p);
 static SpnAST *parse_continue(SpnParser *p);
 static SpnAST *parse_return(SpnParser *p);
 static SpnAST *parse_vardecl(SpnParser *p);
+static SpnAST *parse_const(SpnParser *p);
 static SpnAST *parse_expr_stmt(SpnParser *p);
 static SpnAST *parse_empty(SpnParser *p);
 static SpnAST *parse_block(SpnParser *p);
@@ -100,7 +101,6 @@ void spn_parser_free(SpnParser *p)
 	free(p);
 }
 
-#define ERRMSG_FORMAT "Sparkling: syntax error near line %lu: %s"
 void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
 {
 	char *prefix, *msg;
@@ -255,6 +255,13 @@ static SpnAST *parse_stmt(SpnParser *p, int is_global)
 			} else {
 				/* and a function expression at local scope */
 				return parse_expr_stmt(p);
+			}
+		case SPN_TOK_CONST:
+			if (is_global) {
+				return parse_const(p);
+			} else {
+				spn_parser_error(p, "`const' declarations are only allowed at file scope", NULL);
+				return NULL;
 			}
 		default:
 			return parse_expr_stmt(p);
@@ -1328,7 +1335,7 @@ static SpnAST *parse_vardecl(SpnParser *p)
 		SpnAST *expr = NULL, *tmp;
 
 		if (!spn_accept(p, SPN_TOK_IDENT)) {
-			spn_parser_error(p, "expected identifier in declaration", NULL);
+			spn_parser_error(p, "expected identifier in variable declaration", NULL);
 			spn_value_release(&p->curtok.val);
 			return NULL;
 		}
@@ -1358,7 +1365,62 @@ static SpnAST *parse_vardecl(SpnParser *p)
 	} while (spn_accept(p, SPN_TOK_COMMA));
 
 	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected`;' after variable initialization", NULL);
+		spn_parser_error(p, "expected `;' after variable initialization", NULL);
+		spn_value_release(&p->curtok.val);
+		spn_ast_free(ast);
+		return NULL;
+	}
+
+	return ast;
+}
+
+static SpnAST *parse_const(SpnParser *p)
+{
+	/* `ast' is the head of the list */
+	SpnAST *ast = NULL, *tail = NULL;
+
+	/* skip "const" keyword */
+	spn_lex(p);
+
+	do {
+		SpnString *name = p->curtok.val.v.ptrv;
+		SpnAST *expr = NULL, *tmp;
+
+		if (!spn_accept(p, SPN_TOK_IDENT)) {
+			spn_parser_error(p, "expected identifier in const declaration", NULL);
+			spn_value_release(&p->curtok.val);
+			return NULL;
+		}
+
+		if (!spn_accept(p, SPN_TOK_ASSIGN)) {
+			spn_parser_error(p, "expected `=' after identifier in const declaration", NULL);
+			spn_ast_free(ast);
+			return NULL;
+		}
+
+		expr = parse_expr(p);
+		if (expr == NULL) {
+			spn_object_release(name);
+			spn_ast_free(ast);
+			return NULL;
+		}
+
+		tmp = spn_ast_new(SPN_NODE_CONST, p->lineno);
+		tmp->name = name;
+		tmp->left = expr;
+
+		if (ast == NULL) {
+			ast = tmp;
+		} else {
+			assert(tail != NULL);
+			tail->right = tmp;
+		}
+
+		tail = tmp;
+	} while (spn_accept(p, SPN_TOK_COMMA));
+
+	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
+		spn_parser_error(p, "expected `;' after constant initialization", NULL);
 		spn_value_release(&p->curtok.val);
 		spn_ast_free(ast);
 		return NULL;

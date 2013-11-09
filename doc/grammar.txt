@@ -44,13 +44,15 @@ and they don't nest.
 T h e   g r a m m a r
 ~~~~~~~~~~~~~~~~~~~~~
 
-program = { statement | function-statement }
+program = { statement | function-statement | const-statement }
 
 argument-declaration-list = IDENT { ',' IDENT }
 
 statement = empty-statement | if-statement | loop-statement | return-statement | loop-control-flow-statement | expression-statement | block-statement | variable-declaration
 
 function-statement = 'function' IDENT '(' [ argument-declaration-list ] ')' block-statement
+
+const-statement = 'const' IDENT '=' expression { ',' IDENT '=' expression } ';'
 
 empty-statement = ';'
 

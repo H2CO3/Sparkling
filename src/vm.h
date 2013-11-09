@@ -205,7 +205,8 @@ enum spn_vm_ins {
 	SPN_INS_ARRGET,		/* a = b[c]				*/
 	SPN_INS_ARRSET,		/* a[b] = c				*/
 	SPN_INS_NTHARG,		/* a = argv[b] (accesses varargs only!)	*/
-	SPN_INS_GLBFUNC		/* add function to global symtab (VI)	*/
+	SPN_INS_GLBFUNC,	/* add function to global symtab (VI)	*/
+	SPN_INS_GLBVAL		/* add other value to global symtab	*/
 };
 
 /* Remarks:

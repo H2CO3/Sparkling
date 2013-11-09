@@ -101,6 +101,7 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast);
 static int compile_break(SpnCompiler *cmp, SpnAST *ast);
 static int compile_continue(SpnCompiler *cmp, SpnAST *ast);
 static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast);
+static int compile_const(SpnCompiler *cmp, SpnAST *ast);
 static int compile_return(SpnCompiler *cmp, SpnAST *ast);
 
 /* compile and load string literal */
@@ -413,6 +414,7 @@ static int compile(SpnCompiler *cmp, SpnAST *ast)
 	case SPN_NODE_RETURN:	return compile_return(cmp, ast);
 	case SPN_NODE_EMPTY:	return 1; /* no compile_empty() for you ;-) */
 	case SPN_NODE_VARDECL:	return compile_vardecl(cmp, ast);
+	case SPN_NODE_CONST:	return compile_const(cmp, ast);
 	default:		return compile_expr_toplevel(cmp, ast, NULL);
 	}
 }
@@ -941,6 +943,30 @@ static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 		}
 
 		head = head->right;
+	}
+
+	return 1;
+}
+
+static int compile_const(SpnCompiler *cmp, SpnAST *ast)
+{
+	while (ast != NULL) {
+		spn_uword ins;
+
+		int regidx = -1;
+		if (compile_expr_toplevel(cmp, ast->left, &regidx) == 0) {
+			return 0;
+		}
+
+		/* write "set global symbol" instruction */
+		ins = SPN_MKINS_MID(SPN_INS_GLBVAL, regidx, ast->name->len);
+		bytecode_append(&cmp->bc, &ins, 1);
+
+		/* append 0-terminated name of the symbol */
+		append_cstring(&cmp->bc, ast->name->cstr, ast->name->len);
+
+		/* update head of link list */
+		ast = ast->right;
 	}
 
 	return 1;

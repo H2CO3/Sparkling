@@ -80,6 +80,7 @@ enum spn_ast_node {
 	SPN_NODE_RETURN,
 	SPN_NODE_EMPTY,
 	SPN_NODE_VARDECL,
+	SPN_NODE_CONST,
 
 	/* assignments */
 	SPN_NODE_ASSIGN,

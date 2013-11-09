@@ -40,6 +40,7 @@
       <keyword>and</keyword>
       <keyword>or</keyword>
       <keyword>var</keyword>
+      <keyword>const</keyword>
       <keyword>break</keyword>
       <keyword>continue</keyword>
       <keyword>return</keyword>

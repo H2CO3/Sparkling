@@ -58,6 +58,17 @@ Variable names and other identifiers can begin with a lowercase or capital
 English letter  (`a...z`, `A...Z`) or with an underscore (`_`), then any of
 `a...z`, `A...Z`, `0...9`, or `_` follows.
 
+## Constants
+
+Constants can be declared and initialized at file scope only, using the `const`
+keyword. It is obligatory to initialize a constant. It is also obligatory for
+the initializer expression to be non-`nil` (initializing a constant to `nil`
+will result in a runtime error).
+
+    const E_SQUARED = exp(2);
+    
+    const my_number = 1 + 2, my_string = "foobar";
+
 ## Numbers
 
 You can write integers or floats the same as in C:
@@ -67,6 +78,9 @@ You can write integers or floats the same as in C:
  * `0755` (octal integer)
  * `2.0` (decimal floating-point)
  * `1.1e-2` (decimal floating-point in scientific notation)
+
+The special values `M_NAN` and `M_INF` can be found in the standard maths
+library, and they represent the floating-point NaN and positive infinity.
 
 ## Strings
 

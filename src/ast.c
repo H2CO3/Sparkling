@@ -81,6 +81,7 @@ static void dump_ast(SpnAST *ast, int indent)
 		"return",
 		"empty-statement",
 		"vardecl",
+		"global-constant",
 
 		"assign",
 		"assign-add",

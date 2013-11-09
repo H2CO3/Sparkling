@@ -462,6 +462,7 @@ static int lex_ident(SpnParser *p)
 		RESERVED_ENTRY("and",		SPN_TOK_LOGAND),
 		RESERVED_ENTRY("as",		SPN_TOK_AS),
 		RESERVED_ENTRY("break",		SPN_TOK_BREAK),
+		RESERVED_ENTRY("const",		SPN_TOK_CONST),
 		RESERVED_ENTRY("continue",	SPN_TOK_CONTINUE),
 		RESERVED_ENTRY("do",		SPN_TOK_DO),
 		RESERVED_ENTRY("else",		SPN_TOK_ELSE),

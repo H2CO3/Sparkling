@@ -74,15 +74,22 @@ as per §1.7.1.
 §2. Statements
 --------------
 §2.1. The function statement (`function-statement`).
-§2.1.1. A function statement defines a named function with zero or more arguments.
-A function is an individual piece of code representing an operation. It can
-be called with or without arguments and may or may not return a value. In a
-function call expression, call arguments are evaluated and bound to formal
+§2.1.1. A function statement defines a named function with zero or more
+arguments. A function is an individual piece of code representing an operation.
+It can be called with or without arguments and may or may not return a value.
+In a function call expression, call arguments are evaluated and bound to formal
 parameters, and the code in the function operates on its arguments accordingly.
 The type of a function is function.
 
 §2.1.2. Formal parameters act as variables local to the function. As such, all
 formal parameters must have a distinct name within a function statement.
+
+§2.1.3. Named functions are visible at global scope. They're just like other
+global constants. As such, it is illegal to define a function with the name of
+an already existing global and vice versa. Doing so results in a runtime error.
+
+(remark: as a consequence, translation units that define named functions or
+other globals can only be run once on a certain virtual machine.)
 
 §2.2. The if statement (`if-statement`).
 The if statement implements run-time decision and branching. The condition of
@@ -163,7 +170,11 @@ implicitly initialized with `nil`.
 §2.12.2. It is illegal to declare a variable that has the name of a variable
 which already exists (which is already visible) in a scope.
 
-§2.13 The expression statement (`expression-statement`).
+§2.13. The global constant declaration statement (`const-statement`). The
+constant declaration statement defines a named global value. The value that is
+associated with the name cannot be changed after its initialization.
+
+§2.14 The expression statement (`expression-statement`).
 The expression statement is a statement of which the only purpose is evaluating
 an expression. As a general advice, for clarity's sake, the top-level
 expression of an expression statement should only be a function call, an
