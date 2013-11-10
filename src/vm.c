@@ -900,6 +900,8 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (callee->retidx < 0) {	/* return to C-land */
 				if (retvalptr != NULL) {
 					*retvalptr = *res;
+				} else {
+					spn_value_release(res);
 				}
 			} else {			/* return to Sparkling-land */
 				SpnValue *retptr = &vm->stack[callee->retidx].v;

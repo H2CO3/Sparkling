@@ -14,7 +14,6 @@
 #include <limits.h>
 
 #include "lex.h"
-#include "memory.h"
 #include "str.h"
 #include "private.h"
 
