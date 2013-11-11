@@ -106,6 +106,20 @@ Sets the context info of `vm` to the user-supplied `ctx`.
 
 If a runtime error occurred, returns the last error message.
 
+    void spn_vm_callfunc(
+        SpnVMachine *vm,
+        SpnValue *fn,
+        SpnValue *retval,
+        int argc,
+        SpnValue *argv
+    );
+
+This function makes it possible to call any Sparkling (or native) function
+from within a native extension function. Throws a runtime error if:
+
+1. its `fn` argument does not contain a value of function type, or
+2. if `fn` is a native function and it returns a non-zero status code.
+
 Using the convenience context API
 ---------------------------------
 The Sparkling API also provides an even easier interface, called the context
