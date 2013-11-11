@@ -732,7 +732,11 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * invalid.
 			 */
 			TSlot *retslot = SLOTPTR(vm->sp, OPA(ins));
-			SpnValue *func = VALPTR(vm->sp, OPB(ins));
+			ptrdiff_t retidx = retslot - vm->stack;
+
+			TSlot *funcslot = SLOTPTR(vm->sp, OPB(ins));
+			SpnValue func = funcslot->v; /* copy the value struct */
+
 			int argc = OPC(ins);
 
 			/* this is the minimal number of `spn_uword`s needed
@@ -742,8 +746,8 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			int narggroups = ROUNDUP(argc, SPN_WORD_OCTETS);
 
 			/* check if value is really a function */
-			if (func->t != SPN_TYPE_FUNC) {
-				SpnValue typeval = typeof_value(func);
+			if (func.t != SPN_TYPE_FUNC) {
+				SpnValue typeval = typeof_value(&func);
 				SpnString *typestr = typeval.v.ptrv;
 				const void *args[1];
 				args[0] = typestr->cstr;
@@ -762,14 +766,13 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* loading a symbol should have already resolved it
 			 * if it's a function -- assert that condition here
 			 */
-			assert((func->f & SPN_TFLG_PENDING) == 0);
+			assert((func.f & SPN_TFLG_PENDING) == 0);
 
-			if (func->f & SPN_TFLG_NATIVE) {
+			if (func.f & SPN_TFLG_NATIVE) {
 				/* call native function */
 				int i, err;
 				SpnValue tmpret;
 				SpnValue *argv;
-				SpnValue *retval = &retslot->v;
 
 				/* allocate a big enough array for the arguments */
 				argv = malloc(argc * sizeof(argv[0]));
@@ -790,7 +793,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				/* then call the native function. its return
 				 * value must have a reference count of one.
 				 */
-				err = func->v.fnv.r.fn(&tmpret, argc, argv, vm->ctx);
+				err = func.v.fnv.r.fn(&tmpret, argc, argv, vm->ctx);
 				free(argv);
 
 				/* clear and set return value register
@@ -799,15 +802,15 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * foo = bar(foo) won't do any good if foo is
 				 * released before it's passed to the function
 				 */
-				spn_value_release(retval);
-				*retval = tmpret;
+				spn_value_release(&vm->stack[retidx].v);
+				vm->stack[retidx].v = tmpret;
 
 				/* check if the native function returned
 				 * an error. If so, abort execution.
 				 */
 				if (err != 0) {
 					const void *args[2];
-					args[0] = func->v.fnv.name;
+					args[0] = func.v.fnv.name;
 					args[1] = &err;
 					runtime_error(
 						vm,
@@ -830,26 +833,9 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * present CALL instruction.
 				 */
 				spn_uword *retaddr = ip + narggroups;
-
-				/* store the offset of the stack frame of the
-				 * caller so we can read the call arguments
-				 * later, when the active frame is that of the
-				 * called function. An offset is stored instead
-				 * of the stack pointer itself because
-				 * `push_frame()' (called from within the
-				 * `push_and_copy_args()' function)
-				 * may reallocate the stack.
-				 */
-				ptrdiff_t calleroff = vm->sp - vm->stack;
-
-				/* similarly, store the index of the slot that
-				 * will hold the return value (this is inside
-				 * the frame of the caller).
-				 */
-				ptrdiff_t retidx = retslot - vm->stack;
-
-				spn_uword *fnhdr = func->v.fnv.r.bc;
+				spn_uword *fnhdr = func.v.fnv.r.bc;
 				spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
+				ptrdiff_t calleroff = vm->sp - vm->stack;
 
 				/* set up environment for push_and_copy_args */
 				struct args_copy_descriptor desc;
@@ -863,7 +849,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * copy over its arguments (I <3 descriptive
 				 * function names!
 				 */
-				push_and_copy_args(vm, func, &desc, argc);
+				push_and_copy_args(vm, &func, &desc, argc);
 
 				/* set instruction pointer to entry point
 				 * in order to kick off the function call

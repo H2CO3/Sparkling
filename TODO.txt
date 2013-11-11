@@ -19,8 +19,7 @@ Language, syntax:
 		regards to expressions (associativity, precedence!)
 	- what's a better fit for the 3rd argument of cond-expr?
 		cond-expr (current, as in C) or assignment-expr (as in C++)?
-	- write the specification (yeah)
-	- should the && and || operators return their RHS/LHS instead of a boolean?
+	- write the specification (yeah)							done
 	- OO, classes? anyone wants them? good for performance - fields can be
 		numbered at compile-time, names thrown away, no need for string
 		hashing (similarly to C `struct`s)
@@ -29,16 +28,16 @@ Language, syntax:
 	- 'concat-equals' (..=) operator							done
 	- named constants, "enum"s (whatever you call them) (How? They can't be
 		referenced across object files unless they are put in the symbol
-		table - but in that case, they would have a significant (?) overhead...)	***
+		table - but in that case, they would have a significant (?) overhead...)
+		Edit: done, tested, no significant overhead compared to literals.		done
 	- arrays should be able to be indexed by any object (polymorphic hash function
 		based on pointers to an object)							done
 	- switch-case statement (with block syntax instead of labels: `case 0: { }' etc.)
 	- implement concatenation operator (..) into lexer & parser				done
-	- treat `this'/`self' and `argc' appropriately... (*)
 	- ...and add the `#` variadic argument operator (#0 is the first arg) (*)		done
-		(*) these two concern the VM too, see the same TODOs below too
 	- Do something with strings. How to access single characters in a string?
 		(maybe no built-in approach, only stdlib functions?)
+		Edit: implemented using the [] operator.					done
 	- variable declarations									done
 	- comma-separated variable declarations! `var i = 0, j = 1;`				done
 	- support C99- and C++-style in-loop variable initialization, as in:
@@ -57,7 +56,7 @@ Parser:
 		released, then it will leak memory (what if we got an identifier or
 		a string instead of an expected operator or keyword?), right? But
 		what happens if it *is* released? Is this approach correct throughout
-		the implementation of the parser?
+		the implementation of the parser?						it seems correct
 	- array literals (@{}, @[], or something else?)						***Urgent***
 	- support C99- and C++-style in-loop variable initialization (see above)
 	- include line number information in AST						done
@@ -72,12 +71,12 @@ Compiler:
 		function), but this is conceptually wrong. Also: use SPN_TYPE_FUNC
 		to represent lambda functions in the local symbol table  instead
 		of the current approach that uses SPN_TYPE_NUMBER and an integer
-		offset to represent the offset of the lambda within the bytecode.
+		offset to represent the offset of the lambda within the bytecode.		***Urgent***
 	- Related: add a facility to declare global non-function values (constants
 		only, since global variables are a nightmare.) This involves extending
 		the parser (a new keyword/file-scope statement), the compiler and the
 		virtual machine (a new VM opcode should be used for that, something
-		like SPN_INS_GLBCONST).
+		like SPN_INS_GLBCONST).								done
 	- support for warnings
 	- check for duplicate names in function arguments (issue a diagnostic)			done
 	- Issue a warning if a top-level expression (i. e. an expression statement)
@@ -127,7 +126,7 @@ Compiler:
 	- use line number information in AST							done
 
 VM:
-	- !!! EXAMINE AND TEST REFERENCE COUNTING !!! Specifically, does the
+	- !!! EXAMINE AND TEST REFERENCE COUNTING !!! Specifically, does the			seems to work
 		"release(dst); *dst = *retain(src)" idiom work? What if the same
 		object is being assigned onto itself and its refcount is 1?
 		If it's deallocated then the freed pointer is retained, it's wrong.
@@ -151,25 +150,16 @@ VM:
 			// etc., do something else with non-strings
 		}
 	
-	- hook object constructor and destructor functions in order to test memory
+	- hook object constructor and destructor functions in order to test memory		done
 		leaks and premature deallocation (there must be the same number
 		of calls to ctors and dtors)
-	- treat `argc' appropriately...
-		Conceptually, from the language-lawyer point of view,
-		this is a KEYWORDS, i. e. it is reserved and considered part
-		of the language (just like 'if', 'nil' or '+'). This is because
-		I consider hard-coded variable names a bad concept (similarly,
-		I find it necessary to make a very strict distinction between
-		the core language and the standard library functions). However,
-		under the hoods, in the compiler/VM, they're simply implemented
-		as a compiler-recognized special variable (register?) name.
-	- ...and add the `#` variadic argument operator (#0 is the first arg)			done
-	- handle variadic arguments
+	- add the `#` variadic argument operator (#0 is the first arg)				done
+	- handle variadic arguments								incomplete
 	- Debugging info in the bytecode (to show meaningful information, i. e. line
 		numbers, to the user instead of VM addresses when a runtime error
 		occurs. XXX: there could be a separate debug symbol file, in order
 		the real bytecode not to be cluttered and slowed down.)
-	- Enable user to get a stack trace while running or after a runtime error
+	- Enable user to get a stack trace while running or after a runtime error		done
 	- Symbol table in the bytecode for functions, lambdas and string constants,	***	done
 		in order the VM not to have to create a new SpnString
 		every time it reads the name of a function (before each call!)
@@ -177,12 +167,12 @@ VM:
 	- array iterators: add an SPN_INS_NEXT (?) instruction (foreach loops)			***Urgent***
 		(also, actually *implement* the `foreach' statement)
 	- hate str[i|u]ct aliasing...								done
-	- ...and test the VM with various compilers, at various optimization levels,		***Urgent***
+	- ...and test the VM with various compilers, at various optimization levels,		done
 		with and without strict aliasing and vectorization turned on/off,
 		because **the VM stack needs to be steady and safe!**
-	- make the context API manage command-line arguments
+	- make the context API manage command-line arguments					done differently
 		(in order to get rid of those ugly global variables)
-	- in REPL, when a runtime error occurs: fix wrong assumption that it's always		***Urgent***
+	- in REPL, when a runtime error occurs: fix wrong assumption that it's always		done
 		the last node in the bytecode list that caused the failure
 
 ***: these call for some less hackish implementation of linkage (firstly, there
@@ -196,7 +186,7 @@ Standard library:
 		functions (especially those in libarray) once they are
 		implemented.
 	- provide proper access to the Sparkling engine (compilefile(),
-		compilestring(), etc. functions) instead of the horrible eval()
+		compilestring(), etc. functions)
 	- check number of arguments in format strings
 
 Miscellaneous:
@@ -204,24 +194,9 @@ Miscellaneous:
 	- rewrite the parser, compiler and runtime/VM error functions to take			done
 		format strings and variadic arguments
 	- feel sorry for flower boxes in parser.c						done
-	- add possibility to call Sparkling functions from C-land				***Urgent***
+	- add possibility to call Sparkling functions from C-land				done
 	- C99 and POSIX-specific extension APIs (in addition to the "standard"
 		runtime support library)
-	- benchmark array setters to see if
-	
-		retain(newobj);
-		release(arr->oldobj);
-		arr->oldobj = newobj;
-		
-	is faster or slower than
-	
-		if (array->oldobj == newobj) {
-		    	return;
-		}
-		
-		release(array->oldobj);
-		array->oldobj = retain(newobj);
-
 	- real error handling when `malloc()` fails instead of just `abort()`ing
 	- support for user data/custom ojects							done
 	- Bindings for popular and useful C libraries: SQLite3, libxml2, cURL
