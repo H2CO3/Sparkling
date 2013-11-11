@@ -50,7 +50,7 @@ SPN_API void		  spn_vm_free(SpnVMachine *vm);
 SPN_API int		  spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
 
 /* calls a Sparkling function from C-land */
-SPN_API int spn_vm_callfunc(
+SPN_API void spn_vm_callfunc(
 	SpnVMachine *vm,
 	SpnValue *fn,
 	SpnValue *retval,
