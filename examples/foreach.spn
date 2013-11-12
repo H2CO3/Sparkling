@@ -17,11 +17,10 @@ arr["bar"] = function(x, y) {
 arr["quirk"] = 3.14159265358979323846;
 
 
-var pair = array();
-var it = iter(arr);
-
-/* use an iterator to loop through the array */
-while next(it, pair) {
-	print(pair[0], " -> ", pair[1]);
-}
+enumerate(arr, function(key, val, ctx) {
+	print(key, " -> ", val, "; context = ", ctx);
+	if typeof val == "function" {
+		val(42, 43);
+	}
+}, "Context Info");
 

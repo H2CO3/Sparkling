@@ -19,6 +19,7 @@
 #include "rtlb.h"
 #include "str.h"
 #include "array.h"
+#include "ctx.h"
 
 #ifndef LINE_MAX
 #define LINE_MAX 0x1000
@@ -1101,80 +1102,64 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_iter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+/* XXX this relies on `ctx' pointing to an SpnContext object!
+ * argv[0] is the array to enumerate
+ * argv[1] is the callback function
+ * args[0] is the key passed to the callback
+ * args[1] is the value passed to the callback
+ * args[2] is the user info passed to the callback (if any)
+ * cbret is the return value of the callback function
+ */
+static int rtlb_enumerate(SpnValue *ret, int argc, SpnValue *argv, void *data)
 {
+	size_t n;
+	int status = 0;
 	SpnArray *arr;
 	SpnIterator *it;
+	SpnContext *ctx = data;
+	SpnValue args[3]; /* key, value and optional user info */
+	SpnValue cbret;
 
-	if (argc != 1) {
+	if (argc < 2 || argc > 3) {
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (argv[0].t != SPN_TYPE_ARRAY || argv[1].t != SPN_TYPE_FUNC) {
 		return -2;
+	}
+
+	/* if there's any user info, store it */
+	if (argc > 2) {
+		args[2] = argv[2];
 	}
 
 	arr = argv[0].v.ptrv;
 	it = spn_iter_new(arr);
+	n = spn_array_count(arr);
 
-	ret->t = SPN_TYPE_USRDAT;
-	ret->f = 0;
-	ret->v.ptrv = it;
+	/* argc is always the same as the number of arguments in args,
+	 * because both have two leading elements (the array and the
+	 * callback in `argv', and the key and the value in `args').
+	 */
+	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+		spn_vm_callfunc(ctx->vm, &argv[1], &cbret, argc, args);
 
-	return 0;
+		/* the callback must return a Boolean or nothing */
+		if (cbret.t == SPN_TYPE_BOOL) {
+			if (cbret.v.boolv == 0) {
+				break;
+			}
+		} else if (cbret.t != SPN_TYPE_NIL) {
+			status = -3;
+			break;
+		}
+	}
+
+	spn_iter_free(it);
+
+	return status;
 }
 
-/* sets the first element of the array (passed as second argument) to the
- * next key and the second element to the corresponding value.
- * Returns true if it found another key-value pair, false if it reached
- * the end of the array. XXX: should it return the index
- * of the key-value pair instead?
- */
-static int rtlb_next(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	size_t n, i;
-	SpnArray *inarray, *outarr;
-	SpnIterator *it;
-	SpnValue key, val;
-
-	if (argc != 2) {
-		return -1;
-	}
-
-	if (argv[0].t != SPN_TYPE_USRDAT || argv[1].t != SPN_TYPE_ARRAY) {
-		return -2;
-	}
-
-	it = argv[0].v.ptrv;
-	outarr = argv[1].v.ptrv;
-	inarray = spn_iter_getarray(it);
-	n = spn_array_count(inarray);
-
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-
-	i = spn_iter_next(it, &key, &val);
-
-	if (i < n) {
-		/* found key-value pair */
-		SpnValue idx;
-		idx.t = SPN_TYPE_NUMBER;
-		idx.f = 0;
-
-		idx.v.intv = 0;
-		spn_array_set(outarr, &idx, &key);
-
-		idx.v.intv = 1;
-		spn_array_set(outarr, &idx, &val);
-
-		ret->v.boolv = 1;
-	} else {
-		spn_iter_free(it);
-		ret->v.boolv = 0;
-	}
-
-	return 0;
-}
 
 const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "array",	rtlb_array	},
@@ -1186,13 +1171,11 @@ const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "contains",	rtlb_contains	},
 	{ "subarray",	NULL		},
 	{ "join",	rtlb_join	},
-	{ "enumerate",	NULL		},
+	{ "enumerate",	rtlb_enumerate	},
 	{ "insert",	NULL		},
 	{ "insertarr",	NULL		},
 	{ "delrange",	NULL		},
-	{ "clear",	NULL		},
-	{ "iter",	rtlb_iter	},
-	{ "next",	rtlb_next	}
+	{ "clear",	NULL		}
 };
 
 

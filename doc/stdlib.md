@@ -226,19 +226,13 @@ All elements in the array must be strings, the array must have integer indices
 only, ranging from `0` to `sizeof arr`. The return value is the concatenation
 of the elements interleaved by `sep`.
 
-    userdata iter(array arr)
+    nil enumerate(array a, function callback [, any context])
 
-returns an iterator object that "points to" the first key-value pair in the
-array. You can access and increment the iterator using the `next()` function.
-
-    bool next(userdata iter, array outpair)
-
-Advances the iterator object by one, sets the elements at index zero and one
-of the array `outpair` to the next key and value of the array corresponding
-to `iter`, if any, and returns true. If no next key-value pair is found (i. e.,
-the iterator has reached the end of its array), then it does not set the pair,
-and returns false. The iterator is invalidated once `next()` returned false,
-so one must not use it in any way afterwards.
+Iterates through the elements of the array `a`, calling `callback` for each
+key-value pair in the array (like `callback(key, a[key], context)`). The
+context info is an optional argument. The callback function must return `nil`
+or a Boolean. If it returns `false`, the enumeration is aborted and the
+`enumerate()` function returns.
 
 4. Real and integer mathematical functions (spn_libmath)
 --------------------------------------------------------
