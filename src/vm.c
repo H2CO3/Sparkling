@@ -20,7 +20,7 @@
 #include "private.h"
 
 /* stack management macros 
- * 0th slot: header, 1st slot: implicit self
+ * 0th slot: header
  * register ordinal numbers grow _downwards_
  *
  * |                          | <- SP
@@ -572,7 +572,7 @@ static void push_first_frame(SpnVMachine *vm, int symtabidx)
 	 * return from top-level program scope). A return value index < 0
 	 * (-1 in this case) indicates that the program or function returns to
 	 * C-land, and instead of indexing the stack, the return value should
-	 * be copied directly into *vm->retptr.
+	 * be copied directly into the return value pointer.
 	 */
 	push_frame(vm, nregs, 0, 0, NULL, -1, symtabidx, "<main program>");
 }
@@ -583,7 +583,6 @@ static void pop_frame(SpnVMachine *vm)
 	 * computations/instructions are designed so that each step
 	 * (e. g. concatenation, function calls, etc.) cleans up its
 	 * destination register, but not the source(s) (if any).
-	 * the implicit self argument needs to be released as well.
 	 */
 	TFrame *hdr = &vm->sp[IDX_FRMHDR].h;
 	int nregs = hdr->size;

@@ -79,6 +79,9 @@
 #define	M_SQRT1_2	0.707106781186547524400844362104849039
 #endif
 
+#ifndef M_PHI
+#define M_PHI		1.61803398874989484820458683436563811
+#endif
 
 /***************
  * I/O library *
@@ -2175,7 +2178,7 @@ static void load_stdlib_functions(SpnVMachine *vm)
 	spn_vm_addlib(vm, spn_libsys, SPN_LIBSIZE_SYS);
 }
 
-#define SPN_N_STD_CONSTANTS 18
+#define SPN_N_STD_CONSTANTS 19
 
 static void load_stdlib_constants(SpnVMachine *vm)
 {
@@ -2263,16 +2266,21 @@ static void load_stdlib_constants(SpnVMachine *vm)
 	values[15].value.f = SPN_TFLG_FLOAT;
 	values[15].value.v.fltv = M_SQRT1_2;
 
-	/* NaN and infinity */
-	values[16].name = "M_NAN";
+	values[16].name = "M_PHI";
 	values[16].value.t = SPN_TYPE_NUMBER;
 	values[16].value.f = SPN_TFLG_FLOAT;
-	values[16].value.v.fltv = 0.0 / 0.0; /* silent NaN */
+	values[16].value.v.fltv = M_PHI;
 
-	values[17].name = "M_INF";
+	/* NaN and infinity */
+	values[17].name = "M_NAN";
 	values[17].value.t = SPN_TYPE_NUMBER;
 	values[17].value.f = SPN_TFLG_FLOAT;
-	values[17].value.v.fltv = 1.0 / 0.0; /* silent +inf */
+	values[17].value.v.fltv = 0.0 / 0.0; /* silent NaN */
+
+	values[18].name = "M_INF";
+	values[18].value.t = SPN_TYPE_NUMBER;
+	values[18].value.f = SPN_TFLG_FLOAT;
+	values[18].value.v.fltv = 1.0 / 0.0; /* silent +inf */
 
 	spn_vm_addglobals(vm, values, SPN_N_STD_CONSTANTS);
 }
