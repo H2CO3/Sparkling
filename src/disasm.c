@@ -352,7 +352,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			if (namelen != reallen) {
 				bail(
 					"\n\nfunction name length (%lu) does not match"
-					"expected (%lu) at address 0x%08x\n",
+					"expected (%lu) at address 0x%08lx\n",
 					(unsigned long)(reallen),
 					namelen,
 					addr
@@ -394,6 +394,28 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			 */
 			ip += SPN_FUNCHDR_LEN;
 
+			break;
+		}
+		case SPN_INS_GLBVAL: {
+			int regidx = OPA(ins);
+			const char *symname = (const char *)(ip);
+			size_t namelen = OPMID(ins);
+			size_t reallen = strlen(symname);
+			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
+
+			if (namelen != reallen) {
+				bail(
+					"\n\nsymbol name length (%lu) does not match"
+					"expected (%lu) at address 0x%08lx\n",
+					(unsigned long)(reallen),
+					(unsigned long)(namelen),
+					addr
+				);
+			}
+
+			printf("st\tr%d, global <%s>\n", regidx, symname);
+
+			ip += nwords;
 			break;
 		}
 		default:

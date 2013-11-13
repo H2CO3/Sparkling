@@ -1119,9 +1119,7 @@ static int rtlb_enumerate(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	int status = 0;
 	SpnArray *arr;
 	SpnIterator *it;
-	SpnContext *ctx = data;
 	SpnValue args[3]; /* key, value and optional user info */
-	SpnValue cbret;
 
 	if (argc < 2 || argc > 3) {
 		return -1;
@@ -1145,6 +1143,8 @@ static int rtlb_enumerate(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	 * callback in `argv', and the key and the value in `args').
 	 */
 	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+		SpnValue cbret;
+		SpnContext *ctx = data;
 		spn_vm_callfunc(ctx->vm, &argv[1], &cbret, argc, args);
 
 		/* the callback must return a Boolean or nothing */
@@ -1153,6 +1153,7 @@ static int rtlb_enumerate(SpnValue *ret, int argc, SpnValue *argv, void *data)
 				break;
 			}
 		} else if (cbret.t != SPN_TYPE_NIL) {
+			spn_value_release(&cbret);
 			status = -3;
 			break;
 		}
