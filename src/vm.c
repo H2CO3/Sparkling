@@ -1344,6 +1344,11 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * need to resolve it anymore.
 				 */
 				*symp = *res;
+
+				/* local symbol tables are supposed to hold
+				 * owning (strong) references to their values
+				 */
+				spn_value_retain(symp);
 			}
 
 			/* set the new - now surely resolved - value */
@@ -1734,7 +1739,8 @@ static int read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			 * _must not_ be set here: a symbol stub is merely
 			 * an unresolved reference to a global symbol,
 			 * we don't know yet where the actual definition
-			 * will be.
+			 * will be (we don't even know if it's going to be
+			 * a function).
 			 */
 
 			stp += nwords;
