@@ -65,7 +65,7 @@ static enum cmd_args process_args(int argc, char *argv[])
 
 		/* stop processing at first occurrence of "--" */
 		if (strcmp(argv[i], "--") == 0) {
-			return opts;
+			break;
 		}
 
 		for (j = 0; j < N_ARGS; j++) {
@@ -140,18 +140,29 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 
 static void register_args(SpnContext *ctx, int argc, char *argv[])
 {
-	int i;
+	int i, j;
 	SpnExtValue vals[2];
-
 	SpnArray *arr = spn_array_new();
 
+	/* find the first argument to be passed to the script */
 	for (i = 0; i < argc; i++) {
+		if (argv[i] == NULL) {
+			continue;
+		}
+
+		if (strcmp(argv[i], "--") == 0) {
+			i++;
+			break;
+		}
+	}
+
+	for (j = i; j < argc; j++) {
 		SpnValue key, val;
-		SpnString *str = spn_string_new_nocopy(argv[i], 0);
+		SpnString *str = spn_string_new_nocopy(argv[j], 0);
 
 		key.t = SPN_TYPE_NUMBER;
 		key.f = 0;
-		key.v.intv = i;
+		key.v.intv = j - i;
 
 		val.t = SPN_TYPE_STRING;
 		val.f = SPN_TFLG_OBJECT;
@@ -164,7 +175,7 @@ static void register_args(SpnContext *ctx, int argc, char *argv[])
 	vals[0].name = "argc";
 	vals[0].value.t = SPN_TYPE_NUMBER;
 	vals[0].value.f = 0;
-	vals[0].value.v.intv = argc;
+	vals[0].value.v.intv = argc - i;
 
 	vals[1].name = "argv";
 	vals[1].value.t = SPN_TYPE_ARRAY;
@@ -218,23 +229,10 @@ static int run_script_file(SpnContext *ctx, const char *fname, SpnValue *ret)
 static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 {
 	SpnContext *ctx = spn_ctx_new();
-	int status = EXIT_SUCCESS;
-
-	/* find the first argument to be passed to the script */
-	int i;
-	for (i = 1; i < argc; i++) {
-		if (argv[i] == NULL) {
-			continue;
-		}
-
-		if (strcmp(argv[i], "--") == 0) {
-			i++;
-			break;
-		}
-	}
+	int i, status = EXIT_SUCCESS;
 
 	/* register command-line arguments */
-	register_args(ctx, argc - i, &argv[i]);
+	register_args(ctx, argc, argv);
 
 	for (i = 1; i < argc; i++) {
 		SpnValue ret;
@@ -284,10 +282,13 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 	return status;
 }
 
-static int enter_repl(enum cmd_args args)
+static int enter_repl(int argc, char *argv[], enum cmd_args args)
 {
 	static char buf[LINE_MAX];
 	SpnContext *ctx = spn_ctx_new();
+
+	/* register command-line arguments */
+	register_args(ctx, argc, argv);
 
 	while (1) {
 		SpnValue ret;
@@ -444,7 +445,7 @@ int main(int argc, char *argv[])
 		break;
 	case CMD_INTERACT:
 		printf("Sparkling build %s, copyright (C) 2013, Árpád Goretity\n\n", REPL_VERSION);
-		status = enter_repl(args);
+		status = enter_repl(argc, argv, args);
 		break;
 	case CMD_COMPILE:
 		printf("Sparkling build %s, copyright (C) 2013, Árpád Goretity\n\n", REPL_VERSION);
