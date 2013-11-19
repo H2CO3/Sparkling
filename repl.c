@@ -10,6 +10,11 @@
 #include <string.h>
 #include <stdlib.h>
 
+#if USE_READLINE
+#include <readline/readline.h>
+#include <readline/history.h>
+#endif
+
 #include "spn.h"
 #include "array.h"
 #include "ctx.h"
@@ -284,7 +289,6 @@ static int run_files_or_args(int argc, char *argv[], enum cmd_args args)
 
 static int enter_repl(int argc, char *argv[], enum cmd_args args)
 {
-	static char buf[LINE_MAX];
 	SpnContext *ctx = spn_ctx_new();
 
 	/* register command-line arguments */
@@ -294,11 +298,29 @@ static int enter_repl(int argc, char *argv[], enum cmd_args args)
 		SpnValue ret;
 		int status;
 
+#if USE_READLINE
+		char *buf;
+#else
+		static char buf[LINE_MAX];
+#endif
+
+#if USE_READLINE
+		if ((buf = readline("> ")) == NULL) {
+			printf("\n");
+			break;
+		}
+
+		/* only add non-empty lines to the history */
+		if (buf[0] != 0) {
+			add_history(buf);
+		}
+#else
 		printf("> ");
 		if (fgets(buf, sizeof buf, stdin) == NULL) {
 			printf("\n");
 			break;
 		}
+#endif
 
 		status = spn_ctx_execstring(ctx, buf, &ret);
 		if (status != 0) {
@@ -311,6 +333,10 @@ static int enter_repl(int argc, char *argv[], enum cmd_args args)
 				spn_value_release(&ret);
 			}
 		}
+
+#if USE_READLINE
+		free(buf);
+#endif
 	}
 
 	spn_ctx_free(ctx);

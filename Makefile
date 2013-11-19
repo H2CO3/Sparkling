@@ -1,6 +1,10 @@
 # change this variable only! should be 'debug' or 'release' (without quotes)
 BUILD ?= debug
 
+# this should reflect if libreadline is to be used. Defaulting to yes;
+# if it doesn't compile with readline enabled, then try turning it off.
+READLINE ?= 1
+
 OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
 
 ifeq ($(OPSYS), darwin)
@@ -11,7 +15,7 @@ LTO_FLAG = -flto
 else
 CC = gcc
 EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-unused-parameter
-LDFLAGS = -lm
+LIBS = -lm
 endif
 
 LD = $(CC)
@@ -21,7 +25,14 @@ OBJDIR = bld
 DSTDIR ?= /usr/local
 
 WARNINGS = -Wall -Wextra -Werror $(EXTRA_WARNINGS)
-CFLAGS = -c -std=c89 -pedantic -pedantic-errors -fstrict-aliasing $(WARNINGS)
+CFLAGS = -c -std=c89 -pedantic -pedantic-errors -fstrict-aliasing $(WARNINGS) $(DEFINES)
+
+ifneq ($(READLINE), 0)
+	DEFINES += -DUSE_READLINE=1
+	LIBS += -lreadline
+else
+	DEFINES += -DUSE_READLINE=0
+endif
 
 ifeq ($(BUILD), debug)
 	CFLAGS += -O0 -g -pg -DDEBUG
@@ -42,7 +53,7 @@ $(LIB): $(OBJECTS)
 	ar -cvr $@ $^
 
 $(REPL): repl.o $(LIB)
-	$(LD) -o $@ $^ $(LDFLAGS)
+	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 install: $(LIB) $(REPL)
 	mkdir -p $(DSTDIR)/lib/
