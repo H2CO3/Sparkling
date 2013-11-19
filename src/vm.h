@@ -201,6 +201,7 @@ enum spn_vm_ins {
 	SPN_INS_LDCONST,	/* a = <constant> 		(IV)	*/
 	SPN_INS_LDSYM,		/* a = local symtab[b]		(V)	*/
 	SPN_INS_MOV,		/* a = b				*/
+	SPN_INS_LDARGC,		/* a = argc (# of call-time arguments)	*/
 	SPN_INS_NEWARR,		/* a = new array			*/
 	SPN_INS_ARRGET,		/* a = b[c]				*/
 	SPN_INS_ARRSET,		/* a[b] = c				*/

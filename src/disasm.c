@@ -319,6 +319,11 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 			printf("mov\tr%d, r%d\n", opa, opb);
 			break;
 		}
+		case SPN_INS_LDARGC: {
+			int opa = OPA(ins);
+			printf("ld\tr%d, argc\n", opa);
+			break;
+		}
 		case SPN_INS_NEWARR: {
 			int opa = OPA(ins);
 			printf("ld\tr%d, new array\n", opa);

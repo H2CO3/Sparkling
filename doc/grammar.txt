@@ -108,7 +108,7 @@ prefix-expr = ( '+' | '-' | '++' | '--' | '!' | '~' | '#' | 'sizeof' | 'typeof' 
 
 postfix-expr = term { ( '[' expression ']' ) | ( '(' [ argument-call-list ] ')' ) | '++' | '--' | ( '.' | '->' IDENT ) } /* left-assoc */
 
-term = IDENT | literal | ( '(' expression ')' ) | function-expr | array-expr
+term = IDENT | literal | 'argc' | ( '(' expression ')' ) | function-expr | array-expr
 
 function-expr = 'function' '(' [ argument-declaration-list ] ')' block-statement
 
@@ -118,7 +118,7 @@ sequence-literal = '@[' [ expression { ',' expression } ] ']'
 
 dict-literal = '@{' [ expression ':' expression { ',' expression ':' expression } ] '}'
 
-argument-call-list = expression { ',' expression }
+argument-call-list = expression { ',' expression } [ ',' '...' ] | [ '...' ]
 
 literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil'
 

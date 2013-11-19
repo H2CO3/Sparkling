@@ -191,6 +191,12 @@ assignments
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators
  * `&`, `|`, `^`: bitwise AND, OR and XOR
  * `<<`, `>>`: bitwise left and right shift
+ * `#`: prefix operator, takes a non-negative integer expression. Yields the
+`n`th variadic argument of the function it is used within (where `n` is the
+value of its operand), starting from zero. If the value of the integer
+expression is greater than or equal to the number of variadic arguments, yields
+`nil`. If it is supplied a negative, non-integral or non-number expression,
+throws a runtime exception.
 
 ## Loops
 
@@ -273,6 +279,21 @@ To invoke a function, use the `()` operator:
 
     > print(square(10));
     100
+
+To get the number of arguments with which a function has been called, use the
+`argc` keyword:
+
+    > function bar() { print(argc); }
+    > bar();
+    0
+    > bar("foo");
+    1
+    > bar("baz", "quirk", nil);
+    3
+    >
+
+To access the variadic (unnamed) arguments of a function, use the `#` operator,
+as described in the "expressions" section.
 
 ## The standard library
 

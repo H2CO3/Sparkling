@@ -1611,6 +1611,23 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
+static int compile_argc(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	spn_uword ins;
+
+	if (*dst < 0) {
+		*dst = tmp_push(cmp);
+	}
+
+	assert(ast->node == SPN_NODE_ARGC);
+
+	/* emit "get argument count" instruction */
+	ins = SPN_MKINS_A(SPN_INS_LDARGC, *dst);
+	bytecode_append(&cmp->bc, &ins, 1);
+
+	return 1;
+}
+
 static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int symidx;
@@ -1987,6 +2004,9 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* immediate values */
 	case SPN_NODE_LITERAL:		return compile_literal(cmp, ast, dst);
 
+	/* call-time argument count */
+	case SPN_NODE_ARGC:		return compile_argc(cmp, ast, dst);
+
 	/* function expression, lambda */	
 	case SPN_NODE_FUNCEXPR:		return compile_funcexpr(cmp, ast, dst);
 
@@ -2000,7 +2020,7 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* unary plus just returns its argument verbatim */
 	case SPN_NODE_UNPLUS:		return compile_expr(cmp, ast->left, dst);
 
-	/* non-altering prefix unary operators */
+	/* prefix unary operators without side effects */
 	case SPN_NODE_SIZEOF:
 	case SPN_NODE_TYPEOF:
 	case SPN_NODE_LOGNOT:

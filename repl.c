@@ -146,7 +146,7 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 static void register_args(SpnContext *ctx, int argc, char *argv[])
 {
 	int i, j;
-	SpnExtValue vals[2];
+	SpnExtValue vals[1];
 	SpnArray *arr = spn_array_new();
 
 	/* find the first argument to be passed to the script */
@@ -177,15 +177,10 @@ static void register_args(SpnContext *ctx, int argc, char *argv[])
 		spn_object_release(str);
 	}
 
-	vals[0].name = "argc";
-	vals[0].value.t = SPN_TYPE_NUMBER;
-	vals[0].value.f = 0;
-	vals[0].value.v.intv = argc - i;
-
-	vals[1].name = "argv";
-	vals[1].value.t = SPN_TYPE_ARRAY;
-	vals[1].value.f = SPN_TFLG_OBJECT;
-	vals[1].value.v.ptrv = arr;
+	vals[0].name = "argv";
+	vals[0].value.t = SPN_TYPE_ARRAY;
+	vals[0].value.f = SPN_TFLG_OBJECT;
+	vals[0].value.v.ptrv = arr;
 
 	spn_vm_addglobals(ctx->vm, vals, sizeof(vals) / sizeof(vals[0]));
 	spn_object_release(arr);

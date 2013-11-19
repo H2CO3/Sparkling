@@ -49,6 +49,7 @@ enum spn_lex_token {
 	SPN_TOK_TYPEOF,
 	SPN_TOK_VAR,
 	SPN_TOK_CONST,
+	SPN_TOK_ARGC,
 
 	/* `and', `or' and `not' are lexed as the corresponding logical
 	 * operators; `nil' and `null' are recognized as the exact same token
@@ -80,6 +81,7 @@ enum spn_lex_token {
 	SPN_TOK_COMMA,
 	SPN_TOK_DOT,
 	SPN_TOK_DOTDOT,
+	SPN_TOK_ELLIPSIS,
 	SPN_TOK_HASH,
 	SPN_TOK_ARROW,
 	SPN_TOK_INCR,

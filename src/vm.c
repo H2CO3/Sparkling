@@ -91,6 +91,7 @@ typedef struct TFrame {
 	size_t		 size;		/* no. of slots, including EXTRA_SLOTS	*/
 	int		 decl_argc;	/* declaration argument count		*/
 	int		 extra_argc;	/* number of extra args, if any (or 0)	*/
+	int		 real_argc;	/* number of call args			*/
 	spn_uword	*retaddr;	/* return address (points to bytecode)	*/
 	ptrdiff_t	 retidx;	/* pointer into the caller's frame	*/
 	int		 symtabidx;	/* index of the local symtab in use	*/
@@ -157,6 +158,7 @@ static void push_frame(
 	int nregs,
 	int decl_argc,
 	int extra_argc,
+	int real_argc,
 	spn_uword *retaddr,
 	ptrdiff_t retidx,
 	int symtabidx,
@@ -511,14 +513,15 @@ static void expand_stack(SpnVMachine *vm, size_t nregs)
 	vm->sp = vm->stack + oldsize;
 }
 
-/* nregs is the logical size (without the activation record header and the
- * implicit self) of the new stack frame, in slots
+/* nregs is the logical size (without the activation record header)
+ * of the new stack frame, in slots
  */
 static void push_frame(
 	SpnVMachine *vm,
 	int nregs,
 	int decl_argc,
 	int extra_argc,
+	int real_argc,
 	spn_uword *retaddr,
 	ptrdiff_t retidx,
 	int symtabidx,
@@ -556,6 +559,7 @@ static void push_frame(
 	vm->sp[IDX_FRMHDR].h.size = real_nregs;
 	vm->sp[IDX_FRMHDR].h.decl_argc = decl_argc;
 	vm->sp[IDX_FRMHDR].h.extra_argc = extra_argc;
+	vm->sp[IDX_FRMHDR].h.real_argc = real_argc;
 	vm->sp[IDX_FRMHDR].h.retaddr = retaddr; /* if NULL, return to C-land */
 	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if negative, return to C-land */
 	vm->sp[IDX_FRMHDR].h.symtabidx = symtabidx;
@@ -574,7 +578,7 @@ static void push_first_frame(SpnVMachine *vm, int symtabidx)
 	 * C-land, and instead of indexing the stack, the return value should
 	 * be copied directly into the return value pointer.
 	 */
-	push_frame(vm, nregs, 0, 0, NULL, -1, symtabidx, "<main program>");
+	push_frame(vm, nregs, 0, 0, 0, NULL, -1, symtabidx, "<main program>");
 }
 
 static void pop_frame(SpnVMachine *vm)
@@ -673,6 +677,7 @@ static void push_and_copy_args(
 		nregs,
 		decl_argc,
 		extra_argc,
+		argc,
 		desc->caller_is_native ? NULL : desc->env.script_env.retaddr,
 		desc->caller_is_native ?   -1 : desc->env.script_env.retidx,
 		symtabidx,
@@ -1372,6 +1377,16 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			spn_value_retain(b);
 			spn_value_release(a);
 			*a = *b;
+
+			break;
+		}
+		case SPN_INS_LDARGC: {
+			SpnValue *a = VALPTR(vm->sp, OPA(ins));
+
+			spn_value_release(a);
+			a->t = SPN_TYPE_NUMBER;
+			a->f = 0;
+			a->v.intv = vm->sp[IDX_FRMHDR].h.real_argc;
 
 			break;
 		}

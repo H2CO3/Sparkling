@@ -271,6 +271,7 @@ static int lex_op(SpnParser *p)
 		RESERVED_ENTRY("?",	SPN_TOK_QMARK),
 		RESERVED_ENTRY(":",	SPN_TOK_COLON),
 		RESERVED_ENTRY("..=",	SPN_TOK_DOTDOTEQ),
+		RESERVED_ENTRY("...",	SPN_TOK_ELLIPSIS),
 		RESERVED_ENTRY("..",	SPN_TOK_DOTDOT),
 		RESERVED_ENTRY(".",	SPN_TOK_DOT),
 		RESERVED_ENTRY(",",	SPN_TOK_COMMA),
@@ -459,6 +460,7 @@ static int lex_ident(SpnParser *p)
 	 */
 	static const TReserved kwds[] = {
 		RESERVED_ENTRY("and",		SPN_TOK_LOGAND),
+		RESERVED_ENTRY("argc",		SPN_TOK_ARGC),
 		RESERVED_ENTRY("as",		SPN_TOK_AS),
 		RESERVED_ENTRY("break",		SPN_TOK_BREAK),
 		RESERVED_ENTRY("const",		SPN_TOK_CONST),

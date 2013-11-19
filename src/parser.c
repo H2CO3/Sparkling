@@ -770,6 +770,16 @@ static SpnAST *parse_term(SpnParser *p)
 		}
 
 		return ast;
+	case SPN_TOK_ARGC:
+		ast = spn_ast_new(SPN_NODE_ARGC, p->lineno);
+
+		spn_lex(p);
+		if (p->error) {
+			spn_ast_free(ast);
+			return NULL;
+		}
+
+		return ast;
 	case SPN_TOK_FUNCTION:
 		/* only allow function expressions in an expression */
 		return parse_function(p, 0);
@@ -884,11 +894,32 @@ static SpnAST *parse_decl_args(SpnParser *p)
 	return res;
 }
 
+/* li'l helper function for building the AST of a function call.
+ * this checks that if an ellipsis is present in the call-time
+ * argument list, then it is the last element in that list.
+ */
+static SpnAST *parse_expr_or_ellipsis(SpnParser *p)
+{
+	/* is the next argument an ellipsis? */
+	if (spn_accept(p, SPN_TOK_ELLIPSIS)) {
+		if (p->curtok.tok != SPN_TOK_RPAREN) {
+			/* error: ellipsis is not the last argument */
+			spn_parser_error(p, "'...' must be the last argument", NULL);
+			return NULL;
+		}
+
+		return spn_ast_new(SPN_NODE_VARARGS, p->lineno);
+	}
+
+	/* otherwise just expect a normal expression */
+	return parse_expr(p);
+}
+
 static SpnAST *parse_call_args(SpnParser *p)
 {
 	SpnAST *expr, *ast;
 
-	expr = parse_expr(p);
+	expr = parse_expr_or_ellipsis(p);
 	if (expr == NULL) {
 		return NULL; /* fail */
 	}
@@ -897,7 +928,7 @@ static SpnAST *parse_call_args(SpnParser *p)
 	ast->right = expr;
 
 	while (spn_accept(p, SPN_TOK_COMMA)) {
-		SpnAST *right = parse_expr(p);
+		SpnAST *right = parse_expr_or_ellipsis(p);
 
 		if (right == NULL) { /* fail */
 			spn_ast_free(ast);
