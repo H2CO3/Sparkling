@@ -149,9 +149,6 @@ enum spn_ast_node {
 	SPN_NODE_FUNCEXPR,	/* function expression, lambda */
 	SPN_NODE_ARGC,
 
-	/* the ellipsis, representing variadic arguments */
-	SPN_NODE_VARARGS,
-
 	/* miscellaneous */
 	SPN_NODE_DECLARGS,	/* argument names in a function definition	*/
 	SPN_NODE_CALLARGS,	/* function call argument list			*/

@@ -352,11 +352,6 @@ function argument won't change the value visible to the calling context, but
 assigning to an **element** of an array does change its value as seen by both
 the calling context and the called function.
 
-§3.9.4.1. The `...` notation. A function may pass its unnamed (variadic)
-arguments to another function by appending `...` to the end of the call-time
-argument list of the callee. The `...` expands to the unnamed arguments of the
-caller.
-
 §3.9.5. The memberof operator has two different, semantically equivalent forms:
 `<array> . member` and `<array> -> member`. It works the same as the postfix []
 operator, except that the operand on the right-hand side must be an identifier,

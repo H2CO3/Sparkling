@@ -141,8 +141,6 @@ static void dump_ast(SpnAST *ast, int indent)
 		"function-expr",
 		"argc",
 
-		"varargs",
-
 		"decl-argument",
 		"call-argument",
 		"branches",

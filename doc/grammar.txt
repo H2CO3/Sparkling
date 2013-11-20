@@ -118,7 +118,7 @@ sequence-literal = '@[' [ expression { ',' expression } ] ']'
 
 dict-literal = '@{' [ expression ':' expression { ',' expression ':' expression } ] '}'
 
-argument-call-list = expression { ',' expression } [ ',' '...' ] | [ '...' ]
+argument-call-list = expression { ',' expression }
 
 literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil'
 
