@@ -65,13 +65,13 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
 SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 
 /* Functions:
- * time()
+ * time(), microtime()
  * gmtime()
  * localtime()
  * strftime()
  * difftime()
  */
-#define SPN_LIBSIZE_TIME 5
+#define SPN_LIBSIZE_TIME 6
 SPN_API const SpnExtFunc spn_libtime[SPN_LIBSIZE_TIME];
 
 /* Functions:
