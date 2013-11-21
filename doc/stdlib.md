@@ -278,6 +278,10 @@ libraries) are also available:
 
 Returns the current Unix timestamp in seconds.
 
+    int microtime(void)
+
+Returns the current Unix timestamp in microseconds.
+
     array gmtime(int timestamp)
     array localtime(int timestamp)
 

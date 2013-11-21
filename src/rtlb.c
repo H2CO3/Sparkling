@@ -13,6 +13,7 @@
 #include <stdlib.h>
 #include <ctype.h>
 #include <math.h>
+#include <sys/time.h>
 #include <time.h>
 #include <limits.h>
 
@@ -1849,6 +1850,17 @@ static int rtlb_time(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_microtime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	struct timeval tv;
+	gettimeofday(&tv, NULL);
+	ret->t = SPN_TYPE_NUMBER;
+	ret->f = 0;
+	ret->v.intv = 1000000 * tv.tv_sec + tv.tv_usec;
+
+	return 0;
+}
+
 /* helper function that does the actual job filling the array from a struct tm.
  * `islocal` is a flag which is nonzero if localtime() is to be called, and
  * zero if gmtime() should be called. The other arguments and the return value
@@ -2060,6 +2072,7 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 const SpnExtFunc spn_libtime[SPN_LIBSIZE_TIME] = {
 	{ "time",	rtlb_time	},
+	{ "microtime",	rtlb_microtime	},
 	{ "gmtime",	rtlb_gmtime	},
 	{ "localtime",	rtlb_localtime	},
 	{ "strftime",	rtlb_strftime	},
