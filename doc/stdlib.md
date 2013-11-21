@@ -269,6 +269,7 @@ libraries) are also available:
     number M_2_SQRTPI
     number M_SQRT2
     number M_SQRT1_2
+    number M_PHI
     number M_NAN: "Not a Number" value
     number M_INF: positive infinity
 
