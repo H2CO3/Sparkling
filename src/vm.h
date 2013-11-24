@@ -126,11 +126,11 @@ SPN_API const char	**spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
  * is always split into 8-bit parts.
  */
 #define SPN_MKINS_VOID(o)		((spn_uword)((o) & 0xff))
-#define SPN_MKINS_A(o, a)		((spn_uword)(((o) & 0xff) | (((a) & 0xff) << 8)))
-#define SPN_MKINS_AB(o, a, b)		((spn_uword)(((o) & 0xff) | (((a) & 0xff) << 8) | (((b) & 0xff) << 16)))
-#define SPN_MKINS_ABC(o, a, b, c)	((spn_uword)(((o) & 0xff) | (((a) & 0xff) << 8) | (((b) & 0xff) << 16) | (((c) & 0xff) << 24)))
-#define SPN_MKINS_MID(o, a, b)		((spn_uword)(((o) & 0xff) | (((a) & 0xff) << 8) | (((b) & 0xffff) << 16)))
-#define SPN_MKINS_LONG(o, a)		((spn_uword)(((o) & 0xff) | (((a) & 0xffffff) << 8)))
+#define SPN_MKINS_A(o, a)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8)))
+#define SPN_MKINS_AB(o, a, b)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xff) << 16)))
+#define SPN_MKINS_ABC(o, a, b, c)	((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xff) << 16) | (((spn_uword)(c) & 0xff) << 24)))
+#define SPN_MKINS_MID(o, a, b)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xffff) << 16)))
+#define SPN_MKINS_LONG(o, a)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xffffff) << 8)))
 
 /* constant kinds (see SPN_INST_LDCONST and comment (IV) for more info) */
 enum spn_const_kind {
