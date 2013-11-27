@@ -7,35 +7,41 @@ Grammar notations:
 
 - Specifying a production (precedence level 0, lowest):
 
-	production = rule
-	
+    production = rule
+    
 - Listing compulsory, successive parts of a rule (precedence level 1):
 
-	part1 part2 part3 ... partN
+    part1 part2 part3 ... partN
 
 - Providing multiple (alternative) choices (precedence level 2):
 
-	rule1 | rule2 | rule3 | ... | ruleN
+    rule1 | rule2 | rule3 | ... | ruleN
+
+- Quantifiers:
+ 
+ - ? -- 0 or 1
+ - * -- 0 or more
+ - + -- 1 or more
 
 - Optional language construct - zero or one occurrence (acts as grouping, too -> precedence level 3):
 
-	[ rules... ]
+    [ rules... ]
 
 - Optional language construction - zero or more occurrences (acts as grouping, too -> precedence level 3):
 
-	{ rules... }
+    { rules... }
 
 - Grouping without side effects ("parenthesizing"; precedence level 3):
 
-	( rules... )
+    ( rules... )
 
 - Literal strings (terminals):
 
-	'string'
+    'string'
 
 - Other terminals:
 
-	IN-ALL-CAPS
+    IN-ALL-CAPS
 
 The language ignores whitespace between tokens (terminals). Comments are treated
 as whitespace (they're ignored). Comments are enclosed between '/*' and '*/'
@@ -44,130 +50,170 @@ and they don't nest.
 T h e   g r a m m a r
 ~~~~~~~~~~~~~~~~~~~~~
 
-program = { statement | function-statement | const-statement }
+program                      =  ( statement  |  function-statement  |  const-statement )(*)
 
-argument-declaration-list = IDENT { ',' IDENT }
+argument-declaration-list    =  ( IDENT  ( ','  IDENT )(*) )(?)
 
-statement = empty-statement | if-statement | loop-statement | return-statement | loop-control-flow-statement | expression-statement | block-statement | variable-declaration
+statement                    =  empty-statement              | 
+                                if-statement                 | 
+                                loop-statement               | 
+                                return-statement             | 
+                                loop-control-flow-statement  | 
+                                expression-statement         | 
+                                block-statement              | 
+                                variable-declaration
 
-function-statement = 'function' IDENT '(' [ argument-declaration-list ] ')' block-statement
+function-statement           = 'function'  IDENT  '('  argument-declaration-list  ')'  block-statement
 
-const-statement = 'const' IDENT '=' expression { ',' IDENT '=' expression } ';'
+const-statement              =  'const'  init  ( ','  init )(*) ';'
 
-empty-statement = ';'
+init                         =  IDENT  '='  expression
 
-if-statement = 'if' expression block-statement [ 'else' block-statement | if-statement ]
+empty-statement              =  ';'
 
-loop-statement = for-statement | foreach-statement | while-statement | do-while-statement
+if-statement                 =  'if'  expression  block-statement  ( 'else'  block-statement  |  if-statement  )(?)
 
-for-statement = 'for' expression ';' expression ';' expression block-statement
+loop-statement               =  for-statement      | 
+                                foreach-statement  | 
+                                while-statement    | 
+                                do-while-statement
 
-foreach-statement = 'foreach' IDENT 'as' IDENT 'in' expression block-statement
+for-statement                =  'for'  expression  ';'  expression  ';'  expression  block-statement
 
-while-statement = 'while' expression block-statement
+foreach-statement            =  'foreach'  IDENT  'as'  IDENT  'in'  expression  block-statement
 
-do-while-statement = 'do' block-statement 'while' expression ';'
+while-statement              =  'while'  expression  block-statement
 
-return-statement = 'return' [ expression ] ';'
+do-while-statement           =  'do'  block-statement  'while'  expression  ';'
 
-block-statement = '{' { statement } '}'
+return-statement             =  'return'  expression(?)  ';'
 
-loop-control-flow-statement = 'break' | 'continue' ';'
+block-statement              =  '{'  statement(*)  '}'
 
-variable-declaration = 'var' IDENT [ '=' expression ] { ',' IDENT [ '=' expression ] } ';'
+loop-control-flow-statement  =  'break'  |  'continue'  ';'
 
-expression-statement = expression ';'
+variable-declaration         =  'var'  decl  ( ','  decl )(*)  ';'
 
-expression = assignment-expr
+decl                         =  IDENT  ( '='  expression )(?)
 
-assignment-expr = concat-expr [ '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '|=' | '&=' | '^=' | '<<=' | '>>=' assignment-expr ] /* right-assoc */
+expression-statement         =  expression  ';'
 
-concat-expr = [cond-expr '..' ] cond-expr /* left-assoc */
+expression                   = assignment-expr
 
-cond-expr = logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
+assignment-expr              = concat-expr [ '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '|=' | '&=' | '^=' | '<<=' | '>>=' assignment-expr ] /* right-assoc */
 
-logical-or-expr = [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
+concat-expr                  = [cond-expr '..' ] cond-expr /* left-assoc */
 
-logical-and-expr = [ comparison-expr '&&' ] comparison-expr 
+cond-expr                    = logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
 
-comparison-expr = [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
+logical-or-expr              = [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
 
-bitwise-or-expr = [ bitwise-xor-expr '|' ] bitwise-xor-expr
+logical-and-expr             = [ comparison-expr '&&' ] comparison-expr 
 
-bitwise-xor-expr = [ bitwise-and-expr '^' ] bitwise-and-expr
+comparison-expr              = [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
 
-bitwise-and-expr = [ shift-expr '&' ] shift-expr
+bitwise-or-expr              = [ bitwise-xor-expr '|' ] bitwise-xor-expr
 
-shift-expr = [ additive-expr '<<' | '>>' ] additive-expr
+bitwise-xor-expr             = [ bitwise-and-expr '^' ] bitwise-and-expr
 
-additive-expr = [ multplicative-expr '+' | '-' ] multiplicative-expr
+bitwise-and-expr             = [ shift-expr '&' ] shift-expr
 
-multiplicative-expr = [ prefix-expr '*' | '/' | '%' ] prefix-expr
+shift-expr                   = [ additive-expr '<<' | '>>' ] additive-expr
 
-prefix-expr = ( '+' | '-' | '++' | '--' | '!' | '~' | '#' | 'sizeof' | 'typeof' prefix-expr ) | postfix-expr /* right-assoc */
+additive-expr                = [ multplicative-expr '+' | '-' ] multiplicative-expr
 
-postfix-expr = term { ( '[' expression ']' ) | ( '(' [ argument-call-list ] ')' ) | '++' | '--' | ( '.' | '->' IDENT ) } /* left-assoc */
+multiplicative-expr          = [ prefix-expr '*' | '/' | '%' ] prefix-expr
 
-term = IDENT | literal | 'argc' | ( '(' expression ')' ) | function-expr | array-expr
+prefix-expr                  = ( '+' | '-' | '++' | '--' | '!' | '~' | '#' | 'sizeof' | 'typeof' prefix-expr ) | postfix-expr /* right-assoc */
 
-function-expr = 'function' '(' [ argument-declaration-list ] ')' block-statement
+postfix-expr                 = term { ( '[' expression ']' ) | ( '(' [ argument-call-list ] ')' ) | '++' | '--' | ( '.' | '->' IDENT ) } /* left-assoc */
 
-array-expr = sequence-literal | dict-literal
+term                         =  IDENT                   | 
+                                literal                 |
+                                'argc'                  |
+                                ( '(' expression ')' )  |
+                                function-expr           |
+                                array-expr
 
-sequence-literal = '@[' [ expression { ',' expression } ] ']'
+function-expr                = 'function'  '('  argument-declaration-list  ')'  block-statement
 
-dict-literal = '@{' [ expression ':' expression { ',' expression ':' expression } ] '}'
+array-expr                   =  sequence-literal  |
+                                dict-literal
 
-argument-call-list = expression { ',' expression }
+sequence-literal             =  '@['  ( expression  ( ','  expression )(*) )(?)  ']'
 
-literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil'
+dict-literal                 =  '@{'  ( key-val  ( ','  key-val )(*) )(?)  '}'
+
+key-val                      =  expression  ':'  expression
+
+argument-call-list           =  ( expression  ( ','  expression )(*) )(?)
+
+literal                      =  STRING  |
+                                INTEGER |
+                                FLOAT   |
+                                'true'  |
+                                'false' |
+                                'null'  |
+                                'nil'
 
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		else		in		sizeof
-argc		false		nil		true
-as		for		not		typeof
-break		foreach		null		var
-continue	function	or		while
-do		if		return
+and         else        in        sizeof
+argc        false       nil       true
+as          for         not       typeof
+break       foreach     null      var
+continue    function    or        while
+do          if          return
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
 tokens, respectively. Furthermore, 'null' is the same as 'nil'.
 
 Literal tokens:
 ~~~~~~~~~~~~~~~
- - character literals: 1...8 characters enclosed in apostrophes ('').
- 	They are treated as integer literals (the character code of each character is
- 	interpreted as a byte, then those bytes are used to form, in big-endian order,
- 	a multi-byte integer. TODO: should the bytes be 8 or CHAR_BIT bits wide?)
- - string literals: 0 or more characters (or escape sequences) enclosed in (double) quotes
- - integer literals: sequence of decimal (no prefix), octal (prefix: 0) or hexadecimal (prefix: 0x) digits.
- 	Hexadecimal digits 'a'...'f' can be either lowercase or uppercase.
- - floating-point literals: two groups of decimal digits separated by a dot (only one of the
- 	groups has to be present), optionally followed by an optionally signed exponent
- 	part which is a sequence of decimal digits, introduced by 'e' or 'E'.
 
-Identifiers (names):
-~~~~~~~~~~~~~~~~~~~~
- - can begin with a lowercase or capital English letter (a...z, A...Z) or with an underscore (_)
- - then any of { a...z, A...Z, 0...9, _ (underscore) } follows.
+char-literal  =  /'.{1,8}'/
+
+simple-char   =  /[^"\\]/
+ - note: not sure -- had to guess on this one
+
+escape        =  /\\[\\/'"abfnrt0]/  |  /\\x[0-9a-fA-F]{2}/
+
+STRING        =  '"'  ( simple-char  |  escape )(*)  '"'
+
+decimal       =  /0/  |  /[1-9][0-9]*/
+
+octal         =  /[1-7][0-7]*/  |  /0[0-7]+/
+
+hex           =  /0x[0-9a-fA-F]+/
+
+INTEGER       =  decimal  |
+                 octal    |
+                 hex
+
+exponent      =  /[eE][+-]?\d+/
+
+FLOAT         =  decimal  /\.\d*/  exponent(?)    |
+                 decimal(?)  /\.\d+/  exponent(?)
+
+ident-or-key  =  /[a-zA-Z_][a-zA-Z0-9_]*/
+ - note: keywords take priority
 
 Valid escape sequences:
 ~~~~~~~~~~~~~~~~~~~~~~~
 The same as in C:
- - \\		->		\
- - \/		->		/
- - \'		->		'
- - \"		->		"
- - \a		->		bell
- - \b		->		backspace
- - \f		->		form feed
- - \n		->		LF
- - \r		->		CR
- - \t		->		TAB
- - \0		->		NUL, char code 0
- - \xHH		->		the character with code HH, where HH denotes two hexadecimal digits
+ - \\        ->        \
+ - \/        ->        /
+ - \'        ->        '
+ - \"        ->        "
+ - \a        ->        bell
+ - \b        ->        backspace
+ - \f        ->        form feed
+ - \n        ->        LF
+ - \r        ->        CR
+ - \t        ->        TAB
+ - \0        ->        NUL, char code 0
+ - \xHH      ->        the character with code HH, where HH denotes two hexadecimal digits
 
 Sparkling source files preferrably use UTF-8 (or ASCII), but nothing else is prohibited.
 (Read: please facilitate our lives and DO USE UTF-8, unless you really really can't.)
