@@ -98,63 +98,63 @@ decl                         =  IDENT  ( '='  expression )(?)
 
 expression-statement         =  expression  ';'
 
-expression = assignment-expr
+expression                   = assignment-expr
 
-assignment-expr = concat-expr [ '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '|=' | '&=' | '^=' | '<<=' | '>>=' assignment-expr ] /* right-assoc */
+assignment-expr              = concat-expr [ '=' | '+=' | '-=' | '*=' | '/=' | '%=' | '|=' | '&=' | '^=' | '<<=' | '>>=' assignment-expr ] /* right-assoc */
 
-concat-expr = [cond-expr '..' ] cond-expr /* left-assoc */
+concat-expr                  = [cond-expr '..' ] cond-expr /* left-assoc */
 
-cond-expr = logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
+cond-expr                    = logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
 
-logical-or-expr = [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
+logical-or-expr              = [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
 
-logical-and-expr = [ comparison-expr '&&' ] comparison-expr 
+logical-and-expr             = [ comparison-expr '&&' ] comparison-expr 
 
-comparison-expr = [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
+comparison-expr              = [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
 
-bitwise-or-expr = [ bitwise-xor-expr '|' ] bitwise-xor-expr
+bitwise-or-expr              = [ bitwise-xor-expr '|' ] bitwise-xor-expr
 
-bitwise-xor-expr = [ bitwise-and-expr '^' ] bitwise-and-expr
+bitwise-xor-expr             = [ bitwise-and-expr '^' ] bitwise-and-expr
 
-bitwise-and-expr = [ shift-expr '&' ] shift-expr
+bitwise-and-expr             = [ shift-expr '&' ] shift-expr
 
-shift-expr = [ additive-expr '<<' | '>>' ] additive-expr
+shift-expr                   = [ additive-expr '<<' | '>>' ] additive-expr
 
-additive-expr = [ multplicative-expr '+' | '-' ] multiplicative-expr
+additive-expr                = [ multplicative-expr '+' | '-' ] multiplicative-expr
 
-multiplicative-expr = [ prefix-expr '*' | '/' | '%' ] prefix-expr
+multiplicative-expr          = [ prefix-expr '*' | '/' | '%' ] prefix-expr
 
-prefix-expr = ( '+' | '-' | '++' | '--' | '!' | '~' | '#' | 'sizeof' | 'typeof' prefix-expr ) | postfix-expr /* right-assoc */
+prefix-expr                  = ( '+' | '-' | '++' | '--' | '!' | '~' | '#' | 'sizeof' | 'typeof' prefix-expr ) | postfix-expr /* right-assoc */
 
-postfix-expr = term { ( '[' expression ']' ) | ( '(' [ argument-call-list ] ')' ) | '++' | '--' | ( '.' | '->' IDENT ) } /* left-assoc */
+postfix-expr                 = term { ( '[' expression ']' ) | ( '(' [ argument-call-list ] ')' ) | '++' | '--' | ( '.' | '->' IDENT ) } /* left-assoc */
 
-term                =  IDENT                   | 
-                       literal                 |
-                       'argc'                  |
-                       ( '(' expression ')' )  |
-                       function-expr           |
-                       array-expr
+term                         =  IDENT                   | 
+                                literal                 |
+                                'argc'                  |
+                                ( '(' expression ')' )  |
+                                function-expr           |
+                                array-expr
 
-function-expr       = 'function'  '('  argument-declaration-list  ')'  block-statement
+function-expr                = 'function'  '('  argument-declaration-list  ')'  block-statement
 
-array-expr          =  sequence-literal  |
-                       dict-literal
+array-expr                   =  sequence-literal  |
+                                dict-literal
 
-sequence-literal    =  '@['  ( expression  ( ','  expression )(*) )(?)  ']'
+sequence-literal             =  '@['  ( expression  ( ','  expression )(*) )(?)  ']'
 
-dict-literal        =  '@{'  ( key-val  ( ','  key-val )(*) )(?)  '}'
+dict-literal                 =  '@{'  ( key-val  ( ','  key-val )(*) )(?)  '}'
 
-key-val             =  expression  ':'  expression
+key-val                      =  expression  ':'  expression
 
-argument-call-list  =  ( expression  ( ','  expression )(*) )(?)
+argument-call-list           =  ( expression  ( ','  expression )(*) )(?)
 
-literal             =  STRING  |
-                       INTEGER |
-                       FLOAT   |
-                       'true'  |
-                       'false' |
-                       'null'  |
-                       'nil'
+literal                      =  STRING  |
+                                INTEGER |
+                                FLOAT   |
+                                'true'  |
+                                'false' |
+                                'null'  |
+                                'nil'
 
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
