@@ -7,35 +7,35 @@ Grammar notations:
 
 - Specifying a production (precedence level 0, lowest):
 
-	production = rule
-	
+    production = rule
+    
 - Listing compulsory, successive parts of a rule (precedence level 1):
 
-	part1 part2 part3 ... partN
+    part1 part2 part3 ... partN
 
 - Providing multiple (alternative) choices (precedence level 2):
 
-	rule1 | rule2 | rule3 | ... | ruleN
+    rule1 | rule2 | rule3 | ... | ruleN
 
 - Optional language construct - zero or one occurrence (acts as grouping, too -> precedence level 3):
 
-	[ rules... ]
+    [ rules... ]
 
 - Optional language construction - zero or more occurrences (acts as grouping, too -> precedence level 3):
 
-	{ rules... }
+    { rules... }
 
 - Grouping without side effects ("parenthesizing"; precedence level 3):
 
-	( rules... )
+    ( rules... )
 
 - Literal strings (terminals):
 
-	'string'
+    'string'
 
 - Other terminals:
 
-	IN-ALL-CAPS
+    IN-ALL-CAPS
 
 The language ignores whitespace between tokens (terminals). Comments are treated
 as whitespace (they're ignored). Comments are enclosed between '/*' and '*/'
@@ -125,12 +125,12 @@ literal = STRING | INTEGER | FLOAT | 'true' | 'false' | 'null' | 'nil'
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		else		in		sizeof
-argc		false		nil		true
-as		for		not		typeof
-break		foreach		null		var
-continue	function	or		while
-do		if		return
+and         else        in        sizeof
+argc        false       nil       true
+as          for         not       typeof
+break       foreach     null      var
+continue    function    or        while
+do          if          return
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
 tokens, respectively. Furthermore, 'null' is the same as 'nil'.
@@ -138,15 +138,15 @@ tokens, respectively. Furthermore, 'null' is the same as 'nil'.
 Literal tokens:
 ~~~~~~~~~~~~~~~
  - character literals: 1...8 characters enclosed in apostrophes ('').
- 	They are treated as integer literals (the character code of each character is
- 	interpreted as a byte, then those bytes are used to form, in big-endian order,
- 	a multi-byte integer. TODO: should the bytes be 8 or CHAR_BIT bits wide?)
+     They are treated as integer literals (the character code of each character is
+     interpreted as a byte, then those bytes are used to form, in big-endian order,
+     a multi-byte integer. TODO: should the bytes be 8 or CHAR_BIT bits wide?)
  - string literals: 0 or more characters (or escape sequences) enclosed in (double) quotes
  - integer literals: sequence of decimal (no prefix), octal (prefix: 0) or hexadecimal (prefix: 0x) digits.
- 	Hexadecimal digits 'a'...'f' can be either lowercase or uppercase.
+     Hexadecimal digits 'a'...'f' can be either lowercase or uppercase.
  - floating-point literals: two groups of decimal digits separated by a dot (only one of the
- 	groups has to be present), optionally followed by an optionally signed exponent
- 	part which is a sequence of decimal digits, introduced by 'e' or 'E'.
+     groups has to be present), optionally followed by an optionally signed exponent
+     part which is a sequence of decimal digits, introduced by 'e' or 'E'.
 
 Identifiers (names):
 ~~~~~~~~~~~~~~~~~~~~
@@ -156,18 +156,18 @@ Identifiers (names):
 Valid escape sequences:
 ~~~~~~~~~~~~~~~~~~~~~~~
 The same as in C:
- - \\		->		\
- - \/		->		/
- - \'		->		'
- - \"		->		"
- - \a		->		bell
- - \b		->		backspace
- - \f		->		form feed
- - \n		->		LF
- - \r		->		CR
- - \t		->		TAB
- - \0		->		NUL, char code 0
- - \xHH		->		the character with code HH, where HH denotes two hexadecimal digits
+ - \\        ->        \
+ - \/        ->        /
+ - \'        ->        '
+ - \"        ->        "
+ - \a        ->        bell
+ - \b        ->        backspace
+ - \f        ->        form feed
+ - \n        ->        LF
+ - \r        ->        CR
+ - \t        ->        TAB
+ - \0        ->        NUL, char code 0
+ - \xHH      ->        the character with code HH, where HH denotes two hexadecimal digits
 
 Sparkling source files preferrably use UTF-8 (or ASCII), but nothing else is prohibited.
 (Read: please facilitate our lives and DO USE UTF-8, unless you really really can't.)
