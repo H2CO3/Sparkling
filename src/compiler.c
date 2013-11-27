@@ -31,17 +31,31 @@ typedef struct RoundTripStore {
 	int maxsize;	/* maximal size during lifetime	*/
 } RoundTripStore;
 
+/* linked list for storing offsets and types
+ * of `break` and `continue` statements
+ */
+struct jump_stmt_list {
+	int is_break; /* boolean flag: 1 -> break, 0 -> continue */
+	spn_sword offset; /* offset (relative to beginning of bytecode) */
+	struct jump_stmt_list *next;
+};
+
+static void prepend_jumplist_node(SpnCompiler *cmp, spn_sword offset, int is_break);
+static void free_jumplist(struct jump_stmt_list *hdr);
+
 /* if you ever add a member to this structure, consider adding it to the
  * scope context info as well if necessary (and extend the `save_scope()` and
  * `restore_scope()` functions accordingly).
  */
 struct SpnCompiler {
-	TBytecode	 bc;
-	char		*errmsg;
-	int		 tmpidx;	/* (I)		*/
-	int		 nregs;		/* (II)		*/
-	RoundTripStore	*symtab;	/* (III)	*/
-	RoundTripStore	*varstack;	/* (IV)		*/
+	TBytecode		 bc;
+	char			*errmsg;
+	int			 tmpidx;	/* (I)		*/
+	int			 nregs;		/* (II)		*/
+	RoundTripStore		*symtab;	/* (III)	*/
+	RoundTripStore		*varstack;	/* (IV)		*/
+	struct jump_stmt_list	*jumplist;	/* (V)		*/
+	int			 is_in_loop;	/* (VI)		*/
 };
 
 /* Remarks:
@@ -59,6 +73,13 @@ struct SpnCompiler {
  * 
  * (III) - (IV): array of local symbols and stack of file-scope and local
  * (block-scope) variable names and the corresponding register indices
+ * 
+ * (V): link list for storing the offsets and types of unconditional
+ * control flow statements `break` and `continue`
+ * 
+ * (VI): Boolean flag which is nonzero inside a loop and zero outside a
+ * loop. It is used to limit the use of `break` and `continue` to loop bodies
+ * (since it doesn't make sense to `break` or `continue` outside a loop).
  */
 
 /* information describing the state of the global scope or a function scope.
@@ -66,9 +87,11 @@ struct SpnCompiler {
  * function bodies.
  */
 typedef struct ScopeInfo {
-	int		 tmpidx;
-	int		 nregs;
-	RoundTripStore	*varstack;
+	int			 tmpidx;
+	int			 nregs;
+	RoundTripStore		*varstack;
+	struct jump_stmt_list	*jumplist;
+	int			 is_in_loop;
 } ScopeInfo;
 
 static void save_scope(SpnCompiler *cmp, ScopeInfo *sci)
@@ -76,6 +99,8 @@ static void save_scope(SpnCompiler *cmp, ScopeInfo *sci)
 	sci->tmpidx = cmp->tmpidx;
 	sci->nregs = cmp->nregs;
 	sci->varstack = cmp->varstack;
+	sci->jumplist = cmp->jumplist;
+	sci->is_in_loop = cmp->is_in_loop;
 }
 
 static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
@@ -83,6 +108,8 @@ static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
 	cmp->tmpidx = sci->tmpidx;
 	cmp->nregs = sci->nregs;
 	cmp->varstack = sci->varstack;
+	cmp->jumplist = sci->jumplist;
+	cmp->is_in_loop = sci->is_in_loop;
 }
 
 /* compile_*() functions return nonzero on success, 0 on error */
@@ -176,6 +203,8 @@ SpnCompiler *spn_compiler_new()
 	}
 
 	cmp->errmsg = NULL;
+	cmp->jumplist = NULL;
+	cmp->is_in_loop = 0;
 
 	return cmp;
 }
@@ -698,16 +727,61 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	return 1;
 }
 
+/* helper function for filling in jump list (list of `break` and `continue`
+ * statements) in a while, do-while or for loop.
+ * 
+ * `off_end` is the offset after the whole loop, where control flow should be
+ * transferred by `break`. `off_cond` is the offset of the condition (or
+ * that of the incrementing expression in the case of `for` loops) where a
+ * `continue` statement should transfer the control flow.
+ * 
+ * This function also frees the link list on the fly.
+ */
+static void fix_and_free_jump_list(SpnCompiler *cmp, spn_sword off_end, spn_sword off_cond)
+{
+	struct jump_stmt_list *hdr = cmp->jumplist;
+	while (hdr != NULL) {
+		struct jump_stmt_list *tmp = hdr->next;
+
+		/* `break` jumps to right after the end of the body,
+		 * whereas `continue` jumps back to the condition
+		 * +2: a jump instruction is 2 words long
+		 */
+		spn_sword target_off = hdr->is_break ? off_end : off_cond;
+		spn_sword rel_off = target_off - (hdr->offset + 2);
+
+		cmp->bc.insns[hdr->offset + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
+		cmp->bc.insns[hdr->offset + 1] = rel_off;
+
+		free(hdr);
+		hdr = tmp;
+	}
+}
+
 static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 {
 	int cndidx = -1;
 	spn_uword ins[2] = { 0 }; /* stub */
 	spn_sword off_cond, off_cndjmp, off_body, off_jmpback, off_end;
 
+	/* save old loop state */
+	int is_in_loop = cmp->is_in_loop;
+	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
+
+	/* set up new loop state */
+	cmp->is_in_loop = 1;
+	cmp->jumplist = NULL;
+
+	/* save offset of condition */
 	off_cond = cmp->bc.len;
 
-	/* compile condition */
+	/* compile condition
+	 * on error, clean up, restore jumplist
+	 * no need to free it -- it's empty so far
+	 */
 	if (compile_expr_toplevel(cmp, ast->left, &cndidx) == 0) {
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
@@ -720,6 +794,10 @@ static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 
 	/* compile loop body */
 	if (compile(cmp, ast->right) == 0) {
+		/* clean up and restore jumplist */
+		free_jumplist(cmp->jumplist);
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
@@ -736,23 +814,46 @@ static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 	cmp->bc.insns[off_jmpback + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
 	cmp->bc.insns[off_jmpback + 1] = off_cond - off_end;
 
+	/* fix up dummy jumps, free jump list on the fly */
+	fix_and_free_jump_list(cmp, off_end, off_cond);
+
+	/* restore original jump list */
+	cmp->jumplist = orig_jumplist;
+	cmp->is_in_loop = is_in_loop;
+
 	return 1;
 }
 
 static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 {
 	spn_sword off_body = cmp->bc.len;
-	spn_sword off_jmp, diff;
+	spn_sword off_jmp, off_cond, off_end, diff;
 	spn_uword ins[2];
 	int reg = -1;
 
-	/* compile body */
+	/* save old loop state */
+	int is_in_loop = cmp->is_in_loop;
+	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
+
+	/* set up new loop state */
+	cmp->is_in_loop = 1;
+	cmp->jumplist = NULL;
+
+	/* compile body; clean up jump list on error */
 	if (compile(cmp, ast->right) == 0) {
+		free_jumplist(cmp->jumplist);
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
-	/* compile condition */
+	off_cond = cmp->bc.len;
+
+	/* compile condition, clean up jump list on error */
 	if (compile_expr_toplevel(cmp, ast->left, &reg) == 0) {
+		free_jumplist(cmp->jumplist);
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
@@ -764,15 +865,32 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 	ins[1] = diff;
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
 
+	off_end = cmp->bc.len;
+
+	/* fix up continue and break statements, free jump list on the fly */
+	fix_and_free_jump_list(cmp, off_end, off_cond);
+
+	/* restore original jump list */
+	cmp->jumplist = orig_jumplist;
+	cmp->is_in_loop = is_in_loop;
+
 	return 1;
 }
 
 static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 {
 	int regidx = -1;
-	spn_sword off_cond, off_body_begin, off_body_end, off_cond_jmp, off_uncd_jmp;
+	spn_sword off_cond, off_incmt, off_body_begin, off_body_end, off_cond_jmp, off_uncd_jmp;
 	spn_uword jmpins[2] = { 0 }; /* dummy */
 	SpnAST *header, *init, *cond, *icmt;
+
+	/* save old loop state */
+	int is_in_loop = cmp->is_in_loop;
+	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
+
+	/* set up new loop state */
+	cmp->is_in_loop = 1;
+	cmp->jumplist = NULL;
 
 	/* hand-unrolled loops FTW! */
 	header = ast->left;
@@ -782,14 +900,20 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	header = header->right;
 	icmt = header->left;
 
-	/* compile initialization ouside the loop */
+	/* compile initialization ouside the loop;
+	 * restore jump list on error (no need to free, here it's empty)
+	 */
 	if (compile_expr_toplevel(cmp, init, NULL) == 0) {
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
-	/* compile condition */
+	/* compile condition, clean up on error likewise */
 	off_cond = cmp->bc.len;
 	if (compile_expr_toplevel(cmp, cond, &regidx) == 0) {
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
@@ -797,13 +921,21 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	off_cond_jmp = cmp->bc.len;
 	bytecode_append(&cmp->bc, jmpins, COUNT(jmpins));
 
-	/* compile body and incrementing expression */
+	/* compile body */
 	off_body_begin = cmp->bc.len;
 	if (compile(cmp, ast->right) == 0) {
+		free_jumplist(cmp->jumplist);
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
+	/* compile incrementing expression */
+	off_incmt = cmp->bc.len;
 	if (compile_expr_toplevel(cmp, icmt, NULL) == 0) {
+		free_jumplist(cmp->jumplist);
+		cmp->jumplist = orig_jumplist;
+		cmp->is_in_loop = is_in_loop;
 		return 0;
 	}
 
@@ -822,6 +954,13 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	/* 2. always jump back to beginning and check condition */
 	cmp->bc.insns[off_uncd_jmp + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
 	cmp->bc.insns[off_uncd_jmp + 1] = off_cond - off_body_end;
+
+	/* 3. patch break and continue instructions */
+	fix_and_free_jump_list(cmp, off_body_end, off_incmt);
+
+	/* restore jump state */
+	cmp->jumplist = orig_jumplist;
+	cmp->is_in_loop = is_in_loop;
 
 	return 1;
 }
@@ -890,16 +1029,66 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
+/* helper function for `compile_break()` and `compile_continue()` */
+static void prepend_jumplist_node(SpnCompiler *cmp, spn_sword offset, int is_break)
+{
+	struct jump_stmt_list *jump = malloc(sizeof(*jump));
+	if (jump == NULL) {
+		abort();
+	}
+
+	jump->offset = offset;
+	jump->is_break = is_break;
+	jump->next = cmp->jumplist;
+	cmp->jumplist = jump;
+}
+
+static void free_jumplist(struct jump_stmt_list *hdr)
+{
+	while (hdr != NULL) {
+		struct jump_stmt_list *tmp = hdr->next;
+		free(hdr);
+		hdr = tmp;
+	}
+}
+
 static int compile_break(SpnCompiler *cmp, SpnAST *ast)
 {
-	compiler_error(cmp, ast->lineno, "compiling `break' is currently unimplemented", NULL);
-	return 0;
+	/* dummy jump instruction */
+	spn_uword ins[2] = { 0 };
+
+	/* it doesn't make sense to `break` outside a loop */
+	if (cmp->is_in_loop == 0) {
+		compiler_error(cmp, ast->lineno, "`break' is only meaningful inside a loop", NULL);
+		return 0;
+	}
+
+	/* add link list node with current offset */
+	prepend_jumplist_node(cmp, cmp->bc.len, 1);
+
+	/* then append dummy jump instruction */
+	bytecode_append(&cmp->bc, ins, COUNT(ins));
+
+	return 1;
 }
 
 static int compile_continue(SpnCompiler *cmp, SpnAST *ast)
 {
-	compiler_error(cmp, ast->lineno, "compiling `continue' is currently unimplemented", NULL);
-	return 0;
+	spn_uword ins[2] = { 0 };
+
+	/* it doesn't make sense to `continue` outside a loop either */
+	if (cmp->is_in_loop == 0) {
+		compiler_error(cmp, ast->lineno, "`continue' is only meaningful inside a loop", NULL);
+		return 0;
+	}
+
+	/* add link list node with current offset */
+	prepend_jumplist_node(cmp, cmp->bc.len, 0);
+
+	/* then append dummy jump instruction */
+	bytecode_append(&cmp->bc, ins, COUNT(ins));
+
+	return 1;
 }
 
 /* left child: initializer expression, if any (or NULL)
@@ -1375,7 +1564,7 @@ static int compile_compound_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		compiler_error(
 			cmp,
 			ast->left->lineno,
-			"left-hand side of assignment must be\na variable or an array member",
+			"left-hand side of assignment must be a variable or an array member",
 			NULL
 		);
 		return 0;
@@ -1391,9 +1580,24 @@ static int compile_logical(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	/* we can't compile the result directly into the destination register,
 	 * because if the destination is a variable which will be examined in
-	 * the righ-hand side expression too, we will be in trouble.
+	 * the right-hand side expression too, we will be in trouble.
+	 * So, the `idx` variable holds the desintation index of the temporary
+	 * register in which the value of the two sides will be stored.
 	 */
-	int idx = tmp_push(cmp);
+	int idx;
+
+	/* this needs to be done before `idx = tmp_push()`, because the
+	 * temporary register will be gone when the logical expression has
+	 * finished evaluating, whereas the result shall be preserved and
+	 * accessible. If I did this in the wrong order, then the result
+	 * register could be (ab)used as a temporary in a higher-level
+	 * expression and it could be overwritten.
+	 */
+	if (*dst < 0) {
+		*dst = tmp_push(cmp);
+	}
+
+	idx = tmp_push(cmp);
 
 	/* compile left-hand side */
 	if (compile_expr(cmp, ast->left, &idx) == 0) {
@@ -1744,7 +1948,7 @@ static int compile_callargs(SpnCompiler *cmp, SpnAST *ast, spn_uword **idc, int 
 		/* fill in the appropriate octet in the bytecode */
 		wordidx = *argc / SPN_WORD_OCTETS;
 		shift = 8 * (*argc % SPN_WORD_OCTETS);
-		(*idc)[wordidx] |= dst << shift;
+		(*idc)[wordidx] |= (spn_uword)dst << shift;
 
 		/* step over to next register index */
 		++*argc;

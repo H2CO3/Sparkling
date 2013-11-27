@@ -881,7 +881,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 		}
 		case SPN_INS_RET: {
 			TFrame *callee = &vm->sp[IDX_FRMHDR].h;
-			
+
 			/* storing the return value is done in two steps
 			 * because we need to ensure that if the return
 			 * value goes into a register that also held a function
