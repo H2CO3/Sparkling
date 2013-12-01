@@ -181,10 +181,9 @@ escape        =  /\\[\\/'"abfnrt0]/  |  /\\x[0-9a-fA-F]{2}/
 
 STRING        =  '"'  ( simple-char  |  escape )(*)  '"'
 
-decimal       =  /[1-9][0-9]*/
- - note: can't start with 0 b/c that would be octal
+decimal       =  /0/  |  /[1-9][0-9]*/
 
-octal         =  /0[0-7]*/
+octal         =  /[1-7][0-7]*/  |  /0[0-7]+/
 
 hex           =  /0x[0-9a-fA-F]+/
 
@@ -193,11 +192,9 @@ INTEGER       =  decimal  |
                  hex
 
 exponent      =  /[eE][+-]?\d+/
- - note: can digit portions begin with 0?
 
 FLOAT         =  decimal  /\.\d*/  exponent(?)    |
                  decimal(?)  /\.\d+/  exponent(?)
- - note: can digit portions begin with 0?
 
 ident-or-key  =  /[a-zA-Z_][a-zA-Z0-9_]*/
  - note: keywords take priority
