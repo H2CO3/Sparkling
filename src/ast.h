@@ -75,8 +75,8 @@ enum spn_ast_node {
 	SPN_NODE_FOREACH,
 	SPN_NODE_IF,
 
-	SPN_NODE_BREAK,									/* TODO: implement */
-	SPN_NODE_CONTINUE,								/* TODO: implement */
+	SPN_NODE_BREAK,
+	SPN_NODE_CONTINUE,
 	SPN_NODE_RETURN,
 	SPN_NODE_EMPTY,
 	SPN_NODE_VARDECL,
