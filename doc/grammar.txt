@@ -71,7 +71,9 @@ init                         =  IDENT  '='  expression
 
 empty-statement              =  ';'
 
-if-statement                 =  ( 'if'  expression  block-statement )(+)  ( 'else'  block-statement )(?)
+if-statement                 =  if-branch  ( 'else'  if-branch )(*)  ( 'else'  block-statement )(?)
+
+if-branch                    =  'if'  expression  block-statement
 
 loop-statement               =  for-statement      | 
                                 foreach-statement  | 
