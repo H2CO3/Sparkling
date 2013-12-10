@@ -285,10 +285,12 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	fp = argv[0].v.ptrv;
 	n = argv[1].v.intv;
 
-	buf = malloc(n);
+	buf = malloc(n + 1);
 	if (buf == NULL) {
 		abort();
 	}
+
+	buf[n] = 0;
 
 	if (fread(buf, n, 1, fp) != 1) {
 		free(buf);
