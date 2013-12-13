@@ -50,9 +50,8 @@ typically in conjunction with the native C extension API.
 
 §1.6. Identifiers
 
-§1.6.1. Identifiers are strings NOT ENCLOSED between quotation marks or
-apostrophes. Identifiers may contain lowercase and uppercase letters, digits
-and the '_' (underscore) character.
+§1.6.1. An identifier is a sequence of lowercase and uppercase letters, digits
+and the '_' (underscore) character, but it may not begin with a digit.
 
 §1.6.2. Reserved keywords (listed in the grammar) may not be used as
 identifiers, although they satisfy the above conditions.
