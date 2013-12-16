@@ -188,6 +188,8 @@ Standard library:
 	- provide proper access to the Sparkling engine (compilefile(),
 		compilestring(), etc. functions)
 	- check number of arguments in format strings
+	- complex mathematical functions (at least basic ones: conversion between
+		canonical, exponential and trigonometric form, absolute value, etc.)
 
 Miscellaneous:
 	- add ability to load multiple source files						done

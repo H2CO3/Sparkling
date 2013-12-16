@@ -114,6 +114,13 @@ by the same nick, on the channel `#sparkling`. I appreciate any feedback,
 including constructive (and polite) criticism, improvement suggestions,
 questions about usage (if the documentation is unclear), and even donations :P
 
+I've created an entry/wiki page for Sparkling on
+[Rosetta Code](http://rosettacode.org/wiki/Category:Sparkling), feel free to
+browse, edit and/or suggest modifications to it. Also check out the
+[list of not implemented tasks](http://rosettacode.org/wiki/Reports:Tasks_not_implemented_in_Sparkling)
+and implement some of them at your will (please let me know if/when you
+implement one, so that I can check it).
+
 If you are using Gedit
 for coding, check out the `sparkling.lang` file -- install it in the appropriate
 location to have Gedit recognize the syntax of Sparkling and apply syntax
