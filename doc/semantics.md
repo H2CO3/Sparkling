@@ -310,7 +310,7 @@ operand to this operator.
 §3.8.7. The `sizeof` operator. The sizeof operator yields the conceptual size
 (length) of its argument. For nil, this is 0, for strings, it is the number
 of bytes in the string, for arrays, it is the number of key-value pairs in the
-array. If called on any other value, `sizeof' yields nil.
+array. If called on any other value, `sizeof' yields 1.
 
 §3.8.8. The `typeof` operator. Yields a string representation of the type of
 its operand. Thus, one of the strings "nil", "bool", "number", "function",
@@ -342,8 +342,8 @@ expression or it is out of bounds, this operator raises a runtime error.
 expression with a string on its LHS is assigned to.**
 
 §3.9.4. The `()` operator. The `()` operator may have zero or more additional
-operands between the two parentheses along with the left-hand side, which will
-become the arguments of the function. The LHS must be a function. The `()`
+operands between the two parentheses (along with the left-hand side), which
+will become the arguments of the function. The LHS must be a function. The `()`
 operator calls the function, binding the call-time arguments to its formal
 parameters. It yields the return value of the function. Function arguments are
 passed by value. Arrays follow pointer semantics: assigning a new array to a
@@ -368,19 +368,18 @@ its translation unit).
 §3.11.1. Array literals (`array-literal`)
 
 Array literals provide a convenient way to create arrays out of known keys and
-values. There are two forms of array literals: in the first form, keys are
-are optional and the values in the array will correspond to integer indices,
-starting from zero, up to, but not including, `sizeof <array>`.
-In the second form, both keys and values are mandatory.
+values. Array literals consist of key-value pairs. If a key is not present,
+then it is implicitly assumed to be an integer, of which the value reflects the
+position of the key-value pair in question (the first pair is at position 0).
 
 §3.11.2. Non-array literals
 
-Non-array literals represent a single constant value. These include nil (or its
-synonym, "null"); decimal, octal and hexadecimal integer numbers, character
-constants (enclosed by apostrophes, interpreted as a big-endian integer number
-composed using the bytes of its characters), floating-point (decimal fractional)
-numbers, strings (enclosed between double quotation marks), and the Boolean
-literals true and false.
+Non-array (scalar) literals represent a single constant value. These include
+`nil` (or its synonym, `null`); decimal, octal and hexadecimal integer numbers,
+character constants (enclosed by apostrophes, interpreted as a big-endian
+integer number composed using the bytes of its characters), floating-point
+(decimal fractional) numbers, strings (enclosed between double quotation marks),
+and the Boolean literals `true` and `false`.
 
 §3.12. The `argc` keyword
 

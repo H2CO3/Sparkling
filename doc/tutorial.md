@@ -119,20 +119,25 @@ string and character literals:
 
 ## Arrays
 
-To define an array you can use the `array()` standard library function:
+To define an array you can either use the `array()` standard library function:
 
     var empty = array();
     var a = array(1, 2, 3, 4, 5);
 
+But you can compose array literals as well:
+
+    var empty = {};
+    var primes = { 2, 3, 5 };
+
 You can create an array contaning different types of values. Arrays are indexed
 from zero, just like strings.
 
-    > print(array(1, 2, 3, "hello")[3]);
+    > print({ 1, 2, 3, "hello" }[3]);
     hello
 
 It is also possible to modify an element in the array by assigning to it:
 
-    > var empty = array();
+    > var empty = {};
     > empty["foo"] = "bar";
     > print(empty["foo"]);
     bar
@@ -142,7 +147,7 @@ You can remove an element from an array by setting it to `nil`.
 To get the number of elements in an array, use `sizeof` (the same way you would
 do it with strings):
 
-    > print(sizeof array("foo"));
+    > print(sizeof { "foo" });
     1
 
 It is also possible to create arrays with non-integer indices (in fact, array
@@ -160,6 +165,18 @@ As you can see, this function takes key-value pairs and adds them to the array.
 The order of elements in an array (when enumerated using an iterator) is
 unspecified. It is required that you pass an even number of arguments to this
 function - calling it with an odd number of elements raises a runtime error.
+
+To create an associative array, you can also use associative array literals,
+where keys and values are separated by a colon:
+
+    var words = { "cheese": "fromage", "apple": "pomme" };
+
+If you are using literals, it is even possible to intermix the two types:
+
+    var mixed = { "foo", "bar": "baz", "quirk", "lol": 1337 };
+
+Here, `"foo"` will have the key 0, `"baz"` corresponds to `"bar"`, `"quirk"` to
+2, and 1337 to `"lol"`.
 
 Array members corresponding to a string key can be accessed using the
 convenience dot notation:
