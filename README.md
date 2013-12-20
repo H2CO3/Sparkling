@@ -76,7 +76,7 @@ Why Sparkling?
 
 How do I use it?
 ================
-To learn Sparkling, check out the tutorial/reference manual in `doc/`,
+To learn Sparkling, look at the tutorial/reference manual in `doc/`,
 then have a look at the examples in the `examples/` directory. Don't worry,
 there will be more and more documentation over time, but for now that's all
 I've got.
@@ -121,10 +121,9 @@ browse, edit and/or suggest modifications to it. Also check out the
 and implement some of them at your will (please let me know if/when you
 implement one, so that I can check it).
 
-If you are using Gedit
-for coding, check out the `sparkling.lang` file -- install it in the appropriate
-location to have Gedit recognize the syntax of Sparkling and apply syntax
-highlighting on your code.
+If you are using Gedit for coding, install the `sparkling.lang` file in the
+appropriate location to have Gedit recognize the syntax of Sparkling and apply
+syntax highlighting on your code.
 
 This is an alpha release, so don't expect the engine to be perfect (actually,
 not even feature-complete). Although I always try to do my best and test
