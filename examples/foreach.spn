@@ -6,18 +6,16 @@
  */
 
 
-var arr = array(); /* create empty array */
-
-/* fill it with values */
-arr[0] = "Value for index zero";
-arr[1337] = "Some other value at index leet";
-arr["bar"] = function(x, y) {
-	print("this is a lambda function, x = ", x, ", y = ", y);
+var arr = {
+	0	:	"Value for index zero",
+	1337	:	"Some other value at index leet",
+	"bar"	:	function(x, y) {
+				print("this is a lambda function, x = ", x, ", y = ", y);
+			},
+	"quirk"	:	3.14159265358979323846
 };
-arr["quirk"] = 3.14159265358979323846;
 
-
-enumerate(arr, function(key, val, ctx) {
+foreach(arr, function(key, val, ctx) {
 	print(key, " -> ", val, "; context = ", ctx);
 	if typeof val == "function" {
 		val(42, 43);

@@ -147,6 +147,8 @@ enum spn_ast_node {
 	SPN_NODE_LITERAL,
 	SPN_NODE_FUNCEXPR,	/* function expression, lambda */
 	SPN_NODE_ARGC,
+	SPN_NODE_ARRAY_LITERAL,	/* link list containing ARRAY_KVPAIR pairs */
+	SPN_NODE_ARRAY_KVPAIR,
 
 	/* miscellaneous */
 	SPN_NODE_DECLARGS,	/* argument names in a function definition	*/

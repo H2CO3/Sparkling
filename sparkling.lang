@@ -47,9 +47,6 @@
       <keyword>while</keyword>
       <keyword>do</keyword>
       <keyword>for</keyword>
-      <keyword>foreach</keyword>
-      <keyword>as</keyword>
-      <keyword>in</keyword>
       <keyword>if</keyword>
       <keyword>else</keyword>
       <keyword>function</keyword>

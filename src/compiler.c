@@ -1844,6 +1844,71 @@ static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
+static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	spn_uword ins;
+	int keyidx, validx;
+	long array_idx = 0; /* this should be a `long`, since it's
+			     * copied into the bytecode verbatim
+			     */
+
+	if (*dst < 0) {
+		*dst = tmp_push(cmp);
+	}
+
+	/* obtain two temporary registers to store the key and the corresponding value */
+	keyidx = tmp_push(cmp);
+	validx = tmp_push(cmp);
+
+	/* first, create the array */
+	ins = SPN_MKINS_A(SPN_INS_NEWARR, *dst);
+	bytecode_append(&cmp->bc, &ins, 1);
+
+	/* ast->right is the next pointer;
+	 * ast->left is the key-value pair;
+	 * ast->left->left is the key or NULL,
+	 * ast->left->right is the value (or NULL in case of an emtpy array)
+	 */
+	while (ast && ast->left && ast->left->right) {
+		SpnAST *key = ast->left->left;
+		SpnAST *val = ast->left->right;
+
+		/* Compile the key. If it is NULL, then it is
+		 * asssumed to be an incrementing integer index.
+		 */
+		if (key != NULL) {
+			if (compile_expr(cmp, key, &keyidx) == 0) {
+				return 0;
+			}
+		} else {
+			spn_uword index_data[ROUNDUP(sizeof(array_idx), sizeof(spn_uword))] = { 0 };
+			memcpy(index_data, &array_idx, sizeof(array_idx));
+			ins = SPN_MKINS_AB(SPN_INS_LDCONST, keyidx, SPN_CONST_INT);
+
+			bytecode_append(&cmp->bc, &ins, 1);
+			bytecode_append(&cmp->bc, index_data, COUNT(index_data));
+		}
+
+		/* compile the value */
+		if (compile_expr(cmp, val, &validx) == 0) {
+			return 0;
+		}
+
+		/* emit instruction for array setter */
+		ins = SPN_MKINS_ABC(SPN_INS_ARRSET, *dst, keyidx, validx);
+		bytecode_append(&cmp->bc, &ins, 1);
+
+		array_idx++;
+		ast = ast->right;
+	}
+
+	/* clean up temporary registers */
+	tmp_pop(cmp);
+	tmp_pop(cmp);
+
+	return 1;
+}
+
 static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_uword ins;
@@ -2204,6 +2269,9 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	/* function expression, lambda */	
 	case SPN_NODE_FUNCEXPR:		return compile_funcexpr(cmp, ast, dst);
+
+	/* array literal */
+	case SPN_NODE_ARRAY_LITERAL:	return compile_array_literal(cmp, ast, dst);
 
 	/* array indexing */
 	case SPN_NODE_ARRSUB:

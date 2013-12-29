@@ -860,10 +860,62 @@ static SpnAST *parse_term(SpnParser *p)
 
 static SpnAST *parse_array_literal(SpnParser *p)
 {
-	SpnAST *ast = NULL;
+	SpnAST *ast = spn_ast_new(SPN_NODE_ARRAY_LITERAL, p->lineno);
+	SpnAST *tail = ast;
 
 	/* skip '{' */
 	spn_lex(p);
+
+	while (!spn_accept(p, SPN_TOK_RBRACE)) {
+		SpnAST *pair, *node;
+
+		/* parse key or value */
+		SpnAST *key = NULL;
+		SpnAST *val = parse_expr(p);
+		if (val == NULL) {
+			spn_ast_free(ast);
+			return NULL;
+		}
+
+		if (spn_accept(p, SPN_TOK_COLON)) {
+			key = val;
+			val = parse_expr(p);
+			if (val == NULL) {
+				spn_ast_free(key);
+				spn_ast_free(ast);
+				return NULL;
+			}
+		}
+
+		/* construct key-value pair */
+		pair = spn_ast_new(SPN_NODE_ARRAY_KVPAIR, p->lineno);
+		pair->left  = key;
+		pair->right = val;
+
+		/* and append it to the end of the link list */
+		if (tail == ast && tail->left == NULL) {
+			tail->left = pair;
+		} else {
+			node = spn_ast_new(SPN_NODE_ARRAY_LITERAL, p->lineno);
+			node->left = pair;
+			tail->right = node;
+			tail = node;
+		}
+
+		if (spn_accept(p, SPN_TOK_COMMA)) {
+			if (p->curtok.tok == SPN_TOK_RBRACE) {
+				spn_parser_error(p, "trailing comma in array literal is prohibited", NULL);
+				spn_ast_free(ast);
+				return NULL;
+			}
+		} else {
+			if (p->curtok.tok != SPN_TOK_RBRACE) {
+				spn_parser_error(p, "expected ',' or '}' after value in array literal", NULL);
+				spn_ast_free(ast);
+				return NULL;
+			}
+		}
+	}
 
 	return ast;
 }
