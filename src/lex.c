@@ -460,7 +460,6 @@ static int lex_ident(SpnParser *p)
 	static const TReserved kwds[] = {
 		RESERVED_ENTRY("and",		SPN_TOK_LOGAND),
 		RESERVED_ENTRY("argc",		SPN_TOK_ARGC),
-		RESERVED_ENTRY("as",		SPN_TOK_AS),
 		RESERVED_ENTRY("break",		SPN_TOK_BREAK),
 		RESERVED_ENTRY("const",		SPN_TOK_CONST),
 		RESERVED_ENTRY("continue",	SPN_TOK_CONTINUE),
@@ -468,10 +467,8 @@ static int lex_ident(SpnParser *p)
 		RESERVED_ENTRY("else",		SPN_TOK_ELSE),
 		RESERVED_ENTRY("false",		SPN_TOK_FALSE),
 		RESERVED_ENTRY("for",		SPN_TOK_FOR),
-		RESERVED_ENTRY("foreach",	SPN_TOK_FOREACH),
 		RESERVED_ENTRY("function",	SPN_TOK_FUNCTION),
 		RESERVED_ENTRY("if",		SPN_TOK_IF),
-		RESERVED_ENTRY("in",		SPN_TOK_IN),
 		RESERVED_ENTRY("nil",		SPN_TOK_NIL),
 		RESERVED_ENTRY("not",		SPN_TOK_LOGNOT),
 		RESERVED_ENTRY("null",		SPN_TOK_NIL),

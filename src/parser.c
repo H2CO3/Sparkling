@@ -44,6 +44,7 @@ static SpnAST *parse_prefix(SpnParser *p);
 static SpnAST *parse_postfix(SpnParser *p);
 static SpnAST *parse_term(SpnParser *p);
 
+static SpnAST *parse_array_literal(SpnParser *p);
 static SpnAST *parse_decl_args(SpnParser *p);
 static SpnAST *parse_call_args(SpnParser *p);
 
@@ -51,7 +52,6 @@ static SpnAST *parse_if(SpnParser *p);
 static SpnAST *parse_while(SpnParser *p);
 static SpnAST *parse_do(SpnParser *p);
 static SpnAST *parse_for(SpnParser *p);
-static SpnAST *parse_foreach(SpnParser *p);
 static SpnAST *parse_break(SpnParser *p);
 static SpnAST *parse_continue(SpnParser *p);
 static SpnAST *parse_return(SpnParser *p);
@@ -241,7 +241,6 @@ static SpnAST *parse_stmt(SpnParser *p, int is_global)
 		case SPN_TOK_WHILE:	return parse_while(p);
 		case SPN_TOK_DO:	return parse_do(p);
 		case SPN_TOK_FOR:	return parse_for(p);
-		case SPN_TOK_FOREACH:	return parse_foreach(p);
 		case SPN_TOK_BREAK:	return parse_break(p);
 		case SPN_TOK_CONTINUE:	return parse_continue(p);
 		case SPN_TOK_RETURN:	return parse_return(p);
@@ -770,6 +769,8 @@ static SpnAST *parse_term(SpnParser *p)
 		}
 
 		return ast;
+	case SPN_TOK_LBRACE:
+		return parse_array_literal(p);
 	case SPN_TOK_ARGC:
 		ast = spn_ast_new(SPN_NODE_ARGC, p->lineno);
 
@@ -855,6 +856,16 @@ static SpnAST *parse_term(SpnParser *p)
 			return NULL;
 		}
 	}
+}
+
+static SpnAST *parse_array_literal(SpnParser *p)
+{
+	SpnAST *ast = NULL;
+
+	/* skip '{' */
+	spn_lex(p);
+
+	return ast;
 }
 
 /* this also makes a linked list */
@@ -1183,86 +1194,6 @@ static SpnAST *parse_for(SpnParser *p)
 	h3->left = incr;
 
 	ast = spn_ast_new(SPN_NODE_FOR, p->lineno);
-	ast->left = h1;
-	ast->right = body;
-
-	return ast;
-}
-
-static SpnAST *parse_foreach(SpnParser *p)
-{
-	SpnAST *key, *val, *arr, *body, *h1, *h2, *h3, *ast;
-	SpnString *name;
-
-	/* skip `foreach' */
-	if (!spn_lex(p)) {
-		return NULL;
-	}
-
-	name = p->curtok.val.v.ptrv;
-	if (!spn_accept(p, SPN_TOK_IDENT)) {
-		spn_parser_error(p, "key in foreach loop must be a variable", NULL);
-		spn_value_release(&p->curtok.val);
-		return NULL;
-	}
-
-	key = spn_ast_new(SPN_NODE_IDENT, p->lineno);
-	key->name = name;
-
-	if (!spn_accept(p, SPN_TOK_AS)) {
-		spn_parser_error(p, "expected `as' after key in foreach loop", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(key);
-		return NULL;
-	}
-
-	name = p->curtok.val.v.ptrv;
-	if (!spn_accept(p, SPN_TOK_IDENT)) {
-		spn_parser_error(p, "value in foreach loop must be a variable", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(key);
-		return NULL;
-	}
-
-	val = spn_ast_new(SPN_NODE_IDENT, p->lineno);
-	val->name = name;
-
-	if (!spn_accept(p, SPN_TOK_IN)) {
-		spn_parser_error(p, "expected `in' after value in foreach loop", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(key);
-		spn_ast_free(val);
-		return NULL;
-	}
-
-	/* parse the array */
-	arr = parse_expr(p);
-	if (arr == NULL) {
-		spn_ast_free(key);
-		spn_ast_free(val);
-		return NULL;
-	}
-
-	body = parse_block(p);
-	if (body == NULL) {
-		spn_ast_free(key);
-		spn_ast_free(val);
-		spn_ast_free(arr);
-		return NULL;
-	}
-
-	/* linked list for the loop header */
-	h1 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-	h2 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-	h3 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-
-	h1->left = key;
-	h1->right = h2;
-	h2->left = val;
-	h2->right = h3;
-	h3->left = arr;
-
-	ast = spn_ast_new(SPN_NODE_FOREACH, p->lineno);
 	ast->left = h1;
 	ast->right = body;
 

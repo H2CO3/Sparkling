@@ -113,52 +113,46 @@ The do-while loop statement evaluates its body, then it evaluates its condition.
 The condition must be a boolean expression. If the condition is true, it starts
 over (transfers control flow back to the beginning of the loop body).
 
-§2.6. The foreach statement (`foreach-statement`).
-The foreach statement iterates over a specified array, setting the given
-variables to the next key and value in the array, respectively, the evaluating
-the loop body.
-
-§2.7. The return statement (`return-statement`).
+§2.6. The return statement (`return-statement`).
 The return statement transfers control flow to the calling context, optionally
 handing a value to it.
 
-§2.7.1. If the return statement is inside a function, then the
+§2.6.1. If the return statement is inside a function, then the
 calling context is either the caller function (if the called function was
 called from within another function) or the top-level program (if the called
 function was called from the top-level program scope), and the return value of
 the called function will be the value of the expression specified in the return
 statement.
 
-§2.7.2. Otherwise (if the return statement is at program scope), the calling
+§2.6.2. Otherwise (if the return statement is at program scope), the calling
 context is the native runtime environment, and the execution of a return
 statement causes the termination of the Sparkling program. The `spn_vm_exec()`
 C function will copy over into C-land the value of the expression specified
 in the return statement, and it will return zero.
 
-§2.7.3. If there is no expression in the return statement, returning `nil` is
+§2.6.3. If there is no expression in the return statement, returning `nil` is
 implicitly assumed.
 
-§2.8. The block statement (`block-statement`).
+§2.7. The block statement (`block-statement`).
 The block statement is a compound statement (one that encloses multiple sub-
 -statements). Executing a block statement means that all its sub-statements are
 executed in order. Block statements open a new scope.
 
-§2.9. The break statement.
+§2.8. The break statement.
 The break statement causes the execution of the innermost loop to terminate
 immediately. It is an error to place a break statement outside a loop.
 
-§2.10. The continue statement.
+§2.9. The continue statement.
 The continue statement causes the execution of the innermost loop to continue
 from the beginning of the loop body with the next iteration. Before jumping
 to the beginning of the loop body, in a for loop, the increment expression is
-evaluated; in a foreach loop, the next key-value pair is assigned.
-It is an error to place a continue statement outside a loop.
+evaluated. It is illegal to place a continue statement outside a loop.
 
-§2.11. The empty statement (`empty-statement`).
+§2.10. The empty statement (`empty-statement`).
 The empty statement is a no-op, it does nothing.
 
-§2.12. The variable declaration statement (`variable-declaration`).
-§2.12..1 The variable declaration statement brings a variable in scope. The
+§2.11. The variable declaration statement (`variable-declaration`).
+§2.11.1. The variable declaration statement brings a variable in scope. The
 variable can be accessed inside the current scope and enclosing scopes (as
 described in §1.6), but only in statements and expressions following the
 declaration. It is illegal to initialize a variable with an expression referring
@@ -166,14 +160,14 @@ to itself (due to an implementation detail, such a variable will have an
 indeterminate value). If there is no initializer expression, the variable is
 implicitly initialized with `nil`.
 
-§2.12.2. It is illegal to declare a variable that has the name of a variable
+§2.11.2. It is illegal to declare a variable that has the name of a variable
 which already exists (which is already visible) in a scope.
 
-§2.13. The global constant declaration statement (`const-statement`). The
+§2.12. The global constant declaration statement (`const-statement`). The
 constant declaration statement defines a named global value. The value that is
 associated with the name cannot be changed after its initialization.
 
-§2.14 The expression statement (`expression-statement`).
+§2.13. The expression statement (`expression-statement`).
 The expression statement is a statement of which the only purpose is evaluating
 an expression. As a general advice, for clarity's sake, the top-level
 expression of an expression statement should only be a function call, an

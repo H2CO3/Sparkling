@@ -164,8 +164,6 @@ VM:
 		in order the VM not to have to create a new SpnString
 		every time it reads the name of a function (before each call!)
 		or when it encounters a string constant.
-	- array iterators: add an SPN_INS_NEXT (?) instruction (foreach loops)			***Urgent***
-		(also, actually *implement* the `foreach' statement)
 	- hate str[i|u]ct aliasing...								done
 	- ...and test the VM with various compilers, at various optimization levels,		done
 		with and without strict aliasing and vectorization turned on/off,

@@ -41,7 +41,7 @@ SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
  * sort() [uses '<' operator], sortcmp() [uses custom comparator function]
  * linearsrch(), binarysrch(), contains()
  * subarray(), join()
- * enumerate()
+ * foreach()
  * insert(), insertarr(), delrange(), clear()
  */
 #define SPN_LIBSIZE_ARRAY 14

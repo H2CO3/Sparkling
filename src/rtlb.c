@@ -1107,7 +1107,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-/* XXX this relies on `ctx' pointing to an SpnContext object!
+/* XXX this relies on `data' pointing to an SpnContext object!
  * argv[0] is the array to enumerate
  * argv[1] is the callback function
  * args[0] is the key passed to the callback
@@ -1115,7 +1115,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
  * args[2] is the user info passed to the callback (if any)
  * cbret is the return value of the callback function
  */
-static int rtlb_enumerate(SpnValue *ret, int argc, SpnValue *argv, void *data)
+static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *data)
 {
 	size_t n;
 	int status = 0;
@@ -1177,7 +1177,7 @@ const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "contains",	rtlb_contains	},
 	{ "subarray",	NULL		},
 	{ "join",	rtlb_join	},
-	{ "enumerate",	rtlb_enumerate	},
+	{ "foreach",	rtlb_foreach	},
 	{ "insert",	NULL		},
 	{ "insertarr",	NULL		},
 	{ "delrange",	NULL		},

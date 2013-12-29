@@ -11,21 +11,20 @@ nothing.
 
 ## Keywords:
 
-This is a list of all keywords:
+This is a list of all reserved words (keywords and names corresponding to
+other tokens):
 
 - `and`
 - `argc`
-- `as`
 - `break`
+- `const`
 - `continue`
 - `do`
 - `else`
 - `false`
 - `for`
-- `foreach`
 - `function`
 - `if`
-- `in`
 - `nil`
 - `not`
 - `null`

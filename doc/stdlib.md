@@ -226,13 +226,13 @@ All elements in the array must be strings, the array must have integer indices
 only, ranging from `0` to `sizeof arr`. The return value is the concatenation
 of the elements interleaved by `sep`.
 
-    nil enumerate(array a, function callback [, any context])
+    nil foreach(array a, function callback [, any context])
 
 Iterates through the elements of the array `a`, calling `callback` for each
 key-value pair in the array (like `callback(key, a[key], context)`). The
 context info is an optional argument. The callback function must return `nil`
 or a Boolean. If it returns `false`, the enumeration is aborted and the
-`enumerate()` function returns.
+`foreach()` function returns.
 
 4. Real and integer mathematical functions (spn_libmath)
 --------------------------------------------------------

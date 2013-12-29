@@ -72,13 +72,10 @@ empty-statement			= ';'
 if-statement			= 'if' expression block-statement ( 'else' block-statement | if-statement )(?)
 
 loop-statement			= for-statement		|
-				  foreach-statement	|
 				  while-statement	|
 				  do-while-statement
 
 for-statement			= 'for' expression ';' expression ';' expression block-statement
-
-foreach-statement		= 'foreach' IDENT 'as' IDENT 'in' expression block-statement
 
 while-statement			= 'while' expression block-statement
 
@@ -178,12 +175,13 @@ literal				= STRING	|
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		else		in		sizeof
-argc		false		nil		true
-as		for		not		typeof
-break		foreach		null		var
-continue	function	or		while
-do		if		return
+and		false		or
+argc		for		return
+break		function	sizeof
+const		if		true
+continue	nil		typeof
+do		not		var
+else		null		while
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
 tokens, respectively. Furthermore, 'null' is the same as 'nil'.

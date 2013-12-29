@@ -122,7 +122,6 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx);
 static int compile_while(SpnCompiler *cmp, SpnAST *ast);
 static int compile_do(SpnCompiler *cmp, SpnAST *ast);
 static int compile_for(SpnCompiler *cmp, SpnAST *ast);
-static int compile_foreach(SpnCompiler *cmp, SpnAST *ast);
 static int compile_if(SpnCompiler *cmp, SpnAST *ast);
 
 static int compile_break(SpnCompiler *cmp, SpnAST *ast);
@@ -436,7 +435,6 @@ static int compile(SpnCompiler *cmp, SpnAST *ast)
 	case SPN_NODE_WHILE:	return compile_while(cmp, ast);
 	case SPN_NODE_DO:	return compile_do(cmp, ast);
 	case SPN_NODE_FOR:	return compile_for(cmp, ast);
-	case SPN_NODE_FOREACH:	return compile_foreach(cmp, ast);
 	case SPN_NODE_IF:	return compile_if(cmp, ast);
 	case SPN_NODE_BREAK:	return compile_break(cmp, ast);
 	case SPN_NODE_CONTINUE:	return compile_continue(cmp, ast);
@@ -965,13 +963,6 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-/* Why do I have the feeling this will only be implemented in alpha 2 only? */
-static int compile_foreach(SpnCompiler *cmp, SpnAST *ast)
-{
-	compiler_error(cmp, ast->lineno, "compiling `foreach' is currently unimplemented", NULL);
-	return 0;
-}
-
 static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 {
 	spn_sword off_then, off_else, off_jze_b4_then, off_jmp_b4_else;
@@ -1185,7 +1176,7 @@ static int compile_return(SpnCompiler *cmp, SpnAST *ast)
  * "full expression". That is, an expression which is part of an expression
  * statement, or an expression in the condition of an if, while or do-while
  * statement, or an expression which is part of the the header of a for
- * statement or one that is an array-valued expression in a foreach statement.
+ * statement.
  */
 static int compile_expr_toplevel(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
