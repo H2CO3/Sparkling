@@ -663,17 +663,15 @@ static int append_format(
 
 		/* at this point, `x' is non-negative or -0 */
 
-		if (x > 0.0) {
-			len = ceil(fabs(log10(x))) + 1; /* 10 ^ n is |n| + 1 digits long */
+		if (x >= 1.0) {
+			len = ceil(log10(x)) + 1; /* 10 ^ n is n + 1 digits long */
 		} else {
-			len = 1; /* zero needs exactly one character */
+			len = 1; /* leading zero needs exactly one character */
 		}
 
 		prec = args->precision < 0 ? DBL_DIG : args->precision;
 
-		if (prec > 0) {
-			len += prec + 1; /* +1 for decimal point */
-		}
+		len += DBL_DIG + 3; /* decimal point, sign, leading zero */
 
 		if (args->width >= 0 && args->width > len) {
 			len = args->width;
