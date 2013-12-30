@@ -234,8 +234,8 @@ context info is an optional argument. The callback function must return `nil`
 or a Boolean. If it returns `false`, the enumeration is aborted and the
 `foreach()` function returns.
 
-4. Real and integer mathematical functions (spn_libmath)
---------------------------------------------------------
+4. Real, integer and complex mathematical functions (spn_libmath)
+-----------------------------------------------------------------
 Function names are self-explanatory. A. k. a., "nobody ain't no time for
 writing the documentation". :) (will do this when I have some spare time.)
 
@@ -252,6 +252,26 @@ an integer, respectively.
 These functions operate on integers only. (The C standard library doesn't
 provide the gamma function, and it's not used that often except in highly
 specialized computations, so it's simply excluded from the Sparkling stdlib.)
+
+Complex numbers are represented by arrays which have at least the following
+keys as strings: `re` and `im`, which correspond to the real and imaginary
+parts.
+
+`cplx_add()`, `cplx_sub()`, `cplx_mul()` and `cplx_div()` perform basic
+arithmetic operations on two complex numbers.
+
+`cplx_sin()`, `cplx_cos()`, `cplx_tan()` and `cplx_cot()` compute
+trigonometric functions of complex numbers.
+
+`cplx_conj()` returns the conjugate of its argument.
+
+`can2pol()` and `pol2can()` convert between the canonical form (Cartesian
+coordinates) and the trigonometric form (polar coordinates). Complex numbers
+in the trigonometric form are realized using an array of two numbers,
+assigned to the keys `r` and `theta`.
+
+`plane2rsph()` and `rsph2plane()` convert between coordinates on the complex
+number plane and their projection to the Riemann sphere.
 
 The following global constants (known for their existence in the BSD and GNU C
 libraries) are also available:

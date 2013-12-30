@@ -20,6 +20,7 @@
 #include "str.h"
 #include "array.h"
 #include "ctx.h"
+#include "private.h"
 
 #ifndef LINE_MAX
 #define LINE_MAX 0x1000
@@ -1268,6 +1269,40 @@ static int rtlb_round(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_intize(ret, argc, argv, ctx, rtlb_aux_round);
 }
 
+static int rtlb_sgn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	if (argc != 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_NUMBER) {
+		return -2;
+	}
+
+	ret->t = SPN_TYPE_NUMBER;
+
+	if (argv[0].f & SPN_TFLG_FLOAT) {
+		double x = argv[0].v.fltv;
+		ret->f = SPN_TFLG_FLOAT;
+
+		if (x > 0.0) {
+			ret->v.fltv = +1.0;
+		} else if (x < 0.0) {
+			ret->v.fltv = -1.0;
+		} else if (x == 0.0) {
+			ret->v.fltv = 0.0; /* yup, always +0 */
+		} else {
+			ret->v.fltv = 0.0 / 0.0; /* sgn(NaN) = NaN */
+		}
+	} else {
+		long x = argv[0].v.intv;
+		ret->f = 0;
+		ret->v.intv = x > 0 ? +1 : x < 0 ? -1 : 0;
+	}
+
+	return 0;
+}
+
 static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, void *ctx, double (*fn)(double))
 {
 	double x;
@@ -1794,6 +1829,257 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+/*******************
+ * Complex library *
+ *******************/
+
+/* helpers for getting and setting real and imaginary parts
+ * the getter returns 0 if there are number (integer or floating-point)
+ * values associated with the keys "re" and "im" or "r" and "theta",
+ * and sets output arguments. If not (that's an error), returns nonzero
+ */
+
+static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int polar)
+{
+	static int initme = 1;
+	static SpnValue	re_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+			im_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+			r_key     = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+			theta_key = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
+
+	SpnValue *re_r_val, *im_theta_val;
+
+	if (initme) {
+		re_key.v.ptrv    = spn_string_new_nocopy("re", 0);
+		im_key.v.ptrv    = spn_string_new_nocopy("im", 0);
+		r_key.v.ptrv     = spn_string_new_nocopy("r", 0);
+		theta_key.v.ptrv = spn_string_new_nocopy("theta", 0);
+		initme = 0;
+	}
+
+	re_r_val     = spn_array_get(num->v.ptrv, polar ? &r_key     : &re_key);
+	im_theta_val = spn_array_get(num->v.ptrv, polar ? &theta_key : &im_key);
+
+	if (re_r_val->t     != SPN_TYPE_NUMBER
+	 || im_theta_val->t != SPN_TYPE_NUMBER) {
+		return -1;
+	}
+
+	*re_r     = val2float(re_r_val);
+	*im_theta = val2float(im_theta_val);
+
+	return 0;
+}
+
+static void rtlb_cplx_set(SpnValue *num, double re_r, double im_theta, int polar)
+{
+	static int initme = 1;
+	static SpnValue	re_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+			im_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+			r_key     = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+			theta_key = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
+
+	SpnValue re_r_val     = { { 0 }, SPN_TYPE_NUMBER, SPN_TFLG_FLOAT  },
+		 im_theta_val = { { 0 }, SPN_TYPE_NUMBER, SPN_TFLG_FLOAT  };
+
+	if (initme) {
+		re_key.v.ptrv    = spn_string_new_nocopy("re", 0);
+		im_key.v.ptrv    = spn_string_new_nocopy("im", 0);
+		r_key.v.ptrv     = spn_string_new_nocopy("r", 0);
+		theta_key.v.ptrv = spn_string_new_nocopy("theta", 0);
+		initme = 0;
+	}
+
+	re_r_val.v.fltv     = re_r;
+	im_theta_val.v.fltv = im_theta;
+
+	spn_array_set(num->v.ptrv, polar ? &r_key     : &re_key, &re_r_val);
+	spn_array_set(num->v.ptrv, polar ? &theta_key : &im_key, &im_theta_val);
+}
+
+
+enum cplx_binop {
+	CPLX_ADD,
+	CPLX_SUB,
+	CPLX_MUL,
+	CPLX_DIV
+};
+
+static int rtlb_cplx_binop(SpnValue *ret, int argc, SpnValue *argv, enum cplx_binop op)
+{
+	double re1, im1, re2, im2, re, im;
+
+	if (argc < 2) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_ARRAY || argv[1].t != SPN_TYPE_ARRAY) {
+		return -2;
+	}
+
+	if (rtlb_cplx_get(&argv[0], &re1, &im1, 0) != 0) {
+		return -3;
+	}
+
+	if (rtlb_cplx_get(&argv[1], &re2, &im2, 0) != 0) {
+		return -3;
+	}
+
+	ret->t = SPN_TYPE_ARRAY;
+	ret->f = SPN_TFLG_OBJECT;
+	ret->v.ptrv = spn_array_new();
+
+	switch (op) {
+	case CPLX_ADD:
+		re = re1 + re2;
+		im = im1 + im2;
+		break;
+	case CPLX_SUB:
+		re = re1 - re2;
+		im = im1 - im2;
+		break;
+	case CPLX_MUL:
+		re = re1 * re2 - im1 * im2;
+		im = re1 * im2 + re2 * im1;
+		break;
+	case CPLX_DIV: {
+		double norm = re2 * re2 + im2 * im2;
+		re = (re1 * re2 + im1 * im2) / norm;
+		im = (re2 * im1 - re1 * im2) / norm;
+		break;
+	}
+	default:
+		SHANT_BE_REACHED();
+	}
+
+	rtlb_cplx_set(ret, re, im, 0);
+	return 0;
+}
+
+static int rtlb_cplx_add(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_cplx_binop(ret, argc, argv, CPLX_ADD);
+}
+
+static int rtlb_cplx_sub(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_cplx_binop(ret, argc, argv, CPLX_SUB);
+}
+
+static int rtlb_cplx_mul(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_cplx_binop(ret, argc, argv, CPLX_MUL);
+}
+
+static int rtlb_cplx_div(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_cplx_binop(ret, argc, argv, CPLX_DIV);
+}
+
+static int rtlb_cplx_sin(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return -1;
+}
+
+static int rtlb_cplx_cos(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return -1;
+}
+
+static int rtlb_cplx_tan(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return -1;
+}
+
+static int rtlb_cplx_conj(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	double re, im;
+
+	if (argc != 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_ARRAY) {
+		return -2;
+	}
+
+	if (rtlb_cplx_get(&argv[0], &re, &im, 0) != 0) {
+		return -3;
+	}
+
+	ret->t = SPN_TYPE_ARRAY;
+	ret->f = SPN_TFLG_OBJECT;
+	ret->v.ptrv = spn_array_new();
+
+	rtlb_cplx_set(ret, re, -im, 0);
+	return 0;
+}
+
+/* convert between the canonical and trigonometric (polar coordinate) forms */
+static int rtlb_can2pol(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	double re, im, r, theta;
+
+	if (argc != 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_ARRAY) {
+		return -2;
+	}
+
+	if (rtlb_cplx_get(&argv[0], &re, &im, 0) != 0) {
+		return -3;
+	}
+
+	r = sqrt(re * re + im * im);
+	theta = atan2(im, re);
+
+	ret->t = SPN_TYPE_ARRAY;
+	ret->f = SPN_TFLG_OBJECT;
+	ret->v.ptrv = spn_array_new();
+
+	rtlb_cplx_set(ret, r, theta, 1);
+	return 0;
+}
+
+static int rtlb_pol2can(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	double re, im, r, theta;
+
+	if (argc != 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_ARRAY) {
+		return -2;
+	}
+
+	if (rtlb_cplx_get(&argv[0], &r, &theta, 1) != 0) {
+		return -3;
+	}
+
+	re = r * cos(theta);
+	im = r * sin(theta);
+
+	ret->t = SPN_TYPE_ARRAY;
+	ret->f = SPN_TFLG_OBJECT;
+	ret->v.ptrv = spn_array_new();
+
+	rtlb_cplx_set(ret, re, im, 0);
+	return 0;
+}
+
+static int rtlb_plane2rsph(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return -1;
+}
+
+static int rtlb_rsph2plane(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return -1;
+}
+
 const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "abs",	rtlb_abs	},
 	{ "min",	rtlb_min	},
@@ -1801,6 +2087,7 @@ const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "floor",	rtlb_floor	},
 	{ "ceil",	rtlb_ceil	},
 	{ "round",	rtlb_round	},
+	{ "sgn",	rtlb_sgn	},
 	{ "hypot",	rtlb_hypot	},
 	{ "sqrt",	rtlb_sqrt	},
 	{ "cbrt",	rtlb_cbrt	},
@@ -1831,7 +2118,19 @@ const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "isfloat",	rtlb_isfloat	},
 	{ "isint",	rtlb_isint	},
 	{ "fact",	rtlb_fact	},
-	{ "binom",	rtlb_binom	}
+	{ "binom",	rtlb_binom	},
+	{ "cplx_add",	rtlb_cplx_add	}, /* TODO: add square root, power and logarithm */
+	{ "cplx_sub",	rtlb_cplx_sub	},
+	{ "cplx_mul",	rtlb_cplx_mul	},
+	{ "cplx_div",	rtlb_cplx_div	},
+	{ "cplx_sin",	rtlb_cplx_sin	}, /* TODO: add inverse and hyperbolic functions */
+	{ "cplx_cos",	rtlb_cplx_cos	},
+	{ "cplx_tan",	rtlb_cplx_tan	},
+	{ "cplx_conj",	rtlb_cplx_conj	},
+	{ "can2pol",	rtlb_can2pol	},
+	{ "pol2can",	rtlb_pol2can	},
+	{ "plane2rsph",	rtlb_plane2rsph	}, /* from complex plane to Riemann sphere: (x0, y0) -> (x', y', z')	*/
+	{ "rsph2plane",	rtlb_rsph2plane	}  /* from Riemann sphere to complex plane: (x', y') -> (x0, y0)	*/
 };
 
 

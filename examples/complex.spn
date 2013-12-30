@@ -1,0 +1,29 @@
+/* Complex number demo for Sparkling
+ *
+ * Created by H2CO3 on 30/12/2013
+ */
+
+
+function cfmt(z)
+{
+	return fmtstring("%.3f %+.3fi", z.re, z.im);
+}
+
+function pfmt(z)
+{
+	return fmtstring("%.3f * (cos %.3f + i sin %.3f)", z.r, z.theta, z.theta);
+}
+
+var z1 = { "re": 1, "im": -1 };
+var z2 = { "re": 2, "im":  3 };
+var z3 = { "r": 2, "theta": M_PI / 3 };
+
+printf("%s + %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_add(z1, z2)));
+printf("%s - %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_sub(z1, z2)));
+printf("%s * %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_mul(z1, z2)));
+printf("%s / %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_div(z1, z2)));
+
+printf("conj %s = %s\n", cfmt(z1), cfmt(cplx_conj(z1)));
+
+printf("%s in trigonometric form: %s\n", cfmt(z2), pfmt(can2pol(z2)));
+printf("%s in canonical form: %s\n", pfmt(z3), cfmt(pol2can(z3)));

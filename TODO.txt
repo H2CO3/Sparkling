@@ -177,7 +177,8 @@ VM:
 should be linkage at all...)
 
 Standard library:
-	- `sort()` function for arrays
+	- `sort()` function for arrays (and generally array functions)
+	- add and/or implement more complex and inverse hyperbolic functions
 	- document the run-time error codes (-1 generally means "bad number
 		of arguments", but not always, etc.)
 	- add the documentation of currently unimplemented standard library

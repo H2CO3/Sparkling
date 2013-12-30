@@ -47,21 +47,27 @@ SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
 #define SPN_LIBSIZE_ARRAY 14
 SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
 
-/* Functions:
+/* Real functions:
  * abs(), min(), max()
- * floor(), ceil(), round()
+ * floor(), ceil(), round(), sgn()
  * hypot(), sqrt(), cbrt(), pow(), exp(), exp2(), exp10(), log(), log2(), log10()
- * sin(), cos(), tan(), cot(), sinh(), cosh(), tanh(), coth()
- * asin(), acos(), atan(), acot(), asinh(), acosh(), atanh(), acoth(), atan2()
+ * sin(), cos(), tan(), sinh(), cosh(), tanh()
+ * asin(), acos(), atan(), atan2()
  * deg2rad(), rad2deg()
  * random(), seed()
  * isfin(), isinf(), isnan(), isfloat(), isint()
  * fact(), binom()
  * 
+ * Complex functions:
+ * cplx_add(), cplx_sub(), cplx_mul(), cplx_div(), cplx_conj()
+ * cplx_sin(), cplx_cos(), cplx_tan()
+ * can2pol(), pol2can()
+ * plane2rsph(), rsph2plane()
+ * 
  * Constants: M_E, M_LOG2E, M_LOG10E, M_LN2, M_LN10, M_PI, M_PI_2, M_PI_4,
  * M_1_PI, M_2_PI, M_2_SQRTPI, M_SQRT2, M_SQRT1_2
  */
-#define SPN_LIBSIZE_MATH 37
+#define SPN_LIBSIZE_MATH 50
 SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 
 /* Functions:
