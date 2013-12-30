@@ -66,10 +66,9 @@ void spn_object_release(void *o)
 {
 	SpnObject *obj = o;
 
+	/* it is the destructor's responsibility to `free()` the instance */
 	if (--obj->refcnt == 0) {
-		if (obj->isa->destructor != NULL) {
-			obj->isa->destructor(obj);
-		}
+		obj->isa->destructor(obj);
 	}
 }
 
