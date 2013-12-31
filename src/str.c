@@ -671,7 +671,7 @@ static int append_format(
 
 		prec = args->precision < 0 ? DBL_DIG : args->precision;
 
-		len += DBL_DIG + 3; /* decimal point, sign, leading zero */
+		len += prec + 3; /* decimal point, sign, leading zero */
 
 		if (args->width >= 0 && args->width > len) {
 			len = args->width;
