@@ -105,7 +105,9 @@ SPN_API void spn_value_release(SpnValue *val);
 SPN_API int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs);
 SPN_API int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs);
 
-/* ordered comparison */
+/* hashing (for generic data and for objects) */
+SPN_API unsigned long spn_hash(const void *data, size_t n);
+SPN_API unsigned long spn_hash_object(const SpnValue *obj);
 
 /* prints a user-readable representation of a value to stdout */
 SPN_API void spn_value_print(const SpnValue *val);

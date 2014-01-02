@@ -105,8 +105,6 @@ static const SpnClass spn_class_array = {
 	free_array
 };
 
-static unsigned long hash_key(const SpnValue *key);
-
 
 static TList *list_prepend(TList *head, SpnValue *key, SpnValue *val);
 static KVPair *list_find(TList *head, const SpnValue *key);
@@ -196,7 +194,7 @@ SpnValue *spn_array_get(SpnArray *arr, const SpnValue *key)
 	}
 
 	/* else return what the hash part can find */
-	hash = hash_key(key) % nthsize(arr->hashszidx);
+	hash = spn_hash_object(key) % nthsize(arr->hashszidx);
 
 	/* return what's found in the link list at the computed index
 	 * (behaves correctly if the list is empty/NULL)
@@ -506,7 +504,7 @@ static void expand_hash(SpnArray *arr)
 		while (list != NULL) {
 			TList *tmp;
 			KVPair *pair = &list->pair;
-			unsigned long hash = hash_key(&pair->key) % newsz;
+			unsigned long hash = spn_hash_object(&pair->key) % newsz;
 			new_buckets[hash] = list_prepend(new_buckets[hash], &pair->key, &pair->val);
 
 			/* free old list in-place */
@@ -539,7 +537,7 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 		expand_hash(arr);
 	}
 
-	thash = hash_key(key);
+	thash = spn_hash_object(key);
 	hash = thash % nthsize(arr->hashszidx);
 
 	/* new element? */
@@ -592,143 +590,5 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 			pair->val = *val;
 		}
 	}
-}
-
-
-/* 
- * The hash function
- * Depending on the platform, either of the table lookup method or
- * the checksum-style hash with Duff's device may be faster, choose
- * whichever fits the use case better (define the `SPN_HASH_TABLE'
- * macro at compile-time to use the lookup hash, else the SDBM hash
- * will be used).
- */
-unsigned long spn_hash(const void *data, size_t n)
-{
-	unsigned long h = 0;
-	const unsigned char *p = data;
-	size_t i;
-
-	if (n == 0) {
-		return 0;
-	}
-
-#ifdef SPN_HASH_TABLE
-	static const unsigned long tab[256] = {
-		0xb57c1b8b, 0xaab5382f, 0x2998920e, 0xf8893702, 0xb8cfac71, 0xfb37512c, 0xa7e18e0a, 0x0610f8cb, 
-		0x7f02a443, 0xb186acd3, 0x2f263eab, 0xd2e68bf5, 0xd79e9a3c, 0xd29eb02f, 0x57ee4d8c, 0x6fbcc68b, 
-		0x5bb0b033, 0xc99b2363, 0x43cd2261, 0x66972dd8, 0xd9a19710, 0x89481888, 0xae9e111f, 0xe75fdff1, 
-		0x45a86369, 0x9ebec462, 0xe0824c65, 0xc51268d2, 0xf8fb3852, 0xb16f4074, 0xa7533177, 0xcd10292b, 
-		0xdd36db1b, 0x6beda83c, 0xf84e206d, 0xa5943a04, 0x41361c62, 0x06662635, 0x37140422, 0xca6b43fa, 
-		0xd50b899b, 0x5abb6fbe, 0xadc84c1c, 0x33817a29, 0x73c8c05c, 0x9ede6deb, 0x46da465b, 0x843e42f5, 
-		0x69aa43f5, 0x88ec84c5, 0x5d82b87e, 0x9f8ed521, 0xf97e02a5, 0x047186e2, 0xb3080783, 0xe13a011b, 
-		0xf4c97e51, 0x9214eeca, 0xb1d69448, 0x9055d614, 0x78d48fa8, 0x0c730408, 0xe2cd3555, 0x61fcaa29, 
-		0xce0765f7, 0xd91621a1, 0x6bf881e8, 0x6a8b849f, 0x169c5362, 0x23f9b77e, 0xe7d01cb3, 0xa5f32da1, 
-		0x693ff835, 0x0f3f2ec0, 0x6bf60a6e, 0xe78883bc, 0x946b2edb, 0x746816ff, 0x2f5cfc84, 0xced88d46, 
-		0x027b1573, 0xccf9177b, 0xbcbbdcbc, 0xa2c00cb2, 0xe5353c3a, 0xff7adc5e, 0xfc8af76f, 0x8a1f68f1,
-		0xa7c65adc, 0x338559f1, 0xcd527c8e, 0x3c3c5686, 0x0c1b64a3, 0xce628906, 0x392de712, 0x7f41372b, 
-		0x63938afc, 0xfd741da5, 0x4c84c032, 0xc4e2e4c4, 0x6940f7ea, 0xcc5251c9, 0xca041d4a, 0xd89ddcaf, 
-		0x2f3575cb, 0x5165b857, 0x36afa51a, 0x4df5ac46, 0xdf8529e2, 0x36dfe7aa, 0x2621532e, 0x78786e57, 
-		0x0312aa36, 0x12fc0224, 0x10a5cb9d, 0xa1f98e26, 0xd74ee906, 0xbd84dc5c, 0x2cf0f14f, 0xc771c4e0, 
-		0x49993426, 0x322bb7a0, 0x106faec6, 0x8ebfecc7, 0x74486476, 0xe485de1d, 0x820b9864, 0x722fc355, 
-		0x9a59ddee, 0x6e3657a9, 0x2518fffb, 0xe3ca492e, 0x27c94ace, 0x9ccbf5c6, 0xf10d31d9, 0x0f3c49e5, 
-		0xa15ec356, 0x515f60e3, 0x4031138e, 0x254eb829, 0xd0f41b09, 0x9a49e2cf, 0x0425abf1, 0x35641212, 
-		0xb7d9da82, 0xe4eec46e, 0xca10b2c4, 0x4ab4ea4a, 0x2bc157a5, 0xdd554601, 0x840b1322, 0x984f57bc, 
-		0x391fe0ce, 0xb70853cc, 0x1fb1fff6, 0x518c8d9b, 0xd325c874, 0x2bccb8b6, 0x0e4e7c6d, 0x24f1104f, 
-		0xd398db9a, 0xb7e745eb, 0x7e0bffdc, 0x24ca2a7c, 0x8b769e0d, 0xc8b357a5, 0xc6897c9d, 0x20596422, 
-		0x6d5060c3, 0x1e52c314, 0xfee74d8d, 0x5b2c06b7, 0xb52e9e11, 0x68b898ce, 0xc3f1fc0c, 0xd20d00e3, 
-		0x2f7aa9c5, 0xceea27d7, 0x6f49f8b1, 0xc0022b44, 0x31a199f7, 0x2cabcc1b, 0xfae3177c, 0x3b344c58, 
-		0x23c9c15d, 0x0373a6d6, 0xf4a6b0e9, 0x8b8b0b01, 0x9065c1d2, 0xefe439dd, 0x9c2b64c9, 0xbf17ddd4, 
-		0x5fef3add, 0x341f8fd5, 0x26b98700, 0xf4be4a09, 0x7b47ad66, 0x5e0c1af7, 0x105fe44c, 0x087d7c86, 
-		0x34b852c3, 0x719c583c, 0x0de26b20, 0x81b2bf65, 0x16ab3d30, 0x44a87217, 0xa30f3b30, 0x46129ed5, 
-		0x96a44e6e, 0x4dc4031a, 0x40862bd5, 0xa19afecf, 0x4948a5e6, 0xa6f8f646, 0xd34e4675, 0x98612067, 
-		0x65e3ee05, 0x30f4d54a, 0xec5b628b, 0xa43adc46, 0xe56878d0, 0x0a2f9ea9, 0x320a114d, 0xe2ccf3a4, 
-		0xdae6e153, 0x829d5ba7, 0xc6dbde5d, 0x638d18bc, 0x31ab7c4f, 0x49d0e4dd, 0x8fa12d8c, 0xeb3cc6cb, 
-		0xbe626331, 0xe0b4e7b6, 0xbd8decc0, 0x6a086dde, 0x26a01710, 0xc9c23dad, 0x842fd955, 0xd8a09fa1, 
-		0x59b0ccfe, 0xc5c389b4, 0xe6d553aa, 0x78133979, 0xccd873aa, 0xb6d50638, 0xf6e9c8d0, 0x2292193d, 
-		0xd52a8762, 0xa0e3b73e, 0x42470889, 0x24ea177b, 0x40f280ea, 0xf92c9ebe, 0x638ce413, 0x4d1fc937
-	};
-
-	for (i = 0; i < n; i++) {
-		h ^= tab[p[i] ^ h & 0xff];
-	}
-#else
-	/* this is a variant of the SDBM hash */
-	i = (n + 7) >> 3;
-	switch (n & 7) {
-	case 0: do {	h =  7159 * h + *p++;
-	case 7:		h = 13577 * h + *p++;
-	case 6:		h = 23893 * h + *p++;
-	case 5:		h = 38791 * h + *p++;
-	case 4:		h = 47819 * h + *p++;
-	case 3:		h = 56543 * h + *p++;
-	case 2:		h = 65587 * h + *p++;
-	case 1:		h = 77681 * h + *p++;
-		} while (--i);
-	}
-#endif
-
-	return h;
-}
-
-static unsigned long hash_key(const SpnValue *key)
-{
-	switch (key->t) {
-	case SPN_TYPE_NIL:	{ return 0;				}
-	case SPN_TYPE_BOOL:	{ return !key->v.boolv; /* 0 or 1 */	}
-	case SPN_TYPE_NUMBER:	{
-		if (key->f & SPN_TFLG_FLOAT) {
-			return key->v.fltv == (long)(key->v.fltv)
-			     ? (unsigned long)(key->v.fltv)
-			     : spn_hash(&key->v.fltv, sizeof(key->v.fltv));
-		}
-
-		/* the hash value of an integer is itself */
-		return key->v.intv;
-	}
-	case SPN_TYPE_FUNC:	{
-		/* to understand why hashing is done as it is done, see the
-		 * notice about function equality above `function_equal()`
-		 * in src/spn.c
-		 *
-		 * if a function is a pending stub but it has no name, then:
-		 * 1. that doesn't make sense and it should not happen;
-		 * 2. it's impossible to decide whether it's equal to some
-		 * other function.
-		 */
-		assert(key->v.fnv.name != NULL || (key->f & SPN_TFLG_PENDING) == 0);
-
-		/* see http://stackoverflow.com/q/18282032 */
-		if (key->f & SPN_TFLG_NATIVE) {
-			return spn_hash(&key->v.fnv.r.fn, sizeof(key->v.fnv.r.fn));
-		}
-
-		return key->v.fnv.name == NULL
-		     ? (unsigned long)(key->v.fnv.r.bc)
-		     : spn_hash(key->v.fnv.name, strlen(key->v.fnv.name));
-	}
-	case SPN_TYPE_STRING:
-	case SPN_TYPE_ARRAY:	{
-		SpnObject *obj = key->v.ptrv;
-		unsigned long (*hashfn)(void *) = obj->isa->hashfn;
-		return hashfn != NULL ? hashfn(obj) : (unsigned long)(obj);
-	}
-	case SPN_TYPE_USRDAT:	{
-		if (key->f & SPN_TFLG_OBJECT) {
-			SpnObject *obj = key->v.ptrv;
-			unsigned long (*hashfn)(void *) = obj->isa->hashfn;
-			return hashfn != NULL ? hashfn(obj) : (unsigned long)(obj);			
-		}
-
-		return (unsigned long)(key->v.ptrv);
-	}
-#ifndef NDEBUG
-	default:
-		fprintf(stderr, "Sparkling: wrong type ID `%d' in array key\n", key->t);
-		abort();
-#endif
-	}
-
-	return 0;
 }
 

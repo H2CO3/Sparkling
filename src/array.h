@@ -44,8 +44,5 @@ SPN_API size_t		 spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val);
 SPN_API SpnArray	*spn_iter_getarray(SpnIterator *it);
 SPN_API void		 spn_iter_free(SpnIterator *it);
 
-/* the generic hash function. it is used by SpnArray to hash all sorts of data. */
-SPN_API unsigned long	 spn_hash(const void *data, size_t n);
-
 #endif /* SPN_ARRAY_H */
 
