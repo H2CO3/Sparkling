@@ -339,11 +339,12 @@ expression with a string on its LHS is assigned to.**
 operands between the two parentheses (along with the left-hand side), which
 will become the arguments of the function. The LHS must be a function. The `()`
 operator calls the function, binding the call-time arguments to its formal
-parameters. It yields the return value of the function. Function arguments are
-passed by value. Arrays follow pointer semantics: assigning a new array to a
-function argument won't change the value visible to the calling context, but
-assigning to an **element** of an array does change its value as seen by both
-the calling context and the called function.
+parameters, maintaining their order. The expressions passed as arguments are
+evaluated from left to right. The operator yields the return value of the
+function. Function arguments are passed by value. Arrays follow pointer
+semantics: assigning a new array to a function argument won't change the value
+visible to the calling context, but assigning to an **element** of an array does
+change its value as seen by both the calling context and the called function.
 
 §3.9.5. The memberof operator has two different, semantically equivalent forms:
 `<array> . member` and `<array> -> member`. It works the same as the postfix []

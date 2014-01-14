@@ -2130,25 +2130,18 @@ static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return compile_unary(cmp, ast, dst);
 }
 
-static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_incdec_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int idx;
 	SpnValue varname;
 
-	if (ast->left->node != SPN_NODE_IDENT) {
-		compiler_error(
-			cmp,
-			ast->left->lineno,
-			"argument of ++ and -- operators must be a variable",
-			NULL
-		);
-		return 0;
-	}
+	assert(ast->left->node == SPN_NODE_IDENT);
 
 	varname.t = SPN_TYPE_STRING;
 	varname.f = SPN_TFLG_OBJECT;
 	varname.v.ptrv = ast->left->name;
 	idx = rts_getidx(cmp->varstack, &varname);
+
 	if (idx < 0) {
 		const void *args[1];
 		args[0] = ast->left->name->cstr;
@@ -2214,6 +2207,110 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	return 1;
+}
+
+static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	int arridx = -1, subidx = -1;
+	enum spn_vm_ins opcode =
+		ast->node == SPN_NODE_PREINCRMT
+	     || ast->node == SPN_NODE_POSTINCRMT
+			? SPN_INS_INC
+			: SPN_INS_DEC;
+
+	int nvars;
+
+	SpnAST *lhs = ast->left;
+	assert(lhs->node == SPN_NODE_ARRSUB || lhs->node == SPN_NODE_MEMBEROF);
+
+	if (*dst < 0) {
+		*dst = tmp_push(cmp);
+	}
+
+	/* compile array expression */
+	if (compile_expr(cmp, lhs->left, &arridx) == 0) {
+		return 0;
+	}
+
+	/* compile subscript expression */
+	if (lhs->node == SPN_NODE_ARRSUB) { /* operator[] */
+		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
+			return 0;
+		}
+	} else { /* member-of, "." or "->" */
+		SpnValue nameval;
+		nameval.t = SPN_TYPE_STRING;
+		nameval.f = SPN_TFLG_OBJECT;
+		nameval.v.ptrv = lhs->right->name;
+		compile_string_literal(cmp, &nameval, &subidx);
+	}
+
+	switch (ast->node) {
+	case SPN_NODE_PREINCRMT:
+	case SPN_NODE_PREDECRMT: {
+		/* these yield the already incremented/decremented value */
+		spn_uword insns[3] = {
+			SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx),
+			SPN_MKINS_A(opcode, *dst),
+			SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst)
+		};
+
+		bytecode_append(&cmp->bc, insns, COUNT(insns));
+		break;
+	}
+	case SPN_NODE_POSTINCRMT:
+	case SPN_NODE_POSTDECRMT: {
+		/* on the other hand, these operators yield the original
+		 * (yet unmodified) value. For this, we need a temporary
+		 * register to store the incremented/decremented value in.
+		 */
+		int tmpidx = tmp_push(cmp);
+		spn_uword insns[4] = {
+			SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx),
+			SPN_MKINS_AB(SPN_INS_MOV, tmpidx, *dst),
+			SPN_MKINS_A(opcode, tmpidx),
+			SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, tmpidx)
+		};
+
+		bytecode_append(&cmp->bc, insns, COUNT(insns));
+		tmp_pop(cmp);
+		break;
+	}
+	default:
+		SHANT_BE_REACHED();
+	}
+
+	/* once again, pop expired temporary values */
+	nvars = rts_count(cmp->varstack);
+
+	if (arridx >= nvars) {
+		tmp_pop(cmp);
+	}
+
+	if (subidx >= nvars) {
+		tmp_pop(cmp);
+	}
+
+	return 1;
+}
+
+static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	if (ast->left->node == SPN_NODE_IDENT) {
+		return compile_incdec_var(cmp, ast, dst);
+	} else if (ast->left->node == SPN_NODE_ARRSUB
+		|| ast->left->node == SPN_NODE_MEMBEROF) {
+		return compile_incdec_arr(cmp, ast, dst);
+	} else {
+		compiler_error(
+			cmp,
+			ast->left->lineno,
+			"argument of ++ and -- must be a variable or array member",
+			NULL
+		);
+		return 0;
+	}
+
 }
 
 static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)

@@ -59,15 +59,15 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
  * fact(), binom()
  * 
  * Complex functions:
- * cplx_add(), cplx_sub(), cplx_mul(), cplx_div(), cplx_conj()
+ * cplx_add(), cplx_sub(), cplx_mul(), cplx_div()
+ * cplx_conj(), cplx_abs()
  * cplx_sin(), cplx_cos(), cplx_tan()
  * can2pol(), pol2can()
- * plane2rsph(), rsph2plane()
  * 
  * Constants: M_E, M_LOG2E, M_LOG10E, M_LN2, M_LN10, M_PI, M_PI_2, M_PI_4,
  * M_1_PI, M_2_PI, M_2_SQRTPI, M_SQRT2, M_SQRT1_2
  */
-#define SPN_LIBSIZE_MATH 50
+#define SPN_LIBSIZE_MATH 49
 SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 
 /* Functions:

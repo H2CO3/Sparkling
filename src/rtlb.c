@@ -1925,10 +1925,6 @@ static int rtlb_cplx_binop(SpnValue *ret, int argc, SpnValue *argv, enum cplx_bi
 		return -3;
 	}
 
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_array_new();
-
 	switch (op) {
 	case CPLX_ADD:
 		re = re1 + re2;
@@ -1951,6 +1947,10 @@ static int rtlb_cplx_binop(SpnValue *ret, int argc, SpnValue *argv, enum cplx_bi
 	default:
 		SHANT_BE_REACHED();
 	}
+
+	ret->t = SPN_TYPE_ARRAY;
+	ret->f = SPN_TFLG_OBJECT;
+	ret->v.ptrv = spn_array_new();
 
 	rtlb_cplx_set(ret, re, im, 0);
 	return 0;
@@ -1976,19 +1976,72 @@ static int rtlb_cplx_div(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_cplx_binop(ret, argc, argv, CPLX_DIV);
 }
 
+enum cplx_trig_func {
+	CPLX_SIN,
+	CPLX_COS,
+	CPLX_TAN
+};
+
+static int rtlb_aux_cplx_trig(SpnValue *ret, int argc, SpnValue *argv, enum cplx_trig_func fn)
+{
+	double re_in, im_in, re_out, im_out;
+
+	if (argc != 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_ARRAY) {
+		return -2;
+	}
+
+	if (rtlb_cplx_get(&argv[0], &re_in, &im_in, 0) != 0) {
+		return -3;
+	}
+
+	switch (fn) {
+	case CPLX_SIN:
+		re_out = sin(re_in) * cosh(im_in);
+		im_out = cos(re_in) * sinh(im_in);
+		break;
+	case CPLX_COS:
+		re_out = cos(re_in) * cosh(im_in);
+		im_out = sin(re_in) * sinh(im_in) * -1;
+		break;
+	case CPLX_TAN: {
+		double re_num = sin(re_in) * cosh(im_in);
+		double im_num = cos(re_in) * sinh(im_in);
+		double re_den = cos(re_in) * cosh(im_in);
+		double im_den = sin(re_in) * sinh(im_in) * -1;
+		double norm = re_den * re_den + im_den * im_den;
+		re_out = (re_num * re_den + im_num * im_den) / norm;
+		im_out = (re_den * im_num - re_num * im_den) / norm;
+		break;
+	}
+	default:
+		SHANT_BE_REACHED();
+	}
+
+	ret->t = SPN_TYPE_ARRAY;
+	ret->f = SPN_TFLG_OBJECT;
+	ret->v.ptrv = spn_array_new();
+
+	rtlb_cplx_set(ret, re_out, im_out, 0);
+	return 0;
+}
+
 static int rtlb_cplx_sin(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	return -1;
+	return rtlb_aux_cplx_trig(ret, argc, argv, CPLX_SIN);
 }
 
 static int rtlb_cplx_cos(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	return -1;
+	return rtlb_aux_cplx_trig(ret, argc, argv, CPLX_COS);
 }
 
 static int rtlb_cplx_tan(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	return -1;
+	return rtlb_aux_cplx_trig(ret, argc, argv, CPLX_TAN);
 }
 
 static int rtlb_cplx_conj(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
@@ -2012,6 +2065,29 @@ static int rtlb_cplx_conj(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	ret->v.ptrv = spn_array_new();
 
 	rtlb_cplx_set(ret, re, -im, 0);
+	return 0;
+}
+
+static int rtlb_cplx_abs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	double re, im;
+
+	if (argc != 1) {
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_ARRAY) {
+		return -2;
+	}
+
+	if (rtlb_cplx_get(&argv[0], &re, &im, 0) != 0) {
+		return -3;
+	}
+
+	ret->t = SPN_TYPE_NUMBER;
+	ret->f = SPN_TFLG_FLOAT;
+	ret->v.fltv = sqrt(re * re + im * im);
+
 	return 0;
 }
 
@@ -2070,16 +2146,6 @@ static int rtlb_pol2can(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_plane2rsph(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return -1;
-}
-
-static int rtlb_rsph2plane(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return -1;
-}
-
 const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "abs",	rtlb_abs	},
 	{ "min",	rtlb_min	},
@@ -2127,10 +2193,9 @@ const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "cplx_cos",	rtlb_cplx_cos	},
 	{ "cplx_tan",	rtlb_cplx_tan	},
 	{ "cplx_conj",	rtlb_cplx_conj	},
+	{ "cplx_abs",	rtlb_cplx_abs	},
 	{ "can2pol",	rtlb_can2pol	},
 	{ "pol2can",	rtlb_pol2can	},
-	{ "plane2rsph",	rtlb_plane2rsph	}, /* from complex plane to Riemann sphere: (x0, y0) -> (x', y', z')	*/
-	{ "rsph2plane",	rtlb_rsph2plane	}  /* from Riemann sphere to complex plane: (x', y') -> (x0, y0)	*/
 };
 
 

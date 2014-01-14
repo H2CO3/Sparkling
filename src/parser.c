@@ -237,33 +237,33 @@ static SpnAST *parse_stmt_list(SpnParser *p)
 static SpnAST *parse_stmt(SpnParser *p, int is_global)
 {
 	switch (p->curtok.tok) {
-		case SPN_TOK_IF:	return parse_if(p);
-		case SPN_TOK_WHILE:	return parse_while(p);
-		case SPN_TOK_DO:	return parse_do(p);
-		case SPN_TOK_FOR:	return parse_for(p);
-		case SPN_TOK_BREAK:	return parse_break(p);
-		case SPN_TOK_CONTINUE:	return parse_continue(p);
-		case SPN_TOK_RETURN:	return parse_return(p);
-		case SPN_TOK_SEMICOLON:	return parse_empty(p);
-		case SPN_TOK_LBRACE:	return parse_block(p);
-		case SPN_TOK_VAR:	return parse_vardecl(p);
-		case SPN_TOK_FUNCTION:
-			if (is_global) {
-				/* assume function statement at file scope */
-				return parse_function(p, 1);
-			} else {
-				/* and a function expression at local scope */
-				return parse_expr_stmt(p);
-			}
-		case SPN_TOK_CONST:
-			if (is_global) {
-				return parse_const(p);
-			} else {
-				spn_parser_error(p, "`const' declarations are only allowed at file scope", NULL);
-				return NULL;
-			}
-		default:
+	case SPN_TOK_IF:	return parse_if(p);
+	case SPN_TOK_WHILE:	return parse_while(p);
+	case SPN_TOK_DO:	return parse_do(p);
+	case SPN_TOK_FOR:	return parse_for(p);
+	case SPN_TOK_BREAK:	return parse_break(p);
+	case SPN_TOK_CONTINUE:	return parse_continue(p);
+	case SPN_TOK_RETURN:	return parse_return(p);
+	case SPN_TOK_SEMICOLON:	return parse_empty(p);
+	case SPN_TOK_LBRACE:	return parse_block(p);
+	case SPN_TOK_VAR:	return parse_vardecl(p);
+	case SPN_TOK_FUNCTION:
+		if (is_global) {
+			/* assume function statement at file scope */
+			return parse_function(p, 1);
+		} else {
+			/* and a function expression at local scope */
 			return parse_expr_stmt(p);
+		}
+	case SPN_TOK_CONST:
+		if (is_global) {
+			return parse_const(p);
+		} else {
+			spn_parser_error(p, "`const' declarations are only allowed at file scope", NULL);
+			return NULL;
+		}
+	default:
+		return parse_expr_stmt(p);
 	}
 }
 

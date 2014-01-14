@@ -11,6 +11,7 @@ Code:
 		80-character line length limit.
 	- Implement standard library (and make the functions in there print meaningful		***Urgent***
 		exception messages when they encounter an error condition)
+	- Related: native functions should be able to set a custom error message		***Urgent***
 	- Fix the whole mechanism for accessing the implicit `this` argument in			***Urgent***
 		OO-style function calls
 	
@@ -18,7 +19,7 @@ Language, syntax:
 	- is the context-free grammar in grammar.txt correct? especially with
 		regards to expressions (associativity, precedence!)
 	- what's a better fit for the 3rd argument of cond-expr?
-		cond-expr (current, as in C) or assignment-expr (as in C++)?
+		cond-expr (current, as in C) or assignment-expr (as in C++)?			won't change this
 	- write the specification (yeah)							done
 	- OO, classes? anyone wants them? good for performance - fields can be
 		numbered at compile-time, names thrown away, no need for string
@@ -33,7 +34,7 @@ Language, syntax:
 	- arrays should be able to be indexed by any object (polymorphic hash function
 		based on pointers to an object)							done
 	- switch-case statement (with block syntax instead of labels: `case 0: { }' etc.)
-	- implement concatenation operator (..) into lexer & parser				done
+	- implement concatenation operator (..) in lexer & parser				done
 	- ...and add the `#` variadic argument operator (#0 is the first arg) (*)		done
 	- Do something with strings. How to access single characters in a string?
 		(maybe no built-in approach, only stdlib functions?)
@@ -42,13 +43,13 @@ Language, syntax:
 	- comma-separated variable declarations! `var i = 0, j = 1;`				done
 	- support C99- and C++-style in-loop variable initialization, as in:
 		for var i = 0; i < sizeof(arr); i++
-	- optimize chained concatenations (x .. y .. z .. .. foo .. bar ..quirk)
+	- optimize chained concatenations (x .. y .. z .. foo .. bar ..quirk)
 		so that they aren't done in separate steps (as specified by the
 		associativity of the .. operator), because creating huge temp
 		strings in O(n ^ 2) is wasteful. Instead, these should be somehow
 		compiled into one great CONCAT_ALL(x, y, z, foo, bar, quirk)
 		instruction (yes, this needs VM support too)
-	- fill in array-expr in the grammar							***Urgent***
+	- fill in array-expr in the grammar							done
 
 Parser:
 	- Is it appropriate to always release the value of the current token if an
@@ -57,7 +58,7 @@ Parser:
 		a string instead of an expected operator or keyword?), right? But
 		what happens if it *is* released? Is this approach correct throughout
 		the implementation of the parser?						it seems correct
-	- array literals (@{}, @[], or something else?)						***Urgent***
+	- array literals (@{}, @[], or something else? --> something else: {})			done
 	- support C99- and C++-style in-loop variable initialization (see above)
 	- include line number information in AST						done
 	- check some mistakes that are obvious to detect at compile time,
@@ -93,7 +94,7 @@ Compiler:
 	- Do some basic constant folding on arithmetic and logical expressions and
 		on string concatenation as well.
 	- implement ++ and -- operators on array members					***Urgent***
-	- implement break and continue statements						***Urgent***
+	- implement break and continue statements						done
 	- Somehow calculate the total number of registers in `compile_funcdef()`		done
 		as well as in `compile_program()` (grep for "TODO 3" comments!)
 		We do have the number of local variables as
@@ -112,13 +113,12 @@ Compiler:
 		that child resides in can be re-used as the destination register
 		of the current (parent) AST node, no need for an extra "push".
 	- pay attention to name collisions:
-		function and variable with the same name					***Urgent***
 		re-declared variables								done
 		re-defined functions								done
 	- Functions returning nothing should return `nil'.					done
 		(a. k. a., auto-insert `return nil` at the end of function
 		bodies and the main pgrogran too).
-	- recognize `argc` and implement its functionality					***Urgent***
+	- recognize `argc` and implement its functionality					done
 	- use scoping (defined by blocks) for variable names					done
 		(idea: use a hashtable in compile_function and compile_block,
 		store variables of which the scope is only the current block,
@@ -126,6 +126,10 @@ Compiler:
 	- use line number information in AST							done
 
 VM:
+	- Avoid repeatedly allocating and deallocating memory for arguments of
+		native functions (maybe use a stack of lazily allocated SpnValue
+		arrays? (allocate them when first needed, and not deallocate them
+		until the end of the program)
 	- !!! EXAMINE AND TEST REFERENCE COUNTING !!! Specifically, does the			seems to work
 		"release(dst); *dst = *retain(src)" idiom work? What if the same
 		object is being assigned onto itself and its refcount is 1?
@@ -187,8 +191,8 @@ Standard library:
 	- provide proper access to the Sparkling engine (compilefile(),
 		compilestring(), etc. functions)
 	- check number of arguments in format strings
-	- complex mathematical functions (at least basic ones: conversion between
-		canonical, exponential and trigonometric form, absolute value, etc.)
+	- complex mathematical functions (at least basic ones: conversion between		done
+		canonical and trigonometric form, absolute value, etc.)
 
 Miscellaneous:
 	- add ability to load multiple source files						done
