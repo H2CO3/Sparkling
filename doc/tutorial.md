@@ -9,6 +9,18 @@ statements (`if`, `while` and `for`) need not end with a semi-colon. A semicolon
 in itself, without a preceding statement, denotes an empty statement that does
 nothing.
 
+## Comments
+
+There are two types of comments in Sparkling: one-line comments:
+
+    // this is a one-line comment
+
+and block comments:
+
+    /* block comments can
+       span several lines
+     */
+
 ## Keywords:
 
 This is a list of all reserved words (keywords and names corresponding to
@@ -210,9 +222,9 @@ assignments
  * `#`: prefix operator, takes a non-negative integer expression. Yields the
 `n`th variadic argument of the function it is used within (where `n` is the
 value of its operand), starting from zero. If the value of the integer
-expression is greater than or equal to the number of variadic arguments, yields
-`nil`. If it is supplied a negative, non-integral or non-number expression,
-throws a runtime exception.
+expression is greater than or equal to the number of variadic arguments, throws
+and exception. If it is supplied a negative, non-integral or non-number
+expression, it also throws a runtime exception.
 
 ## Loops
 
@@ -249,8 +261,7 @@ You don't need to wrap the condition of the `if` stament in parentheses either:
         printf("not equal");
     }
 
-There is no separate `elsif` keyword like in PHP or Python; you need to use
-`else if`.
+In order to implement multi-way branching, use `else if`:
 
     if i == 0 {
         print("zero");

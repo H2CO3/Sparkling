@@ -298,8 +298,8 @@ bitwise complement.
 §3.8.6. The `#` operator. It yields the N-th variadic (unnamed) argument of the
 enclosing function, where argument #0 is the first variadic argument.
 If the operand is more than or equal to the number of variadic arguments,
-it yields nil. It is an error to pass a negative, floating-point or non-number
-operand to this operator.
+an exception is raised. It is an error to pass a negative, floating-point or
+non-number operand to this operator.
 
 §3.8.7. The `sizeof` operator. The sizeof operator yields the conceptual size
 (length) of its argument. For nil, this is 0, for strings, it is the number

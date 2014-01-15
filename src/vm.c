@@ -1499,10 +1499,9 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				spn_value_release(a);
 				*a = *argp;
 			} else {
-				/* if index is out of bounds, yield nil */
-				spn_value_release(a);
-				a->t = SPN_TYPE_NIL;
-				a->f = 0;
+				/* if index is out of bounds, throw */
+				const void *args[] = { &argidx };
+				runtime_error(vm, ip - 1, "argument `%d' of `#' operator is out-of bounds", args);
 			}
 
 			break;
