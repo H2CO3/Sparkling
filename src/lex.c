@@ -250,7 +250,7 @@ static int lex_op(SpnParser *p)
 	/* The order of entries in this array matters because linear search is
 	 * performed on it, and if '+' gets caught before '++', we're in trouble
 	 */
-	const TReserved ops[] = {
+	static const TReserved ops[] = {
 		RESERVED_ENTRY("++",	SPN_TOK_INCR),
 		RESERVED_ENTRY("+=",	SPN_TOK_PLUSEQ),
 		RESERVED_ENTRY("+",	SPN_TOK_PLUS),
