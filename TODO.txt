@@ -25,7 +25,7 @@ Language, syntax:
 		numbered at compile-time, names thrown away, no need for string
 		hashing (similarly to C `struct`s)
 	- Or at least namespaces?
-	- And how about one-line comments? // Do we need a comment that ends with \r\n?
+	- And how about one-line comments? // Do we need a comment that ends with \r\n?		done
 	- 'concat-equals' (..=) operator							done
 	- named constants, "enum"s (whatever you call them) (How? They can't be
 		referenced across object files unless they are put in the symbol

@@ -44,7 +44,9 @@ Grammar notations:
 	IN-ALL-CAPS
 
 The language ignores whitespace between tokens (terminals). Comments are treated
-as whitespace (they're ignored). Comments are enclosed between '/*' and '*/'
+as whitespace (they're ignored). One-line comments begin with '//', and
+block comments are enclosed between '/*' and '*/'.
+
 and they don't nest.
 
 T h e   g r a m m a r

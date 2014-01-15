@@ -197,32 +197,48 @@ static void skip_space(SpnParser *p)
 
 static int skip_comment(SpnParser *p)
 {
-	while (p->pos[0] == '/' && p->pos[1] == '*') {
-		/* skip comment beginning marker */
-		p->pos += 2;
+	while (p->pos[0] == '/' && p->pos[1] == '*'
+	    || p->pos[0] == '/' && p->pos[1] == '/') {
 
-		if (p->pos[0] == 0) {
-			/* error: unterminated comment */
-			spn_parser_error(p, "unterminated comment", NULL);
-			return 0;
-		}
+		/* then-branch: block comments; else-branch: line comments */
+		if (p->pos[0] == '/' && p->pos[1] == '*') {
+			/* skip block comment beginning marker */
+			p->pos += 2;
 
-		while (p->pos[0] != '*' || p->pos[1] != '/') {
-			if (p->pos[1] == 0) {
+			if (p->pos[0] == 0) {
 				/* error: unterminated comment */
 				spn_parser_error(p, "unterminated comment", NULL);
 				return 0;
 			}
 
-			if (isspace(p->pos[0])) {
-				skip_space(p);
-			} else {
+			while (p->pos[0] != '*' || p->pos[1] != '/') {
+				if (p->pos[1] == 0) {
+					/* error: unterminated comment */
+					spn_parser_error(p, "unterminated comment", NULL);
+					return 0;
+				}
+
+				if (isspace(p->pos[0])) {
+					skip_space(p);
+				} else {
+					p->pos++;
+				}
+			}
+
+			/* skip comment end marker */
+			p->pos += 2;
+		} else {
+			/* skip line comment marker */
+			p->pos += 2;
+
+			/* advance until next newline */
+			while (p->pos[0] != '\n' && p->pos[0] != '\r') {
 				p->pos++;
 			}
-		}
 
-		/* skip comment end marker */
-		p->pos += 2;
+			/* skip the bastard */
+			skip_space(p);
+		}
 	}
 
 	return 1;
@@ -230,7 +246,9 @@ static int skip_comment(SpnParser *p)
 
 static int skip_space_and_comment(SpnParser *p)
 {
-	while (isspace(p->pos[0]) || (p->pos[0] == '/' && p->pos[1] == '*')) {
+	while (isspace(p->pos[0])
+	    || p->pos[0] == '/' && p->pos[1] == '*'
+	    || p->pos[0] == '/' && p->pos[1] == '/') {
 		skip_space(p);
 
 		if (!skip_comment(p)) {

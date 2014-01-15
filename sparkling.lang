@@ -11,6 +11,7 @@
   <metadata>
     <property name="mimetypes">text/plain;text/x-sparkling</property>
     <property name="globs">*.spn</property>
+    <property name="line-comment-start">//</property>
     <property name="block-comment-start">/*</property>
     <property name="block-comment-end">*/</property>
   </metadata>
@@ -57,6 +58,7 @@
 
     <context id="sparkling" class="no-spell-check">
       <include>
+        <context ref="def:c-like-comment"/>
         <context ref="def:c-like-comment-multiline" />
         <context ref="def:c-like-close-comment-outside-comment" />
         <context ref="def:string" style-ref="string" />
