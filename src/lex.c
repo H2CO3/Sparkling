@@ -231,13 +231,17 @@ static int skip_comment(SpnParser *p)
 			/* skip line comment marker */
 			p->pos += 2;
 
-			/* advance until next newline */
-			while (p->pos[0] != '\n' && p->pos[0] != '\r') {
+			/* advance until next newline or end-of-input */
+			while (p->pos[0] != '\0'
+			    && p->pos[0] != '\n'
+			    && p->pos[0] != '\r') {
 				p->pos++;
 			}
 
 			/* skip the bastard */
-			skip_space(p);
+			if (p->pos[0]) {
+				skip_space(p);
+			}
 		}
 	}
 

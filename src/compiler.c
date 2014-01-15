@@ -2249,11 +2249,10 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_PREINCRMT:
 	case SPN_NODE_PREDECRMT: {
 		/* these yield the already incremented/decremented value */
-		spn_uword insns[3] = {
-			SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx),
-			SPN_MKINS_A(opcode, *dst),
-			SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst)
-		};
+		spn_uword insns[3];
+		insns[0] = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
+		insns[1] = SPN_MKINS_A(opcode, *dst);
+		insns[2] = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst);
 
 		bytecode_append(&cmp->bc, insns, COUNT(insns));
 		break;
@@ -2265,12 +2264,12 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		 * register to store the incremented/decremented value in.
 		 */
 		int tmpidx = tmp_push(cmp);
-		spn_uword insns[4] = {
-			SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx),
-			SPN_MKINS_AB(SPN_INS_MOV, tmpidx, *dst),
-			SPN_MKINS_A(opcode, tmpidx),
-			SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, tmpidx)
-		};
+
+		spn_uword insns[4];
+		insns[0] = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
+		insns[1] = SPN_MKINS_AB(SPN_INS_MOV, tmpidx, *dst);
+		insns[2] = SPN_MKINS_A(opcode, tmpidx);
+		insns[3] = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, tmpidx);
 
 		bytecode_append(&cmp->bc, insns, COUNT(insns));
 		tmp_pop(cmp);

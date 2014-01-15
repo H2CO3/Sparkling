@@ -1500,7 +1500,8 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				*a = *argp;
 			} else {
 				/* if index is out of bounds, throw */
-				const void *args[] = { &argidx };
+				const void *args[1];
+				args[0] = &argidx;
 				runtime_error(vm, ip - 1, "argument `%d' of `#' operator is out-of bounds", args);
 			}
 
