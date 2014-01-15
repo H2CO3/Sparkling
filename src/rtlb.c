@@ -429,7 +429,7 @@ static int rtlb_feof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	ret->t = SPN_TYPE_BOOL;
 	ret->f = 0;
-	ret->v.boolv = feof(fp);
+	ret->v.boolv = feof(fp) != 0;
 
 	return 0;
 }

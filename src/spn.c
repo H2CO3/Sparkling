@@ -112,10 +112,10 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 	}
 
 	switch (lhs->t) {
-	case SPN_TYPE_NIL:	{ return 1; /* nil can only be nil */		}
-	case SPN_TYPE_BOOL:	{ return !lhs->v.boolv == !rhs->v.boolv;	}
-	case SPN_TYPE_NUMBER:	{ return numeric_equal(lhs, rhs);		}
-	case SPN_TYPE_FUNC:	{ return function_equal(lhs, rhs);		}
+	case SPN_TYPE_NIL:	{ return 1; /* nil can only be nil */	}
+	case SPN_TYPE_BOOL:	{ return lhs->v.boolv == rhs->v.boolv;	}
+	case SPN_TYPE_NUMBER:	{ return numeric_equal(lhs, rhs);	}
+	case SPN_TYPE_FUNC:	{ return function_equal(lhs, rhs);	}
 	case SPN_TYPE_STRING:
 	case SPN_TYPE_ARRAY:	{
 		return spn_object_equal(lhs->v.ptrv, rhs->v.ptrv);
@@ -222,7 +222,7 @@ unsigned long spn_hash_object(const SpnValue *key)
 {
 	switch (key->t) {
 	case SPN_TYPE_NIL:	{ return 0;				}
-	case SPN_TYPE_BOOL:	{ return !key->v.boolv; /* 0 or 1 */	}
+	case SPN_TYPE_BOOL:	{ return key->v.boolv; /* 0 or 1 */	}
 	case SPN_TYPE_NUMBER:	{
 		if (key->f & SPN_TFLG_FLOAT) {
 			return key->v.fltv == (long)(key->v.fltv)

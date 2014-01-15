@@ -242,7 +242,7 @@ When creating a value, one must do the following:
 `SPN_TYPE_FUNCTION`, `SPN_TYPE_STRING`, `SPN_TYPE_ARRAY` or `SPN_TYPE_USRDAT`.
 
    If its type is Boolean, its `v.boolv` member should be set to zero for
-   false, nonzero for true.
+   false, 1 for true. (`true' must **always** be 1!)
 
    If the type is number, then the `SPN_TFLG_FLOAT` flag may be set in the
    `f` member if the number is a floating-point value. If this is the case,
