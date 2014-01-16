@@ -218,7 +218,7 @@ unsigned long spn_hash(const void *data, size_t n)
 	return h;
 }
 
-unsigned long spn_hash_object(const SpnValue *key)
+unsigned long spn_hash_value(const SpnValue *key)
 {
 	switch (key->t) {
 	case SPN_TYPE_NIL:	{ return 0;				}

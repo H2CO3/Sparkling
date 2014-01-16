@@ -82,7 +82,7 @@ will result in a runtime error).
 
 ## Numbers
 
-You can write integers or floats the same as in C:
+You can write integers or floats in the same manner as in C:
 
  * `10` (decimal integer)
  * `0x3f` (hecadecimal integer)
@@ -95,24 +95,24 @@ library, and they represent the floating-point NaN and positive infinity.
 
 ## Strings
 
-String literals are enclosed in double quotes. You can access single characters
-of the string the same way you can access array members, using the `[]`
-operator. Characters are converted to integers (to their character code).
-String indices start from zero.
+String literals are enclosed in double quotes. You can access the individual
+characters of a string in the same way you would access array members, i. e.
+using the `[]` operator. Characters are represented by integers (by their
+character code). Indexing starts from zero.
 
     > print("hello"[1]);
     101
 
 
-To get the number of characters in a string, use the `sizeof` operator:
+To get the number of bytes in a string, use the `sizeof` operator:
 
     > print(sizeof "hello");
     5
 
-Character literals are enclosed between apostrophees: `'a'`
+Character literals are enclosed between apostrophes: `'a'`
 
-This is a list of escape sequances (same as in C) that can be used inside
-string and character literals:
+This is a list of escape sequances (they are the same as in C)
+that can be used in string and character literals:
 
     \\		->		\
     \/		->		/
@@ -130,18 +130,13 @@ string and character literals:
 
 ## Arrays
 
-To define an array you can either use the `array()` standard library function:
-
-    var empty = array();
-    var a = array(1, 2, 3, 4, 5);
-
-But you can compose array literals as well:
+To define an array you can compose array literals:
 
     var empty = {};
     var primes = { 2, 3, 5 };
 
-You can create an array contaning different types of values. Arrays are indexed
-from zero, just like strings.
+You can create an array contaning different types of values. Arrays indexing
+starts with zero.
 
     > print({ 1, 2, 3, "hello" }[3]);
     hello
@@ -162,27 +157,15 @@ do it with strings):
     1
 
 It is also possible to create arrays with non-integer indices (in fact, array
-keys/indices can have any type). There is a convenience standard library
-function for this purpose called `dict`:
+keys/indices can have any type). The order of elements in an array (e. g. when
+enumerated using an iterator) is unspecified.
 
-    var words = dict(
-        "hello",  "bonjour",
-        "twenty", "vingt",
-        "cheese", "fromage"
-    );
-    print(words["cheese"]); /* prints "fromage" */
-
-As you can see, this function takes key-value pairs and adds them to the array.
-The order of elements in an array (when enumerated using an iterator) is
-unspecified. It is required that you pass an even number of arguments to this
-function - calling it with an odd number of elements raises a runtime error.
-
-To create an associative array, you can also use associative array literals,
-where keys and values are separated by a colon:
+To create an associative array, use associative array literals. Keys and values
+are separated by a colon:
 
     var words = { "cheese": "fromage", "apple": "pomme" };
 
-If you are using literals, it is even possible to intermix the two types:
+It is even possible to intermix the two types:
 
     var mixed = { "foo", "bar": "baz", "quirk", "lol": 1337 };
 
@@ -223,37 +206,36 @@ assignments
 `n`th variadic argument of the function it is used within (where `n` is the
 value of its operand), starting from zero. If the value of the integer
 expression is greater than or equal to the number of variadic arguments, throws
-and exception. If it is supplied a negative, non-integral or non-number
-expression, it also throws a runtime exception.
+and exception. It also throws a runtime exception if it is supplied a negative,
+non-integral or non-number argument.
 
 ## Loops
 
 Unlike in C (and similarly to Python), you don't need to wrap loop conditions
 inside parentheses. Loops work in the same manner as those in C.
 
-For loop:
+`for` loop:
 
     for i = 0; i < 10; ++i {
         print(i);
     }
 
-While loop:
+`while` loop:
 
     while i < x {
         print(i++);
     }
 
-Do...while loop:
+`do...while` loop:
 
     var i = 0;
     do {
         print(i++);
     } while i < 10;
 
-## The `if` statement
+## The if statement
 
 You don't need to wrap the condition of the `if` stament in parentheses either:
-
 
     if 0 == 0 {
         print("equal");
@@ -278,13 +260,13 @@ Trying to use an expression of any other type will cause a runtime error.
 
 You can create named and anonymous functions with the `function` keyword:
 
-    /* named function, globally accessible */
+    /* named functions are globally accessible */
     function square(x)
     {
         return x * x;
     }
 
-    /* unnamed function */
+    /* in contrast, unnamed functions have local scope */
     var fn = function(x) {
         return x + 1;
     };

@@ -194,7 +194,7 @@ SpnValue *spn_array_get(SpnArray *arr, const SpnValue *key)
 	}
 
 	/* else return what the hash part can find */
-	hash = spn_hash_object(key) % nthsize(arr->hashszidx);
+	hash = spn_hash_value(key) % nthsize(arr->hashszidx);
 
 	/* return what's found in the link list at the computed index
 	 * (behaves correctly if the list is empty/NULL)
@@ -504,7 +504,7 @@ static void expand_hash(SpnArray *arr)
 		while (list != NULL) {
 			TList *tmp;
 			KVPair *pair = &list->pair;
-			unsigned long hash = spn_hash_object(&pair->key) % newsz;
+			unsigned long hash = spn_hash_value(&pair->key) % newsz;
 			new_buckets[hash] = list_prepend(new_buckets[hash], &pair->key, &pair->val);
 
 			/* free old list in-place */
@@ -537,7 +537,7 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 		expand_hash(arr);
 	}
 
-	thash = spn_hash_object(key);
+	thash = spn_hash_value(key);
 	hash = thash % nthsize(arr->hashszidx);
 
 	/* new element? */

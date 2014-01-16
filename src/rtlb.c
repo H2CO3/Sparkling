@@ -950,49 +950,6 @@ const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
  * Array library *
  *****************/ /* TODO: implement */
 
-static int rtlb_array(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	SpnArray *arr;
-	int i;
-
-	arr = spn_array_new();
-	for (i = 0; i < argc; i++) {
-		SpnValue idx;
-		idx.t = SPN_TYPE_NUMBER;
-		idx.f = 0;
-		idx.v.intv = i;
-		spn_array_set(arr, &idx, &argv[i]);
-	}
-
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = arr;
-
-	return 0;
-}
-
-static int rtlb_dict(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	SpnArray *arr;
-	int i;
-
-	if (argc % 2 != 0) {
-		fprintf(stderr, "odd number of values in dict()\n");
-		return -1;
-	}
-
-	arr = spn_array_new();
-	for (i = 0; i < argc; i += 2) {
-		spn_array_set(arr, &argv[i], &argv[i + 1]);
-	}
-
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = arr;
-
-	return 0;
-}
-
 static int rtlb_contains(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t n;
@@ -1169,10 +1126,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 
 const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
-	{ "array",	rtlb_array	},
-	{ "dict",	rtlb_dict	},
 	{ "sort",	NULL		},
-	{ "sortcmp",	NULL		},
 	{ "linearsrch",	NULL		},
 	{ "binarysrch",	NULL		},
 	{ "contains",	rtlb_contains	},

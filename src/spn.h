@@ -65,8 +65,6 @@ enum spn_val_type {
 	SPN_TYPE_USRDAT		/* strong pointer when `OBJECT' flag is set	*/
 };
 
-typedef struct SpnValue SpnValue;
-
 /* additional type information flags and masks (0: none) */
 enum spn_val_flag {
 	SPN_TFLG_OBJECT		= 1 << 0,	/* type is an object type	*/
@@ -74,6 +72,8 @@ enum spn_val_flag {
 	SPN_TFLG_NATIVE		= 1 << 2,	/* function is native		*/
 	SPN_TFLG_PENDING	= 1 << 3	/* unresolved (stub) symbol	*/
 };
+
+typedef struct SpnValue SpnValue;
 
 /* `symtabidx' is the index of the local symbol table
  * which represents the environment of the function
@@ -105,9 +105,9 @@ SPN_API void spn_value_release(SpnValue *val);
 SPN_API int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs);
 SPN_API int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs);
 
-/* hashing (for generic data and for objects) */
+/* hashing (for generic data and for SpnValue structs) */
 SPN_API unsigned long spn_hash(const void *data, size_t n);
-SPN_API unsigned long spn_hash_object(const SpnValue *obj);
+SPN_API unsigned long spn_hash_value(const SpnValue *obj);
 
 /* prints a user-readable representation of a value to stdout */
 SPN_API void spn_value_print(const SpnValue *val);
@@ -117,7 +117,7 @@ SPN_API char *spn_read_text_file(const char *name);
 
 /* another convenience function for reading binary files.
  * WARNING: `sz' represents the file size in bytes. If you are using
- * this function to read Sparkling compiled object files, make sure to
+ * this function to read compiled Sparkling object files, make sure to
  * divide the returned size by sizeof(spn_uword) in order to obtain
  * the code length in machine words.
  */
