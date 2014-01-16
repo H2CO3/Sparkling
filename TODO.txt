@@ -204,6 +204,7 @@ Miscellaneous:
 		runtime support library)
 	- real error handling when `malloc()` fails instead of just `abort()`ing
 	- support for user data/custom ojects							done
+	- remove non-const static variables							done
 	- Bindings for popular and useful C libraries: SQLite3, libxml2, cURL
 		(and perhaps even raw socket access), a graphics and/or GUI
 		library (SDL, GTK+ maybe?), regular expressions (POSIX/PCRE),

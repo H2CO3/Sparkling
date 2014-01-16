@@ -1795,24 +1795,19 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int polar)
 {
-	static int initme = 1;
-	static SpnValue	re_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
-			im_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
-			r_key     = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
-			theta_key = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
+	SpnValue re_r_key     = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+		 im_theta_key = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
 
 	SpnValue *re_r_val, *im_theta_val;
 
-	if (initme) {
-		re_key.v.ptrv    = spn_string_new_nocopy("re", 0);
-		im_key.v.ptrv    = spn_string_new_nocopy("im", 0);
-		r_key.v.ptrv     = spn_string_new_nocopy("r", 0);
-		theta_key.v.ptrv = spn_string_new_nocopy("theta", 0);
-		initme = 0;
-	}
+	re_r_key.v.ptrv     = spn_string_new_nocopy(polar ? "r"     : "re", 0);
+	im_theta_key.v.ptrv = spn_string_new_nocopy(polar ? "theta" : "im", 0);
 
-	re_r_val     = spn_array_get(num->v.ptrv, polar ? &r_key     : &re_key);
-	im_theta_val = spn_array_get(num->v.ptrv, polar ? &theta_key : &im_key);
+	re_r_val     = spn_array_get(num->v.ptrv, &re_r_key);
+	im_theta_val = spn_array_get(num->v.ptrv, &im_theta_key);
+
+	spn_object_release(re_r_key.v.ptrv);
+	spn_object_release(im_theta_key.v.ptrv);
 
 	if (re_r_val->t     != SPN_TYPE_NUMBER
 	 || im_theta_val->t != SPN_TYPE_NUMBER) {
@@ -1827,28 +1822,22 @@ static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int pola
 
 static void rtlb_cplx_set(SpnValue *num, double re_r, double im_theta, int polar)
 {
-	static int initme = 1;
-	static SpnValue	re_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
-			im_key    = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
-			r_key     = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
-			theta_key = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
-
-	SpnValue re_r_val     = { { 0 }, SPN_TYPE_NUMBER, SPN_TFLG_FLOAT  },
+	SpnValue re_r_key     = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+		 im_theta_key = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT },
+		 re_r_val     = { { 0 }, SPN_TYPE_NUMBER, SPN_TFLG_FLOAT  },
 		 im_theta_val = { { 0 }, SPN_TYPE_NUMBER, SPN_TFLG_FLOAT  };
 
-	if (initme) {
-		re_key.v.ptrv    = spn_string_new_nocopy("re", 0);
-		im_key.v.ptrv    = spn_string_new_nocopy("im", 0);
-		r_key.v.ptrv     = spn_string_new_nocopy("r", 0);
-		theta_key.v.ptrv = spn_string_new_nocopy("theta", 0);
-		initme = 0;
-	}
+	re_r_key.v.ptrv     = spn_string_new_nocopy(polar ? "r"     : "re", 0);
+	im_theta_key.v.ptrv = spn_string_new_nocopy(polar ? "theta" : "im", 0);
 
 	re_r_val.v.fltv     = re_r;
 	im_theta_val.v.fltv = im_theta;
 
-	spn_array_set(num->v.ptrv, polar ? &r_key     : &re_key, &re_r_val);
-	spn_array_set(num->v.ptrv, polar ? &theta_key : &im_key, &im_theta_val);
+	spn_array_set(num->v.ptrv, &re_r_key, &re_r_val);
+	spn_array_set(num->v.ptrv, &im_theta_key, &im_theta_val);
+
+	spn_object_release(re_r_key.v.ptrv);
+	spn_object_release(im_theta_key.v.ptrv);
 }
 
 
@@ -2503,7 +2492,7 @@ static void load_stdlib_functions(SpnVMachine *vm)
 
 static void load_stdlib_constants(SpnVMachine *vm)
 {
-	static SpnExtValue values[SPN_N_STD_CONSTANTS];
+	SpnExtValue values[SPN_N_STD_CONSTANTS];
 
 	/* standard I/O streams */
 	values[0].name = "stdin";

@@ -31,42 +31,34 @@ typedef struct TReserved {
 
 static int is_special(char c)
 {
-	static char flags[1 << CHAR_BIT] = { 0 };
-	static int init = 0;
-	int idx = c; /* suppress 'index is a char' warning */
-
-	if (!init) {
-		flags['+'] = 1;
-		flags['-'] = 1;
-		flags['*'] = 1;
-		flags['/'] = 1;
-		flags['%'] = 1;
-		flags['='] = 1;
-		flags['!'] = 1;
-		flags['?'] = 1;
-		flags[':'] = 1;
-		flags['.'] = 1;
-		flags[','] = 1;
-		flags[';'] = 1;
-		flags['<'] = 1;
-		flags['>'] = 1;
-		flags['&'] = 1;
-		flags['|'] = 1;
-		flags['^'] = 1;
-		flags['~'] = 1;
-		flags['#'] = 1;
-		flags['('] = 1;
-		flags[')'] = 1;
-		flags['['] = 1;
-		flags[']'] = 1;
-		flags['{'] = 1;
-		flags['}'] = 1;
-		
-		init = 1;
+	switch (c) {
+	case '+':
+	case '-':
+	case '*':
+	case '/':
+	case '%':
+	case '=':
+	case '!':
+	case '?':
+	case ':':
+	case '.':
+	case ',':
+	case ';':
+	case '<':
+	case '>':
+	case '&':
+	case '|':
+	case '^':
+	case '~':
+	case '#':
+	case '(':
+	case ')':
+	case '[':
+	case ']':
+	case '{':
+	case '}': return 1;
+	default:  return 0;
 	}
-
-	/* no negative indices for the array, please */
-	return idx < 0 ? 0 : flags[idx];
 }
 
 static int is_ident_begin(char c)
@@ -79,7 +71,8 @@ static int is_ident(char c)
 	return isalnum(c) || c == '_';
 }
 
-static int is_octal(char c) {
+static int is_octal(char c)
+{
 	return '0' <= c && c <= '7';
 }
 

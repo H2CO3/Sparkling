@@ -1406,15 +1406,21 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 
 			if (b->t == SPN_TYPE_ARRAY) {
-				SpnValue *val = spn_array_get(b->v.ptrv, c);
-				spn_value_retain(val);
+				/* copy value before array is potentially
+				 * deallocated (`valp' always points inside the
+				 * array in b, and a == b is possible!)
+				 */
+				SpnValue *valp = spn_array_get(b->v.ptrv, c);
+				SpnValue val = *valp;
+				spn_value_retain(valp);
 
 				spn_value_release(a);
-				*a = *val;
+				*a = val;
 			} else if (b->t == SPN_TYPE_STRING) {
 				SpnString *str = b->v.ptrv;
 				long len = str->len;
 				long idx;
+				unsigned char ch;
 
 				if (c->t != SPN_TYPE_NUMBER) {
 					runtime_error(vm, ip - 1, "indexing string with non-number value", NULL);
@@ -1444,10 +1450,13 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					);
 				}
 
+				/* copy character before string is potentially deallocated */
+				ch = str->cstr[idx];
+
 				spn_value_release(a);
 				a->t = SPN_TYPE_NUMBER;
 				a->f = 0;
-				a->v.intv = (unsigned char)(str->cstr[idx]);
+				a->v.intv = ch;
 			} else {
 				runtime_error(vm, ip - 1, "first operand of [] operator must be an array or a string", NULL);
 			}
@@ -1956,76 +1965,23 @@ static SpnValue sizeof_value(SpnValue *val)
 
 static SpnValue typeof_value(SpnValue *val)
 {
-	static SpnString *niltype	= NULL,
-			 *booltype	= NULL,
-			 *numtype	= NULL,
-			 *fntype	= NULL,
-			 *strtype	= NULL,
-			 *arrtype	= NULL,
-			 *usrtype	= NULL;
-
-	int retainflag = 1;
-
-	SpnValue res;
-	res.t = SPN_TYPE_STRING;
-	res.f = SPN_TFLG_OBJECT;
+	SpnValue res = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
+	const char *type;
 
 	switch (val->t) {
-	case SPN_TYPE_NIL:
-		if (niltype == NULL) {
-			niltype = spn_string_new_nocopy("nil", 0);
-		}
-
-		res.v.ptrv = niltype;
-		break;
-	case SPN_TYPE_BOOL:
-		if (booltype == NULL) {
-			booltype = spn_string_new_nocopy("bool", 0);
-		}
-
-		res.v.ptrv = booltype;
-		break;
-	case SPN_TYPE_NUMBER:
-		if (numtype == NULL) {
-			numtype = spn_string_new_nocopy("number", 0);
-		}
-
-		res.v.ptrv = numtype;
-		break;
-	case SPN_TYPE_FUNC:
-		if (fntype == NULL) {
-			fntype = spn_string_new_nocopy("function", 0);
-		}
-
-		res.v.ptrv = fntype;
-		break;
-	case SPN_TYPE_STRING:
-		if (strtype == NULL) {
-			strtype = spn_string_new_nocopy("string", 0);
-		}
-
-		res.v.ptrv = strtype;
-		break;
-	case SPN_TYPE_ARRAY:
-		if (arrtype == NULL) {
-			arrtype = spn_string_new_nocopy("array", 0);
-		}
-
-		res.v.ptrv = arrtype;
-		break;
+	case SPN_TYPE_NIL:	type = "nil";		break;
+	case SPN_TYPE_BOOL:	type = "bool";		break;
+	case SPN_TYPE_NUMBER:	type = "number";	break;
+	case SPN_TYPE_FUNC:	type = "function";	break;
+	case SPN_TYPE_STRING:	type = "string";	break;
+	case SPN_TYPE_ARRAY:	type = "array";		break;
 	case SPN_TYPE_USRDAT:
 		if (val->f & SPN_TFLG_OBJECT) {
 			/* custom object */
-			const char *classname = spn_object_type(val->v.ptrv);
-			res.v.ptrv = spn_string_new_nocopy(classname, 0);
-			retainflag = 0;
+			type = spn_object_type(val->v.ptrv);
 		} else {
 			/* custom non-object */
-			if (usrtype == NULL) {
-				usrtype = spn_string_new_nocopy("userdata", 0);
-			}
-
-			res.v.ptrv = usrtype;
+			type = "userdata";
 		}
 
 		break;
@@ -2033,10 +1989,7 @@ static SpnValue typeof_value(SpnValue *val)
 		SHANT_BE_REACHED();
 	}
 
-	if (retainflag) {
-		spn_value_retain(&res);
-	}
-
+	res.v.ptrv = spn_string_new_nocopy(type, 0);
 	return res;
 }
 
