@@ -1193,16 +1193,26 @@ static SpnAST *parse_for(SpnParser *p)
 		return NULL;
 	}
 
-	init = parse_expr(p);
-	if (init == NULL) {
-		return NULL;
-	}
+	/* the initialization may be either an expression or a declaration */
+	if (p->curtok.tok == SPN_TOK_VAR) {
+		init = parse_vardecl(p);
 
-	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after initialization of for loop", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(init);
-		return NULL;
+		if (init == NULL) {
+			return NULL;
+		}
+	} else {
+		init = parse_expr(p);
+
+		if (init == NULL) {
+			return NULL;
+		}
+
+		if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
+			spn_parser_error(p, "expected `;' after initialization of for loop", NULL);
+			spn_value_release(&p->curtok.val);
+			spn_ast_free(init);
+			return NULL;
+		}
 	}
 
 	cond = parse_expr(p);

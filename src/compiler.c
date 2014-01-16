@@ -878,6 +878,7 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 {
 	int regidx = -1;
+	int old_stack_size;
 	spn_sword off_cond, off_incmt, off_body_begin, off_body_end, off_cond_jmp, off_uncd_jmp;
 	spn_uword jmpins[2] = { 0 }; /* dummy */
 	SpnAST *header, *init, *cond, *icmt;
@@ -898,10 +899,17 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	header = header->right;
 	icmt = header->left;
 
+	/* we want that the scope of variables declared in the initialization
+	 * be limited to the loop body, so here we save the variable stack size
+	 */
+	old_stack_size = rts_count(cmp->varstack);
+
 	/* compile initialization ouside the loop;
 	 * restore jump list on error (no need to free, here it's empty)
+	 * `compile()' is used instead of `compile_expr_toplevel()'
+	 * because `init' may be an expression or a variable declaration
 	 */
-	if (compile_expr_toplevel(cmp, init, NULL) == 0) {
+	if (compile(cmp, init) == 0) {
 		cmp->jumplist = orig_jumplist;
 		cmp->is_in_loop = is_in_loop;
 		return 0;
@@ -955,6 +963,9 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 
 	/* 3. patch break and continue instructions */
 	fix_and_free_jump_list(cmp, off_body_end, off_incmt);
+
+	/* get rid of variables declared in the initialization of the loop */
+	rts_delete_top(cmp->varstack, old_stack_size);
 
 	/* restore jump state */
 	cmp->jumplist = orig_jumplist;

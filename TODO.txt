@@ -41,7 +41,7 @@ Language, syntax:
 		Edit: implemented using the [] operator.					done
 	- variable declarations									done
 	- comma-separated variable declarations! `var i = 0, j = 1;`				done
-	- support C99- and C++-style in-loop variable initialization, as in:
+	- support C99- and C++-style in-loop variable initialization, as in:			done
 		for var i = 0; i < sizeof(arr); i++
 	- optimize chained concatenations (x .. y .. z .. foo .. bar ..quirk)
 		so that they aren't done in separate steps (as specified by the
@@ -59,7 +59,7 @@ Parser:
 		what happens if it *is* released? Is this approach correct throughout
 		the implementation of the parser?						it seems correct
 	- array literals (@{}, @[], or something else? --> something else: {})			done
-	- support C99- and C++-style in-loop variable initialization (see above)
+	- support C99- and C++-style in-loop variable initialization (see above)		done
 	- include line number information in AST						done
 	- check some mistakes that are obvious to detect at compile time,
 		and throw errors (like assignment to rvalues, etc.)

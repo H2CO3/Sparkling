@@ -97,11 +97,15 @@ the block following the condition ("then-branch") is evaluated. Otherwise, if
 the condition is false, and the statement has an "else" branch, then the
 statement in the "else" branch is evaluated.
 
-§2.3. The for statement (`if-statement`).
+§2.3. The for statement (`for-statement`).
 The for statement evaluates its initializer statement once, then it executes
 its body as long as its condition evaluates to true. (Thus, the condition must
 be an expression of type boolean). The "incrementing" expression is evaluated
-each time the loop body finished execution.
+each time the loop body finished execution. The initializer statement may be
+either an expression statement or a variable declaration. If it is a variable
+declaration, then the scope of the declared identifiers is limited to the loop:
+they are only visible in the condition, in the increment expression and inside
+the block of the loop body.
 
 §2.4. The while statement (`while-statement`).
 The while statement is another loop statement that executes its body repeatedly
@@ -162,6 +166,9 @@ implicitly initialized with `nil`.
 
 §2.11.2. It is illegal to declare a variable that has the name of a variable
 which already exists (which is already visible) in a scope.
+
+§2.11.3. Comma-separated variable declarations happen in their syntactic order
+(i. e. the first declaration is compiled first, then the second, etc.)
 
 §2.12. The global constant declaration statement (`const-statement`). The
 constant declaration statement defines a named global value. The value that is
