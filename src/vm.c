@@ -383,10 +383,19 @@ void spn_vm_callfunc(
 		int err = fn->v.fnv.r.fn(retval, argc, argv, vm->ctx);
 
 		if (err != 0) {
+			const char *format;
 			const void *args[2];
 			args[0] = fn->v.fnv.name;
-			args[1] = &err;
-			runtime_error(vm, NULL, "error in function %s() (code %i)", args);
+
+			if (vm->usrerror != NULL) {
+				args[1] = vm->usrerror;
+				format = "error in function %s(): %s";
+			} else {
+				args[1] = &err;
+				format = "error in function %s() (code %i)";
+			}
+
+			runtime_error(vm, NULL, format, args);
 		}
 
 		return;
