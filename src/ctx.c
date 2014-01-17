@@ -143,7 +143,7 @@ int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret)
 {
 	int status = spn_vm_exec(ctx->vm, bc, ret);
 	if (status != 0) {
-		ctx->errmsg = spn_vm_errmsg(ctx->vm);
+		ctx->errmsg = spn_vm_geterrmsg(ctx->vm);
 		return status;
 	}
 

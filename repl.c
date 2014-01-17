@@ -125,7 +125,7 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 	 * the error message of the virtual machine, then a
 	 * runtime error occurred, so we print a stack trace.
 	 */
-	if (spn_vm_errmsg(ctx->vm) == ctx->errmsg) {
+	if (spn_vm_geterrmsg(ctx->vm) == ctx->errmsg) {
 		size_t n;
 		unsigned i;
 		const char **bt = spn_vm_stacktrace(ctx->vm, &n);

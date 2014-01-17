@@ -1411,7 +1411,7 @@ static int compile_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		compiler_error(
 			cmp,
 			ast->left->lineno,
-			"left-hand side of assignment must be\na variable or an array member",
+			"left-hand side of assignment must be a variable or an array member",
 			NULL
 		);
 		return 0;

@@ -68,8 +68,13 @@ SPN_API void		  spn_vm_addglobals(SpnVMachine *vm, SpnExtValue vals[], size_t n)
 SPN_API void		 *spn_vm_getcontext(SpnVMachine *vm);
 SPN_API void		  spn_vm_setcontext(SpnVMachine *vm, void *ctx);
 
-/* retrieves the last runtime error message */
-SPN_API const char	 *spn_vm_errmsg(SpnVMachine *vm);
+/* the getter retrieves the last runtime error message, whereas the setter
+ * can be used by native extension functions before returning an error code
+ * in order to generate a custom error message.
+ * The setter copies the error message.
+ */
+SPN_API const char	 *spn_vm_geterrmsg(SpnVMachine *vm);
+SPN_API void		  spn_vm_seterrmsg(SpnVMachine *vm, const char *msg);
 
 /* returns an array of strings containing a symbolicated stack trace.
  * Must be `free()`'d when you're done with it.

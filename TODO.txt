@@ -9,15 +9,14 @@ Code:
 	- Implement a way to pass down variadic arguments! ("..." operator?)			***Urgent***
 	- REFACTOR (especially in vm.c), and try very hard not to exceed the
 		80-character line length limit.
-	- Implement standard library (and make the functions in there print meaningful		***Urgent***
-		exception messages when they encounter an error condition)
-	- Related: native functions should be able to set a custom error message		***Urgent***
-	- Fix the whole mechanism for accessing the implicit `this` argument in			***Urgent***
-		OO-style function calls
+	- Implement standard library								***Urgent***
+	- and make the functions in there print meaningful error messages when			done
+		they encounter an error condition)
+	- Related: native functions should be able to set a custom error message		done
 	
 Language, syntax:
 	- is the context-free grammar in grammar.txt correct? especially with
-		regards to expressions (associativity, precedence!)
+		regards to expressions (associativity, precedence!)				seems fine
 	- what's a better fit for the 3rd argument of cond-expr?
 		cond-expr (current, as in C) or assignment-expr (as in C++)?			won't change this
 	- write the specification (yeah)							done
@@ -93,7 +92,7 @@ Compiler:
 		because this is a potentially dangerous optimization.
 	- Do some basic constant folding on arithmetic and logical expressions and
 		on string concatenation as well.
-	- implement ++ and -- operators on array members					***Urgent***
+	- implement ++ and -- operators on array members					done
 	- implement break and continue statements						done
 	- Somehow calculate the total number of registers in `compile_funcdef()`		done
 		as well as in `compile_program()` (grep for "TODO 3" comments!)
@@ -183,7 +182,7 @@ should be linkage at all...)
 Standard library:
 	- `sort()` function for arrays (and generally array functions)
 	- add and/or implement more complex and inverse hyperbolic functions
-	- document the run-time error codes (-1 generally means "bad number
+	- document the run-time error codes (-1 generally means "bad number			obsolete, we've got error messages
 		of arguments", but not always, etc.)
 	- add the documentation of currently unimplemented standard library
 		functions (especially those in libarray) once they are
@@ -210,7 +209,7 @@ Miscellaneous:
 		library (SDL, GTK+ maybe?), regular expressions (POSIX/PCRE),
 		data compression and decompression (zip, tar, 7z, ...), media
 		metadata handling (ID3 tags!), a JSON parser, etc...
-	- do something with the `&& within ||' warning.
+	- do something with the `&& within ||' warning.						ignore false positives
 		That particular expression is why I have put the
 		`-Wno-error=logical-op-parentheses' flag in the Makefile. I am
 		sorry, but even in maths, AND has higher precedence than OR,

@@ -102,9 +102,16 @@ extension functions.
 
 Sets the context info of `vm` to the user-supplied `ctx`.
 
-    const char *spn_vm_errmsg(SpnVMachine *);
+    const char *spn_vm_geterrmsg(SpnVMachine *);
 
 If a runtime error occurred, returns the last error message.
+
+    void spn_vm_seterrmsg(SonVMachhine *, const char *);
+
+This function should only be called from within a native extension function,
+in case of erroneous termination (before returning a non-zero status code).
+It sets a custom error message than will be embedded inside the string that
+`spn_vm_geterrmsg()` returns.
 
     void spn_vm_callfunc(
         SpnVMachine *vm,

@@ -98,9 +98,10 @@ on success, `nil` on failure.
 writes the characters in the string `buf` into the file `file`. Returns true
 on success, false on error.
 
-    nil fflush(userdata file)
+    nil fflush([userdata file])
 
-flushes the buffer of `file`, which must be a file opened for writing.
+flushes the buffer of `file`, which must be a file opened for writing. If
+this function receives no arguments, then it flushes all open output streams.
 
     int ftell(userdata file)
 

@@ -356,7 +356,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 
 			if (namelen != reallen) {
 				bail(
-					"\n\nfunction name length (%lu) does not match"
+					"\n\nfunction name length (%lu) does not match "
 					"expected (%lu) at address 0x%08lx\n",
 					(unsigned long)(reallen),
 					namelen,
@@ -410,7 +410,7 @@ static void disasm_exec(spn_uword *bc, size_t textlen)
 
 			if (namelen != reallen) {
 				bail(
-					"\n\nsymbol name length (%lu) does not match"
+					"\n\nsymbol name length (%lu) does not match "
 					"expected (%lu) at address 0x%08lx\n",
 					(unsigned long)(reallen),
 					(unsigned long)(namelen),

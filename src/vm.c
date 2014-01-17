@@ -115,6 +115,7 @@ struct SpnVMachine {
 	size_t		 lscount;	/* number of the local symtabs	*/
 
 	char		*errmsg;	/* last (runtime) error message	*/
+	char		*usrerror;	/* user-supplied error message	*/
 	void		*ctx;		/* user data			*/
 
 	jmp_buf		 env;		/* longjmp environment buffer	*/
@@ -224,6 +225,7 @@ SpnVMachine *spn_vm_new()
 
 	/* set up error reporting and user data */
 	vm->errmsg = NULL;
+	vm->usrerror = NULL;
 	vm->ctx = NULL;
 
 	return vm;
@@ -248,8 +250,9 @@ void spn_vm_free(SpnVMachine *vm)
 	/* ...then free the array that contains them */
 	free(vm->lsymtabs);
 
-	/* free the error message buffer */
+	/* free the error message buffers */
 	free(vm->errmsg);
+	free(vm->usrerror);
 
 	free(vm);
 }
@@ -321,6 +324,10 @@ int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval)
 	 * be able to unwind the stack.
 	 */
 	free_frames(vm);
+
+	/* re-set the custom error message */
+	free(vm->usrerror);
+	vm->usrerror = NULL;
 
 	/* check bytecode for magic bytes */
 	if (validate_magic(vm, bc) != 0) {
@@ -469,9 +476,23 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 	longjmp(vm->env, -1);
 }
 
-const char *spn_vm_errmsg(SpnVMachine *vm)
+const char *spn_vm_geterrmsg(SpnVMachine *vm)
 {
 	return vm->errmsg;
+}
+
+void spn_vm_seterrmsg(SpnVMachine *vm, const char *msg)
+{
+	size_t len = strlen(msg) + 1;
+
+	free(vm->usrerror);
+
+	vm->usrerror = malloc(len);
+	if (vm->usrerror == NULL) {
+		abort();
+	}
+
+	memcpy(vm->usrerror, msg, len);
 }
 
 void *spn_vm_getcontext(SpnVMachine *vm)
@@ -828,15 +849,26 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 				/* check if the native function returned
 				 * an error. If so, abort execution.
+				 * Also check if the callee generated a
+				 * custom error message; if so, use it.
 				 */
 				if (err != 0) {
+					const char *format;
 					const void *args[2];
 					args[0] = func.v.fnv.name;
-					args[1] = &err;
+
+					if (vm->usrerror != NULL) {
+						args[1] = vm->usrerror;
+						format = "error in function %s(): %s";
+					} else {
+						args[1] = &err;
+						format = "error in function %s() (code %i)";
+					}
+
 					runtime_error(
 						vm,
 						ip - 1,
-						"error in function %s() (code %i)",
+						format,
 						args
 					);
 				}
@@ -957,8 +989,8 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				runtime_error(
 					vm,
 					ip - 2,
-					"register does not contain Boolean value in conditional jump\n"
-					"(are you trying to use non-Booleans with logical operators\n"
+					"register does not contain Boolean value in conditional jump "
+					"(are you trying to use non-Booleans with logical operators "
 					"or in the condition of an `if`, `while` or `for` statement?)",
 					NULL
 				);
@@ -1444,7 +1476,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					runtime_error(
 						vm,
 						ip - 1,
-						"character at normalized index %d is\n"
+						"character at normalized index %d is "
 						"out of bounds for string of length %d",
 						args
 					);
