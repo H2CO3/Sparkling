@@ -135,12 +135,12 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc < 1) {
-		spn_vm_seterrmsg(ctx->vm, "at least one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "at least one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a format string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a format string", NULL);
 		return -2;
 	}
 
@@ -156,7 +156,7 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 		spn_object_release(res);
 	} else {
-		spn_vm_seterrmsg(ctx->vm, "mismatching conversion specifier and argument type");
+		spn_vm_seterrmsg(ctx->vm, "mismatching conversion specifier and argument type", NULL);
 		return -3;
 	}
 
@@ -170,12 +170,12 @@ static int rtlb_fopen(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "filename and mode must be strings");
+		spn_vm_seterrmsg(ctx->vm, "filename and mode must be strings", NULL);
 		return -2;
 	}
 
@@ -200,12 +200,12 @@ static int rtlb_fclose(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle", NULL);
 		return -2;
 	}
 
@@ -222,17 +222,17 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	FILE *stream;
 
 	if (argc < 2) {
-		spn_vm_seterrmsg(ctx->vm, "at least two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "at least two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be a format string");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be a format string", NULL);
 		return -2;
 	}
 
@@ -249,7 +249,7 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 		spn_object_release(res);
 	} else {
-		spn_vm_seterrmsg(ctx->vm, "mismatching conversion specifier and argument type");
+		spn_vm_seterrmsg(ctx->vm, "mismatching conversion specifier and argument type", NULL);
 		return -3;
 	}
 
@@ -264,12 +264,12 @@ static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle", NULL);
 		return -2;
 	}
 
@@ -293,18 +293,18 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_NUMBER
 	 || argv[1].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer", NULL);
 		return -2;
 	}
 
@@ -338,17 +338,17 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be a string", NULL);
 		return -2;
 	}
 
@@ -369,12 +369,12 @@ static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc > 1) {
-		spn_vm_seterrmsg(ctx->vm, "at most one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "at most one argument is required", NULL);
 		return -1;
 	}
 
 	if (argc > 0 && argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an output file handle");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an output file handle", NULL);
 		return -2;
 	}
 
@@ -395,12 +395,12 @@ static int rtlb_ftell(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle", NULL);
 		return -2;
 	}
 
@@ -422,23 +422,23 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 3) {
-		spn_vm_seterrmsg(ctx->vm, "exactly three arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly three arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_NUMBER
 	 || argv[1].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer", NULL);
 		return -2;
 	}
 
 	if (argv[2].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "third argument must be a mode string");
+		spn_vm_seterrmsg(ctx->vm, "third argument must be a mode string", NULL);
 		return -2;
 	}
 
@@ -453,7 +453,7 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	} else if (strcmp(whence->cstr, "end") == 0) {
 		flag = SEEK_END;
 	} else {
-		spn_vm_seterrmsg(ctx->vm, "third argument must be one of \"set\", \"cur\" or \"end\"");
+		spn_vm_seterrmsg(ctx->vm, "third argument must be one of \"set\", \"cur\" or \"end\"", NULL);
 		return -3;
 	}
 
@@ -470,12 +470,12 @@ static int rtlb_feof(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_USRDAT) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a file handle", NULL);
 		return -2;
 	}
 
@@ -494,12 +494,12 @@ static int rtlb_remove(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a file path");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a file path", NULL);
 		return -2;
 	}
 
@@ -518,12 +518,12 @@ static int rtlb_rename(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be file paths");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be file paths", NULL);
 		return -2;
 	}
 
@@ -605,12 +605,12 @@ static int rtlb_indexof(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	long len; /* length of haystack, because we need a signed type */
 
 	if (argc != 2 && argc != 3) {
-		spn_vm_seterrmsg(ctx->vm, "two or three arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "two or three arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first two arguments must be strings");
+		spn_vm_seterrmsg(ctx->vm, "first two arguments must be strings", NULL);
 		return -2;
 	}
 
@@ -618,7 +618,7 @@ static int rtlb_indexof(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	if (argc == 3) {
 		if (argv[2].t != SPN_TYPE_NUMBER || argv[2].f != 0) {
 			/* not an integer */
-			spn_vm_seterrmsg(ctx->vm, "third argument must be an integer");
+			spn_vm_seterrmsg(ctx->vm, "third argument must be an integer", NULL);
 			return -3;
 		}
 
@@ -636,7 +636,7 @@ static int rtlb_indexof(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 	/* if still not good (absolute value of offset too big), then throw */
 	if (off < 0 || off > len) {
-		spn_vm_seterrmsg(ctx->vm, "normalized index out of bounds");
+		spn_vm_seterrmsg(ctx->vm, "normalized index out of bounds", NULL);
 		return -4;
 	}
 
@@ -656,17 +656,17 @@ static int rtlb_aux_substr(SpnValue *ret, SpnString *str, long begin, long lengt
 	long slen = str->len;
 
 	if (begin < 0 || begin > slen) {
-		spn_vm_seterrmsg(ctx->vm, "starting index is negative or too high");
+		spn_vm_seterrmsg(ctx->vm, "starting index is negative or too high", NULL);
 		return -1;
 	}
 
 	if (length < 0 || length > slen) {
-		spn_vm_seterrmsg(ctx->vm, "length is negative or too big");
+		spn_vm_seterrmsg(ctx->vm, "length is negative or too big", NULL);
 		return -2;
 	}
 
 	if (begin + length > slen) {
-		spn_vm_seterrmsg(ctx->vm, "end of substring is out of bounds");
+		spn_vm_seterrmsg(ctx->vm, "end of substring is out of bounds", NULL);
 		return -3;
 	}
 
@@ -692,18 +692,18 @@ static int rtlb_substr(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	long begin, length;
 
 	if (argc != 3) {
-		spn_vm_seterrmsg(ctx->vm, "exactly three arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly three arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a string", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0
 	 || argv[2].t != SPN_TYPE_NUMBER || argv[2].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "second and third argument must be integers");
+		spn_vm_seterrmsg(ctx->vm, "second and third argument must be integers", NULL);
 		return -2;
 	}
 
@@ -721,17 +721,17 @@ static int rtlb_substrto(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	long length;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a string", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer", NULL);
 		return -2;
 	}
 
@@ -748,17 +748,17 @@ static int rtlb_substrfrom(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	long begin, length, slen;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a string", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer", NULL);
 		return -2;
 	}
 
@@ -781,12 +781,12 @@ static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnValue key, val;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be strings");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be strings", NULL);
 		return -2;
 	}
 
@@ -843,23 +843,23 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a string", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_NUMBER
 	 || argv[1].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer", NULL);
 		return -2;
 	}
 
 	if (argv[1].v.intv < 0) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must not be negative");
+		spn_vm_seterrmsg(ctx->vm, "second argument must not be negative", NULL);
 		return -3;
 	}
 
@@ -893,12 +893,12 @@ static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, Spn
 	SpnString *str;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a string", NULL);
 		return -2;
 	}
 
@@ -941,12 +941,12 @@ static int rtlb_fmtstring(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc < 1) {
-		spn_vm_seterrmsg(ctx->vm, "at least one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "at least one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a format string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a format string", NULL);
 		return -2;
 	}
 
@@ -970,17 +970,17 @@ static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	long base;
 
 	if (argc < 1 || argc > 2) {
-		spn_vm_seterrmsg(ctx->vm, "one or two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "one or two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a string", NULL);
 		return -2;
 	}
 
 	if (argc == 2 && (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0)) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be an integer", NULL);
 		return -3;
 	}
 
@@ -988,7 +988,7 @@ static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	base = argc == 2 ? argv[1].v.intv : 0;
 
 	if (base == 1 || base < 0 || base > 36) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be zero or between [2...36]");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be zero or between [2...36]", NULL);
 		return -4;
 	}
 
@@ -1005,12 +1005,12 @@ static int rtlb_tofloat(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a string", NULL);
 		return -2;
 	}
 
@@ -1029,12 +1029,12 @@ static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a string", NULL);
 		return -2;
 	}
 
@@ -1076,12 +1076,12 @@ static int rtlb_contains(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnValue key, val;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be an array", NULL);
 		return -2;
 	}
 
@@ -1113,17 +1113,17 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be an array", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be a string");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be a string", NULL);
 		return -2;
 	}
 
@@ -1145,7 +1145,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *data)
 		val = spn_array_get(arr, &key);
 		if (val->t != SPN_TYPE_STRING) {
 			free(buf);
-			spn_vm_seterrmsg(ctx->vm, "array must contain strings only");
+			spn_vm_seterrmsg(ctx->vm, "array must contain strings only", NULL);
 			return -3;
 		}
 
@@ -1212,17 +1212,17 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnValue args[3]; /* key, value and optional user info */
 
 	if (argc < 2 || argc > 3) {
-		spn_vm_seterrmsg(ctx->vm, "two or three arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "two or three arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be an array", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_FUNC) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be a function");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be a function", NULL);
 		return -2;
 	}
 
@@ -1241,7 +1241,12 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	 */
 	while (spn_iter_next(it, &args[0], &args[1]) < n) {
 		SpnValue cbret;
-		spn_vm_callfunc(ctx->vm, &argv[1], &cbret, argc, args);
+		int err = spn_vm_callfunc(ctx->vm, &argv[1], &cbret, argc, args);
+
+		if (err != 0) {
+			status = err;
+			break;
+		}
 
 		/* the callback must return a Boolean or nothing */
 		if (cbret.t == SPN_TYPE_BOOL) {
@@ -1251,7 +1256,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *data)
 		} else if (cbret.t != SPN_TYPE_NIL) {
 			spn_value_release(&cbret);
 			status = -3;
-			spn_vm_seterrmsg(ctx->vm, "callback function must return boolean or nil");
+			spn_vm_seterrmsg(ctx->vm, "callback function must return boolean or nil", NULL);
 			break;
 		}
 	}
@@ -1325,19 +1330,19 @@ static int rtlb_aux_intize(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 	double x;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a number");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a number", NULL);
 		return -2;
 	}
 
 	x = val2float(&argv[0]);
 
 	if (x < LONG_MIN || x > LONG_MAX) {
-		spn_vm_seterrmsg(ctx->vm, "argument is out of range of integers");
+		spn_vm_seterrmsg(ctx->vm, "argument is out of range of integers", NULL);
 		return -3;
 	}
 
@@ -1368,12 +1373,12 @@ static int rtlb_sgn(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a number");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a number", NULL);
 		return -2;
 	}
 
@@ -1406,12 +1411,12 @@ static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 	double x;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a number");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a number", NULL);
 		return -2;
 	}
 
@@ -1516,13 +1521,13 @@ static int rtlb_atan2(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER
 	 || argv[1].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers", NULL);
 		return -2;
 	}
 
@@ -1543,7 +1548,7 @@ static int rtlb_hypot(SpnValue *ret, int argc, SpnValue *argv, void *data)
 		double x;
 
 		if (argv[i].t != SPN_TYPE_NUMBER) {
-			spn_vm_seterrmsg(ctx->vm, "arguments must be numbers");
+			spn_vm_seterrmsg(ctx->vm, "arguments must be numbers", NULL);
 			return -1;
 		}
 
@@ -1563,12 +1568,12 @@ static int rtlb_deg2rad(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a number");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a number", NULL);
 		return -2;
 	}
 
@@ -1584,12 +1589,12 @@ static int rtlb_rad2deg(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a number");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a number", NULL);
 		return -2;
 	}
 
@@ -1619,12 +1624,12 @@ static int rtlb_seed(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an integer", NULL);
 		return -2;
 	}
 
@@ -1658,12 +1663,12 @@ static int rtlb_aux_isinf(double x)
 static int rtlb_aux_fltclass(SpnValue *ret, int argc, SpnValue *argv, SpnContext *ctx, int (*fn)(double))
 {
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a number");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a number", NULL);
 		return -2;
 	}
 
@@ -1694,12 +1699,12 @@ static int rtlb_abs(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a number");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a number", NULL);
 		return -2;
 	}
 
@@ -1719,12 +1724,12 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[1].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers", NULL);
 		return -2;
 	}
 
@@ -1772,12 +1777,12 @@ static int rtlb_min(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc < 1) {
-		spn_vm_seterrmsg(ctx->vm, "at least one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "at least one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers", NULL);
 		return -2;
 	}
 
@@ -1785,7 +1790,7 @@ static int rtlb_min(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 	for (i = 1; i < argc; i++) {
 		if (argv[i].t != SPN_TYPE_NUMBER) {
-			spn_vm_seterrmsg(ctx->vm, "arguments must be numbers");
+			spn_vm_seterrmsg(ctx->vm, "arguments must be numbers", NULL);
 			return -2;
 		}
 
@@ -1821,12 +1826,12 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc < 1) {
-		spn_vm_seterrmsg(ctx->vm, "at least one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "at least one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be numbers", NULL);
 		return -2;
 	}
 
@@ -1834,7 +1839,7 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 	for (i = 1; i < argc; i++) {
 		if (argv[i].t != SPN_TYPE_NUMBER) {
-			spn_vm_seterrmsg(ctx->vm, "arguments must be numbers");
+			spn_vm_seterrmsg(ctx->vm, "arguments must be numbers", NULL);
 			return -2;
 		}
 
@@ -1869,7 +1874,7 @@ static int rtlb_isfloat(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
@@ -1890,7 +1895,7 @@ static int rtlb_isint(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
@@ -1912,17 +1917,17 @@ static int rtlb_fact(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f & SPN_TFLG_FLOAT) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an integer", NULL);
 		return -2;
 	}
 
 	if (argv[0].v.intv < 0) {
-		spn_vm_seterrmsg(ctx->vm, "argument must not be negative");
+		spn_vm_seterrmsg(ctx->vm, "argument must not be negative", NULL);
 		return -3;
 	}
 
@@ -1943,13 +1948,13 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	long n, k, i, j, m, p;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are needed");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f & SPN_TFLG_FLOAT
 	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f & SPN_TFLG_FLOAT) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be integers");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be integers", NULL);
 		return -2;
 	}
 
@@ -1957,7 +1962,7 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	k = argv[1].v.intv;
 
 	if (n < 0 || k < 0 || n < k) {
-		spn_vm_seterrmsg(ctx->vm, "n >= k >= 0 is expected");
+		spn_vm_seterrmsg(ctx->vm, "n >= k >= 0 is expected", NULL);
 		return -3;
 	}
 
@@ -2007,7 +2012,7 @@ static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int pola
 
 	if (re_r_val->t     != SPN_TYPE_NUMBER
 	 || im_theta_val->t != SPN_TYPE_NUMBER) {
-		spn_vm_seterrmsg(ctx->vm, "keys 're' and 'im' or 'r' and 'theta' should correspond to numbers");
+		spn_vm_seterrmsg(ctx->vm, "keys 're' and 'im' or 'r' and 'theta' should correspond to numbers", NULL);
 		return -1;
 	}
 
@@ -2050,12 +2055,12 @@ static int rtlb_cplx_binop(SpnValue *ret, int argc, SpnValue *argv, enum cplx_bi
 	double re1, im1, re2, im2, re, im;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY || argv[1].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be arrays");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be arrays", NULL);
 		return -2;
 	}
 
@@ -2130,12 +2135,12 @@ static int rtlb_aux_cplx_trig(SpnValue *ret, int argc, SpnValue *argv, enum cplx
 	double re_in, im_in, re_out, im_out;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an array", NULL);
 		return -2;
 	}
 
@@ -2195,12 +2200,12 @@ static int rtlb_cplx_conj(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	double re, im;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an array", NULL);
 		return -2;
 	}
 
@@ -2222,12 +2227,12 @@ static int rtlb_cplx_abs(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	double re, im;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an array", NULL);
 		return -2;
 	}
 
@@ -2249,12 +2254,12 @@ static int rtlb_can2pol(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	double re, im, r, theta;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an array", NULL);
 		return -2;
 	}
 
@@ -2279,12 +2284,12 @@ static int rtlb_pol2can(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	double re, im, r, theta;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an array", NULL);
 		return -2;
 	}
 
@@ -2386,12 +2391,12 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, SpnContext *c
 	SpnValue key, val;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be an integer");
+		spn_vm_seterrmsg(ctx->vm, "argument must be an integer", NULL);
 		return -2;
 	}
 
@@ -2490,7 +2495,7 @@ static int rtlb_aux_extract_time(SpnArray *arr, const char *str, int *outval, Sp
 	spn_object_release(key.v.ptrv);
 
 	if (val->t != SPN_TYPE_NUMBER || val->f & SPN_TFLG_FLOAT) {
-		spn_vm_seterrmsg(ctx->vm, "array members should be integers");
+		spn_vm_seterrmsg(ctx->vm, "array members should be integers", NULL);
 		return -1;
 	}
 
@@ -2509,17 +2514,17 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "first argument must be a format string");
+		spn_vm_seterrmsg(ctx->vm, "first argument must be a format string", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_ARRAY) {
-		spn_vm_seterrmsg(ctx->vm, "second argument must be an array");
+		spn_vm_seterrmsg(ctx->vm, "second argument must be an array", NULL);
 		return -2;
 	}
 
@@ -2588,13 +2593,13 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0
 	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
-		spn_vm_seterrmsg(ctx->vm, "arguments must be integers");
+		spn_vm_seterrmsg(ctx->vm, "arguments must be integers", NULL);
 		return -2;
 	}
 
@@ -2625,12 +2630,12 @@ static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	const char *env;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a string (name of an environment variable)");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a string (name of an environment variable)", NULL);
 		return -2;
 	}
 
@@ -2654,12 +2659,12 @@ static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	int code;
 
 	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required");
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a string (a command to execute)");
+		spn_vm_seterrmsg(ctx->vm, "argument must be a string (a command to execute)", NULL);
 		return -2;
 	}
 
@@ -2678,38 +2683,26 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnContext *ctx = data;
 
 	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required");
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (argv[0].t != SPN_TYPE_BOOL) {
-		spn_vm_seterrmsg(ctx->vm, "assertion condition must be a boolean");
+		spn_vm_seterrmsg(ctx->vm, "assertion condition must be a boolean", NULL);
 		return -2;
 	}
 
 	if (argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "error message must be a string");
+		spn_vm_seterrmsg(ctx->vm, "error message must be a string", NULL);
 		return -2;
 	}
 
 	/* actual assertion */
 	if (argv[0].v.boolv == 0) {
 		SpnString *msg = argv[1].v.ptrv;
-		const char prefix[] = "assertion failed: ";
-
-		/* sizeof takes the terminating NUL byte into account */
-		char *buf = malloc(sizeof(prefix) + msg->len);
-		if (buf == NULL) {
-			abort();
-		}
-
-		strcpy(buf, prefix);
-		strcat(buf, msg->cstr);
-
-		spn_vm_seterrmsg(ctx->vm, buf);
-		fprintf(stderr, "Sparkling: %s\n", buf);
-
-		free(buf);
+		const void *args[1];
+		args[0] = msg->cstr;
+		spn_vm_seterrmsg(ctx->vm, "assertion failed: %s", args);
 		return -3;
 	}
 
@@ -2724,13 +2717,13 @@ static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	int code = 0;
 
 	if (argc > 1) {
-		spn_vm_seterrmsg(ctx->vm, "0 or 1 argument is required");
+		spn_vm_seterrmsg(ctx->vm, "0 or 1 argument is required", NULL);
 		return -1;
 	}
 
 	if (argc > 0) {
 		if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
-			spn_vm_seterrmsg(ctx->vm, "argument must be an integer exit code");
+			spn_vm_seterrmsg(ctx->vm, "argument must be an integer exit code", NULL);
 			return -2;
 		}
 

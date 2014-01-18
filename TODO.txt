@@ -129,6 +129,7 @@ VM:
 		native functions (maybe use a stack of lazily allocated SpnValue
 		arrays? (allocate them when first needed, and not deallocate them
 		until the end of the program)
+	- Native functions should be included in the stack trace as well			done
 	- !!! EXAMINE AND TEST REFERENCE COUNTING !!! Specifically, does the			seems to work
 		"release(dst); *dst = *retain(src)" idiom work? What if the same
 		object is being assigned onto itself and its refcount is 1?

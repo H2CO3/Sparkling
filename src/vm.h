@@ -50,7 +50,7 @@ SPN_API void		  spn_vm_free(SpnVMachine *vm);
 SPN_API int		  spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
 
 /* calls a Sparkling function from C-land */
-SPN_API void spn_vm_callfunc(
+SPN_API int spn_vm_callfunc(
 	SpnVMachine *vm,
 	SpnValue *fn,
 	SpnValue *retval,
@@ -71,10 +71,9 @@ SPN_API void		  spn_vm_setcontext(SpnVMachine *vm, void *ctx);
 /* the getter retrieves the last runtime error message, whereas the setter
  * can be used by native extension functions before returning an error code
  * in order to generate a custom error message.
- * The setter copies the error message.
  */
 SPN_API const char	 *spn_vm_geterrmsg(SpnVMachine *vm);
-SPN_API void		  spn_vm_seterrmsg(SpnVMachine *vm, const char *msg);
+SPN_API void		  spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const void *args[]);
 
 /* returns an array of strings containing a symbolicated stack trace.
  * Must be `free()`'d when you're done with it.

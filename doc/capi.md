@@ -106,14 +106,14 @@ Sets the context info of `vm` to the user-supplied `ctx`.
 
 If a runtime error occurred, returns the last error message.
 
-    void spn_vm_seterrmsg(SonVMachhine *, const char *);
+    void spn_vm_seterrmsg(SonVMachhine *, const char *, const void *[]);
 
 This function should only be called from within a native extension function,
 in case of erroneous termination (before returning a non-zero status code).
-It sets a custom error message than will be embedded inside the string that
-`spn_vm_geterrmsg()` returns.
+It sets a custom - formatted - error message that will be embedded inside
+the string that `spn_vm_geterrmsg()` returns.
 
-    void spn_vm_callfunc(
+    int spn_vm_callfunc(
         SpnVMachine *vm,
         SpnValue *fn,
         SpnValue *retval,
@@ -126,6 +126,29 @@ from within a native extension function. Throws a runtime error if:
 
 1. its `fn` argument does not contain a value of function type, or
 2. if `fn` is a native function and it returns a non-zero status code.
+
+Returns the status code of `fn`.
+
+**Important:** if `spn_vm_callfunc()` returns nonzero (indicating that the
+called function failed in some way or another), then your native extension
+function (the caller) is **obliged** to return an error code as well; there's
+no possibility for graceful error recovery. This is required because of an
+implmentation detail: each native function has its own "pseudo-frame" on the
+call stack in order it to be shown in the stack trace if it returns an error
+status code. If it terminates normally, then this pseudo-frame is, of course,
+popped off of the call stack. If, however, the function reports an error, the
+dummy frame isn't removed (so that the stack trace is complete).
+
+Now, if a non-native caller function tries to access its frame, this will
+lead to an off-by-one (or two, or however many functions do not follow this
+convention) error, and the caller will operate on the frame of another
+function, corrputing the stack.
+
+Usually, this constraint should not be a problem, though -- only fatal errors
+should lead a function to return an error status code anyway. Non-critical
+errors (from which recovery is considered possible) should be reported by the
+means of some other mechanism (e. g. by returning `nil' or a Boolean status
+flag to the caller).
 
 Using the convenience context API
 ---------------------------------

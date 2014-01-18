@@ -12,7 +12,6 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stddef.h>
-#include <setjmp.h>
 
 #include "vm.h"
 #include "str.h"
@@ -115,10 +114,8 @@ struct SpnVMachine {
 	size_t		 lscount;	/* number of the local symtabs	*/
 
 	char		*errmsg;	/* last (runtime) error message	*/
-	char		*usrerror;	/* user-supplied error message	*/
+	int		 ishandled;	/* last error already handled?	*/
 	void		*ctx;		/* user data			*/
-
-	jmp_buf		 env;		/* longjmp environment buffer	*/
 };
 
 /* this is the structure used by `push_and_copy_args()' */
@@ -145,7 +142,7 @@ static void push_and_copy_args(
 );
 
 
-static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *ret);
+static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *ret);
 
 /* this only releases the values stored in the stack frames */
 static void free_frames(SpnVMachine *vm);
@@ -166,6 +163,9 @@ static void push_frame(
 	const char *fnname
 );
 static void pop_frame(SpnVMachine *vm);
+
+/* this function helps including native functions' names in the stack trace */
+static void push_native_pseudoframe(SpnVMachine *vm, const char *fnname);
 
 /* bytecode validation - returns 0 on success, nonzero on error */
 static int validate_magic(SpnVMachine *vm, spn_uword *bc);
@@ -225,7 +225,7 @@ SpnVMachine *spn_vm_new()
 
 	/* set up error reporting and user data */
 	vm->errmsg = NULL;
-	vm->usrerror = NULL;
+	vm->ishandled = 0;
 	vm->ctx = NULL;
 
 	return vm;
@@ -250,9 +250,8 @@ void spn_vm_free(SpnVMachine *vm)
 	/* ...then free the array that contains them */
 	free(vm->lsymtabs);
 
-	/* free the error message buffers */
+	/* free the error message buffer */
 	free(vm->errmsg);
-	free(vm->usrerror);
 
 	free(vm);
 }
@@ -325,9 +324,8 @@ int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval)
 	 */
 	free_frames(vm);
 
-	/* re-set the custom error message */
-	free(vm->usrerror);
-	vm->usrerror = NULL;
+	/* re-set the "last error is handled" flag */
+	vm->ishandled = 0;
 
 	/* check bytecode for magic bytes */
 	if (validate_magic(vm, bc) != 0) {
@@ -348,18 +346,11 @@ int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval)
 	/* initialize instruction pointer to beginning of TU */
 	ip = current_bytecode(vm) + SPN_PRGHDR_LEN;
 
-	if (setjmp(vm->env) != 0) {
-		return -1;
-	}
-
 	/* actually run the program */
-	dispatch_loop(vm, ip, retval);
-
-	/* if we got here, then the program executed successfully */
-	return 0;
+	return dispatch_loop(vm, ip, retval);
 }
 
-void spn_vm_callfunc(
+int spn_vm_callfunc(
 	SpnVMachine *vm,
 	SpnValue *fn,
 	SpnValue *retval,
@@ -371,34 +362,30 @@ void spn_vm_callfunc(
 	spn_uword *fnhdr;
 	spn_uword *entry;
 
-	/* check that the callee is indeed a function.
-	 * no return is needed since runtime_error longjmp()'s out.
-	 */
+	/* ensure that the callee is indeed a function */
 	if (fn->t != SPN_TYPE_FUNC) {
-		runtime_error(vm, NULL, "attempt to call non-function value", NULL);
+		spn_vm_seterrmsg(vm, "attempt to call non-function value", NULL);
+		return -1;
 	}
 
 	/* native functions are easy to deal with */
 	if (fn->f & SPN_TFLG_NATIVE) {
-		int err = fn->v.fnv.r.fn(retval, argc, argv, vm->ctx);
+		int err;
 
+		/* push pseudo-frame to include function name in stack trace */
+		push_native_pseudoframe(vm, fn->v.fnv.name);
+
+		err = fn->v.fnv.r.fn(retval, argc, argv, vm->ctx);
 		if (err != 0) {
-			const char *format;
 			const void *args[2];
 			args[0] = fn->v.fnv.name;
-
-			if (vm->usrerror != NULL) {
-				args[1] = vm->usrerror;
-				format = "error in function %s(): %s";
-			} else {
-				args[1] = &err;
-				format = "error in function %s() (code %i)";
-			}
-
-			runtime_error(vm, NULL, format, args);
+			args[1] = &err;
+			spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
+		} else {
+			pop_frame(vm);
 		}
 
-		return;
+		return err;
 	}
 
 	/* if we got here, the callee is a valid Sparkling function. */
@@ -412,7 +399,7 @@ void spn_vm_callfunc(
 	push_and_copy_args(vm, fn, &desc, argc);
 
 	/* recurse, because it's convenient */
-	dispatch_loop(vm, entry, retval);
+	return dispatch_loop(vm, entry, retval);
 }
 
 void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
@@ -458,6 +445,12 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 	size_t prefix_len, msg_len;
 	unsigned long addr = ip ? ip - current_bytecode(vm) : 0;
 	const void *prefix_args[1];
+
+	/* self-protection */
+	if (vm->ishandled) {
+		return;
+	}
+
 	prefix_args[0] = &addr;
 
 	prefix = spn_string_format_cstr(
@@ -481,8 +474,8 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 	free(prefix);
 	free(msg);
 
-	/* Weeeeeeeeeeeee! */
-	longjmp(vm->env, -1);
+	/* self-protection */
+	vm->ishandled = 1;
 }
 
 const char *spn_vm_geterrmsg(SpnVMachine *vm)
@@ -490,18 +483,9 @@ const char *spn_vm_geterrmsg(SpnVMachine *vm)
 	return vm->errmsg;
 }
 
-void spn_vm_seterrmsg(SpnVMachine *vm, const char *msg)
+void spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const void *args[])
 {
-	size_t len = strlen(msg) + 1;
-
-	free(vm->usrerror);
-
-	vm->usrerror = malloc(len);
-	if (vm->usrerror == NULL) {
-		abort();
-	}
-
-	memcpy(vm->usrerror, msg, len);
+	runtime_error(vm, NULL, fmt, args);
 }
 
 void *spn_vm_getcontext(SpnVMachine *vm)
@@ -609,6 +593,11 @@ static void push_first_frame(SpnVMachine *vm, int symtabidx)
 	 * be copied directly into the return value pointer.
 	 */
 	push_frame(vm, nregs, 0, 0, 0, NULL, -1, symtabidx, "<main program>");
+}
+
+static void push_native_pseudoframe(SpnVMachine *vm, const char *fnname)
+{
+	push_frame(vm, 0, 0, 0, 0, NULL, -1, -1, fnname);
 }
 
 static void pop_frame(SpnVMachine *vm)
@@ -771,7 +760,7 @@ static void push_and_copy_args(
  * the `goto labels_array[*ip++];` extension, though.)
  */
 
-static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
+static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 {
 	while (1) {
 		spn_uword ins = *ip++;
@@ -812,6 +801,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					"attempt to call non-function value",
 					NULL
 				);
+				return -1;
 			}
 
 			/* loading a symbol should have already resolved it
@@ -819,10 +809,9 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 */
 			assert((func.f & SPN_TFLG_PENDING) == 0);
 
-			if (func.f & SPN_TFLG_NATIVE) {
-				/* call native function */
+			if (func.f & SPN_TFLG_NATIVE) {	/* native function */
 				int i, err;
-				SpnValue tmpret;
+				SpnValue tmpret = { { 0 }, SPN_TYPE_NIL, 0 };
 				SpnValue *argv;
 
 				/* allocate a big enough array for the arguments */
@@ -837,9 +826,12 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					argv[i] = *val;
 				}
 
-				/* return nil unless otherwise specified */
-				tmpret.t = SPN_TYPE_NIL;
-				tmpret.f = 0;
+				/* push pseudo-frame for stack trace's sake
+				 * this should be done *after* having copyied
+				 * the arguments, since those arguments are
+				 * taken from the topmost stack frame.
+				 */
+				push_native_pseudoframe(vm, func.v.fnv.name);
 
 				/* then call the native function. its return
 				 * value must have a reference count of one.
@@ -862,25 +854,15 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * custom error message; if so, use it.
 				 */
 				if (err != 0) {
-					const char *format;
 					const void *args[2];
 					args[0] = func.v.fnv.name;
-
-					if (vm->usrerror != NULL) {
-						args[1] = vm->usrerror;
-						format = "error in function %s(): %s";
-					} else {
-						args[1] = &err;
-						format = "error in function %s() (code %i)";
-					}
-
-					runtime_error(
-						vm,
-						ip - 1,
-						format,
-						args
-					);
+					args[1] = &err;
+					spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
+					return err;
 				}
+
+				/* pop pseudo-frame */
+				pop_frame(vm);
 
 				/* advance IP past the argument indices (round
 				 * up to nearest number of `spn_uword`s that
@@ -888,10 +870,10 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 */
 				ip += narggroups;
 			} else {
-				/* call Sparkling function.
+				/* Sparkling function
 				 * The return address is the address of the
 				 * instruction immediately following the
-				 * present CALL instruction.
+				 * current CALL instruction.
 				 */
 				spn_uword *retaddr = ip + narggroups;
 				spn_uword *fnhdr = func.v.fnv.r.bc;
@@ -963,7 +945,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * needs to be popped.
 			 */
 			if (callee->retaddr == NULL) {
-				return;
+				return 0;
 			} else {
 				ip = callee->retaddr;
 			}
@@ -1003,6 +985,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					"or in the condition of an `if`, `while` or `for` statement?)",
 					NULL
 				);
+				return -1;
 			}
 
 			/* see the TODO concerning `&& within ||' in TODO.txt */
@@ -1070,6 +1053,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 						"ordered comparison of objects of different types",
 						NULL
 					);
+					return -1;
 				}
 
 				if (lhs->isa->compare == NULL) {
@@ -1079,6 +1063,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 						"ordered comparison of uncomparable objects",
 						NULL
 					);
+					return -1;
 				}
 
 				/* compute answer */
@@ -1096,6 +1081,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					"ordered comparison of uncomparable values",
 					NULL
 				);
+				return -1;
 			}
 
 			break;
@@ -1112,6 +1098,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (b->t != SPN_TYPE_NUMBER
 			 || c->t != SPN_TYPE_NUMBER) {
 				runtime_error(vm, ip - 1, "arithmetic on non-numbers", NULL);
+				return -1;
 			}
 
 			/* compute result */
@@ -1132,10 +1119,12 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (b->t != SPN_TYPE_NUMBER
 			 || c->t != SPN_TYPE_NUMBER) {
 				runtime_error(vm, ip - 1, "modulo division on non-numbers", NULL);
+				return -1;
 			}
 
 			if (b->f & SPN_TFLG_FLOAT || c->f & SPN_TFLG_FLOAT) {
 				runtime_error(vm, ip - 1, "modulo division on non-integers", NULL);
+				return -1;
 			}
 
 			res = b->v.intv % c->v.intv;
@@ -1153,6 +1142,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (b->t != SPN_TYPE_NUMBER) {
 				runtime_error(vm, ip - 1, "negation of non-number", NULL);
+				return -1;
 			}
 
 			if (b->f & SPN_TFLG_FLOAT) {
@@ -1179,6 +1169,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (val->t != SPN_TYPE_NUMBER) {
 				runtime_error(vm, ip - 1, "incrementing or decrementing non-number", NULL);
+				return -1;
 			}
 
 			if (val->f & SPN_TFLG_FLOAT) {
@@ -1210,11 +1201,13 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (b->t != SPN_TYPE_NUMBER
 			 || c->t != SPN_TYPE_NUMBER) {
 				runtime_error(vm, ip - 1, "bitwise operation on non-numbers", NULL);
+				return -1;
 			}
 
 			if (b->f & SPN_TFLG_FLOAT
 			 || c->f & SPN_TFLG_FLOAT) {
 				runtime_error(vm, ip - 1, "bitwise operation on non-integers", NULL);
+				return -1;
 			}
 
 			res = bitwise_op(b, c, opcode);
@@ -1233,10 +1226,12 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (b->t != SPN_TYPE_NUMBER) {
 				runtime_error(vm, ip - 1, "bitwise NOT on non-number", NULL);
+				return -1;
 			}
 
 			if (b->f & SPN_TFLG_FLOAT) {
 				runtime_error(vm, ip - 1, "bitwise NOT on non-integer", NULL);
+				return -1;
 			}
 
 			res = ~b->v.intv;
@@ -1255,6 +1250,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (b->t != SPN_TYPE_BOOL) {
 				runtime_error(vm, ip - 1, "logical negation of non-Boolean value", NULL);
+				return -1;
 			}
 
 			res = !b->v.boolv;
@@ -1288,6 +1284,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (b->t != SPN_TYPE_STRING
 			 || c->t != SPN_TYPE_STRING) {
 				runtime_error(vm, ip - 1, "concatenation of non-string values", NULL);
+				return -1;
 			}
 
 			res = spn_string_concat(b->v.ptrv, c->v.ptrv);
@@ -1382,6 +1379,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 						"global `%s' does not exist or it is nil",
 						args
 					);
+					return -1;
 				}
 
 				/* if the resolution succeeded, then we
@@ -1465,10 +1463,12 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 				if (c->t != SPN_TYPE_NUMBER) {
 					runtime_error(vm, ip - 1, "indexing string with non-number value", NULL);
+					return -1;
 				}
 
 				if (c->f != 0) {
 					runtime_error(vm, ip - 1, "indexing string with non-integer value", NULL);
+					return -1;
 				}
 
 				idx = c->v.intv;
@@ -1489,6 +1489,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 						"out of bounds for string of length %d",
 						args
 					);
+					return -1;
 				}
 
 				/* copy character before string is potentially deallocated */
@@ -1500,6 +1501,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				a->v.intv = ch;
 			} else {
 				runtime_error(vm, ip - 1, "first operand of [] operator must be an array or a string", NULL);
+				return -1;
 			}
 
 			break;
@@ -1511,6 +1513,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (a->t != SPN_TYPE_ARRAY) {
 				runtime_error(vm, ip - 1, "assignment to member of non-array value", NULL);
+				return -1;
 			}
 
 			spn_array_set(a->v.ptrv, b, c);
@@ -1529,16 +1532,19 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (b->t != SPN_TYPE_NUMBER) {
 				runtime_error(vm, ip - 1, "non-number argument to `#' operator", NULL);
+				return -1;
 			}
 
 			if (b->f & SPN_TFLG_FLOAT) {
 				runtime_error(vm, ip - 1, "non-integer argument to `#' operator", NULL);
+				return -1;
 			}
 
 			argidx = b->v.intv;
 
 			if (argidx < 0) {
 				runtime_error(vm, ip - 1, "negative argument to `#' operator", NULL);
+				return -1;
 			}
 
 			if (argidx < hdr->extra_argc) {
@@ -1553,6 +1559,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				const void *args[1];
 				args[0] = &argidx;
 				runtime_error(vm, ip - 1, "argument `%d' of `#' operator is out-of bounds", args);
+				return -1;
 			}
 
 			break;
@@ -1623,9 +1630,6 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 */
 			if (spn_array_get(vm->glbsymtab, &funckey)->t != SPN_TYPE_NIL) {
 				const void *args[1];
-
-				spn_object_release(funckey.v.ptrv);
-
 				args[0] = symname;
 				runtime_error(
 					vm,
@@ -1633,6 +1637,9 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					"re-definition of global `%s'",
 					args
 				);
+
+				spn_object_release(funckey.v.ptrv);
+				return -1;
 			}
 
 			/* if everything was OK, add the function to the global
@@ -1672,9 +1679,6 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (spn_array_get(vm->glbsymtab, &key)->t != SPN_TYPE_NIL) {
 				const void *args[1];
-
-				spn_object_release(namestr);
-
 				args[0] = symname;
 				runtime_error(
 					vm,
@@ -1682,6 +1686,9 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					"re-definition of global `%s'",
 					args
 				);
+
+				spn_object_release(namestr);
+				return -1;
 			}
 
 			spn_array_set(vm->glbsymtab, &key, src);
@@ -1694,6 +1701,7 @@ static void dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				const void *args[1];
 				args[0] = &lopcode;
 				runtime_error(vm, ip - 1, "illegal instruction 0x%02x", args);
+				return -1;
 			}
 		}
 	}
