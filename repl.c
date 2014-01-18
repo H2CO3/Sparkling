@@ -137,6 +137,8 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 		}
 
 		fprintf(stderr, "\n");
+
+		free(bt);
 	}
 }
 
