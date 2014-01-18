@@ -814,10 +814,17 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				SpnValue tmpret = { { 0 }, SPN_TYPE_NIL, 0 };
 				SpnValue *argv;
 
+				#define MAX_AUTO_ARGC 16
+				SpnValue auto_argv[MAX_AUTO_ARGC];
+
 				/* allocate a big enough array for the arguments */
-				argv = malloc(argc * sizeof(argv[0]));
-				if (argv == NULL) {
-					abort();
+				if (argc > MAX_AUTO_ARGC) {
+					argv = malloc(argc * sizeof(argv[0]));
+					if (argv == NULL) {
+						abort();
+					}
+				} else {
+					argv = auto_argv;
 				}
 
 				/* copy the arguments into the argument array */
@@ -837,7 +844,12 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * value must have a reference count of one.
 				 */
 				err = func.v.fnv.r.fn(&tmpret, argc, argv, vm->ctx);
-				free(argv);
+
+				if (argc > MAX_AUTO_ARGC) {
+					free(argv);
+				}
+
+				#undef MAX_AUTO_ARGC
 
 				/* clear and set return value register
 				 * (it's released only now because it may be
