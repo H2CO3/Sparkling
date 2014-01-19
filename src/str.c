@@ -13,9 +13,12 @@
 #include <limits.h>
 #include <float.h>
 #include <math.h>
+#include <stdarg.h>
 
 #include "str.h"
 #include "array.h"
+#include "private.h"
+
 
 static int compare_strings(const void *l, const void *r);
 static int equal_strings(const void *l, const void *r);
@@ -467,13 +470,74 @@ static char *double2str(
 	return begin;
 }
 
+
+enum format_error_kind {
+	TYPE_MISMATCH,
+	EXPECT_INTEGER,
+	INVALID_SPECIFIER,
+	OUT_OF_ARGUMENTS
+};
+
+/* helper function for emitting meaningful error messages */
+static void format_errmsg(char **msg, enum format_error_kind kind, int argidx, ...)
+{
+	va_list args;
+
+	if (msg == NULL) {
+		return;
+	}
+
+	va_start(args, argidx);
+
+	switch (kind) {
+	case TYPE_MISMATCH: {
+		enum spn_val_type expect = va_arg(args, enum spn_val_type);
+		enum spn_val_type actual = va_arg(args, enum spn_val_type);
+
+		const void *argv[3];
+		argv[0] = &argidx;
+		argv[1] = spn_type_name(expect);
+		argv[2] = spn_type_name(actual);
+
+		*msg = spn_string_format_cstr("type mismatch in argument %i: expected %s, got %s", NULL, argv);
+		break;
+	}
+	case EXPECT_INTEGER: {
+		const void *argv[1];
+		argv[0] = &argidx;
+		*msg = spn_string_format_cstr("type mismatch in argument %i: expected integer, got floating-point", NULL, argv);
+		break;
+	}
+	case INVALID_SPECIFIER: {
+		long ch = va_arg(args, int); /* `char' is promoted to `int' */
+
+		const void *argv[2];
+		argv[0] = &ch;
+		argv[1] = &argidx;
+		*msg = spn_string_format_cstr("invalid format specifier `%%%c' at index %i", NULL, argv);
+		break;
+	}
+	case OUT_OF_ARGUMENTS: {
+		const void *argv[1];
+		argv[0] = &argidx;
+		*msg = spn_string_format_cstr("too few arguments (%i)", NULL, argv);
+		break;
+	}
+	default:
+		SHANT_BE_REACHED();
+	}
+
+	va_end(args);
+}
+
 /* returns zero on success, nonzero on error */
 static int append_format(
 	struct string_builder *bld,
 	const struct format_args *args,
 	void *argv,
 	int *argidx,
-	int isval
+	int isval,
+	char **errmsg
 )
 {
 	switch (args->spec) {
@@ -490,6 +554,13 @@ static int append_format(
 			/* must be a string */
 			SpnValue *val = getarg_val(argv, argidx);
 			if (val->t != SPN_TYPE_STRING) {
+				format_errmsg(
+					errmsg,
+					TYPE_MISMATCH,
+					*argidx,
+					SPN_TYPE_STRING,
+					val->t
+				);
 				return -1;
 			}
 
@@ -532,9 +603,16 @@ static int append_format(
 		unsigned long u;
 
 		if (isval) {
-			/* must be an integer */
+			/* must be a number */
 			SpnValue *val = getarg_val(argv, argidx);
 			if (val->t != SPN_TYPE_NUMBER) {
+				format_errmsg(
+					errmsg,
+					TYPE_MISMATCH,
+					*argidx,
+					SPN_TYPE_NUMBER,
+					val->t
+				);
 				return -1;
 			}
 
@@ -593,7 +671,20 @@ static int append_format(
 		if (isval) {
 			/* must be an integer */
 			SpnValue *val = getarg_val(argv, argidx);
-			if (val->t != SPN_TYPE_NUMBER || val->f != 0) {
+
+			if (val->t != SPN_TYPE_NUMBER) {
+				format_errmsg(
+					errmsg,
+					TYPE_MISMATCH,
+					*argidx,
+					SPN_TYPE_NUMBER,
+					val->t
+				);
+				return -1;
+			}
+
+			if (val->f != 0) {
+				format_errmsg(errmsg, EXPECT_INTEGER, *argidx);
 				return -1;
 			}
 
@@ -627,6 +718,13 @@ static int append_format(
 		if (isval) {
 			SpnValue *val = getarg_val(argv, argidx);
 			if (val->t != SPN_TYPE_NUMBER) {
+				format_errmsg(
+					errmsg,
+					TYPE_MISMATCH,
+					*argidx,
+					SPN_TYPE_NUMBER,
+					val->t
+				);
 				return -1;
 			}
 
@@ -690,19 +788,6 @@ static int append_format(
 
 		break;
 	}
-	case 'e':
-	case 'E': {
-		/* TODO: implement this */
-		fprintf(stderr, "unimplemented conversion specifier: '%%e'\n");
-		return -1;
-		break;
-	}
-	case 'q': {
-		/* TODO: implement this */
-		fprintf(stderr, "unimplemented conversion specifier: '%%q'\n");
-		return -1;
-		break;
-	}
 	case 'B': {
 		int boolval;
 		const char *str;
@@ -712,6 +797,13 @@ static int append_format(
 			/* must be a boolean */
 			SpnValue *val = getarg_val(argv, argidx);
 			if (val->t != SPN_TYPE_BOOL) {
+				format_errmsg(
+					errmsg,
+					TYPE_MISMATCH,
+					*argidx,
+					SPN_TYPE_BOOL,
+					val->t
+				);
 				return -1;
 			}
 
@@ -740,6 +832,7 @@ static int append_format(
 		break;
 	}
 	default:
+		format_errmsg(errmsg, INVALID_SPECIFIER, ++*argidx, args->spec);
 		return -1;
 	}
 
@@ -747,17 +840,23 @@ static int append_format(
 }
 
 
-/* the actual parser
+/* the actual string format parser
  * Although it's not in the documentation of `printf()`, but in addition to the
  * `%d` conversion specifier, this supports `%i`, which takes an `int` argument
  * instead of a `long`. It is used only for formatting error messages (since
  * Sparkling integers are all `long`s), but feel free to use it yourself.
+ *
+ * if `errmsg' is not a NULL pointer, and an error occurred while creating the
+ * format string, then on return, `*errmsg' will point to a string containing
+ * a message that describes the error.
  */
 static char *make_format_string(
 	const char *fmt,
 	size_t *len,
+	int argc,
 	void *argv,
-	int isval
+	int isval,
+	char **errmsg
 )
 {
 	struct string_builder bld;
@@ -816,12 +915,39 @@ static char *make_format_string(
 			} else if (*s == '*') {
 				s++;
 				if (isval) {
-					SpnValue *widthptr = getarg_val(argv, &argidx);
-					if (widthptr->t != SPN_TYPE_NUMBER
-					 || widthptr->f != 0) { /* must be an integer */
+					SpnValue *widthptr;
+
+					/* check argc if the caller wants us to do so */
+					if (argc >= 0 && argidx >= argc) {
+						format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
 						free(bld.buf);
 						return NULL;
 					}
+
+					/* width specifier must be an integer */
+					widthptr = getarg_val(argv, &argidx);
+					if (widthptr->t != SPN_TYPE_NUMBER) {
+					 	format_errmsg(
+					 		errmsg,
+					 		TYPE_MISMATCH,
+					 		argidx,
+					 		SPN_TYPE_NUMBER,
+					 		widthptr->t
+					 	);
+						free(bld.buf);
+						return NULL;
+					}
+
+					if (widthptr->f != 0) {
+				 		format_errmsg(
+				 			errmsg,
+				 			EXPECT_INTEGER,
+				 			argidx
+				 		);
+						free(bld.buf);
+						return NULL;
+					}
+
 					args.width = widthptr->v.intv;
 				} else {
 					const int *widthptr = getarg_raw(argv, &argidx);
@@ -847,24 +973,59 @@ static char *make_format_string(
 				} else if (*s == '*') {
 					s++;
 					if (isval) {
-						SpnValue *widthptr = getarg_val(argv, &argidx);
-						if (widthptr->t != SPN_TYPE_NUMBER
-						 || widthptr->f != 0) { /* must be an integer */
+						SpnValue *precptr;
+
+						/* check argc if the caller wants us to do so */
+						if (argc >= 0 && argidx >= argc) {
+							format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
 							free(bld.buf);
 							return NULL;
 						}
-						args.precision = widthptr->v.intv;
+
+						/* precision must be an integer too */
+						precptr = getarg_val(argv, &argidx);
+
+						if (precptr->t != SPN_TYPE_NUMBER) {
+							format_errmsg(
+								errmsg,
+								TYPE_MISMATCH,
+								argidx,
+								SPN_TYPE_NUMBER,
+								precptr->t
+							);
+							free(bld.buf);
+							return NULL;
+						}
+
+						if (precptr->f != 0) {
+					 		format_errmsg(
+					 			errmsg,
+					 			EXPECT_INTEGER,
+					 			argidx
+					 		);
+							free(bld.buf);
+							return NULL;
+						}
+
+						args.precision = precptr->v.intv;
 					} else {
-						const int *widthptr = getarg_raw(argv, &argidx);
-						args.precision = *widthptr;
+						const int *precptr = getarg_raw(argv, &argidx);
+						args.precision = *precptr;
 					}
 				}
 			}
 
 			args.spec = *s++;
 
+			/* check argc if the caller wants us to do so */
+			if (argc >= 0 && argidx >= argc) {
+				format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
+				free(bld.buf);
+				return NULL;
+			}
+
 			/* append parsed format string */
-			if (append_format(&bld, &args, argv, &argidx, isval) != 0) {
+			if (append_format(&bld, &args, argv, &argidx, isval, errmsg) != 0) {
 				free(bld.buf);
 				return NULL;
 			}
@@ -896,13 +1057,13 @@ static char *make_format_string(
 
 char *spn_string_format_cstr(const char *fmt, size_t *len, const void **argv)
 {
-	return make_format_string(fmt, len, argv, 0);
+	return make_format_string(fmt, len, -1, argv, 0, NULL);
 }
 
-SpnString *spn_string_format_obj(SpnString *fmt, SpnValue *argv)
+SpnString *spn_string_format_obj(SpnString *fmt, int argc, SpnValue *argv, char **errmsg)
 {
 	size_t len;
-	char *buf = make_format_string(fmt->cstr, &len, argv, 1);
+	char *buf = make_format_string(fmt->cstr, &len, argc, argv, 1, errmsg);
 	return buf ? spn_string_new_nocopy_len(buf, len, 1) : NULL;
 }
 

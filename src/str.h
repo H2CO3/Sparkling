@@ -40,8 +40,16 @@ SPN_API	SpnString	*spn_string_new_nocopy_len(const char *cstr, size_t len, int d
  */
 SPN_API SpnString	*spn_string_concat(SpnString *lhs, SpnString *rhs);
 
-/* Creates a formatted string.
+/* The following functions create a formatted string.
  * The format specifiers are documented in doc/stdlib.md.
+ */
+
+/* This is a function that is used internally only, e. g. when generating
+ * custom error messages in the parser, the compiler and the virtual machine,
+ * since there, it's easy to check the number and type of arguments manually
+ * before compilation time. It is not advised that you use this functions;
+ * in order to get meaningful error messages, use `spn_string_format_obj()`
+ * instead.
  */
 SPN_API char *spn_string_format_cstr(
 	const char *fmt,	/* printf-style format string	*/
@@ -49,19 +57,22 @@ SPN_API char *spn_string_format_cstr(
 	const void **argv	/* array of objects to format	*/
 );
 
+/* this function is used for creating format strings in the Sparkling standard
+ * runtime library. It fills in the error message argument if an error is
+ * encountered. In this case, `*errmsg' must be free()'d after use.
+ * It is strongly encouraged that you use this function only with user-supplied
+ * format strings (because the two functions above are inherently unsafe when
+ * there's no reliable way to determine the number of arguments a particular
+ * format string requires). It's still OK to use the non-checking functions
+ * as long as you use constant format strings only and you provide all the
+ * necessary format arguments to the formatter functions.
+ */
 SPN_API SpnString *spn_string_format_obj(
 	SpnString *fmt,		/* printf-style format string	*/
-	SpnValue *argv		/* array of objects to format	*/
+	int argc,		/* number of objects to format	*/
+	SpnValue *argv,		/* array of objects to format	*/
+	char **errmsg		/* error description		*/
 );
-
-/* (*): if this flag is zero, then `argv' should point to the first element of
- * an array of void pointers, each of which have a base type appropriate for
- * the corresponding conversion specifier, i. e. one of `long' (for integers),
- * `double' (for floating-point numbers), `const signed char', or `const
- * unsigned char' (for strings), `int' (for Booleans) and `void` for pointers.
- * If the flag is nonzero, then `argv' should point to the first element of an
- * array of `SpnValue' strucs of the appropriate type.
- */
 
 #endif /* SPN_STR_H */
 

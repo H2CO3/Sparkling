@@ -2029,25 +2029,11 @@ static SpnValue typeof_value(SpnValue *val)
 	SpnValue res = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
 	const char *type;
 
-	switch (val->t) {
-	case SPN_TYPE_NIL:	type = "nil";		break;
-	case SPN_TYPE_BOOL:	type = "bool";		break;
-	case SPN_TYPE_NUMBER:	type = "number";	break;
-	case SPN_TYPE_FUNC:	type = "function";	break;
-	case SPN_TYPE_STRING:	type = "string";	break;
-	case SPN_TYPE_ARRAY:	type = "array";		break;
-	case SPN_TYPE_USRDAT:
-		if (val->f & SPN_TFLG_OBJECT) {
-			/* custom object */
-			type = spn_object_type(val->v.ptrv);
-		} else {
-			/* custom non-object */
-			type = "userdata";
-		}
-
-		break;
-	default:
-		SHANT_BE_REACHED();
+	/* custom object? */
+	if (val->t == SPN_TYPE_USRDAT && val->f & SPN_TFLG_OBJECT) {
+		type = spn_object_type(val->v.ptrv);
+	} else {
+		type = spn_type_name(val->t);
 	}
 
 	res.v.ptrv = spn_string_new_nocopy(type, 0);

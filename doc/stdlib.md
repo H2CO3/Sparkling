@@ -57,17 +57,18 @@ that of `printf()` in the C standard library. Valid conversion specifiers are:
  decimal point, rounding the result if necessary. If an explicit precision is
  not specified, then it's assumed to be `DBL_DIG` (taken from the C standard
  library of the host platform).
- - `%[+| ][W][.P][+]e` formats a floating-point number in the same manner as
- `%f`, but it uses scientific (exponential) notation, e. g. `1.337e+3`. If a
- second `+` sign, after the decimal point, is present, then the exponent will
- always have an explicit sign.
- - `%[W]q` formats an escaped string. If the field width modifier is present,
- it prints at most `W` characters.
  - `%B` formats a Boolean value. Prints either true or false.
  - Width and precision may both be specified as `*`, in which case the actual
  width or precision is determined by looking at the next argument of the
- function (one additional argument is used for each such variable-length format
- specifier).
+ function, which must be an integer (one additional argument is used for each
+ such variable-length format specifier).
+
+If either an unrecognized conversion specifier is encountered, or an argument
+of incorrect (mismatching) type is found, or the argument list is exhaused
+(i. e. there are less convertible arguments passed to this function than the
+format string contains conversion specifiers), or the variable-length width
+and/or precision specifiers are not integers, this function throws a runtime
+error.
 
 <!-- this comment is needed because Markdown sucks. -->
 

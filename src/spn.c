@@ -327,6 +327,21 @@ void spn_value_print(const SpnValue *val)
 	}
 }
 
+const char *spn_type_name(enum spn_val_type type)
+{
+	/* XXX: black magic, relies on the order of enum members */
+	static const char *const typenames[] = {
+		"nil",
+		"bool",
+		"number",
+		"function",
+		"string",
+		"array",
+		"userdata"
+	};
+
+	return typenames[type];
+}
 
 static char *read_file2mem(const char *name, size_t *sz, int nulterm)
 {

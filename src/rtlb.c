@@ -133,6 +133,7 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnString *fmt;
 	SpnString *res;
 	SpnContext *ctx = data;
+	char *errmsg;
 
 	if (argc < 1) {
 		spn_vm_seterrmsg(ctx->vm, "at least one argument is required", NULL);
@@ -145,7 +146,7 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	}
 
 	fmt = argv[0].v.ptrv;
-	res = spn_string_format_obj(fmt, &argv[1]);
+	res = spn_string_format_obj(fmt, argc - 1, &argv[1], &errmsg);
 
 	if (res != NULL) {
 		fputs(res->cstr, stdout);
@@ -156,7 +157,10 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 		spn_object_release(res);
 	} else {
-		spn_vm_seterrmsg(ctx->vm, "mismatching conversion specifier and argument type", NULL);
+		const void *args[1];
+		args[0] = errmsg;
+		spn_vm_seterrmsg(ctx->vm, "error in format string: %s", args);
+		free(errmsg);
 		return -3;
 	}
 
@@ -220,6 +224,7 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnString *res;
 	SpnContext *ctx = data;
 	FILE *stream;
+	char *errmsg;
 
 	if (argc < 2) {
 		spn_vm_seterrmsg(ctx->vm, "at least two arguments are required", NULL);
@@ -238,7 +243,7 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 	stream = argv[0].v.ptrv;
 	fmt = argv[1].v.ptrv;
-	res = spn_string_format_obj(fmt, &argv[2]);
+	res = spn_string_format_obj(fmt, argc - 2, &argv[2], &errmsg);
 
 	if (res != NULL) {
 		fputs(res->cstr, stream);
@@ -249,7 +254,10 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *data)
 
 		spn_object_release(res);
 	} else {
-		spn_vm_seterrmsg(ctx->vm, "mismatching conversion specifier and argument type", NULL);
+		const void *args[1];
+		args[0] = errmsg;
+		spn_vm_seterrmsg(ctx->vm, "error in format string: %s", args);
+		free(errmsg);
 		return -3;
 	}
 
@@ -939,6 +947,7 @@ static int rtlb_fmtstring(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	SpnString *fmt;
 	SpnString *res;
 	SpnContext *ctx = data;
+	char *errmsg;
 
 	if (argc < 1) {
 		spn_vm_seterrmsg(ctx->vm, "at least one argument is required", NULL);
@@ -951,14 +960,19 @@ static int rtlb_fmtstring(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	}
 
 	fmt = argv[0].v.ptrv;
-	res = spn_string_format_obj(fmt, &argv[1]);
+	res = spn_string_format_obj(fmt, argc - 1, &argv[1], &errmsg);
 
 	if (res != NULL) {
 		ret->t = SPN_TYPE_STRING;
 		ret->f = SPN_TFLG_OBJECT;
 		ret->v.ptrv = res;
+	} else {
+		const void *args[1];
+		args[0] = errmsg;
+		spn_vm_seterrmsg(ctx->vm, "error in format string: %s", args);
+		free(errmsg);
+		return -3;
 	}
-	/* else implicitly return nil */
 
 	return 0;
 }
