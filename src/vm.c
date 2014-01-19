@@ -834,7 +834,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				}
 
 				/* push pseudo-frame for stack trace's sake
-				 * this should be done *after* having copyied
+				 * this should be done *after* having copied
 				 * the arguments, since those arguments are
 				 * taken from the topmost stack frame.
 				 */
