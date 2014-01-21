@@ -14,7 +14,7 @@ LDFLAGS = -w
 LTO_FLAG = -flto
 else
 CC = gcc
-EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-unused-parameter
+EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter
 LIBS = -lm
 endif
 
