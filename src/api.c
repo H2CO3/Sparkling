@@ -436,6 +436,17 @@ static char *read_file2mem(const char *name, size_t *sz, int nulterm)
 		return NULL;
 	}
 
+	/* don't get confused by empty text files */
+	if (n == 0 && nulterm) {
+		buf = malloc(1);
+		if (buf == NULL) {
+			return NULL;
+		}
+
+		buf[0] = 0;
+		return buf;
+	}
+
 	if (fseek(f, 0, SEEK_SET) < 0) {
 		fclose(f);
 		return NULL;
