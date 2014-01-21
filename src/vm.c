@@ -443,21 +443,28 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 {
 	char *prefix, *msg;
 	size_t prefix_len, msg_len;
-	unsigned long addr = ip ? ip - current_bytecode(vm) : 0;
-	const void *prefix_args[1];
 
 	/* self-protection */
 	if (vm->ishandled) {
 		return;
 	}
 
-	prefix_args[0] = &addr;
-
-	prefix = spn_string_format_cstr(
-		"Sparkling: at address 0x%08x: runtime error: ",
-		&prefix_len,
-		prefix_args
-	);
+	if (ip != NULL) {
+		unsigned long addr = ip - current_bytecode(vm);
+		const void *prefix_args[1];
+		prefix_args[0] = &addr;
+		prefix = spn_string_format_cstr(
+			"Sparkling: at address 0x%08x: runtime error: ",
+			&prefix_len,
+			prefix_args
+		);
+	} else {
+		prefix = spn_string_format_cstr( /* glorified strdup() */
+			"Sparkling: in native code: runtime error: ",
+			&prefix_len,
+			NULL
+		);
+	}
 
 	msg = spn_string_format_cstr(fmt, &msg_len, args);
 

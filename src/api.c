@@ -438,6 +438,8 @@ static char *read_file2mem(const char *name, size_t *sz, int nulterm)
 
 	/* don't get confused by empty text files */
 	if (n == 0 && nulterm) {
+		fclose(f);
+
 		buf = malloc(1);
 		if (buf == NULL) {
 			return NULL;
