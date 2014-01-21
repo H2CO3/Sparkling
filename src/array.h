@@ -12,7 +12,8 @@
 #define SPN_ARRAY_H
 
 #include <stddef.h>
-#include "spn.h"
+
+#include "api.h"
 
 
 typedef struct SpnArray SpnArray;
@@ -30,7 +31,7 @@ SPN_API size_t		 spn_array_count(SpnArray *arr);
 SPN_API SpnValue	*spn_array_get(SpnArray *arr, const SpnValue *key);
 SPN_API void		 spn_array_set(SpnArray *arr, SpnValue *key, SpnValue *val);
 
-/* this is just a convenience wrapper around spn_array_set():
+/* this is just a convenience wrapper around `spn_array_set()':
  * it sets the value corresponding to the key to `nil`.
  */
 SPN_API void		 spn_array_remove(SpnArray *arr, SpnValue *key);

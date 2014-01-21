@@ -12,7 +12,8 @@
 #define SPN_PRIVATE_H
 
 #include <assert.h>
-#include "spn.h"
+
+#include "api.h"
 
 /* you shall not pass! (assertion for unreachable code paths) */
 #define SHANT_BE_REACHED() assert(((void)("code path must not be reached"), 0))

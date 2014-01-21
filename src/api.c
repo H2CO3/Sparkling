@@ -1,5 +1,5 @@
 /*
- * spn.c
+ * api.c
  * Sparkling, a lightweight C-style scripting language
  *
  * Created by Árpád Goretity on 02/05/2013
@@ -14,7 +14,7 @@
 #include <float.h>
 #include <assert.h>
 
-#include "spn.h"
+#include "api.h"
 #include "parser.h"
 #include "compiler.h"
 #include "vm.h"
@@ -269,11 +269,8 @@ unsigned long spn_hash_value(const SpnValue *key)
 
 		return (unsigned long)(key->v.ptrv);
 	}
-#ifndef NDEBUG
 	default:
-		fprintf(stderr, "Sparkling: wrong type ID `%d' in array key\n", key->t);
-		abort();
-#endif
+		SHANT_BE_REACHED();
 	}
 
 	return 0;
@@ -282,13 +279,15 @@ unsigned long spn_hash_value(const SpnValue *key)
 void spn_value_print(const SpnValue *val)
 {
 	switch (val->t) {
-	case SPN_TYPE_NIL:
-		printf("nil");
+	case SPN_TYPE_NIL:	{
+		fputs("nil", stdout);
 		break;
-	case SPN_TYPE_BOOL:
-		printf("%s", val->v.boolv ? "true" : "false");
+	}
+	case SPN_TYPE_BOOL:	{
+		fputs(val->v.boolv ? "true" : "false", stdout);
 		break;
-	case SPN_TYPE_NUMBER:
+	}
+	case SPN_TYPE_NUMBER:	{
 		if (val->f & SPN_TFLG_FLOAT) {
 			printf("%.*g", DBL_DIG, val->v.fltv);
 		} else {
@@ -296,32 +295,33 @@ void spn_value_print(const SpnValue *val)
 		}
 
 		break;
-	case SPN_TYPE_FUNC: {
+	}
+	case SPN_TYPE_FUNC:	{
 		const char *name = val->v.fnv.name ? val->v.fnv.name : SPN_LAMBDA_NAME;
 
 		if (val->f & SPN_TFLG_NATIVE) {
-			printf("<native function %s()>", name);
+			printf("<native function %s>", name);
 		} else {
 			const void *ptr = val->v.fnv.r.bc;
-			printf("<script function %s() %p>", name, ptr);
+			printf("<script function %p: %s>", ptr, name);
 		}
 
 		break;
 	}
-	case SPN_TYPE_STRING: {
+	case SPN_TYPE_STRING:	{
 		SpnString *s = val->v.ptrv;
-		printf("%s", s->cstr);
+		fputs(s->cstr, stdout);
 		break;
 	}
-	case SPN_TYPE_ARRAY: {
+	case SPN_TYPE_ARRAY:	{
 		printf("<array %p>", val->v.ptrv);
 		break;
 	}
-	case SPN_TYPE_USRDAT:
+	case SPN_TYPE_USRDAT:	{
 		printf("<userdata %p>", val->v.ptrv);
 		break;
+	}
 	default:
-		fprintf(stderr, "wrong type ID `%d' in print_val\n", val->t);
 		SHANT_BE_REACHED();
 		break;
 	}
@@ -342,6 +342,76 @@ const char *spn_type_name(enum spn_val_type type)
 
 	return typenames[type];
 }
+
+
+/*
+ * Object API
+ */
+
+const char *spn_object_type(const void *o) /* for typeof() */
+{
+	const SpnObject *obj = o;
+	return obj->isa->name;
+}
+
+int spn_object_equal(const void *lhs, const void *rhs)
+{
+	const SpnObject *lo = lhs, *ro = rhs;
+
+	if (lo->isa != ro->isa) {
+		return 0;
+	}
+
+	if (lo->isa->equal != NULL) {
+		return lo->isa->equal(lo, ro);
+	} else {
+		return lo == ro;
+	}
+}
+
+int spn_object_cmp(const void *lhs, const void *rhs)
+{
+	const SpnObject *lo = lhs, *ro = rhs;
+
+	assert(lo->isa == ro->isa);
+	assert(lo->isa->compare != NULL);
+
+	return lo->isa->compare(lo, ro);
+}
+
+void *spn_object_new(const SpnClass *isa)
+{
+	SpnObject *obj = malloc(isa->instsz);
+	if (obj == NULL) {
+		abort();
+	}
+
+	obj->isa = isa;
+	obj->refcnt = 1;
+
+	return obj;
+}
+
+void spn_object_retain(void *o)
+{
+	SpnObject *obj = o;
+	obj->refcnt++;
+}
+
+void spn_object_release(void *o)
+{
+	SpnObject *obj = o;
+
+	/* it is the destructor's responsibility to `free()` the instance */
+	if (--obj->refcnt == 0) {
+		obj->isa->destructor(obj);
+	}
+}
+
+
+/*
+ * File access API
+ */
 
 static char *read_file2mem(const char *name, size_t *sz, int nulterm)
 {
@@ -396,6 +466,7 @@ static char *read_file2mem(const char *name, size_t *sz, int nulterm)
 
 	return buf;
 }
+
 
 char *spn_read_text_file(const char *name)
 {

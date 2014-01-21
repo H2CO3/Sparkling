@@ -190,7 +190,7 @@ Standard library:
 		implemented.
 	- provide proper access to the Sparkling engine (compilefile(),
 		compilestring(), etc. functions)
-	- check number of arguments in format strings
+	- check number of arguments in format strings						done
 	- complex mathematical functions (at least basic ones: conversion between		done
 		canonical and trigonometric form, absolute value, etc.)
 

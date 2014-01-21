@@ -70,22 +70,17 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
 SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 
 /* Functions:
+ * getenv()
+ * system()
+ * assert()
+ * exit()
  * time()
  * gmtime()
  * localtime()
  * strftime()
  * difftime()
  */
-#define SPN_LIBSIZE_TIME 5
-SPN_API const SpnExtFunc spn_libtime[SPN_LIBSIZE_TIME];
-
-/* Functions:
- * getenv()
- * system()
- * assert()
- * exit()
- */
-#define SPN_LIBSIZE_SYS 4
+#define SPN_LIBSIZE_SYS 9
 SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 
 /* A convenience function that loads the entire standard library.

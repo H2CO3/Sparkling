@@ -11,7 +11,7 @@
 #ifndef SPN_AST_H
 #define SPN_AST_H
 
-#include "spn.h"
+#include "api.h"
 #include "str.h"
 
 /* AST nodes
@@ -177,9 +177,6 @@ typedef struct SpnAST {
 /* lineno is the line number where the parser is currently */
 SPN_API SpnAST	*spn_ast_new(enum spn_ast_node node, unsigned long lineno);
 SPN_API void	 spn_ast_free(SpnAST *ast);
-
-/* dumps a textual representation of the AST to stdout */
-SPN_API void	 spn_ast_dump(SpnAST *ast);
 
 #endif /* SPN_AST_H */
 

@@ -12,7 +12,7 @@
 #define SPN_PARSER_H
 
 
-#include "spn.h"
+#include "api.h"
 #include "ast.h"
 
 /* A token is the most basic lexical element, e. g. a keyword, an operator,

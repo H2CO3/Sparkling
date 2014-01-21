@@ -14,7 +14,7 @@
 #include <stddef.h>
 #include <string.h>
 
-#include "spn.h"
+#include "api.h"
 
 /* an extension function written in C. It receives a pointer to the return
  * value, the number of call arguments, a pointer to an array of the arguments.

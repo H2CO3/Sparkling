@@ -1062,7 +1062,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					runtime_error(
 						vm,
 						ip - 1,
-						"ordered comparison of objects of different types",
+						"ordered comparison of objects of different classes",
 						NULL
 					);
 					return -1;

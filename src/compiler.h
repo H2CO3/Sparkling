@@ -13,7 +13,7 @@
 
 #include <stddef.h>
 
-#include "spn.h"
+#include "api.h"
 #include "ast.h"
 #include "vm.h"
 

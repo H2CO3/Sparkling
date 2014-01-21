@@ -2375,9 +2375,120 @@ const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 };
 
 
-/*********************
- * Date/time library *
- *********************/
+/***************************
+ * OS/Shell access library *
+ ***************************/
+
+static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *data)
+{
+	SpnContext *ctx = data;
+	SpnString *name;
+	const char *env;
+
+	if (argc != 1) {
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_STRING) {
+		spn_vm_seterrmsg(ctx->vm, "argument must be a string (name of an environment variable)", NULL);
+		return -2;
+	}
+
+	name = argv[0].v.ptrv;
+	env = getenv(name->cstr);
+
+	if (env != NULL) {
+		ret->t = SPN_TYPE_STRING;
+		ret->f = SPN_TFLG_OBJECT;
+		ret->v.ptrv = spn_string_new_nocopy(env, 0);
+	}
+	/* else implicitly return nil */
+
+	return 0;
+}
+
+static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *data)
+{
+	SpnContext *ctx = data;
+	SpnString *cmd;
+	int code;
+
+	if (argc != 1) {
+		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_STRING) {
+		spn_vm_seterrmsg(ctx->vm, "argument must be a string (a command to execute)", NULL);
+		return -2;
+	}
+
+	cmd = argv[0].v.ptrv;
+	code = system(cmd->cstr);
+
+	ret->t = SPN_TYPE_NUMBER;
+	ret->f = 0;
+	ret->v.intv = code;
+
+	return 0;
+}
+
+static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *data)
+{
+	SpnContext *ctx = data;
+
+	if (argc != 2) {
+		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
+		return -1;
+	}
+
+	if (argv[0].t != SPN_TYPE_BOOL) {
+		spn_vm_seterrmsg(ctx->vm, "assertion condition must be a boolean", NULL);
+		return -2;
+	}
+
+	if (argv[1].t != SPN_TYPE_STRING) {
+		spn_vm_seterrmsg(ctx->vm, "error message must be a string", NULL);
+		return -2;
+	}
+
+	/* actual assertion */
+	if (argv[0].v.boolv == 0) {
+		SpnString *msg = argv[1].v.ptrv;
+		const void *args[1];
+		args[0] = msg->cstr;
+		spn_vm_seterrmsg(ctx->vm, "assertion failed: %s", args);
+		return -3;
+	}
+
+	return 0;
+}
+
+static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *data)
+{
+	SpnContext *ctx = data;
+
+	/* assume successful termination if no exit code is given */
+	int code = 0;
+
+	if (argc > 1) {
+		spn_vm_seterrmsg(ctx->vm, "0 or 1 argument is required", NULL);
+		return -1;
+	}
+
+	if (argc > 0) {
+		if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
+			spn_vm_seterrmsg(ctx->vm, "argument must be an integer exit code", NULL);
+			return -2;
+		}
+
+		code = argv[0].v.intv;
+	}
+
+	exit(code);
+	return 0;
+}
 
 static int rtlb_time(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
@@ -2624,135 +2735,16 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *data)
 	return 0;
 }
 
-const SpnExtFunc spn_libtime[SPN_LIBSIZE_TIME] = {
-	{ "time",	rtlb_time	},
-	{ "gmtime",	rtlb_gmtime	},
-	{ "localtime",	rtlb_localtime	},
-	{ "strftime",	rtlb_strftime	},
-	{ "difftime",	rtlb_difftime	},
-};
-
-
-/***************************
- * OS/Shell access library *
- ***************************/
-
-static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *data)
-{
-	SpnContext *ctx = data;
-	SpnString *name;
-	const char *env;
-
-	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
-		return -1;
-	}
-
-	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a string (name of an environment variable)", NULL);
-		return -2;
-	}
-
-	name = argv[0].v.ptrv;
-	env = getenv(name->cstr);
-
-	if (env != NULL) {
-		ret->t = SPN_TYPE_STRING;
-		ret->f = SPN_TFLG_OBJECT;
-		ret->v.ptrv = spn_string_new_nocopy(env, 0);
-	}
-	/* else implicitly return nil */
-
-	return 0;
-}
-
-static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *data)
-{
-	SpnContext *ctx = data;
-	SpnString *cmd;
-	int code;
-
-	if (argc != 1) {
-		spn_vm_seterrmsg(ctx->vm, "exactly one argument is required", NULL);
-		return -1;
-	}
-
-	if (argv[0].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "argument must be a string (a command to execute)", NULL);
-		return -2;
-	}
-
-	cmd = argv[0].v.ptrv;
-	code = system(cmd->cstr);
-
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = code;
-
-	return 0;
-}
-
-static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *data)
-{
-	SpnContext *ctx = data;
-
-	if (argc != 2) {
-		spn_vm_seterrmsg(ctx->vm, "exactly two arguments are required", NULL);
-		return -1;
-	}
-
-	if (argv[0].t != SPN_TYPE_BOOL) {
-		spn_vm_seterrmsg(ctx->vm, "assertion condition must be a boolean", NULL);
-		return -2;
-	}
-
-	if (argv[1].t != SPN_TYPE_STRING) {
-		spn_vm_seterrmsg(ctx->vm, "error message must be a string", NULL);
-		return -2;
-	}
-
-	/* actual assertion */
-	if (argv[0].v.boolv == 0) {
-		SpnString *msg = argv[1].v.ptrv;
-		const void *args[1];
-		args[0] = msg->cstr;
-		spn_vm_seterrmsg(ctx->vm, "assertion failed: %s", args);
-		return -3;
-	}
-
-	return 0;
-}
-
-static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *data)
-{
-	SpnContext *ctx = data;
-
-	/* assume successful termination if no exit code is given */
-	int code = 0;
-
-	if (argc > 1) {
-		spn_vm_seterrmsg(ctx->vm, "0 or 1 argument is required", NULL);
-		return -1;
-	}
-
-	if (argc > 0) {
-		if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
-			spn_vm_seterrmsg(ctx->vm, "argument must be an integer exit code", NULL);
-			return -2;
-		}
-
-		code = argv[0].v.intv;
-	}
-
-	exit(code);
-	return 0;
-}
-
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "getenv",	rtlb_getenv	},
 	{ "system",	rtlb_system	},
 	{ "assert",	rtlb_assert	},
-	{ "exit",	rtlb_exit	}
+	{ "exit",	rtlb_exit	},
+	{ "time",	rtlb_time	},
+	{ "gmtime",	rtlb_gmtime	},
+	{ "localtime",	rtlb_localtime	},
+	{ "strftime",	rtlb_strftime	},
+	{ "difftime",	rtlb_difftime	}
 };
 
 
@@ -2762,7 +2754,6 @@ static void load_stdlib_functions(SpnVMachine *vm)
 	spn_vm_addlib(vm, spn_libstring, SPN_LIBSIZE_STRING);
 	spn_vm_addlib(vm, spn_libarray, SPN_LIBSIZE_ARRAY);
 	spn_vm_addlib(vm, spn_libmath, SPN_LIBSIZE_MATH);
-	spn_vm_addlib(vm, spn_libtime, SPN_LIBSIZE_TIME);
 	spn_vm_addlib(vm, spn_libsys, SPN_LIBSIZE_SYS);
 }
 

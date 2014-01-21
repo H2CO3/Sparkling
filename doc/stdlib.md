@@ -257,7 +257,10 @@ specialized computations, so it's simply excluded from the Sparkling stdlib.)
 
 Complex numbers are represented by arrays which have at least the following
 keys as strings: `re` and `im`, which correspond to the real and imaginary
-parts.
+parts. This is the so-called canonical form of complex numbers. The functions
+that convert between canonical and polar/trigonometric forms understand (and
+produce) arrays with the keys `r` and `theta`. See `can2pol()` and `pol2can()`
+below.
 
 `cplx_add()`, `cplx_sub()`, `cplx_mul()` and `cplx_div()` perform basic
 arithmetic operations on two complex numbers.
@@ -271,9 +274,6 @@ trigonometric functions of complex numbers.
 coordinates) and the trigonometric form (polar coordinates). Complex numbers
 in the trigonometric form are realized using an array of two numbers,
 assigned to the keys `r` and `theta`.
-
-`plane2rsph()` and `rsph2plane()` convert between coordinates on the complex
-number plane and their projection to the Riemann sphere.
 
 The following global constants (known for their existence in the BSD and GNU C
 libraries) are also available:
@@ -295,8 +295,26 @@ libraries) are also available:
     number M_NAN: "Not a Number" value
     number M_INF: positive infinity
 
-5. Basic time and date manipulation (spn_libtime)
--------------------------------------------------
+5. Interfacing with the shell and the OS (spn_libsys)
+-----------------------------------------------------
+    string getenv(string name)
+
+Returns the value of the environment variable `name`, or `nil` if it's not set.
+
+    int system(string cmd)
+
+Runs the command `cmd` in the shell, returns the exit status.
+
+    nil assert(bool cond, string errmsg)
+
+Evaluates `cond`, and if it is false, terminates the program, printing the
+error message to the standard error stream.
+
+    nil exit(int status)
+
+terminates the **host program** by calling the C standard library function
+`exit()` with the specified exit status code.
+
     int time(void)
 
 Returns the current Unix timestamp in seconds.
@@ -327,24 +345,4 @@ library function `strftime()`.
     float difftime(int ts2, int ts1)
 
 Returns the difference between the two timestamps.
-
-6. Interfacing with the shell and the OS (spn_libsys)
------------------------------------------------------
-    string getenv(string name)
-
-Returns the value of the environment variable `name`, or `nil` if it's not set.
-
-    int system(string cmd)
-
-Runs the command `cmd` in the shell, returns the exit status.
-
-    nil assert(bool cond, string errmsg)
-
-Evaluates `cond`, and if it is false, terminates the program, printing the
-error message to the standard error stream.
-
-    nil exit(int status)
-
-terminates the **host program** by calling the C standard library function
-`exit()` with the specified exit status code.
 

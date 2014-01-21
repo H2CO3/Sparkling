@@ -11,7 +11,7 @@
 #ifndef SPN_CTX_H
 #define SPN_CTX_H
 
-#include "spn.h"
+#include "api.h"
 #include "rtlb.h"
 #include "parser.h"
 #include "compiler.h"

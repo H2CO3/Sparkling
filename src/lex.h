@@ -15,7 +15,7 @@
 #include <string.h>
 #include <stdlib.h>
 
-#include "spn.h"
+#include "api.h"
 #include "parser.h"
 
 #ifdef __cplusplus

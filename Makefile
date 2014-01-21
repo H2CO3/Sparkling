@@ -52,7 +52,7 @@ all: $(LIB) $(REPL)
 $(LIB): $(OBJECTS)
 	ar -cvr $@ $^
 
-$(REPL): repl.o $(LIB)
+$(REPL): spn.o $(LIB)
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 install: $(LIB) $(REPL)
@@ -66,12 +66,12 @@ install: $(LIB) $(REPL)
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -o $@ $<
 
-repl.o: repl.c
-	printf "#define REPL_VERSION \"%s\"\n" $(shell git rev-parse --short HEAD) > repl.h
+spn.o: spn.c
+	printf "#define REPL_VERSION \"%s\"\n" $(shell git rev-parse --short HEAD) > spn.h
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 clean:
-	rm -f $(OBJECTS) $(LIB) $(REPL) repl.o repl.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
+	rm -f $(OBJECTS) $(LIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
 
 .PHONY: all install clean
 

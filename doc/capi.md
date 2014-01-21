@@ -127,6 +127,12 @@ from within a native extension function. Throws a runtime error if:
 1. its `fn` argument does not contain a value of function type, or
 2. if `fn` is a native function and it returns a non-zero status code.
 
+Script functions are tied to virtual machine instances, so if `fn` is not a
+native funciton, then it should be implemented in a translation unit that has
+already been run on the virtual machine `vm`. (That is, calling a non-native
+function is only valid on the same virtual machine that was used to obtain
+the value `fn` itself.)
+
 Returns the status code of `fn`.
 
 **Important:** if `spn_vm_callfunc()` returns nonzero (indicating that the

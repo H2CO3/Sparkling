@@ -13,8 +13,7 @@
 
 #include <stddef.h>
 
-#include "spn.h"
-#include "object.h"
+#include "api.h"
 
 typedef struct SpnString {
 	SpnObject	 base;		/* private		*/
