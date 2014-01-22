@@ -149,6 +149,35 @@ int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret)
 	return status;
 }
 
+
+/* abstraction (well, sort of) of the virtual machine API */
+
+int spn_ctx_callfunc(SpnContext *ctx, SpnValue *func, SpnValue *ret, int argc, SpnValue argv[])
+{
+	return spn_vm_callfunc(ctx->vm, func, ret, argc, argv);
+}
+
+void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
+{
+	spn_vm_seterrmsg(ctx->vm, fmt, args);
+}
+
+const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
+{
+	return spn_vm_stacktrace(ctx->vm, size);
+}
+
+void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc fns[], size_t n)
+{
+	spn_vm_addlib_cfuncs(ctx->vm, libname, fns, n);
+}
+
+void spn_ctx_addlib_values(SpnContext *ctx, const char *libname, SpnExtValue vals[], size_t n)
+{
+	spn_vm_addlib_values(ctx->vm, libname, vals, n);
+}
+
+
 /* private bytecode link list functions */
 
 static void prepend_bytecode_list(SpnContext *ctx, spn_uword *bc, size_t len)

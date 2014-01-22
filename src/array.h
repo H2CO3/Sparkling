@@ -27,7 +27,10 @@ typedef struct SpnIterator SpnIterator;
 SPN_API SpnArray	*spn_array_new();
 SPN_API size_t		 spn_array_count(SpnArray *arr);
 
-/* getter and setter. both the key and the value are retained. */
+/* getter and setter.
+ * the getter doesn't alter the ownership of either the key or the value.
+ * the setter retains both the key and the value.
+ */
 SPN_API SpnValue	*spn_array_get(SpnArray *arr, const SpnValue *key);
 SPN_API void		 spn_array_set(SpnArray *arr, SpnValue *key, SpnValue *val);
 

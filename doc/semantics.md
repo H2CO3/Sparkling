@@ -16,7 +16,7 @@ called values. All values have a type.
 §1.4. A type is an abstract property of a value that describes the behavior of
 its contents. A type is defined by the set of possible values and operations.
 A type in Sparkling is one of nil, boolean, number (either integer or
-floating-point), function, string, array or user data.
+floating-point), function, string, array or user info.
 
 §1.4.1. The nil type denotes the lack of any other valid value. Its only
 possible value is `nil`, and a lexical synonym for the value `nil` is `null`.
@@ -41,8 +41,8 @@ collection of key-value pairs. Keys (indices) and values can be of any type.
 Keys and values can be set and retrieved at any time. Arrays have a size, which
 is the number of key-value pairs in the collection.
 
-§1.4.7. The user data type represents any custom value. They are to be accessed
-and manipulated using dedicated functions only. User data objects are used
+§1.4.7. The user info type represents any custom value. They are to be accessed
+and manipulated using dedicated functions only. User info objects are used
 typically in conjunction with the native C extension API.
 
 §1.5. Values are obtained by evaluating expressions. An expression is said to
@@ -248,9 +248,9 @@ are equal if and only if:
 	  pointers compare equal; for Sparkling functions, this means that
 	  the bytecode pointers point to the same function entry point.), or
 	- they are arrays and they both reference the same array object, or
-	- they are both user data values but not objects and reference the same
-	  pointer in C-land, or
-	- they are user data values and objects and the `spn_object_equal()`
+	- they are both user info values but not objects and reference the
+	  same C pointer, or
+	- they are user info values and objects and the `spn_object_equal()`
 	  function returns true (nonzero) when called on them.
 
 §3.5.2. Ordered comparison operators. Ordered comparison operators
@@ -315,7 +315,7 @@ array. If called on any other value, `sizeof' yields 1.
 
 §3.8.8. The `typeof` operator. Yields a string representation of the type of
 its operand. Thus, one of the strings "nil", "bool", "number", "function",
-"string", "array" or "userdata" will be returned.
+"string", "array" or "userinfo" will be returned.
 
 §3.9. Postfix operators
 

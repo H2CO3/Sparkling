@@ -112,6 +112,120 @@ static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
 	cmp->is_in_loop = sci->is_in_loop;
 }
 
+/*****************************
+ * Symbol table entry class. *
+ *****************************/
+
+/* This class is used for fixing the ugly hack that was previously used in
+ * the code of the compiler. Namely, symbol table entries were represented
+ * in a quite, khm, "particular" way inside the SpnCompiler struct:
+ * - String literals were stored as SpnStrings (that's fine);
+ * - Stubs that reference global symbols were stored as SpnValues of type
+ *	SPN_TYPE_FUNCTION, with their name set to the symbol name. This is
+ * 	conceptually wrong because global symbols can be of any type, not
+ * 	just functions.
+ * - Symbols corresponding to lambda functions in the current translation unit
+ * 	were stored as integers (SpnValue of type SPN_TYPE_NUMBER), since an
+ * 	integer offset unambiguously identifies such an unnamed function, but
+ * 	an SpnValue of function type cannot store integers. This is also wrong
+ * 	conceptually.
+ * What's worse, after a recent attempt to clean up the equality testing and
+ * hashing methods of functions, this lead to various errors: functions should
+ * be compared and hashed using their addresses only (be they C function
+ * pointers or pointers to inside a chunk of bytecode); however, the hack in
+ * the code of the compiler assumed that named function values are compared
+ * based on their name (which was indeed the case up until now). Of course,
+ * this failed miserably when used with the new comparison and hashing code
+ * that only considered pointers but not names.
+ */
+
+enum symtabentry_type {
+	SYMTABENTRY_GLOBAL,
+	SYMTABENTRY_LAMBDA
+};
+
+typedef struct SymtabEntry {
+	SpnObject base;
+	enum symtabentry_type type;
+	union {
+		SpnString *name;  /* name of the global symbol stub	*/
+		ptrdiff_t offset; /* offset of the lambda in bytecode	*/
+	} repr;
+} SymtabEntry;
+
+static int symtabentry_equal(const void *lhs, const void *rhs)
+{
+	const SymtabEntry *lo = lhs, *ro = rhs;
+	if (lo->type != ro->type) {
+		return 0;
+	}
+
+	switch (lo->type) {
+	case SYMTABENTRY_GLOBAL:
+		return spn_object_equal(lo->repr.name, ro->repr.name);
+	case SYMTABENTRY_LAMBDA:
+		return lo->repr.offset == ro->repr.offset;
+	default:
+		SHANT_BE_REACHED();
+		return 0;
+	}
+}
+
+static unsigned long symtabentry_hash(void *obj)
+{
+	SymtabEntry *entry = obj;
+
+	switch (entry->type) {
+	case SYMTABENTRY_GLOBAL: {
+		SpnObject *base = (SpnObject *)(entry->repr.name);
+		return base->isa->hashfn(base);
+	}	
+	case SYMTABENTRY_LAMBDA:
+		return entry->repr.offset;
+	default:
+		SHANT_BE_REACHED();
+		return 0;
+	}
+}
+
+static void symtabentry_free(void *obj)
+{
+	SymtabEntry *entry = obj;
+	
+	if (entry->type == SYMTABENTRY_GLOBAL) {
+		spn_object_release(entry->repr.name);
+	}
+
+	free(entry);
+}
+
+static const SpnClass SymtabEntry_class = {
+	sizeof(SymtabEntry),
+	symtabentry_equal,
+	NULL,
+	symtabentry_hash,
+	symtabentry_free
+};
+
+static SymtabEntry *symtabentry_new_global(SpnString *name)
+{
+	SymtabEntry *entry = spn_object_new(&SymtabEntry_class);
+	entry->type = SYMTABENTRY_GLOBAL;
+	spn_object_retain(name);
+	entry->repr.name = name;
+	return entry;
+}
+
+static SymtabEntry *symtabentry_new_lambda(ptrdiff_t offset)
+{
+	SymtabEntry *entry = spn_object_new(&SymtabEntry_class);
+	entry->type = SYMTABENTRY_LAMBDA;
+	entry->repr.offset = offset;
+	return entry;
+}
+
+/****************************************/
+
 /* compile_*() functions return nonzero on success, 0 on error */
 static int compile(SpnCompiler *cmp, SpnAST *ast);
 
@@ -468,35 +582,33 @@ static int write_symtab(SpnCompiler *cmp)
 			append_cstring(&cmp->bc, str->cstr, str->len);
 			break;
 		}
-		case SPN_TYPE_FUNC: {
-			/* unresolved symbol stub */
+		case SPN_TYPE_USERINFO: {
+			SymtabEntry *entry = sym->v.ptrv;
 
-			size_t namelen = strlen(sym->v.fnv.name);
+			switch (entry->type) {
+			case SYMTABENTRY_GLOBAL: {
+				SpnString *name = entry->repr.name;
 
-			/* append symbol type */
-			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_SYMSTUB, namelen);
-			bytecode_append(&cmp->bc, &ins, 1);
+				/* append symbol type */
+				spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_SYMSTUB, name->len);
+				bytecode_append(&cmp->bc, &ins, 1);
 
-			/* append symbol name */
-			append_cstring(&cmp->bc, sym->v.fnv.name, namelen);
-			break;
-		}
-		case SPN_TYPE_NUMBER: {
-			/* Yes, I do realize this is odd - storing a function
-			 * as a number... But a lambda function is represented
-			 * only by the offset of its header (counting from the
-			 * beginning of the whole bytecode). However, the
-			 * `SpnValue.fnv.r` union does not have a member which
-			 * could store that integer. That is intentional: at
-			 * runtime, the VM is only concerned about pointers -
-			 * I could add the aforementioned field, but I thought
-			 * it would clutter the function representation -
-			 * conceptually, SpnValue is a runtime thing, it must
-			 * not contain private compiler data.
-			 * So, `sym->v.intv` stores this offset as a `long`.
-			 */
-			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_LAMBDA, sym->v.intv);
-			bytecode_append(&cmp->bc, &ins, 1);
+				/* append symbol name */
+				append_cstring(&cmp->bc, name->cstr, name->len);
+
+				break;
+			}
+			case SYMTABENTRY_LAMBDA: {
+				ptrdiff_t offset = entry->repr.offset;
+				spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_LAMBDA, offset);
+				bytecode_append(&cmp->bc, &ins, 1);
+
+				break;
+			}
+			default:
+				SHANT_BE_REACHED();
+			}
+
 			break;
 		}
 		default:
@@ -659,16 +771,16 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 
 	/* if the function is a lambda, create a local symtab entry for it. */
 	if (ast->node == SPN_NODE_FUNCEXPR) {
-		/* the next index to be used in the local symtab is the length
-		 * of the symtab itself (we insert at position 0 when it's
-		 * empty, at position 1 if it contains 1 item, etc.)
-		 */
+		/* lambdas are identified by their offset in the bytecode */
+		SymtabEntry *entry = symtabentry_new_lambda(hdroff);
+
 		SpnValue offval;
-		offval.t = SPN_TYPE_NUMBER;
-		offval.f = 0;
-		offval.v.intv = hdroff;
+		offval.t = SPN_TYPE_USERINFO;
+		offval.f = SPN_TFLG_OBJECT;
+		offval.v.ptrv = entry;
 
 		*symidx = rts_add(cmp->symtab, &offval);		
+		spn_object_release(entry);
 	}
 
 	/* bring function arguments in scope (they are put in the first
@@ -1717,28 +1829,25 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	/* if `rts_getidx()` returns -1, then the variable is undeclared --
 	 * assume a global symbol and search the symtab. If not found,
-	 * create a symtab entry.
+	 * create a symtab entry that references the unresolved global.
 	 */
 	if (idx < 0) {
 		spn_uword ins;
 		int sym;
+		SymtabEntry *entry = symtabentry_new_global(ast->name);
 
-		/* XXX: this is a hack. The compiler treats all global symbols
-		 * as function stubs. While conceptually wrong, this does not
-		 * result in a bug, since at compilation time, we don't know
-		 * the type of any global symbol anyway. The correct type will
-		 * be found by the VM at runtime when it resolves the symbol.
-		 */
 		SpnValue stub;
-		stub.t = SPN_TYPE_FUNC;
-		stub.f = SPN_TFLG_PENDING;
-		stub.v.fnv.name = ast->name->cstr;
+		stub.t = SPN_TYPE_USERINFO;
+		stub.f = SPN_TFLG_OBJECT;
+		stub.v.ptrv = entry;
 
 		sym = rts_getidx(cmp->symtab, &stub);
 		if (sym < 0) {
 			/* not found, append to symtab */
 			sym = rts_add(cmp->symtab, &stub);
 		}
+
+		spn_object_release(entry);
 
 		/* compile "load symbol" instruction */
 		if (*dst < 0) {

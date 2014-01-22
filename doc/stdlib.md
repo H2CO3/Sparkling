@@ -12,6 +12,11 @@ An exception to this rule is a variadic function (denoted by an ellipsis `...`
 in its argument list), which may be called with at least as many arguments as
 required.
 
+Note that, at the implementation level, the backing C functions that implement
+the standard libraries expect that they are only called through the convenience
+context API, i. e. that their "context info" pointer points to an SpnContext
+structure.
+
 A complete list of functions can be found in the `rtlb.h` header file.
 
 1. I/O library (spn_libio)
@@ -21,7 +26,7 @@ A complete list of functions can be found in the `rtlb.h` header file.
     usrdat stdout
     usrdat stderr
 
-Globals of type "user data", representing the standard input, output and error
+Globals of type "userinfo", representing the standard input, output and error
 stream, respectively.
 
     string getline(void)
@@ -72,50 +77,50 @@ error.
 
 <!-- this comment is needed because Markdown sucks. -->
 
-    userdata fopen(string name, string mode)
+    userinfo fopen(string name, string mode)
 
 Opens the file `name` in mode `mode`. The meaning of the mode string is
 identical to that of the second argument of `fopen()` in the C standard library.
-Returns an user data value representing the open file if successful, or `nil`
+Returns an user info value representing the open file if successful, or `nil`
 on failure.
 
-    nil fclose(userdata file)
+    nil fclose(userinfo file)
 
 closes the file object associated with `file`.
 
-    nil fprintf(userdata file, string format, ...)
-    string fgetline(userdata file)
+    nil fprintf(userinfo file, string format, ...)
+    string fgetline(userinfo file)
 
 These work the same as `printf()` and `getline()`, but they operate on the
 specified file instead of `stdout`.
 
-    string fread(userdata file, int length)
+    string fread(userinfo file, int length)
 
 Reads `length` bytes from the open file `file`. Returns the bytes as a string
 on success, `nil` on failure.
 
-    bool fwrite(userdata file, string buf)
+    bool fwrite(userinfo file, string buf)
 
 writes the characters in the string `buf` into the file `file`. Returns true
 on success, false on error.
 
-    nil fflush([userdata file])
+    nil fflush([userinfo file])
 
 flushes the buffer of `file`, which must be a file opened for writing. If
 this function receives no arguments, then it flushes all open output streams.
 
-    int ftell(userdata file)
+    int ftell(userinfo file)
 
 returns the position indicator of `file`, i. e. the offset where the next
 read or write operation occurs. Returns a negative value on failure.
 
-    bool fseek(userdata file, int off, string whence)
+    bool fseek(userinfo file, int off, string whence)
 
 Sets the file position indicator to `off`. `whence` should be one of `"cur"`,
 `"set"` or `"end"`. Its meaning is the same as it is when used with the C
 stdlib function `fseek()`.
 
-    bool feof(userdata file)
+    bool feof(userinfo file)
 
 returns true if the position indicator of `file` is at the end, false otherwise.
 
@@ -129,7 +134,7 @@ renames file `old` so that it will have the name `new`.
 Returns true on success, false on failure.
 
     string tmpnam(void)
-    userdata tmpfile(void)
+    userinfo tmpfile(void)
 
 These function return the name of a temporary file, or an alrady open handle
 to it, respectively.

@@ -44,11 +44,11 @@ typedef signed long spn_sword;
  * (reference-counted generic values and corresponding types)
  */
 
-/* SPN_TFLG_PENDING denotes an unresolved reference to a global function.
+/* SPN_TFLG_PENDING denotes an unresolved reference to a global symbol.
  * This type is to be used exclusively in the local symbol table.
- * A call to such a function makes the Sparkling virtual machine attempt
- * to resolve the reference, and if it succeeds, it updates
- * the symbol in the local symtab, then it calls the function.
+ * Any reference to such a symbol makes the Sparkling virtual machine attempt
+ * to resolve the reference, and if it succeeds, it updates the symbol in the
+ * local symbol table, then it loads the value as usual.
  * If the symbol cannot be resolved, a runtime error is generated.
  */
 
@@ -60,7 +60,7 @@ enum spn_val_type {
 	SPN_TYPE_FUNC,
 	SPN_TYPE_STRING,
 	SPN_TYPE_ARRAY,
-	SPN_TYPE_USRDAT		/* strong pointer when `OBJECT' flag is set	*/
+	SPN_TYPE_USERINFO	/* strong pointer when `OBJECT' flag is set	*/
 };
 
 /* additional type information flags and masks (0: none) */
@@ -73,26 +73,25 @@ enum spn_val_flag {
 
 typedef struct SpnValue SpnValue;
 
-/* `symtabidx' is the index of the local symbol table
- * which represents the environment of the function
- */
-struct SpnValue {
+typedef struct SpnFunction {
+	const char *name;
+	int symtabidx; /* index of local symbol table, represents environment */
 	union {
-		int boolv;			/* Boolean value  */
-		long intv;			/* integer value  */
-		double fltv;			/* float value	  */
-		void *ptrv;			/* object value	  */
-		struct {
-			const char *name;	/* function name  */
-			int symtabidx;		/* environment	  */
-			union {
-				int (*fn)(SpnValue *, int, SpnValue *, void *);
-				spn_uword *bc;
-			} r;			/* representation */
-		} fnv;				/* function value */
-	} v;					/* value union	  */
-	enum spn_val_type t;			/* type	tag	  */
-	enum spn_val_flag f;			/* extra flags	  */
+		int (*fn)(SpnValue *, int, SpnValue *, void *); /* C function */
+		spn_uword *bc; /* pointer to body in bytecode */
+	} r;
+} SpnFunction;
+
+struct SpnValue {
+	enum spn_val_type t;		/* type	tag	  */
+	enum spn_val_flag f;		/* extra flags	  */
+	union {
+		int boolv;		/* Boolean value  */
+		long intv;		/* integer value  */
+		double fltv;		/* float value	  */
+		void *ptrv;		/* object value	  */
+		SpnFunction fnv;	/* function value */
+	} v;				/* value union	  */
 };
 
 /* reference counting */
@@ -120,8 +119,7 @@ SPN_API const char *spn_type_name(enum spn_val_type type);
  */
 
 typedef struct SpnClass {
-	const char *name;				/* set once, then read-only		*/
-	size_t instsz;					/* sizeof(the_struct)			*/
+	size_t instsz;					/* sizeof(instance)			*/
 	int (*equal)(const void *, const void *);	/* non-zero: equal, zero: different	*/
 	int (*compare)(const void *, const void *);	/* -1, +1, 0: lhs is <, >, == to rhs	*/
 	unsigned long (*hashfn)(void *);		/* cache the hash if immutable!		*/
@@ -139,9 +137,6 @@ typedef struct SpnObject {
  */
 SPN_API void *spn_object_new(const SpnClass *isa);
 
-/* returns o->isa->name */
-SPN_API const char *spn_object_type(const void *o); /* for typeof() */
-
 /* tests objects for equality. two objects are considered equal if they are
  * of the same class, and either their pointers compare equal or they have
  * a non-NULL `compare` member function which returns nonzero.
@@ -155,7 +150,7 @@ SPN_API int spn_object_cmp(const void *lhs, const void *rhs);
 
 /* these reference counting functions are called quite often.
  * for the sake of speed, they should probably be inlined. C89 doesn't have
- * `inline`, though, so we rely on the linker being able to inline them.
+ * `inline`, though, so we rely on the link-time optimizer to inline them.
  */
 
 /* increments the reference count of an object */

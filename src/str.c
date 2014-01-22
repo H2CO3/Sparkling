@@ -26,7 +26,6 @@ static void free_string(void *obj);
 static unsigned long hash_string(void *obj);
 
 static const SpnClass spn_class_string = {
-	"string",
 	sizeof(SpnString),
 	equal_strings,
 	compare_strings,

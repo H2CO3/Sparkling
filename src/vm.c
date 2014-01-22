@@ -115,7 +115,7 @@ struct SpnVMachine {
 
 	char		*errmsg;	/* last (runtime) error message	*/
 	int		 ishandled;	/* last error already handled?	*/
-	void		*ctx;		/* user data			*/
+	void		*ctx;		/* context info, use at will	*/
 };
 
 /* this is the structure used by `push_and_copy_args()' */
@@ -223,7 +223,7 @@ SpnVMachine *spn_vm_new()
 	vm->lsymtabs = NULL;
 	vm->lscount = 0;
 
-	/* set up error reporting and user data */
+	/* set up error reporting and context info */
 	vm->errmsg = NULL;
 	vm->ishandled = 0;
 	vm->ctx = NULL;
@@ -402,9 +402,33 @@ int spn_vm_callfunc(
 	return dispatch_loop(vm, entry, retval);
 }
 
-void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
+void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc fns[], size_t n)
 {
+	SpnArray *storage;
 	size_t i;
+
+	/* a NULL libname means that the functions will be global */
+	if (libname != NULL) {
+		SpnValue libkey, libval;
+
+		SpnString *libnamestr = spn_string_new_nocopy(libname, 0);
+		storage = spn_array_new();
+
+		libkey.t = SPN_TYPE_STRING;
+		libkey.f = SPN_TFLG_OBJECT;
+		libkey.v.ptrv = libnamestr;
+
+		libval.t = SPN_TYPE_ARRAY;
+		libval.f = SPN_TFLG_OBJECT;
+		libval.v.ptrv = storage;
+
+		spn_array_set(vm->glbsymtab, &libkey, &libval);
+		spn_object_release(libnamestr);
+		spn_object_release(storage); /* still alive, was retained */
+	} else {
+		storage = vm->glbsymtab;
+	}
+
 	for (i = 0; i < n; i++) {
 		SpnValue key, val;
 		SpnString *name = spn_string_new_nocopy(fns[i].name, 0);
@@ -418,14 +442,38 @@ void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n)
 		val.v.fnv.name = fns[i].name;
 		val.v.fnv.r.fn = fns[i].fn;
 
-		spn_array_set(vm->glbsymtab, &key, &val);
+		spn_array_set(storage, &key, &val);
 		spn_object_release(name);
 	}
 }
 
-void spn_vm_addglobals(SpnVMachine *vm, SpnExtValue vals[], size_t n)
+void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, SpnExtValue vals[], size_t n)
 {
+	SpnArray *storage;
 	size_t i;
+
+	/* a NULL libname means that the functions will be global */
+	if (libname != NULL) {
+		SpnValue libkey, libval;
+
+		SpnString *libnamestr = spn_string_new_nocopy(libname, 0);
+		storage = spn_array_new();
+
+		libkey.t = SPN_TYPE_STRING;
+		libkey.f = SPN_TFLG_OBJECT;
+		libkey.v.ptrv = libnamestr;
+
+		libval.t = SPN_TYPE_ARRAY;
+		libval.f = SPN_TFLG_OBJECT;
+		libval.v.ptrv = storage;
+
+		spn_array_set(vm->glbsymtab, &libkey, &libval);
+		spn_object_release(libnamestr);
+		spn_object_release(storage); /* still alive, was retained */
+	} else {
+		storage = vm->glbsymtab;
+	}
+
 	for (i = 0; i < n; i++) {
 		SpnValue key;
 		SpnString *name = spn_string_new_nocopy(vals[i].name, 0);
@@ -434,7 +482,7 @@ void spn_vm_addglobals(SpnVMachine *vm, SpnExtValue vals[], size_t n)
 		key.f = SPN_TFLG_OBJECT;
 		key.v.ptrv = name;
 
-		spn_array_set(vm->glbsymtab, &key, &vals[i].value);
+		spn_array_set(storage, &key, &vals[i].value);
 		spn_object_release(name);
 	}
 }
@@ -818,7 +866,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (func.f & SPN_TFLG_NATIVE) {	/* native function */
 				int i, err;
-				SpnValue tmpret = { { 0 }, SPN_TYPE_NIL, 0 };
+				SpnValue tmpret = { SPN_TYPE_NIL, 0, { 0 } };
 				SpnValue *argv;
 
 				#define MAX_AUTO_ARGC 16
@@ -2017,7 +2065,7 @@ static SpnValue sizeof_value(SpnValue *val)
 		res.v.intv = spn_array_count(arr);
 		break;
 	}
-	case SPN_TYPE_USRDAT: {
+	case SPN_TYPE_USERINFO: {
 		/* TODO: implement sizeof() for custom object types */
 		res.v.intv = 1;
 		break;
@@ -2033,16 +2081,8 @@ static SpnValue sizeof_value(SpnValue *val)
 
 static SpnValue typeof_value(SpnValue *val)
 {
-	SpnValue res = { { 0 }, SPN_TYPE_STRING, SPN_TFLG_OBJECT };
-	const char *type;
-
-	/* custom object? */
-	if (val->t == SPN_TYPE_USRDAT && val->f & SPN_TFLG_OBJECT) {
-		type = spn_object_type(val->v.ptrv);
-	} else {
-		type = spn_type_name(val->t);
-	}
-
+	SpnValue res = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } };
+	const char *type = spn_type_name(val->t);
 	res.v.ptrv = spn_string_new_nocopy(type, 0);
 	return res;
 }

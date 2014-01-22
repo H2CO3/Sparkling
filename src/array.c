@@ -98,7 +98,6 @@ static void free_array(void *obj);
 
 
 static const SpnClass spn_class_array = {
-	"array",
 	sizeof(SpnArray),
 	NULL,
 	NULL,
@@ -237,7 +236,7 @@ void spn_array_set(SpnArray *arr, SpnValue *key, SpnValue *val)
 
 void spn_array_remove(SpnArray *arr, SpnValue *key)
 {
-	SpnValue nilval = { { 0 }, SPN_TYPE_NIL, 0 };
+	SpnValue nilval = { SPN_TYPE_NIL, 0, { 0 } };
 	spn_array_set(arr, key, &nilval);
 }
 

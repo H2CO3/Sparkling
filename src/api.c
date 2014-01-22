@@ -30,7 +30,7 @@ void spn_value_retain(SpnValue *val)
 	if (val->f & SPN_TFLG_OBJECT) {
 		assert(val->t == SPN_TYPE_STRING
 		    || val->t == SPN_TYPE_ARRAY
-		    || val->t == SPN_TYPE_USRDAT);
+		    || val->t == SPN_TYPE_USERINFO);
 
 		spn_object_retain(val->v.ptrv);
 	}
@@ -41,7 +41,7 @@ void spn_value_release(SpnValue *val)
 	if (val->f & SPN_TFLG_OBJECT) {
 		assert(val->t == SPN_TYPE_STRING
 		    || val->t == SPN_TYPE_ARRAY
-		    || val->t == SPN_TYPE_USRDAT);
+		    || val->t == SPN_TYPE_USERINFO);
 
 		spn_object_release(val->v.ptrv);
 	}
@@ -78,27 +78,11 @@ static int function_equal(const SpnValue *lhs, const SpnValue *rhs)
 		return 0;
 	}
 
-	/* if both are native, then they must point to the same function */
+	/* if they are equal, they must point to the same function */
 	if (lhs->f & SPN_TFLG_NATIVE) {
 		return lhs->v.fnv.r.fn == rhs->v.fnv.r.fn;
-	}
-
-	/* if both are script functions, then they must either have the same
-	 * name to be equal, or they must point to the same lambda function
-	 */
-	if (lhs->v.fnv.name != NULL && rhs->v.fnv.name != NULL) {
-		return strcmp(lhs->v.fnv.name, rhs->v.fnv.name) == 0;
-	} else if (lhs->v.fnv.name == NULL && rhs->v.fnv.name == NULL) {
-		/* an unnamed stub is nonsense (it's impossible to resolve) */
-		assert((lhs->f & SPN_TFLG_PENDING) == 0);
-		assert((rhs->f & SPN_TFLG_PENDING) == 0);
-
-		return lhs->v.fnv.r.bc == rhs->v.fnv.r.bc;
 	} else {
-		/* if one of them has a name but the other one hasn't, then
-		 * they cannot possibly be equal
-		 */
-		return 0;
+		return lhs->v.fnv.r.bc == rhs->v.fnv.r.bc;
 	}
 }
 
@@ -120,7 +104,7 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 	case SPN_TYPE_ARRAY:	{
 		return spn_object_equal(lhs->v.ptrv, rhs->v.ptrv);
 	}
-	case SPN_TYPE_USRDAT:	{
+	case SPN_TYPE_USERINFO:	{
 		if ((lhs->f & SPN_TFLG_OBJECT) != (rhs->f & SPN_TFLG_OBJECT)) {
 			return 0;
 		}
@@ -248,11 +232,9 @@ unsigned long spn_hash_value(const SpnValue *key)
 		/* see http://stackoverflow.com/q/18282032 */
 		if (key->f & SPN_TFLG_NATIVE) {
 			return spn_hash(&key->v.fnv.r.fn, sizeof(key->v.fnv.r.fn));
+		} else {
+			return (unsigned long)(key->v.fnv.r.bc);
 		}
-
-		return key->v.fnv.name == NULL
-		     ? (unsigned long)(key->v.fnv.r.bc)
-		     : spn_hash(key->v.fnv.name, strlen(key->v.fnv.name));
 	}
 	case SPN_TYPE_STRING:
 	case SPN_TYPE_ARRAY:	{
@@ -260,7 +242,7 @@ unsigned long spn_hash_value(const SpnValue *key)
 		unsigned long (*hashfn)(void *) = obj->isa->hashfn;
 		return hashfn != NULL ? hashfn(obj) : (unsigned long)(obj);
 	}
-	case SPN_TYPE_USRDAT:	{
+	case SPN_TYPE_USERINFO:	{
 		if (key->f & SPN_TFLG_OBJECT) {
 			SpnObject *obj = key->v.ptrv;
 			unsigned long (*hashfn)(void *) = obj->isa->hashfn;
@@ -317,8 +299,8 @@ void spn_value_print(const SpnValue *val)
 		printf("<array %p>", val->v.ptrv);
 		break;
 	}
-	case SPN_TYPE_USRDAT:	{
-		printf("<userdata %p>", val->v.ptrv);
+	case SPN_TYPE_USERINFO:	{
+		printf("<userinfo %p>", val->v.ptrv);
 		break;
 	}
 	default:
@@ -337,7 +319,7 @@ const char *spn_type_name(enum spn_val_type type)
 		"function",
 		"string",
 		"array",
-		"userdata"
+		"userinfo"
 	};
 
 	return typenames[type];
@@ -347,12 +329,6 @@ const char *spn_type_name(enum spn_val_type type)
 /*
  * Object API
  */
-
-const char *spn_object_type(const void *o) /* for typeof() */
-{
-	const SpnObject *obj = o;
-	return obj->isa->name;
-}
 
 int spn_object_equal(const void *lhs, const void *rhs)
 {

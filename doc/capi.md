@@ -87,10 +87,20 @@ Runs the bytecode pointed to by `bc`. Places the result of the execution into
 `retval`. Returns 0 on success, nonzero on error. `retval` is to be released
 when you're done with it.
 
-    void spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n);
+    void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname,
+        const SpnExtFunc fns[], size_t n);
 
 Registers `n` native (C language) extension functions to be made visible by all
-scripts running on the specified virtual machine instance.
+scripts running on the specified virtual machine instance. if `libname` is NULL,
+the functions will be available at global namespace. Else a new global array
+is be created with the name `libname`, and the functions will be members of
+this global array. This is how you can create "modules" or "namespaces".
+
+    void spn_vm_addlib_values(SpnVMachine *vm, const char *libname,
+        SpnExtValue fns[], size_t n);
+
+This function is similar to `spn_vm_addlib_cfuncs()`, but it accepts any valid
+`SpnValue`, not just C exntension functions.
 
     void *spn_vm_getcontext(SpnVMachine *);
 
@@ -210,6 +220,28 @@ preserve it while necessary. But you really do not want to do that.)
 Runs the specified program and copies its result into `ret`; returns zero on
 success and nonzero on error, in which case, it sets `errmsg` in `ctx`.
 
+    int spn_ctx_callfunc(
+        SpnContext *ctx,
+        SpnValue *func,
+        SpnValue *ret,
+        int argc,
+        SpnValue argv[]
+    );
+
+    void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[]);
+
+    const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
+
+    void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname,
+        const SpnExtFunc fns[], size_t n);
+
+    void spn_ctx_addlib_values(SpnContext *ctx, const char *libname,
+        SpnExtValue vals[], size_t n);
+
+These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_seterrmsg()`,
+`spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()` and `spn_vm_addlib_values()`,
+respectively, on `ctx->vm`.
+
 Writing native extension functions
 ----------------------------------
 Native extension functions must have the following signature:
@@ -237,11 +269,11 @@ provided for this purpose.
 One word about the return value. Values are represented using the `SpnValue`
 struct, which is essentially a tagged union (with some additional flags).
 Values can be of type `nil`, Boolean, number (integer or floating-point),
-function, user data, string and array. Strings, arrays and user data values
+function, user info, string and array. Strings, arrays and user info values
 marked as such are object types (i. e. they have their `SPN_TFLG_OBJECT` flag
 set in the structure). It means that they are reference counted. As an
 implementation detail, it is reuired that if a native extension funcion returns
-a value of object type, i. e. a string, an array or an object-typed user data,
+a value of object type, i. e. a string, an array or an object-typed user info,
 then it shall own a reference to it (because internally, it will be released
 by the virtual machine when it's not needed). So, if, for example, one of
 the arguments is returned from a function (not impossible), then it should be
@@ -275,7 +307,7 @@ When creating a value, one must do the following:
 
 2. Set its type using the type enum and additional flags if needed.
 `val.t` must be one of `SPN_TYPE_NIL`, `SPN_TYPE_BOOL`, `SPN_TYPE_NUMBER`,
-`SPN_TYPE_FUNCTION`, `SPN_TYPE_STRING`, `SPN_TYPE_ARRAY` or `SPN_TYPE_USRDAT`.
+`SPN_TYPE_FUNCTION`, `SPN_TYPE_STRING`, `SPN_TYPE_ARRAY` or `SPN_TYPE_USERINFO`.
 
    If its type is Boolean, its `v.boolv` member should be set to zero for
    false, 1 for true. (`true' must **always** be 1!)
@@ -296,7 +328,7 @@ When creating a value, one must do the following:
    their environment. However, **this is not something a native extension
    function normally does.**
 
-   If, and only if, a value is a string, an array or an object-based user data
+   If, and only if, a value is a string, an array or an object-based user info
    structure, then the `f` member should be set to `SPN_TFLG_OBJECT`.
 
 3. Sparkling API functions typically copy and retain input values, and return

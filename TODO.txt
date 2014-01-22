@@ -159,7 +159,7 @@ VM:
 		of calls to ctors and dtors)
 	- add the `#` variadic argument operator (#0 is the first arg)				done
 	- handle variadic arguments								incomplete
-	- Debugging info in the bytecode (to show meaningful information, i. e. line
+	- Debugging info in the bytecode (to show meaningful information, i. e. line		***Urgent***
 		numbers, to the user instead of VM addresses when a runtime error
 		occurs. XXX: there could be a separate debug symbol file, in order
 		the real bytecode not to be cluttered and slowed down.)
@@ -195,6 +195,13 @@ Standard library:
 		canonical and trigonometric form, absolute value, etc.)
 
 Miscellaneous:
+	- make convenience SpnValue constructors (spn_makeint, spn_makestring, etc.)		***Urgent***
+		and use them throughout the code instead of directly setting types
+		and flags and values, for safety's sake.
+		*** Related: type checking functions (spn_isint(), spn_isfloat(),
+		spn_isstring, spn_isarray(), etc.) and convenience getters
+		(spn_getint(), spn_getfloat(), spn_getstring(),
+		spn_getstringlen(), etc.) are also wanted!
 	- add ability to load multiple source files						done
 	- rewrite the parser, compiler and runtime/VM error functions to take			done
 		format strings and variadic arguments
@@ -203,7 +210,7 @@ Miscellaneous:
 	- C99 and POSIX-specific extension APIs (in addition to the "standard"
 		runtime support library)
 	- real error handling when `malloc()` fails instead of just `abort()`ing
-	- support for user data/custom ojects							done
+	- support for user info/custom objects							done
 	- remove non-const static variables							done
 	- Bindings for popular and useful C libraries: SQLite3, libxml2, cURL
 		(and perhaps even raw socket access), a graphics and/or GUI

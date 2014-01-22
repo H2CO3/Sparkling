@@ -58,13 +58,13 @@ SPN_API int spn_vm_callfunc(
 	SpnValue *argv
 );
 
-/* this function does NOT copy the names of the native functions,
- * so make sure that they are valid during the entire runtime
+/* these functions copy neither the names of the values nor the library name,
+ * so make sure that the strings are valid thorughout the entire runtime.
  */
-SPN_API void		  spn_vm_addlib(SpnVMachine *vm, const SpnExtFunc fns[], size_t n);
-SPN_API void		  spn_vm_addglobals(SpnVMachine *vm, SpnExtValue vals[], size_t n);
+SPN_API void		  spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc fns[], size_t n);
+SPN_API void		  spn_vm_addlib_values(SpnVMachine *vm, const char *libname, SpnExtValue vals[], size_t n);
 
-/* get and set user data */
+/* get and set context info (arbitrarily usable pointer) */
 SPN_API void		 *spn_vm_getcontext(SpnVMachine *vm);
 SPN_API void		  spn_vm_setcontext(SpnVMachine *vm, void *ctx);
 

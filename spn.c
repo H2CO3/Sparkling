@@ -173,7 +173,7 @@ static void register_args(SpnContext *ctx, int argc, char *argv[])
 	vals.value.f = SPN_TFLG_OBJECT;
 	vals.value.v.ptrv = arr;
 
-	spn_vm_addglobals(ctx->vm, &vals, 1);
+	spn_ctx_addlib_values(ctx, NULL, &vals, 1);
 	spn_object_release(arr);
 }
 
