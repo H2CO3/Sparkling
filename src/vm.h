@@ -15,6 +15,7 @@
 #include <string.h>
 
 #include "api.h"
+#include "array.h"
 
 /* an extension function written in C. It receives a pointer to the return
  * value, the number of call arguments, a pointer to an array of the arguments.
@@ -49,7 +50,10 @@ SPN_API void		  spn_vm_free(SpnVMachine *vm);
  */
 SPN_API int		  spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
 
-/* calls a Sparkling function from C-land */
+/* calls a Sparkling function from C-land.
+ * If this is used to call `fn` as if it was the main program,
+ * then `spn_vm_prepare()` must be called first.
+ */
 SPN_API int spn_vm_callfunc(
 	SpnVMachine *vm,
 	SpnValue *fn,
@@ -57,6 +61,12 @@ SPN_API int spn_vm_callfunc(
 	int argc,
 	SpnValue *argv
 );
+
+/* cleans junk that may be left off from the execution of the
+ * previous program that resulted in a runtime error.
+ * Also initializes the error handling system.
+ */
+SPN_API void spn_vm_prepare(SpnVMachine *vm);
 
 /* these functions copy neither the names of the values nor the library name,
  * so make sure that the strings are valid thorughout the entire runtime.
@@ -79,6 +89,17 @@ SPN_API void		  spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const void *a
  * Must be `free()`'d when you're done with it.
  */
 SPN_API const char	**spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
+
+/* this returns an array that contains the global constants and functions.
+ * the keys are symbol names (SpnString instances).
+ * DO NOT MODIFY THIS ARRAY IN ANY WAY. Only read from it (you may retain
+ * the keys and values and balance the retains with releases as necessary,
+ * bot do not alter the values themselves). Only call `spn_array_get()`
+ * on the returned array, and **NEVER** use `spn_array_set()`.
+ * The returned pointer is non-owning: the result of a call to this function
+ * is only valid as long as the virtual machine `vm' is itself alive as well.
+ */
+SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
 
 /* layout of a Sparkling bytecode file:
  * 
@@ -210,7 +231,7 @@ enum spn_vm_ins {
 	SPN_INS_ARRGET,		/* a = b[c]				*/
 	SPN_INS_ARRSET,		/* a[b] = c				*/
 	SPN_INS_NTHARG,		/* a = argv[b] (accesses varargs only!)	*/
-	SPN_INS_GLBFUNC,	/* add function to global symtab (VI)	*/
+	SPN_INS_FUNCDEF,	/* add function to global symtab (VI)	*/
 	SPN_INS_GLBVAL		/* add other value to global symtab	*/
 };
 
@@ -263,7 +284,7 @@ enum spn_vm_ins {
  * The vertical bars are boundaries of `spn_uword`s.
  * 
  * +--------------------------------------------------------------------------+
- * | SPN_INS_GLBFUNC | 'foob' | 'ar\0\0' | 2 | 2 | 3 | ADD 2, 0, 1 | RETURN 2 |
+ * | SPN_INS_FUNCDEF | 'foob' | 'ar\0\0' | 2 | 2 | 3 | ADD 2, 0, 1 | RETURN 2 |
  * +--------------------------------------------------------------------------+
  *                                        ^   ^   ^   ^
  *                                        |   |   |   +--- actual entry point

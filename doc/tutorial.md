@@ -216,7 +216,7 @@ inside parentheses. Loops work in the same manner as those in C.
 
 `for` loop:
 
-    for i = 0; i < 10; ++i {
+    for var i = 0; i < 10; ++i { // the scope of i is the loop only
         print(i);
     }
 
@@ -308,4 +308,93 @@ as described in the "expressions" section.
 
 A detailed description of the standard library functions and global constants
 can be found in `doc/stdlib.md`.
+
+## Getting started with the C API
+
+Typically, you access the Sparkling engine using the Context API. It's quite
+straightforward to use. First, create a new Sparkling context object:
+
+   SpnContext *ctx = spn_ctx_new();
+
+Then you may take different approaches. If you only want to run a program once,
+then use `spn_ctx_execstring()` or `spn_ctx_execsrcfile()`. These are
+convenience wrappers around other functions that parse, compile and run the
+given string or source file in one go. They return 0 on success and nonzero
+on error.
+
+If a program has run successfully, then its return value will be in
+`retVal`. You must relinquish ownership of this value if you no longer need it
+by calling `spn_value_release()` on it (since SpnValue are reference counted).
+
+    SpnValue retval;
+    if (spn_ctx_execstring(ctx, "return \"Hello world!\";", &retval) == 0) {
+        /* show return value */
+        printf("Return value: ");
+        spn_value_print(&retval);
+        printf("\n");
+
+        /* then dispose of it */
+        spn_value_release(&retval);
+    }
+
+If an error occurs, then an error message is be available by calling the
+`spn_ctx_geterrmsg()` function (the returned pointer is only valid as long as
+you do not run another program in the context structure, so copy the string if
+you need it later!). You can also request a stack trace if the error was a
+runtime error by calling the `spn_ctx_stacktrace()` function:
+
+    else {
+        fputs(spn_ctx_geterrmsg(ctx), stderr);
+
+        if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
+            size_t i, n;
+
+            const char **bt = spn_ctx_stacktrace(ctx, &n);
+
+            for (i = 0; i < n; i++) {
+                printf("frame %zu: %s\n", i, bt[i]);
+            }
+
+            free(bt);
+        }
+    }
+
+The type of the last error is provided by `spn_ctx_geterrtype()`.
+
+It is also possible that you want to run a program multiple times. Then, for
+performance reasons, you may want to avoid parsing and compiling it repeatedly.
+In that case, you can use `spn_ctx_loadstring()` and `spn_ctx_loadsrcfile()`
+for parsing and compiling the source once. Once compiled, you can run the
+resulting code with the help of the `spn_ctx_execbytecode()` function.
+
+    spn_uword *bc = spn_ctx_loadstring(ctx, "print(42);");
+    if (bc != NULL) {
+        /* `bc' is a pointer to a bytecode array representing the program */
+        int i;
+        for (i = 0; i < 1000000; i++) { /* run the program lots of times */
+            SpnValue retval;
+            if (spn_ctx_execbytecode(ctx, bc, &retval) == 0) {
+                /* optionally use return value, then release it */
+                spn_value_release(&retval);
+            } else {
+                /* handle runtime error */
+                break;		
+            }
+        }
+    } else {
+        /* handle parser or syntax error */
+    }
+
+When you no longer need access to the Sparkling engine, you must have to
+free its context object in order to reclaim all resources:
+
+    spn_context_free(ctx);
+
+# Advanced C API concepts
+
+You can do even better using the Context API. You can extend a context with
+libraries/modules/packages, call Sparkling functions from within a native
+extension function, and you can even run a Sparkling function as if it was
+the main program. For information on these features, please consult the
+C API reference in `capi.md`.
 

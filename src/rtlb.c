@@ -304,8 +304,7 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER
-	 || argv[1].f != 0) {
+	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
@@ -429,8 +428,7 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER
-	 || argv[1].f != 0) {
+	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
@@ -838,8 +836,7 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER
-	 || argv[1].f != 0) {
+	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
@@ -1120,16 +1117,15 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	for (i = 0; i < n; i++) {
 		size_t addlen;
-		SpnValue *val;
 		SpnString *str;
 
-		SpnValue key;
+		SpnValue key, val;
 		key.t = SPN_TYPE_NUMBER;
 		key.f = 0;
 		key.v.intv = i;
 
-		val = spn_array_get(arr, &key);
-		if (val->t != SPN_TYPE_STRING) {
+		spn_array_get(arr, &key, &val);
+		if (val.t != SPN_TYPE_STRING) {
 			free(buf);
 			spn_ctx_runtime_error(ctx, "array must contain strings only", NULL);
 			return -3;
@@ -1139,7 +1135,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		 * exponential buffer expansion. Maybe in alpha 2...
 		 */
 
-		str = val->v.ptrv;
+		str = val.v.ptrv;
 		addlen = i > 0 ? delim->len + str->len : str->len;
 
 		buf = realloc(buf, len + addlen + 1);
@@ -1883,7 +1879,7 @@ static int rtlb_fact(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f & SPN_TFLG_FLOAT) {
+	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
 		spn_ctx_runtime_error(ctx, "argument must be an integer", NULL);
 		return -2;
 	}
@@ -1913,8 +1909,8 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f & SPN_TFLG_FLOAT
-	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f & SPN_TFLG_FLOAT) {
+	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0
+	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
 		spn_ctx_runtime_error(ctx, "arguments must be integers", NULL);
 		return -2;
 	}
@@ -1958,27 +1954,27 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int polar, SpnContext *ctx)
 {
 	SpnValue re_r_key     = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } },
-		 im_theta_key = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } };
-
-	SpnValue *re_r_val, *im_theta_val;
+		 im_theta_key = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } },
+		 re_r_val,
+		 im_theta_val;
 
 	re_r_key.v.ptrv     = spn_string_new_nocopy(polar ? "r"     : "re", 0);
 	im_theta_key.v.ptrv = spn_string_new_nocopy(polar ? "theta" : "im", 0);
 
-	re_r_val     = spn_array_get(num->v.ptrv, &re_r_key);
-	im_theta_val = spn_array_get(num->v.ptrv, &im_theta_key);
+	spn_array_get(num->v.ptrv, &re_r_key, &re_r_val);
+	spn_array_get(num->v.ptrv, &im_theta_key, &im_theta_val);
 
 	spn_object_release(re_r_key.v.ptrv);
 	spn_object_release(im_theta_key.v.ptrv);
 
-	if (re_r_val->t     != SPN_TYPE_NUMBER
-	 || im_theta_val->t != SPN_TYPE_NUMBER) {
+	if (re_r_val.t     != SPN_TYPE_NUMBER
+	 || im_theta_val.t != SPN_TYPE_NUMBER) {
 		spn_ctx_runtime_error(ctx, "keys 're' and 'im' or 'r' and 'theta' should correspond to numbers", NULL);
 		return -1;
 	}
 
-	*re_r     = val2float(re_r_val);
-	*im_theta = val2float(im_theta_val);
+	*re_r     = val2float(&re_r_val);
+	*im_theta = val2float(&im_theta_val);
 
 	return 0;
 }
@@ -2545,23 +2541,22 @@ static int rtlb_localtime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
  */
 static int rtlb_aux_extract_time(SpnArray *arr, const char *str, int *outval, SpnContext *ctx)
 {
-	SpnValue key;
-	SpnValue *val;
+	SpnValue key, val;
 
 	key.t = SPN_TYPE_STRING;
 	key.f = SPN_TFLG_OBJECT;
 	key.v.ptrv = spn_string_new_nocopy(str, 0);
 
-	val = spn_array_get(arr, &key);
+	spn_array_get(arr, &key, &val);
 
 	spn_object_release(key.v.ptrv);
 
-	if (val->t != SPN_TYPE_NUMBER || val->f & SPN_TFLG_FLOAT) {
+	if (val.t != SPN_TYPE_NUMBER || val.f & SPN_TFLG_FLOAT) {
 		spn_ctx_runtime_error(ctx, "array members should be integers", NULL);
 		return -1;
 	}
 
-	*outval = val->v.intv;
+	*outval = val.v.intv;
 	return 0;
 }
 

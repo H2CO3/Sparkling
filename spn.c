@@ -125,14 +125,11 @@ static int endswith(const char *haystack, const char *needle)
 
 static void print_stacktrace_if_needed(SpnContext *ctx)
 {
-	/* if the error message of the contex is the same as
-	 * the error message of the virtual machine, then a
-	 * runtime error occurred, so we print a stack trace.
-	 */
-	if (spn_vm_geterrmsg(ctx->vm) == ctx->errmsg) {
+	 /* if a runtime error occurred, we print a stack trace. */
+	if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
 		size_t n;
 		unsigned i;
-		const char **bt = spn_vm_stacktrace(ctx->vm, &n);
+		const char **bt = spn_ctx_stacktrace(ctx, &n);
 
 		fprintf(stderr, "Call stack:\n\n");
 
@@ -188,7 +185,7 @@ static int run_script_file(SpnContext *ctx, const char *fname)
 	int err;
 
 	if (buf == NULL) {
-		ctx->errmsg = "Sparkling: I/O error: cannot read file";
+		fputs("Sparkling: I/O error: cannot read file\n", stderr);
 		return -1;
 	}
 
@@ -216,6 +213,12 @@ static int run_script_file(SpnContext *ctx, const char *fname)
 
 	err = spn_ctx_execstring(ctx, src, NULL);
 	free(buf);
+
+	if (err != 0) {
+		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+		print_stacktrace_if_needed(ctx);
+	}
+
 	return err;
 }
 
@@ -223,24 +226,23 @@ static int run_file(const char *fname, int argc, char *argv[])
 {
 	SpnContext *ctx = spn_ctx_new();
 	int status = EXIT_SUCCESS;
-	int err;
 
 	/* register command-line arguments */
 	register_args(ctx, argc, argv);
 
 	/* check if file is a binary object or source text */
 	if (endswith(fname, ".spn")) {
-		err = run_script_file(ctx, fname);
+		if (run_script_file(ctx, fname) != 0) {
+			status = EXIT_FAILURE;
+		}
 	} else if (endswith(fname, ".spo")) {
-		err = spn_ctx_execobjfile(ctx, fname, NULL);
+		if (spn_ctx_execobjfile(ctx, fname, NULL) != 0) {
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+			print_stacktrace_if_needed(ctx);
+			status = EXIT_FAILURE;
+		}
 	} else {
-		err = -1;
-		ctx->errmsg = "Sparkling: generic error: invalid file extension";
-	}
-
-	if (err != 0) {
-		fprintf(stderr, "%s\n", ctx->errmsg);
-		print_stacktrace_if_needed(ctx);
+		fputs("Sparkling: generic error: invalid file extension\n", stderr);
 		status = EXIT_FAILURE;
 	}
 
@@ -257,7 +259,7 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 	for (i = 0; i < argc; i++) {
 		SpnValue val;
 		if (spn_ctx_execstring(ctx, argv[i], &val) != 0) {
-			fprintf(stderr, "%s\n", ctx->errmsg);
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			print_stacktrace_if_needed(ctx);
 			status = EXIT_FAILURE;
 			break;
@@ -309,7 +311,7 @@ static int enter_repl(enum cmd_args args)
 
 		status = spn_ctx_execstring(ctx, buf, &ret);
 		if (status != 0) {
-			fprintf(stderr, "%s\n", ctx->errmsg);
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			print_stacktrace_if_needed(ctx);
 		} else {
 			if (ret.t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
@@ -349,7 +351,7 @@ static int compile_files(int argc, char *argv[])
 
 		bc = spn_ctx_loadsrcfile(ctx, argv[i]);
 		if (bc == NULL) {
-			fprintf(stderr, "\n%s\n", ctx->errmsg);
+			fprintf(stderr, "\n%s\n", spn_ctx_geterrmsg(ctx));
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -369,7 +371,7 @@ static int compile_files(int argc, char *argv[])
 			break;
 		}
 
-		nwords = ctx->bclist->len;
+		nwords = spn_ctx_getbclist(ctx)->len;
 		if (fwrite(bc, sizeof(*bc), nwords, outfile) < nwords) {
 			fprintf(stderr, "\nSparkling: I/O error: can't write to file `%s'\n", outname);
 			fclose(outfile);
@@ -447,7 +449,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 		/* if this is the entry point of a function, then print some
 		 * newlines and "push" the entry point onto the "stack"
 		 */
-		if (opcode == SPN_INS_GLBFUNC) {
+		if (opcode == SPN_INS_FUNCDEF) {
 			printf("\n");
 			fnlevel++;
 		}
@@ -465,7 +467,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 		 * "sibling" instructions are. It is the code of the function
 		 * body that is one level deeper.)
 		 */
-		if (opcode != SPN_INS_GLBFUNC) {
+		if (opcode != SPN_INS_FUNCDEF) {
 			printf("\t");
 		}
 
@@ -685,7 +687,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			printf("getarg\tr%d, r%d\t# r%d = argv[r%d]\n", opa, opb, opa, opb);
 			break;
 		}
-		case SPN_INS_GLBFUNC: {
+		case SPN_INS_FUNCDEF: {
 			const char *symname = (const char *)(ip);
 			unsigned long namelen = OPLONG(ins);
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));

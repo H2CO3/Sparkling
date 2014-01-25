@@ -302,7 +302,7 @@ static void append_cstring(TBytecode *bc, const char *str, size_t len);
 /* managing round-trip stores */
 static void rts_init(RoundTripStore *rts);
 static int rts_add(RoundTripStore *rts, SpnValue *val);
-static SpnValue *rts_getval(RoundTripStore *rts, int idx); /* returns nil if not found */
+static void rts_getval(RoundTripStore *rts, int idx, SpnValue *val); /* sets val to nil if not found */
 static int rts_getidx(RoundTripStore *rts, SpnValue *val); /* returns < 0 if not found */
 static int rts_count(RoundTripStore *rts);
 static void rts_delete_top(RoundTripStore *rts, int newsize);
@@ -435,25 +435,26 @@ static int rts_add(RoundTripStore *rts, SpnValue *val)
 	return idx;
 }
 
-static SpnValue *rts_getval(RoundTripStore *rts, int idx)
+static void rts_getval(RoundTripStore *rts, int idx, SpnValue *val)
 {
 	SpnValue idxval;
 	idxval.t = SPN_TYPE_NUMBER;
 	idxval.f = 0;
 	idxval.v.intv = idx;
 
-	return spn_array_get(rts->fwd, &idxval);
+	spn_array_get(rts->fwd, &idxval, val);
 }
 
 static int rts_getidx(RoundTripStore *rts, SpnValue *val)
 {
-	SpnValue *res = spn_array_get(rts->inv, val);
-	return res->t == SPN_TYPE_NUMBER ? res->v.intv : -1;
+	SpnValue res;
+	spn_array_get(rts->inv, val, &res);
+	return res.t == SPN_TYPE_NUMBER ? res.v.intv : -1;
 }
 
 static int rts_count(RoundTripStore *rts)
 {
-	unsigned long n = spn_array_count(rts->fwd);
+	size_t n = spn_array_count(rts->fwd);
 
 	/* petit sanity check */
 	assert(n == spn_array_count(rts->inv));
@@ -471,22 +472,14 @@ static void rts_delete_top(RoundTripStore *rts, int newsize)
 	assert(newsize <= oldsize);
 
 	for (i = newsize; i < oldsize; i++) {
-		SpnValue val, *valp;
+		SpnValue val, idx;
 
-		SpnValue idx;
 		idx.t = SPN_TYPE_NUMBER;
 		idx.f = 0;
 		idx.v.intv = i;
 
-		valp = spn_array_get(rts->fwd, &idx);
-		assert(valp->t != SPN_TYPE_NIL);
-
-		/* if I used a pointer, then `spn_array_remove(rts->fwd, &idx)`
-		 * would set its type to nil (I know, screw me), so we need to
-		 * make a copy of the value struct (reference counts stay
-		 * correct, though)
-		 */
-		val = *valp;
+		spn_array_get(rts->fwd, &idx, &val);
+		assert(val.t != SPN_TYPE_NIL);
 
 		spn_array_remove(rts->fwd, &idx);		
 		spn_array_remove(rts->inv, &val);
@@ -566,13 +559,14 @@ static int write_symtab(SpnCompiler *cmp)
 	int i, nsyms = rts_count(cmp->symtab);
 
 	for (i = 0; i < nsyms; i++) {
-		SpnValue *sym = rts_getval(cmp->symtab, i);
+		SpnValue sym;
+		rts_getval(cmp->symtab, i, &sym);
 
-		switch (sym->t) {
+		switch (sym.t) {
 		case SPN_TYPE_STRING: {
 			/* string literal */
 
-			SpnString *str = sym->v.ptrv;
+			SpnString *str = sym.v.ptrv;
 
 			/* append symbol type and length description */
 			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_STRCONST, str->len);
@@ -583,7 +577,7 @@ static int write_symtab(SpnCompiler *cmp)
 			break;
 		}
 		case SPN_TYPE_USERINFO: {
-			SymtabEntry *entry = sym->v.ptrv;
+			SymtabEntry *entry = sym.v.ptrv;
 
 			switch (entry->type) {
 			case SYMTABENTRY_GLOBAL: {
@@ -614,7 +608,7 @@ static int write_symtab(SpnCompiler *cmp)
 		default:
 			{
 				/* got something that's not supposed to be there */
-				int st = sym->t;
+				int st = sym.t;
 				const void *args[1];
 				args[0] = &st;
 				compiler_error(cmp, 0, "wrong symbol type %i in write_symtab()", args);
@@ -759,7 +753,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 		namelen = strlen(name);
 	}
 
-	ins = SPN_MKINS_LONG(SPN_INS_GLBFUNC, namelen);
+	ins = SPN_MKINS_LONG(SPN_INS_FUNCDEF, namelen);
 	bytecode_append(&cmp->bc, &ins, 1);
 	append_cstring(&cmp->bc, name, namelen);
 

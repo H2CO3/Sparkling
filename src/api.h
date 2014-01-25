@@ -63,7 +63,7 @@ enum spn_val_type {
 	SPN_TYPE_USERINFO	/* strong pointer when `OBJECT' flag is set	*/
 };
 
-/* additional type information flags and masks (0: none) */
+/* additional type information flags and masks: at most 1 can be set! */
 enum spn_val_flag {
 	SPN_TFLG_OBJECT		= 1 << 0,	/* type is an object type	*/
 	SPN_TFLG_FLOAT		= 1 << 1,	/* number is floating-point	*/
@@ -75,10 +75,10 @@ typedef struct SpnValue SpnValue;
 
 typedef struct SpnFunction {
 	const char *name;
-	int symtabidx; /* index of local symbol table, represents environment */
+	spn_uword *env; /* the bytecode in which the function was defined */
 	union {
 		int (*fn)(SpnValue *, int, SpnValue *, void *); /* C function */
-		spn_uword *bc; /* pointer to body in bytecode */
+		spn_uword *bc; /* pointer to header (just before entry point) */
 	} r;
 } SpnFunction;
 

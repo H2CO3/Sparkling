@@ -100,7 +100,18 @@ this global array. This is how you can create "modules" or "namespaces".
         SpnExtValue fns[], size_t n);
 
 This function is similar to `spn_vm_addlib_cfuncs()`, but it accepts any valid
-`SpnValue`, not just C exntension functions.
+`SpnValue`, not just C extension functions.
+
+    SpnArray *spn_vm_getglobals(SpnVMachine *vm);
+
+This functions gives access to the global symbols currently registered with
+the virtual machine. This comes handy when one wants to call a function with
+a specific name: given a name, it is possible to get an `SpnValue` out of
+the array that corresponds to the function with the specified name.
+
+**Important: this array is read-only. Do NOT modify it.** Only call the
+`spn_array_get()` function on it in order to retrieve the values. (you can
+also use an `SpnIterator` to enumerate the keys and values in the array.)
 
     void *spn_vm_getcontext(SpnVMachine *);
 
@@ -137,7 +148,10 @@ from within a native extension function. Throws a runtime error if:
 1. its `fn` argument does not contain a value of function type, or
 2. if `fn` is a native function and it returns a non-zero status code.
 
-Script functions are tied to virtual machine instances, so if `fn` is not a
+If you want `spn_vm_callfunc()` to call the `fn` function as if it was the
+top-level program, then `spn_vm_prepare()` must be called first.
+
+Script functions are tied to bytecode file instances, so if `fn` is not a
 native funciton, then it should be implemented in a translation unit that has
 already been run on the virtual machine `vm`. (That is, calling a non-native
 function is only valid on the same virtual machine that was used to obtain
@@ -169,46 +183,54 @@ flag to the caller).
 Using the convenience context API
 ---------------------------------
 The Sparkling API also provides an even easier interface, called the context
-API. A context object encapsulates a parser, a compiler, a virtual machine,
+API. **This API is the preferred way of accessing the Sparkling engine.**
+A context object encapsulates a parser, a compiler, a virtual machine,
 and each bytecode file that has been loaded into that context.
 
     SpnContext *spn_ctx_new();
     void spn_ctx_free(SpnContext *ctx);
 
-These functions create and destroy a context object. `spn_ctx_new()` sets
-itself as the context info of the contained virtual machine. If you need to use
-the user info from within an extension function, use the `info` field of the
-context structure.
+These functions create and destroy a context object. `spn_ctx_new()` sets the
+context object itself as the context info of the contained virtual machine.
+If you need user info (e. g. from within an extension function), use the
+`spn_ctx_getuserinfo()` and `spn_user_setuserinfo()` functions.
+
+    enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx);
+    const char *spn_ctx_geterrmsg(SpnContext *ctx);
+
+These functions return the type and description of the last error that occurred
+in the context. If no error occurred, the error type is `SPN_ERROR_OK`, and
+int this case, the description is a `NULL` pointer.
 
     spn_uword *spn_ctx_loadstring(SpnContext *ctx, const char *str);
     spn_uword *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname);
 
 These functions attempt to parse and compile a source string. If an error is
-encountered during either phase, they set the `errmsg` field of the context
-object to the last error message and they return `NULL`. Else they return the
-compiled bytecode. The return value is a non-owning pointer -- it should not
-be `free()`d explicitly, it is deleted when you free the context object.
+encountered during either phase, they set an error message and they return
+`NULL`. Else they return the compiled bytecode. The return value is a
+non-owning pointer -- it should not be `free()`d explicitly, it is deleted when
+you free the context object.
 
-The bytecode objects are accumulated in the `bclist` member of the context,
-which is a link list. The head of the list contains the most recently created
-bytecode array as well as its length.
+The bytecode objects are accumulated inside the context object, in the form of
+a link list. The head of the list contains the most recently created
+bytecode array as well as its length. This list can be accessed through
+`spn_ctx_getbclist()` (the function returns the head of the list; the `next`
+pointer of the last element is `NULL`.)
 
     spn_uword *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname);
 
 Reads a compiled object file and returns a non-owning pointer to its contents.
-Prepends the bytecode to the beginning of the `bclist` link list, as described
-above. On error, it returns `NULL` and it sets the `errmsg` member of the
-context.
+Prepends the bytecode to the beginning of the bytecode list, as described
+above. On error, it returns `NULL` and it sets an error message.
 
     int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret);
     int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret);
     int spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret);
 
 These wrapper functions call the corresponding `spn_ctx_load*` function, but
-they also attempt to execute the resulting compiled bytecode. If a run-time
-error is encountered, they return nonzero and set the `errmsg` member to the
-error message reported by the virtual machine. Else they copy the result of
-the successfully executed program to `ret` and return zero.
+they also attempt to execute the resulting compiled bytecode, and they copy the
+result of the successfully executed program to `ret` and return zero.
+On error, they set an appropriate error type and error message.
 
     int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret);
 
@@ -218,7 +240,7 @@ be used on bytecode returned by one of the `spn_ctx_load*` or `spn_ctx_exec*`
 functions. (If you use it on any other bytecode object, then make sure to
 preserve it while necessary. But you really do not want to do that.)
 Runs the specified program and copies its result into `ret`; returns zero on
-success and nonzero on error, in which case, it sets `errmsg` in `ctx`.
+success and nonzero on error, in which case, it sets an error message.
 
     int spn_ctx_callfunc(
         SpnContext *ctx,
@@ -227,6 +249,8 @@ success and nonzero on error, in which case, it sets `errmsg` in `ctx`.
         int argc,
         SpnValue argv[]
     );
+
+    void spn_ctx_prepare(SpnContext *ctx);
 
     void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[]);
 
@@ -238,9 +262,14 @@ success and nonzero on error, in which case, it sets `errmsg` in `ctx`.
     void spn_ctx_addlib_values(SpnContext *ctx, const char *libname,
         SpnExtValue vals[], size_t n);
 
-These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_seterrmsg()`,
-`spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()` and `spn_vm_addlib_values()`,
-respectively, on `ctx->vm`.
+    SpnArray *spn_ctx_getglobals(SpnContext *ctx);
+
+These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_prepare()`,
+`spn_vm_seterrmsg()`, `spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()`,
+`spn_vm_addlib_values()` and `spn_vm_getglobals()`, respectively, on `ctx->vm`.
+
+**Warning:** the array returned by `spn_ctx_getglobals()` is read-only. See
+the notice and comments above `spn_vm_getglobals()` in `vm.h` for details.
 
 Writing native extension functions
 ----------------------------------
@@ -310,7 +339,7 @@ When creating a value, one must do the following:
 `SPN_TYPE_FUNCTION`, `SPN_TYPE_STRING`, `SPN_TYPE_ARRAY` or `SPN_TYPE_USERINFO`.
 
    If its type is Boolean, its `v.boolv` member should be set to zero for
-   false, 1 for true. (`true' must **always** be 1!)
+   false, 1 for true. (`true` must **always** be 1!)
 
    If the type is number, then the `SPN_TFLG_FLOAT` flag may be set in the
    `f` member if the number is a floating-point value. If this is the case,
@@ -323,10 +352,10 @@ When creating a value, one must do the following:
        int (*)(SpnValue *, int, SpnValue *, void *)
        
    A non-native (script) function is represented by a pointer to its function
-   header in a bytecode image. They must also have their `v.fncv.symtabidx`
-   member set to the index of the local symbol table in the VM that represents
-   their environment. However, **this is not something a native extension
-   function normally does.**
+   header in a bytecode image. It must also have its `v.fncv.env` member set
+   to the pointer to the bytecode that represents its environment (i. e. the
+   bytecode of the file/TU that in which function was defined). However,
+   **this is not something a native extension function normally does.**
 
    If, and only if, a value is a string, an array or an object-based user info
    structure, then the `f` member should be set to `SPN_TFLG_OBJECT`.

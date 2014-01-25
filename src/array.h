@@ -20,18 +20,15 @@ typedef struct SpnArray SpnArray;
 typedef struct SpnIterator SpnIterator;
 
 
-/*
- * Values obtained via spn_array_get() should never be modified, only
- * retained and released (if they contain an object).
- */
 SPN_API SpnArray	*spn_array_new();
 SPN_API size_t		 spn_array_count(SpnArray *arr);
 
 /* getter and setter.
  * the getter doesn't alter the ownership of either the key or the value.
+ * values obtained via spn_array_get() may be retained and released.
  * the setter retains both the key and the value.
  */
-SPN_API SpnValue	*spn_array_get(SpnArray *arr, const SpnValue *key);
+SPN_API void		 spn_array_get(SpnArray *arr, const SpnValue *key, SpnValue *val);
 SPN_API void		 spn_array_set(SpnArray *arr, SpnValue *key, SpnValue *val);
 
 /* this is just a convenience wrapper around `spn_array_set()':

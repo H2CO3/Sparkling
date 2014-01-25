@@ -193,22 +193,8 @@ If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 
 3. Array handling (spn_libarray)
 --------------------------------
-    array array(...)
-
-returns an array filled with the arguments of the function. Order is preserved;
-indices will be integers starting from 0, increasing by one. The return value
-of this function is thus equivalent with the `@[ ]` sequence literal notation.
-
-    array dict(...)
-
-Returns an array filled with keys and values in the following way: every
-argument with an even index in the argument list of the function will become
-a key, and the next value will be the corresponding value. Order is not
-preserved. The return value of this function is equivalent with the `@{ }`
-dictionary literal notation.
 
     nil sort(array arr)
-    nil sortcmp(array arr, function comparator)
 
 `sort()` sorts the elements of `arr` in ascending order, using the `<` operator.
 The array to be sorted must contain integer keys only, and they keys should

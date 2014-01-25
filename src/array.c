@@ -74,7 +74,6 @@ typedef struct TList {
 
 struct SpnArray {
 	SpnObject	  base;		/* for being a valid object		*/
-	SpnValue	  nilval;	/* for returning nil			*/
 
 	SpnValue	 *arr;		/* the array part			*/
 	size_t		  arrcnt;	/* logical size				*/
@@ -121,9 +120,6 @@ SpnArray *spn_array_new()
 {
 	SpnArray *arr = spn_object_new(&spn_class_array);
 
-	arr->nilval.t = SPN_TYPE_NIL;
-	arr->nilval.f = 0;
-
 	arr->arr = NULL;
 	arr->arrcnt = 0;
 	arr->arrallsz = 0;
@@ -161,7 +157,7 @@ size_t spn_array_count(SpnArray *arr)
 
 /* getter and setter */
 
-SpnValue *spn_array_get(SpnArray *arr, const SpnValue *key)
+void spn_array_get(SpnArray *arr, const SpnValue *key, SpnValue *val)
 {
 	unsigned long hash;
 	TList *list;
@@ -174,14 +170,28 @@ SpnValue *spn_array_get(SpnArray *arr, const SpnValue *key)
 			if (key->v.fltv == i /* int disguised as a float */
 			 && 0 <= i
 			 && i < ARRAY_MAXSIZE) {
-				unsigned long uidx = i; /* silent the -Wsign-compare warning */
-			 	return uidx < arr->arrallsz ? &arr->arr[i] : &arr->nilval;
+				size_t uidx = i; /* silence -Wsign-compare */
+			 	if (uidx < arr->arrallsz) {
+			 		 *val = arr->arr[i];
+			 	} else {
+			 		val->t = SPN_TYPE_NIL;
+			 		val->f = 0;
+			 	}
+
+				return;
 			}
 		} else {
 			long i = key->v.intv;
 			if (0 <= i && i < ARRAY_MAXSIZE) {
-				unsigned long uidx = i; /* silent the -Wsign-compare warning */
-				return uidx < arr->arrallsz ? &arr->arr[i] : &arr->nilval;
+				size_t uidx = i; /* silence -Wsign-compare */
+				if (uidx < arr->arrallsz) {
+					*val = arr->arr[i];
+				} else {
+					val->t = SPN_TYPE_NIL;
+					val->f = 0;
+				}
+				
+				return;
 			}
 		}
 	}
@@ -190,7 +200,9 @@ SpnValue *spn_array_get(SpnArray *arr, const SpnValue *key)
 
 	/* if the hash table is empty, it cannot contain any value at all */
 	if (nthsize(arr->hashszidx) == 0) {
-		return &arr->nilval;
+		val->t = SPN_TYPE_NIL;
+		val->f = 0;
+		return;
 	}
 
 	/* else return what the hash part can find */
@@ -201,7 +213,12 @@ SpnValue *spn_array_get(SpnArray *arr, const SpnValue *key)
 	 */
 	list = arr->buckets[hash];
 	hit = list_find(list, key);
-	return hit != NULL ? &hit->val : &arr->nilval;
+	if (hit != NULL) {
+		*val = hit->val;
+	} else {
+		val->t = SPN_TYPE_NIL;
+		val->f = 0;
+	}
 }
 
 void spn_array_set(SpnArray *arr, SpnValue *key, SpnValue *val)

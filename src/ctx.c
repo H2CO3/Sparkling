@@ -10,6 +10,19 @@
 
 #include "ctx.h"
 
+
+struct SpnContext {
+	SpnParser *parser;
+	SpnCompiler *cmp;
+	SpnVMachine *vm;
+	struct spn_bc_list *bclist; /* holds all bytecodes ever compiled */
+
+	enum spn_error_type errtype; /* type of the last error */
+	const char *errmsg; /* last error message */
+
+	void *info; /* context info initialized to NULL, use freely */
+};
+
 static void prepend_bytecode_list(SpnContext *ctx, spn_uword *bc, size_t len);
 static void free_bytecode_list(struct spn_bc_list *head);
 
@@ -20,12 +33,13 @@ SpnContext *spn_ctx_new()
 		abort();
 	}
 
-	ctx->p      = spn_parser_new();
-	ctx->cmp    = spn_compiler_new();
-	ctx->vm     = spn_vm_new();
-	ctx->bclist = NULL;
-	ctx->errmsg = NULL;
-	ctx->info   = NULL;
+	ctx->parser  = spn_parser_new();
+	ctx->cmp     = spn_compiler_new();
+	ctx->vm      = spn_vm_new();
+	ctx->bclist  = NULL;
+	ctx->errtype = SPN_ERROR_OK;
+	ctx->errmsg  = NULL;
+	ctx->info    = NULL;
 
 	spn_vm_setcontext(ctx->vm, ctx);
 	spn_load_stdlib(ctx->vm);
@@ -35,7 +49,7 @@ SpnContext *spn_ctx_new()
 
 void spn_ctx_free(SpnContext *ctx)
 {
-	spn_parser_free(ctx->p);
+	spn_parser_free(ctx->parser);
 	spn_compiler_free(ctx->cmp);
 	spn_vm_free(ctx->vm);
 
@@ -43,16 +57,53 @@ void spn_ctx_free(SpnContext *ctx)
 	free(ctx);
 }
 
+enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx)
+{
+	return ctx->errtype;
+}
+
+const char *spn_ctx_geterrmsg(SpnContext *ctx)
+{
+	switch (ctx->errtype) {
+	case SPN_ERROR_OK:		return NULL;
+	case SPN_ERROR_SYNTAX:		return ctx->parser->errmsg;
+	case SPN_ERROR_SEMANTIC:	return spn_compiler_errmsg(ctx->cmp);
+	case SPN_ERROR_RUNTIME:		return spn_vm_geterrmsg(ctx->vm);
+	case SPN_ERROR_GENERIC:		return ctx->errmsg;
+	default:			return NULL;
+	}
+}
+
+const struct spn_bc_list *spn_ctx_getbclist(SpnContext *ctx)
+{
+	return ctx->bclist;
+}
+
+void *spn_ctx_getuserinfo(SpnContext *ctx)
+{
+	return ctx->info;
+}
+
+void spn_ctx_setuserinfo(SpnContext *ctx, void *info)
+{
+	ctx->info = info;
+}
+
+
+/* the essence */
+
 spn_uword *spn_ctx_loadstring(SpnContext *ctx, const char *str)
 {
 	SpnAST *ast;
 	spn_uword *bc;
 	size_t len;
 
+	ctx->errtype = SPN_ERROR_OK;
+
 	/* attempt parsing, handle error */
-	ast = spn_parser_parse(ctx->p, str);
+	ast = spn_parser_parse(ctx->parser, str);
 	if (ast == NULL) {
-		ctx->errmsg = ctx->p->errmsg;
+		ctx->errtype = SPN_ERROR_SYNTAX;
 		return NULL;
 	}
 
@@ -61,13 +112,12 @@ spn_uword *spn_ctx_loadstring(SpnContext *ctx, const char *str)
 	spn_ast_free(ast);
 
 	if (bc == NULL) {
-		ctx->errmsg = spn_compiler_errmsg(ctx->cmp);
+		ctx->errtype = SPN_ERROR_SEMANTIC;
 		return NULL;
 	}
 
 	/* prepend bytecode to the link list */
 	prepend_bytecode_list(ctx, bc, len);
-
 	return bc;
 }
 
@@ -76,8 +126,11 @@ spn_uword *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname)
 	char *src;
 	spn_uword *bc;
 
+	ctx->errtype = SPN_ERROR_OK;
+
 	src = spn_read_text_file(fname);
 	if (src == NULL) {
+		ctx->errtype = SPN_ERROR_GENERIC;
 		ctx->errmsg = "Sparkling: I/O error: could not read source file";
 		return NULL;
 	}
@@ -93,8 +146,11 @@ spn_uword *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
 	spn_uword *bc;
 	size_t filesize, nwords;
 
+	ctx->errtype = SPN_ERROR_OK;
+
 	bc = spn_read_binary_file(fname, &filesize);
 	if (bc == NULL) {
+		ctx->errtype = SPN_ERROR_GENERIC;
 		ctx->errmsg = "Sparkling: I/O error: could not read object file";
 		return NULL;
 	}
@@ -141,9 +197,13 @@ int spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 /* NB: this does **not** add the bytecode to the linked list */
 int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret)
 {
-	int status = spn_vm_exec(ctx->vm, bc, ret);
+	int status;
+
+	ctx->errtype = SPN_ERROR_OK;
+
+	status = spn_vm_exec(ctx->vm, bc, ret);
 	if (status != 0) {
-		ctx->errmsg = spn_vm_geterrmsg(ctx->vm);
+		ctx->errtype = SPN_ERROR_RUNTIME;
 	}
 
 	return status;
@@ -154,7 +214,21 @@ int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret)
 
 int spn_ctx_callfunc(SpnContext *ctx, SpnValue *func, SpnValue *ret, int argc, SpnValue argv[])
 {
-	return spn_vm_callfunc(ctx->vm, func, ret, argc, argv);
+	int status;
+
+	ctx->errtype = SPN_ERROR_OK;
+
+	status = spn_vm_callfunc(ctx->vm, func, ret, argc, argv);
+	if (status != 0) {
+		ctx->errtype = SPN_ERROR_RUNTIME;
+	}
+
+	return status;
+}
+
+void spn_ctx_prepare(SpnContext *ctx)
+{
+	spn_vm_prepare(ctx->vm);
 }
 
 void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
@@ -175,6 +249,11 @@ void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFun
 void spn_ctx_addlib_values(SpnContext *ctx, const char *libname, SpnExtValue vals[], size_t n)
 {
 	spn_vm_addlib_values(ctx->vm, libname, vals, n);
+}
+
+SpnArray *spn_ctx_getglobals(SpnContext *ctx)
+{
+	return spn_vm_getglobals(ctx->vm);
 }
 
 
