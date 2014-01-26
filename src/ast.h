@@ -25,10 +25,9 @@
  * 
  * BLOCK is a compound statement that opens a new lexical scope.
  * 
- * loops: while and do have their condition store in the left child,
- * for and foreach maintain a link list of FORHEADER nodes, describing the
- * three parts of the for(each) loop header (initialization, condition,
- * increment; or key, value, table)
+ * loops: while and do have their condition stored in the left child, while
+ * for maintains a link list of FORHEADER nodes, describing the three parts
+ * of the loop header (initialization, condition, increment)
  * 
  * the left child of SPN_NODE_IF is the condition, and its right child is
  * a BRANCHES node (left child: then-branch, right child: else-branch)
@@ -154,9 +153,7 @@ enum spn_ast_node {
 	SPN_NODE_DECLARGS,	/* argument names in a function definition	*/
 	SPN_NODE_CALLARGS,	/* function call argument list			*/
 	SPN_NODE_BRANCHES,	/* then and else branch of `if` and `?:`	*/
-	SPN_NODE_FORHEADER,	/* link list: "init; cond; incrmt" of `for` and
-				 * "key as value in array" for `foreach` loop
-				 */
+	SPN_NODE_FORHEADER,	/* link list: "init; cond; incrmt"		*/
 	SPN_NODE_COMPOUND	/* generic "compound node" (not a block, this
 				 * is to be used when multiple statements
 				 * follow each other, and the AST needs more

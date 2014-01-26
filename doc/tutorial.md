@@ -337,11 +337,14 @@ by calling `spn_value_release()` on it (since SpnValue are reference counted).
         spn_value_release(&retval);
     }
 
-If an error occurs, then an error message is be available by calling the
+If an error occurs, then an error message is available by calling the
 `spn_ctx_geterrmsg()` function (the returned pointer is only valid as long as
 you do not run another program in the context structure, so copy the string if
 you need it later!). You can also request a stack trace if the error was a
-runtime error by calling the `spn_ctx_stacktrace()` function:
+runtime error by calling the `spn_ctx_stacktrace()` function. After handling
+the errors, you must bring the context back to a "clean" state by calling
+`spn_ctx_clean()` on it (this is equivalent with calling the
+`spn_vm_clean()` function with `ctx->vm` as its argument).
 
     else {
         fputs(spn_ctx_geterrmsg(ctx), stderr);
@@ -357,6 +360,8 @@ runtime error by calling the `spn_ctx_stacktrace()` function:
 
             free(bt);
         }
+
+        spn_ctx_clean(ctx);
     }
 
 The type of the last error is provided by `spn_ctx_geterrtype()`.
@@ -371,13 +376,14 @@ resulting code with the help of the `spn_ctx_execbytecode()` function.
     if (bc != NULL) {
         /* `bc' is a pointer to a bytecode array representing the program */
         int i;
-        for (i = 0; i < 1000000; i++) { /* run the program lots of times */
+        for (i = 0; i < 1000000; i++) { /* run the program a lot of times */
             SpnValue retval;
             if (spn_ctx_execbytecode(ctx, bc, &retval) == 0) {
                 /* optionally use return value, then release it */
                 spn_value_release(&retval);
             } else {
-                /* handle runtime error */
+                /* handle runtime error, then clean up */
+                spn_ctx_clean(ctx);
                 break;		
             }
         }

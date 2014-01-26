@@ -50,10 +50,7 @@ SPN_API void		  spn_vm_free(SpnVMachine *vm);
  */
 SPN_API int		  spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
 
-/* calls a Sparkling function from C-land.
- * If this is used to call `fn` as if it was the main program,
- * then `spn_vm_prepare()` must be called first.
- */
+/* calls a Sparkling function from C-land. */
 SPN_API int spn_vm_callfunc(
 	SpnVMachine *vm,
 	SpnValue *fn,
@@ -65,8 +62,11 @@ SPN_API int spn_vm_callfunc(
 /* cleans junk that may be left off from the execution of the
  * previous program that resulted in a runtime error.
  * Also initializes the error handling system.
+ * This must always be called after a runtime error (typically, when
+ * you encounter a runtime error, one obtains the error message
+ * and the stacktrace, processes them, then calls this function.)
  */
-SPN_API void spn_vm_prepare(SpnVMachine *vm);
+SPN_API void spn_vm_clean(SpnVMachine *vm);
 
 /* these functions copy neither the names of the values nor the library name,
  * so make sure that the strings are valid thorughout the entire runtime.

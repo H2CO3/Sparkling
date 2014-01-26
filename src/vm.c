@@ -308,7 +308,7 @@ static void free_frames(SpnVMachine *vm)
 	}
 }
 
-void spn_vm_prepare(SpnVMachine *vm)
+void spn_vm_clean(SpnVMachine *vm)
 {
 	/* releases values in stack frames from the previous execution.
 	 * This is not done immediately after the dispatch loop because if
@@ -324,8 +324,6 @@ void spn_vm_prepare(SpnVMachine *vm)
 int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval)
 {
 	spn_uword *ip;
-
-	spn_vm_prepare(vm);
 
 	/* check bytecode for magic bytes */
 	if (validate_magic(vm, bc) != 0) {

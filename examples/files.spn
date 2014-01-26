@@ -5,11 +5,11 @@
  * created by Árpád Goretity on 30/09/2013
  */
 
-var f = fopen("stuff.txt", "w");
+var f = fopen("stuff.txt", "wb");
 fwrite(f, "hello world");
 fclose(f);
 
-f = fopen("stuff.txt", "r");
+f = fopen("stuff.txt", "rb");
 var l = fgetline(f);
 print(l);
 fclose(f);

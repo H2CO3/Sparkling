@@ -194,9 +194,13 @@ If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 3. Array handling (spn_libarray)
 --------------------------------
 
-    nil sort(array arr)
+    nil sort(array arr [, function comparator [, any context]])
 
-`sort()` sorts the elements of `arr` in ascending order, using the `<` operator.
+`sort()` sorts the elements of `arr` in ascending order, using the comparator
+if present, or using the built-in `<` operator if no comparator is specified.
+The comparator takes two or three arguments: two elements of the array to be
+compared, and an optional context info value. It must return `true` if its
+first argument compares less than the second one, and `false` otherwise.
 The array to be sorted must contain integer keys only, and they keys should
 span the range `[0, sizeof arr)` without gap. `sortcmp()` works similarly to
 `sort()`, but it uses the function `comparator()` to compare elements. It should
@@ -219,12 +223,12 @@ All elements in the array must be strings, the array must have integer indices
 only, ranging from `0` to `sizeof arr`. The return value is the concatenation
 of the elements interleaved by `sep`.
 
-    nil foreach(array a, function callback [, any context])
+    nil foreach(array arr, function callback [, any context])
 
-Iterates through the elements of the array `a`, calling `callback` for each
-key-value pair in the array (like `callback(key, a[key], context)`). The
-context info is an optional argument. The callback function must return `nil`
-or a Boolean. If it returns `false`, the enumeration is aborted and the
+Iterates through the elements of the array `arr`, calling `callback` with each
+key-value pair in the array (like `callback(key, arr[key], arr, context)`).
+The context info is an optional argument. The callback function must return
+`nil` or a Boolean. If it returns `false`, the enumeration is aborted and the
 `foreach()` function returns.
 
 4. Real, integer and complex mathematical functions (spn_libmath)

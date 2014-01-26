@@ -5,9 +5,10 @@
  * created by Árpád Goretity on 30/09/2013
  */
 
-/* loop through argv, treat each entry as the name of an environment variable */
-var i;
-for i = 0; i < sizeof argv; i++ {
-	print(argv[i], "=", getenv(argv[i]));
+/* loop through command line arguments,
+ * treat each entry as the name of an environment variable
+ */
+for var i = 1; i < sizeof argv; i++ {
+	printf("%s = %s\n", argv[i], getenv(argv[i]));
 }
 

@@ -6,7 +6,7 @@
 
 function cfmt(z)
 {
-	return fmtstring("%.3f %+.3fi", z.re, z.im);
+	return fmtstring("(%.3f %+.3fi)", z.re, z.im);
 }
 
 function pfmt(z)
@@ -27,3 +27,4 @@ printf("conj %s = %s\n", cfmt(z1), cfmt(cplx_conj(z1)));
 
 printf("%s in trigonometric form: %s\n", cfmt(z2), pfmt(can2pol(z2)));
 printf("%s in canonical form: %s\n", pfmt(z3), cfmt(pol2can(z3)));
+

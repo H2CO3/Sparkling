@@ -1178,9 +1178,11 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 /* argv[0] is the array to enumerate
  * argv[1] is the callback function
+ * argv[2] is the optional user info
  * args[0] is the key passed to the callback
  * args[1] is the value passed to the callback
- * args[2] is the user info passed to the callback (if any)
+ * args[2] is the array again, it's passed to the callback too
+ * args[3] is the user info passed to the callback (if any)
  * cbret is the return value of the callback function
  */
 static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
@@ -1189,7 +1191,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	int status = 0;
 	SpnArray *arr;
 	SpnIterator *it;
-	SpnValue args[3]; /* key, value and optional user info */
+	SpnValue args[4]; /* key, value, array and optional user info */
 
 	if (argc < 2 || argc > 3) {
 		spn_ctx_runtime_error(ctx, "two or three arguments are required", NULL);
@@ -1206,9 +1208,11 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
+	args[2] = argv[0];
+
 	/* if there's any user info, store it */
 	if (argc > 2) {
-		args[2] = argv[2];
+		args[3] = argv[2];
 	}
 
 	arr = argv[0].v.ptrv;
@@ -1220,8 +1224,10 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	 * callback in `argv', and the key and the value in `args').
 	 */
 	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+		int err;
 		SpnValue cbret;
-		int err = spn_ctx_callfunc(ctx, &argv[1], &cbret, argc, args);
+
+		err = spn_ctx_callfunc(ctx, &argv[1], &cbret, argc + 1, args);
 
 		if (err != 0) {
 			status = err;

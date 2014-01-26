@@ -226,11 +226,6 @@ int spn_ctx_callfunc(SpnContext *ctx, SpnValue *func, SpnValue *ret, int argc, S
 	return status;
 }
 
-void spn_ctx_prepare(SpnContext *ctx)
-{
-	spn_vm_prepare(ctx->vm);
-}
-
 void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
 {
 	spn_vm_seterrmsg(ctx->vm, fmt, args);
@@ -239,6 +234,11 @@ void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
 const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
 {
 	return spn_vm_stacktrace(ctx->vm, size);
+}
+
+void spn_ctx_clean(SpnContext *ctx)
+{
+	spn_vm_clean(ctx->vm);
 }
 
 void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc fns[], size_t n)
