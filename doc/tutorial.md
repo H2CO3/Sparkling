@@ -341,10 +341,7 @@ If an error occurs, then an error message is available by calling the
 `spn_ctx_geterrmsg()` function (the returned pointer is only valid as long as
 you do not run another program in the context structure, so copy the string if
 you need it later!). You can also request a stack trace if the error was a
-runtime error by calling the `spn_ctx_stacktrace()` function. After handling
-the errors, you must bring the context back to a "clean" state by calling
-`spn_ctx_clean()` on it (this is equivalent with calling the
-`spn_vm_clean()` function with `ctx->vm` as its argument).
+runtime error by calling the `spn_ctx_stacktrace()` function.
 
     else {
         fputs(spn_ctx_geterrmsg(ctx), stderr);
@@ -360,8 +357,6 @@ the errors, you must bring the context back to a "clean" state by calling
 
             free(bt);
         }
-
-        spn_ctx_clean(ctx);
     }
 
 The type of the last error is provided by `spn_ctx_geterrtype()`.
@@ -382,8 +377,7 @@ resulting code with the help of the `spn_ctx_execbytecode()` function.
                 /* optionally use return value, then release it */
                 spn_value_release(&retval);
             } else {
-                /* handle runtime error, then clean up */
-                spn_ctx_clean(ctx);
+                /* handle runtime error */
                 break;		
             }
         }

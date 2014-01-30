@@ -142,6 +142,33 @@ various situations, on different platforms. The more people use Sparkling,
 the better it will become. Check out the Makefile (with special regards to the
 `BUILD` variable) as well and tailor it to your needs.
 
+Portability note:
+-----------------
+The **code** is portable and cross-platform (at least that is my aim), but the
+`Makefile` isn't. I can only test this on Linux, OS X and iOS. There are a
+couple of variables you can change in the Makefile if it doesn't work out of
+the box on your platform. A non-exhaustive list of common problems and their
+possible solution, respectively:
+
+ - The compiler and/or the linker may need an explicit (or different)
+   development sysroot to be specified, perhaps using the `-isysroot` flag.
+ - The use of the readline library can be turned off if it isn't installed
+   on your platform (just `make READLINE=0`). This does not affect the behavior
+   of the library (since the library itself doesn't depend on any 3rd-party
+   libraries), only the usage of the REPL will be less convenient.
+ - In order to create a shared library, position-independent code must be
+   generated. This is done using the `-fpic` compiler flag by default, which
+   usually generates faster and/or smaller code, but it doesn't always work.
+   If it doesn't (the linker will tell you that), try `-fPIC` instead.
+ - explicit linkage against some components of the C standard library (maths,
+   time, I/O, etc.) may be necessary using different linker flags (e. g. `-lm`)
+ - You may not be using GCC or clang, in which case I'm sorry but you're alone.
+   (a properly configured IDE should accept and import the code as-is; most
+   notably, if you are on Windows, then you are probably not using GCC or clang
+   but an IDE with some other compiler of which the name I don't even dare to
+   mention; in this case, drag'n'dropping the `src/` folder into your project
+   should *still* work.)
+
 Happy programming!
 
 -- H2CO3

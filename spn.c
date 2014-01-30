@@ -217,7 +217,6 @@ static int run_script_file(SpnContext *ctx, const char *fname)
 	if (err != 0) {
 		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 		print_stacktrace_if_needed(ctx);
-		spn_ctx_clean(ctx);
 	}
 
 	return err;
@@ -240,7 +239,6 @@ static int run_file(const char *fname, int argc, char *argv[])
 		if (spn_ctx_execobjfile(ctx, fname, NULL) != 0) {
 			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			print_stacktrace_if_needed(ctx);
-			spn_ctx_clean(ctx);
 			status = EXIT_FAILURE;
 		}
 	} else {
@@ -263,7 +261,6 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 		if (spn_ctx_execstring(ctx, argv[i], &val) != 0) {
 			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			print_stacktrace_if_needed(ctx);
-			spn_ctx_clean(ctx);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -316,7 +313,6 @@ static int enter_repl(enum cmd_args args)
 		if (status != 0) {
 			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			print_stacktrace_if_needed(ctx);
-			spn_ctx_clean(ctx);
 		} else {
 			if (ret.t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
 				spn_value_print(&ret);

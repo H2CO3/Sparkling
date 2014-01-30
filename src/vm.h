@@ -59,15 +59,6 @@ SPN_API int spn_vm_callfunc(
 	SpnValue *argv
 );
 
-/* cleans junk that may be left off from the execution of the
- * previous program that resulted in a runtime error.
- * Also initializes the error handling system.
- * This must always be called after a runtime error (typically, when
- * you encounter a runtime error, one obtains the error message
- * and the stacktrace, processes them, then calls this function.)
- */
-SPN_API void spn_vm_clean(SpnVMachine *vm);
-
 /* these functions copy neither the names of the values nor the library name,
  * so make sure that the strings are valid thorughout the entire runtime.
  */

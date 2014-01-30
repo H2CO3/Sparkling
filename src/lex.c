@@ -105,12 +105,8 @@ static int hexch_to_int(char c)
 static char *spn_strndup(const char *s, size_t n)
 {
 	const char *t = s;
-	char *r = malloc(n + 1);
+	char *r = spn_malloc(n + 1);
 	char *p = r;
-
-	if (r == NULL) {
-		abort();
-	}
 
 	while (*t && t < s + n) {
 		*p++ = *t++;
@@ -590,11 +586,7 @@ static int lex_string(SpnParser *p)
 {
 	size_t sz = 0x10;
 	size_t n = 0;
-	char *buf = malloc(sz);
-
-	if (buf == NULL) {
-		abort();
-	}
+	char *buf = spn_malloc(sz);
 
 	/* skip string beginning marker double quotation mark */
 	p->pos++;
@@ -623,10 +615,7 @@ static int lex_string(SpnParser *p)
 		/* expand the buffer if necessary */
 		if (n >= sz) {
 			sz <<= 1;
-			buf = realloc(buf, sz);
-			if (buf == NULL) {
-				abort();
-			}
+			buf = spn_realloc(buf, sz);
 		}
 	}
 

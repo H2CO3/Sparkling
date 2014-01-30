@@ -81,10 +81,7 @@ static SpnAST *parse_binexpr_leftassoc(
 
 SpnParser *spn_parser_new()
 {
-	SpnParser *p = malloc(sizeof(*p));
-	if (p == NULL) {
-		abort();
-	}
+	SpnParser *p = spn_malloc(sizeof(*p));
 
 	p->pos = NULL;
 	p->eof = 0;
@@ -117,11 +114,7 @@ void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
 	msg = spn_string_format_cstr(fmt, &msg_len, args);
 
 	free(p->errmsg);
-	p->errmsg = malloc(prefix_len + msg_len + 1);
-
-	if (p->errmsg == NULL) {
-		abort();
-	}
+	p->errmsg = spn_malloc(prefix_len + msg_len + 1);
 
 	strcpy(p->errmsg, prefix);
 	strcpy(p->errmsg + prefix_len, msg);

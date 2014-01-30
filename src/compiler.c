@@ -310,10 +310,7 @@ static void rts_free(RoundTripStore *rts);
 
 SpnCompiler *spn_compiler_new()
 {
-	SpnCompiler *cmp = malloc(sizeof(*cmp));
-	if (cmp == NULL) {
-		abort();
-	}
+	SpnCompiler *cmp = spn_malloc(sizeof(*cmp));
 
 	cmp->errmsg = NULL;
 	cmp->jumplist = NULL;
@@ -370,10 +367,7 @@ static void bytecode_append(TBytecode *bc, spn_uword *words, size_t n)
 			bc->allocsz <<= 1;
 		}
 
-		bc->insns = realloc(bc->insns, bc->allocsz * sizeof(bc->insns[0]));
-		if (bc->insns == NULL) {
-			abort();
-		}
+		bc->insns = spn_realloc(bc->insns, bc->allocsz * sizeof(bc->insns[0]));
 	}
 
 	memcpy(bc->insns + bc->len, words, n * sizeof(bc->insns[0]));
@@ -389,10 +383,7 @@ static void append_cstring(TBytecode *bc, const char *str, size_t len)
 	size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
 	size_t padded_len = nwords * sizeof(spn_uword);
 
-	spn_uword *buf = malloc(padded_len);
-	if (buf == NULL) {
-		abort();
-	}
+	spn_uword *buf = spn_malloc(padded_len);
 
 	/* this relies on the fact that `strncpy()` pads with NUL characters
 	 * when strlen(src) < sizeof(dest)
@@ -511,11 +502,7 @@ static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *f
 	msg = spn_string_format_cstr(fmt, &msg_len, args);
 
 	free(cmp->errmsg);
-	cmp->errmsg = malloc(prefix_len + msg_len + 1);
-
-	if (cmp->errmsg == NULL) {
-		abort();
-	}
+	cmp->errmsg = spn_malloc(prefix_len + msg_len + 1);
 
 	strcpy(cmp->errmsg, prefix);
 	strcpy(cmp->errmsg + prefix_len, msg);
@@ -695,6 +682,17 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	/* clean up */
 	rts_free(&symtab);
 	rts_free(&glbvars);
+
+	if (regcnt > MAX_REG_FRAME) {
+		compiler_error(
+			cmp,
+			ast->lineno,
+			"too many registers in top-level program",
+			NULL
+		);
+		return 0;
+	}
+
 	return 1;
 }
 
@@ -703,7 +701,6 @@ static int compile_compound(SpnCompiler *cmp, SpnAST *ast)
 	return compile(cmp, ast->left) && compile(cmp, ast->right);
 }
 
-/* TODO: check here that there are at most 256 entries (variables) */
 static int compile_block(SpnCompiler *cmp, SpnAST *ast)
 {
 	/* block -> new lexical scope, "push" a new set of variable names on
@@ -723,7 +720,6 @@ static int compile_block(SpnCompiler *cmp, SpnAST *ast)
 	return success;
 }
 
-/* TODO: should check for there being at most 256 function arguments here */
 static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 {
 	int regcount, argc;
@@ -827,6 +823,16 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	/* free local var stack, restore scope context data */
 	rts_free(&vs_this);
 	restore_scope(cmp, &sci);
+
+	if (regcount > MAX_REG_FRAME) {
+		compiler_error(
+			cmp,
+			ast->lineno,
+			"too many registers in function",
+			NULL
+		);
+		return 0;
+	}
 
 	return 1;
 }
@@ -1140,10 +1146,7 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 /* helper function for `compile_break()` and `compile_continue()` */
 static void prepend_jumplist_node(SpnCompiler *cmp, spn_sword offset, int is_break)
 {
-	struct jump_stmt_list *jump = malloc(sizeof(*jump));
-	if (jump == NULL) {
-		abort();
-	}
+	struct jump_stmt_list *jump = spn_malloc(sizeof(*jump));
 
 	jump->offset = offset;
 	jump->is_break = is_break;
@@ -1208,6 +1211,7 @@ static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 
 	while (head != NULL) {
 		int idx;
+		spn_uword ins;
 
 		SpnValue name;
 		name.t = SPN_TYPE_STRING;
@@ -1227,16 +1231,17 @@ static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 		/* add identifier to variable stack */
 		idx = rts_add(cmp->varstack, &name);
 
-		/* compile initializer expression, if any; if there is no
-		 * initializer expression, fill variable with nil
+		/* always load nil into register before compiling initializer
+		 * expression, in order to avoid garbage when one initializes
+		 * a variable with an expression that refers to itself
 		 */
+		ins = SPN_MKINS_AB(SPN_INS_LDCONST, idx, SPN_CONST_NIL);
+		bytecode_append(&cmp->bc, &ins, 1);
+
 		if (head->left != NULL) {
 			if (compile_expr_toplevel(cmp, head->left, &idx) == 0) {
 				return 0;
 			}
-		} else {
-			spn_uword ins = SPN_MKINS_AB(SPN_INS_LDCONST, idx, SPN_CONST_NIL);
-			bytecode_append(&cmp->bc, &ins, 1);
 		}
 
 		head = head->right;
@@ -2075,7 +2080,7 @@ static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-/* XXX: when passed to this function, `*n` should be initialized to zero!
+/* XXX: when passed to this function, `*argc` should be initialized to zero!
  * On return, it will contain the number of call arguments. `*idc` will
  * point to an array of register indices where the call arguments are stored.
  */
@@ -2112,13 +2117,10 @@ static int compile_callargs(SpnCompiler *cmp, SpnAST *ast, spn_uword **idc, int 
 			return 0;
 		}
 
-		/* TODO: this should be a proper error check instead */
-		assert(dst < 256);
-
 		/* fill in the appropriate octet in the bytecode */
 		wordidx = *argc / SPN_WORD_OCTETS;
 		shift = 8 * (*argc % SPN_WORD_OCTETS);
-		(*idc)[wordidx] |= (spn_uword)dst << shift;
+		(*idc)[wordidx] |= (spn_uword)(dst) << shift;
 
 		/* step over to next register index */
 		++*argc;
@@ -2409,12 +2411,15 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
-	if (ast->left->node == SPN_NODE_IDENT) {
+	switch (ast->left->node) {
+	case SPN_NODE_IDENT:
 		return compile_incdec_var(cmp, ast, dst);
-	} else if (ast->left->node == SPN_NODE_ARRSUB
-		|| ast->left->node == SPN_NODE_MEMBEROF) {
+
+	case SPN_NODE_ARRSUB:
+	case SPN_NODE_MEMBEROF:
 		return compile_incdec_arr(cmp, ast, dst);
-	} else {
+
+	default:
 		compiler_error(
 			cmp,
 			ast->left->lineno,
@@ -2423,7 +2428,6 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		);
 		return 0;
 	}
-
 }
 
 static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)

@@ -171,6 +171,9 @@ lead to an off-by-one (or two, or however many functions do not follow this
 convention) error, and the caller will operate on the frame of another
 function, corrputing the stack.
 
+For the same reason, you must not try to call another function using
+`spn_vm_callfunc()` after a runtime error has occurred.
+
 Usually, this constraint should not be a problem, though -- only fatal errors
 should lead a function to return an error status code anyway. Non-critical
 errors (from which recovery is considered possible) should be reported by the
@@ -229,12 +232,6 @@ they also attempt to execute the resulting compiled bytecode, and they copy the
 result of the successfully executed program to `ret` and return zero.
 On error, they set an appropriate error type and error message.
 
-If a runtime error is encountered, then after handing it, you must call
-`spn_ctx_clean()` on the context in order to put it back to a normal
-state so that it can run another bytecode image or C function. Attempting
-to execute any bytecode or C functions on a context that encountered a runtime
-error and has not subsequently been cleaned results in undefined behavior.
-
     int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret);
 
 Unlike the previously enumerated functions, this function **does not add the
@@ -245,9 +242,6 @@ preserve it while necessary. But you really do not want to do that.)
 Runs the specified program and copies its result into `ret`; returns zero on
 success and nonzero on error, in which case, it sets an error message.
 
-Similarly to the previous three convenience functions, you have to call
-`spn_ctx_clean()` if this function returns an error (non-zero).
-
     int spn_ctx_callfunc(
         SpnContext *ctx,
         SpnValue *func,
@@ -255,8 +249,6 @@ Similarly to the previous three convenience functions, you have to call
         int argc,
         SpnValue argv[]
     );
-
-    void spn_ctx_clean(SpnContext *ctx);
 
     void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[]);
 
@@ -270,17 +262,11 @@ Similarly to the previous three convenience functions, you have to call
 
     SpnArray *spn_ctx_getglobals(SpnContext *ctx);
 
-These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_clean()`,
-`spn_vm_seterrmsg()`, `spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()`,
-`spn_vm_addlib_values()` and `spn_vm_getglobals()`, respectively, on `ctx->vm`.
+These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_seterrmsg()`,
+`spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()`, `spn_vm_addlib_values()` and
+`spn_vm_getglobals()`, respectively, on `ctx->vm`.
 
-**Warnings:**
-
-1. If `spn_ctx_callfunc()` returns non-zero, then, after handing the error,
-you must clean the context with `spn_ctx_clean()`. (Of course, this only
-applies to the top-level call to `spn_ctx_callfunc()`, so if you call it
-from within a native extension function, you must not call `spn_ctx_clean()`.)
-2. The array returned by `spn_ctx_getglobals()` is read-only. See
+**Warning:** The array returned by `spn_ctx_getglobals()` is read-only. See
 the notice and comments above `spn_vm_getglobals()` in `vm.h` for details.
 
 Writing native extension functions

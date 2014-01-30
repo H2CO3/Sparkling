@@ -312,11 +312,7 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	fp = argv[0].v.ptrv;
 	n = argv[1].v.intv;
 
-	buf = malloc(n + 1);
-	if (buf == NULL) {
-		abort();
-	}
-
+	buf = spn_malloc(n + 1);
 	buf[n] = 0;
 
 	if (fread(buf, n, 1, fp) != 1) {
@@ -659,11 +655,7 @@ static int rtlb_aux_substr(SpnValue *ret, SpnString *str, long begin, long lengt
 		return -3;
 	}
 
-	buf = malloc(length + 1);
-	if (buf == NULL) {
-		abort();
-	}
-
+	buf = spn_malloc(length + 1);
 	memcpy(buf, str->cstr + begin, length);
 	buf[length] = 0;
 
@@ -796,10 +788,7 @@ static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	while (1) {
 		const char *p = t != NULL ? t : haystack->cstr + haystack->len;
 		size_t len = p - s;
-		char *buf = malloc(len + 1);
-		if (buf == NULL) {
-			abort();
-		}
+		char *buf = spn_malloc(len + 1);
 
 		memcpy(buf, s, len);
 		buf[len] = 0;
@@ -850,10 +839,7 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	n = argv[1].v.intv;
 	len = str->len * n;
 
-	buf = malloc(len + 1);
-	if (buf == NULL) {
-		abort();
-	}
+	buf = spn_malloc(len + 1);
 
 	for (i = 0; i < n; i++) {
 		memcpy(buf + i * str->len, str->cstr, str->len);
@@ -888,12 +874,9 @@ static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, Spn
 	str = argv[0].v.ptrv;
 	p = str->cstr;
 
-	buf = malloc(str->len + 1);
-	if (buf == NULL) {
-		abort();
-	}
-
+	buf = spn_malloc(str->len + 1);
 	s = buf;
+
 	while (*p) {
 		*s++ = upc ? toupper(*p++) : tolower(*p++);
 	}
@@ -1138,10 +1121,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		str = val.v.ptrv;
 		addlen = i > 0 ? delim->len + str->len : str->len;
 
-		buf = realloc(buf, len + addlen + 1);
-		if (buf == NULL) {
-			abort();
-		}
+		buf = spn_realloc(buf, len + addlen + 1);
 
 		if (i > 0) {
 			memcpy(buf + len, delim->cstr, delim->len);
@@ -1305,10 +1285,24 @@ static double rtlb_aux_log2(double x)
 	return log(x) / M_LN2;
 }
 
-/* rounding */
+/* round half away from zero correctly; stolen from glibc */
 static double rtlb_aux_round(double x)
 {
-	return floor(x + 0.5);
+	double y;
+
+	if (x >= 0) {
+		y = floor(x);
+		if (x - y >= 0.5) {
+			y += 1.0;
+		}
+	} else {
+		y = ceil(x);
+		if (y - x >= 0.5) {
+			y -= 1.0;
+		}
+	}
+
+	return y;
 }
 
 static int rtlb_aux_intize(SpnValue *ret, int argc, SpnValue *argv, SpnContext *ctx, double (*fn)(double))
@@ -2634,10 +2628,7 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 
-	buf = malloc(RTLB_STRFTIME_BUFSIZE);
-	if (buf == NULL) {
-		abort();
-	}
+	buf = spn_malloc(RTLB_STRFTIME_BUFSIZE);
 
 	/* actually do the formatting */
 	len = strftime(buf, RTLB_STRFTIME_BUFSIZE, fmt->cstr, &ts);

@@ -6,16 +6,28 @@ BUILD ?= debug
 READLINE ?= 1
 
 OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
+ARCH = $(shell uname -p | tr '[[:upper:]]' '[[:lower:]]')
 
 ifeq ($(OPSYS), darwin)
-CC = clang -isysroot /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk
-EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter
-LDFLAGS = -w
-LTO_FLAG = -flto
+	ifeq ($(ARCH), arm)
+		SYSROOT = /var/mobile/iPhoneOS6.1.sdk
+	else
+		SYSROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk
+	endif
+
+	CC = clang
+	CFLAGS = -isysroot $(SYSROOT)
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter
+	LDFLAGS = -isysroot $(SYSROOT) -w
+	DYNLDFLAGS = -isysroot $(SYSROOT) -w -dynamiclib
+	LTO_FLAG = -flto
+	DYNEXT = dylib
 else
-CC = gcc
-EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter
-LIBS = -lm
+	CC = gcc
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter
+	LIBS = -lm
+	DYNLDFLAGS = -lm -shared
+	DYNEXT = so
 endif
 
 LD = $(CC)
@@ -25,7 +37,7 @@ OBJDIR = bld
 DSTDIR ?= /usr/local
 
 WARNINGS = -Wall -Wextra -Werror $(EXTRA_WARNINGS)
-CFLAGS = -c -std=c89 -pedantic -pedantic-errors -fstrict-aliasing $(WARNINGS) $(DEFINES)
+CFLAGS += -c -std=c89 -pedantic -pedantic-errors -fpic -fstrict-aliasing $(WARNINGS) $(DEFINES)
 
 ifneq ($(READLINE), 0)
 	DEFINES += -DUSE_READLINE=1
@@ -37,27 +49,34 @@ endif
 ifeq ($(BUILD), debug)
 	CFLAGS += -O0 -g -pg -DDEBUG
 	LDFLAGS += -O0 -g -pg
+	DYNLDFLAGS += -O0 -g -pg
 else
 	CFLAGS += -O2 -DNDEBUG $(LTO_FLAG)
 	LDFLAGS += -O2 $(LTO_FLAG)
+	DYNLDFLAGS += -O2 $(LTO_FLAG)
 endif
 
 OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))
 
 LIB = $(OBJDIR)/libspn.a
+DYNLIB = $(OBJDIR)/libspn.$(DYNEXT)
 REPL = $(OBJDIR)/spn
 
-all: $(LIB) $(REPL)
+all: $(LIB) $(DYNLIB) $(REPL)
 
 $(LIB): $(OBJECTS)
 	ar -cvr $@ $^
 
-$(REPL): spn.o $(LIB)
+$(DYNLIB): $(OBJECTS)
+	$(LD) -o $@ $^ $(DYNLDFLAGS)
+
+$(REPL): spn.o $(OBJECTS)
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
-install: $(LIB) $(REPL)
+install: all
 	mkdir -p $(DSTDIR)/lib/
 	cp $(LIB) $(DSTDIR)/lib/
+	cp $(DYNLIB) $(DSTDIR)/lib/
 	mkdir -p $(DSTDIR)/include/spn/
 	cp $(SRCDIR)/*.h $(DSTDIR)/include/spn/
 	mkdir -p $(DSTDIR)/bin/
@@ -71,7 +90,7 @@ spn.o: spn.c
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 clean:
-	rm -f $(OBJECTS) $(LIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
+	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
 
 .PHONY: all install clean
 

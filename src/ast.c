@@ -15,10 +15,7 @@
 
 SpnAST *spn_ast_new(enum spn_ast_node node, unsigned long lineno)
 {
-	SpnAST *ast = malloc(sizeof(*ast));
-	if (ast == NULL) {
-		abort();
-	}
+	SpnAST *ast = spn_malloc(sizeof(*ast));
 
 	ast->node	= node;
 	ast->value.t	= SPN_TYPE_NIL;

@@ -9,6 +9,7 @@
  */
 
 #include "ctx.h"
+#include "private.h"
 
 
 struct SpnContext {
@@ -28,10 +29,7 @@ static void free_bytecode_list(struct spn_bc_list *head);
 
 SpnContext *spn_ctx_new()
 {
-	SpnContext *ctx = malloc(sizeof(*ctx));
-	if (ctx == NULL) {
-		abort();
-	}
+	SpnContext *ctx = spn_malloc(sizeof(*ctx));
 
 	ctx->parser  = spn_parser_new();
 	ctx->cmp     = spn_compiler_new();
@@ -236,11 +234,6 @@ const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
 	return spn_vm_stacktrace(ctx->vm, size);
 }
 
-void spn_ctx_clean(SpnContext *ctx)
-{
-	spn_vm_clean(ctx->vm);
-}
-
 void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc fns[], size_t n)
 {
 	spn_vm_addlib_cfuncs(ctx->vm, libname, fns, n);
@@ -261,10 +254,7 @@ SpnArray *spn_ctx_getglobals(SpnContext *ctx)
 
 static void prepend_bytecode_list(SpnContext *ctx, spn_uword *bc, size_t len)
 {
-	struct spn_bc_list *node = malloc(sizeof(*node));
-	if (node == NULL) {
-		abort();
-	}
+	struct spn_bc_list *node = spn_malloc(sizeof(*node));
 
 	node->bc = bc;
 	node->len = len;

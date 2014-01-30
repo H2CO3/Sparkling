@@ -113,7 +113,7 @@ struct SpnVMachine {
 	size_t		 lscount;	/* number of the local symtabs	*/
 
 	char		*errmsg;	/* last (runtime) error message	*/
-	int		 ishandled;	/* last error already handled?	*/
+	int		 haserror;	/* an error occurred		*/
 	void		*ctx;		/* context info, use at will	*/
 };
 
@@ -207,10 +207,7 @@ static void free_local_symtab(TSymtab *symtab)
 
 SpnVMachine *spn_vm_new()
 {
-	SpnVMachine *vm = malloc(sizeof(*vm));
-	if (vm == NULL) {
-		abort();
-	}
+	SpnVMachine *vm = spn_malloc(sizeof(*vm));
 
 	/* initialize stack */
 	vm->stackallsz = 0;
@@ -224,7 +221,7 @@ SpnVMachine *spn_vm_new()
 
 	/* set up error reporting and context info */
 	vm->errmsg = NULL;
-	vm->ishandled = 0;
+	vm->haserror = 0;
 	vm->ctx = NULL;
 
 	return vm;
@@ -262,7 +259,7 @@ const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 
 	TSlot *sp = vm->sp;
 
-	/* handle empty stack */
+	/* handle uninitialized stack */
 	if (sp == NULL) {
 		*size = 0;
 		return NULL;
@@ -276,10 +273,7 @@ const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 	}
 
 	/* allocate buffer */
-	buf = malloc(i * sizeof(*buf));
-	if (buf == NULL) {
-		abort();
-	}
+	buf = spn_malloc(i * sizeof(*buf));
 
 	*size = i;
 
@@ -308,22 +302,27 @@ static void free_frames(SpnVMachine *vm)
 	}
 }
 
-void spn_vm_clean(SpnVMachine *vm)
+static void clean_vm_if_needed(SpnVMachine *vm)
 {
-	/* releases values in stack frames from the previous execution.
-	 * This is not done immediately after the dispatch loop because if
-	 * a runtime error occurs, we want the backtrace functions to
-	 * be able to unwind the stack.
-	 */
-	free_frames(vm);
+	if (vm->haserror) {
+		/* releases values in stack frames from the previous execution.
+		 * This is not done immediately after the dispatch loop,
+		 * because if a runtime error occurs, we want the backtrace
+		 * functions to be able to unwind the stack.
+		 */
+		free_frames(vm);
 
-	/* clear the "last error is handled" flag */
-	vm->ishandled = 0;
+		/* clear the "there was an error" flag */
+		vm->haserror = 0;
+	}
 }
 
 int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval)
 {
 	spn_uword *ip;
+
+	/* clean up after a previous program having thrown a runtime error */
+	clean_vm_if_needed(vm);
 
 	/* check bytecode for magic bytes */
 	if (validate_magic(vm, bc) != 0) {
@@ -354,6 +353,11 @@ int spn_vm_callfunc(
 	struct args_copy_descriptor desc;
 	spn_uword *fnhdr;
 	spn_uword *entry;
+
+	/* if this is the first call after the execution of a program
+	 * in which an error occurred, unwind the stack automagically
+	 */
+	clean_vm_if_needed(vm);
 
 	/* ensure that the callee is indeed a function */
 	if (fn->t != SPN_TYPE_FUNC) {
@@ -480,14 +484,18 @@ void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, SpnExtValue vals
 	}
 }
 
-/* ip == NULL indicates an error in native code */
+/* ip == NULL indicates an error in native code
+ * Apart from creating an error message, this function also sets
+ * the `haserror` flag, which is essential for the stack trace
+ * and function calling mechanisms to work.
+ */
 static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const void *args[])
 {
 	char *prefix, *msg;
 	size_t prefix_len, msg_len;
 
-	/* self-protection */
-	if (vm->ishandled) {
+	/* self-protection: don't overwrite previous error message */
+	if (vm->haserror) {
 		return;
 	}
 
@@ -511,11 +519,7 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 	msg = spn_string_format_cstr(fmt, &msg_len, args);
 
 	free(vm->errmsg);
-	vm->errmsg = malloc(prefix_len + msg_len + 1);
-
-	if (vm->errmsg == NULL) {
-		abort();
-	}
+	vm->errmsg = spn_malloc(prefix_len + msg_len + 1);
 
 	strcpy(vm->errmsg, prefix);
 	strcpy(vm->errmsg + prefix_len, msg);
@@ -524,7 +528,7 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 	free(msg);
 
 	/* self-protection */
-	vm->ishandled = 1;
+	vm->haserror = 1;
 }
 
 const char *spn_vm_geterrmsg(SpnVMachine *vm)
@@ -567,10 +571,7 @@ static void expand_stack(SpnVMachine *vm, size_t nregs)
 		vm->stackallsz <<= 1;
 	}
 
-	vm->stack = realloc(vm->stack, vm->stackallsz * sizeof(vm->stack[0]));
-	if (vm->stack == NULL) {
-		abort();
-	}
+	vm->stack = spn_realloc(vm->stack, vm->stackallsz * sizeof(vm->stack[0]));
 
 	/* re-initialize stack pointer because we realloc()'d the stack */
 	vm->sp = vm->stack + oldsize;
@@ -867,10 +868,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 				/* allocate a big enough array for the arguments */
 				if (argc > MAX_AUTO_ARGC) {
-					argv = malloc(argc * sizeof(argv[0]));
-					if (argv == NULL) {
-						abort();
-					}
+					argv = spn_malloc(argc * sizeof(argv[0]));
 				} else {
 					argv = auto_argv;
 				}
@@ -920,6 +918,9 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
 					return err;
 				}
+
+				/* should not return success after an error */
+				assert(vm->haserror == 0);
 
 				/* pop pseudo-frame */
 				pop_frame(vm);
@@ -1634,7 +1635,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			bodylen = hdr[SPN_FUNCHDR_IDX_BODYLEN];
 
 			/* sanity check: argc <= nregs is a must (else how
-			 * arguments could fit in the first `argc` registers?)
+			 * could arguments fit in the first `argc` registers?)
 			 */
 			assert(hdr[SPN_FUNCHDR_IDX_ARGC] <= hdr[SPN_FUNCHDR_IDX_NREGS]);
 
@@ -1784,20 +1785,13 @@ static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 	 */
 	lsidx = vm->lscount++;
 
-	vm->lsymtabs = realloc(vm->lsymtabs, vm->lscount * sizeof(vm->lsymtabs[0]));
-	if (vm->lsymtabs == NULL) {
-		abort();
-	}
+	vm->lsymtabs = spn_realloc(vm->lsymtabs, vm->lscount * sizeof(vm->lsymtabs[0]));
 
 	/* initialize new local symbol table */
 	cursymtab = &vm->lsymtabs[lsidx];
 	cursymtab->bc = bc;
 	cursymtab->size = symcount;
-	cursymtab->vals = malloc(symcount * sizeof(cursymtab->vals[0]));
-
-	if (cursymtab->vals == NULL) {
-		abort();
-	}
+	cursymtab->vals = spn_malloc(symcount * sizeof(cursymtab->vals[0]));
 
 	/* then actually read the symbols */
 	for (i = 0; i < symcount; i++) {

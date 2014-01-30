@@ -83,11 +83,7 @@ SpnString *spn_string_new_nocopy(const char *cstr, int dealloc)
 
 SpnString *spn_string_new_len(const char *cstr, size_t len)
 {
-	char *buf = malloc(len + 1);
-	if (buf == NULL) {
-		abort();
-	}
-
+	char *buf = spn_malloc(len + 1);
 	memcpy(buf, cstr, len); /* so that strings can hold binary data */
 	buf[len] = 0;
 
@@ -110,11 +106,7 @@ SpnString *spn_string_concat(SpnString *lhs, SpnString *rhs)
 {
 	size_t len = lhs->len + rhs->len;
 
-	char *buf = malloc(len + 1);
-	if (buf == NULL) {
-		abort();
-	}
-
+	char *buf = spn_malloc(len + 1);
 	strcpy(buf, lhs->cstr);
 	strcpy(buf + lhs->len, rhs->cstr);
 
@@ -135,11 +127,7 @@ static void init_builder(struct string_builder *bld)
 {
 	bld->len = 0;
 	bld->allocsz = 0x10;
-	bld->buf = malloc(bld->allocsz);
-
-	if (bld->buf == NULL) {
-		abort();
-	}
+	bld->buf = spn_malloc(bld->allocsz);
 }
 
 static void expand_buffer(struct string_builder *bld, size_t extra)
@@ -149,10 +137,7 @@ static void expand_buffer(struct string_builder *bld, size_t extra)
 			bld->allocsz <<= 1;
 		}
 
-		bld->buf = realloc(bld->buf, bld->allocsz);
-		if (bld->buf == NULL) {
-			abort();
-		}
+		bld->buf = spn_realloc(bld->buf, bld->allocsz);
 	}
 }
 
@@ -650,13 +635,10 @@ static int append_format(
 			len = args->width;
 		}
 
-		buf = malloc(len);
-		if (buf == NULL) {
-			abort();
-		}
-
+		buf = spn_malloc(len);
 		end = buf + len;
 		begin = ulong2str(end, u, base, args->width, flags);
+
 		assert(buf <= begin);
 		append_string(bld, begin, end - begin);
 		free(buf);
@@ -774,13 +756,10 @@ static int append_format(
 			len = args->width;
 		}
 
-		buf = malloc(len);
-		if (buf == NULL) {
-			abort();
-		}
-
+		buf = spn_malloc(len);
 		end = buf + len;
 		begin = double2str(end, x, args->width, prec, flags);
+
 		assert(buf <= begin);
 		append_string(bld, begin, end - begin);
 		free(buf);

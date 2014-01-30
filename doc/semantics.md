@@ -159,10 +159,10 @@ The empty statement is a no-op, it does nothing.
 §2.11.1. The variable declaration statement brings a variable in scope. The
 variable can be accessed inside the current scope and enclosing scopes (as
 described in §1.6), but only in statements and expressions following the
-declaration. It is illegal to initialize a variable with an expression referring
-to itself (due to an implementation detail, such a variable will have an
-indeterminate value). If there is no initializer expression, the variable is
-implicitly initialized with `nil`.
+declaration. The variable is alive from the point where its identifier appears,
+and its value is initially `nil`. If there is an initializer expression, then
+it is evaluated and assigned to the variable. (Note: thus all of the
+statements `var x;`, `var x = nil;` and `var x = x;` mean the same thing).
 
 §2.11.2. It is illegal to declare a variable that has the name of a variable
 which already exists (which is already visible) in a scope.

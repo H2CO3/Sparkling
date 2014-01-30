@@ -15,6 +15,7 @@
 #include <assert.h>
 
 #include "array.h"
+#include "private.h"
 
 #if UINT_MAX <= 0xffff
 #define SPN_LOW_MEMORY_PLATFORM 1
@@ -261,10 +262,7 @@ void spn_array_remove(SpnArray *arr, SpnValue *key)
 
 SpnIterator *spn_iter_new(SpnArray *arr)
 {
-	SpnIterator *it = malloc(sizeof(*it));
-	if (it == NULL) {
-		abort();
-	}
+	SpnIterator *it = spn_malloc(sizeof(*it));
 
 	it->arr = arr;
 	it->idx = 0;
@@ -364,10 +362,7 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
  */
 static TList *list_prepend(TList *head, SpnValue *key, SpnValue *val)
 {
-	TList *node = malloc(sizeof(*node));
-	if (node == NULL) {
-		abort();
-	}
+	TList *node = spn_malloc(sizeof(*node));
 
 	node->pair.key = *key;
 	node->pair.val = *val;
@@ -443,10 +438,7 @@ static void expand_array_if_needed(SpnArray *arr, unsigned long idx)
 	}
 
 	/* ask the OS to do its job */
-	arr->arr = realloc(arr->arr, sizeof(arr->arr[0]) * arr->arrallsz);
-	if (arr->arr == NULL) {
-		abort();
-	}
+	arr->arr = spn_realloc(arr->arr, sizeof(arr->arr[0]) * arr->arrallsz);
 
 	/* and fill all the not-yet-existent fields with nil */
 	for (i = prevsz; i < arr->arrallsz; i++) {
@@ -505,10 +497,7 @@ static void expand_hash(SpnArray *arr)
 
 	/* expand the bucket vector */
 	newsz = nthsize(arr->hashszidx);
-	new_buckets = malloc(sizeof(new_buckets[0]) * newsz);
-	if (new_buckets == NULL) {
-		abort();
-	}
+	new_buckets = spn_malloc(sizeof(new_buckets[0]) * newsz);
 
 	for (i = 0; i < newsz; i++) {
 		new_buckets[i] = NULL;

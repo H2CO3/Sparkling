@@ -32,8 +32,17 @@
 #define OPMID(i)	(((i) >> 16) & 0x0000ffff)
 #define OPLONG(i)	(((i) >>  8) & 0x00ffffff)
 
+/* maximal number of registers per stack frame in the VM. Do not change
+ * or hell breaks loose -- the instruction format depends on this.
+ */
+#define MAX_REG_FRAME	256
+
 /* this is a common function so that the disassembler can use it too */
 SPN_API int nth_arg_idx(spn_uword *ip, int idx);
+
+/* "safe" allocator functions */
+SPN_API void *spn_malloc(size_t n);
+SPN_API void *spn_realloc(void *p, size_t n);
 
 #endif /* SPN_PRIVATE_H */
 

@@ -59,7 +59,6 @@ SPN_API int		  spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *re
 SPN_API int		  spn_ctx_callfunc(SpnContext *ctx, SpnValue *func, SpnValue *ret, int argc, SpnValue argv[]);
 SPN_API void		  spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[]);
 SPN_API const char	**spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
-SPN_API void		  spn_ctx_clean(SpnContext *ctx);
 
 SPN_API void		  spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc fns[], size_t n);
 SPN_API void		  spn_ctx_addlib_values(SpnContext *ctx, const char *libname, SpnExtValue vals[], size_t n);

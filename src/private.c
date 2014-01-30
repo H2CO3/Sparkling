@@ -8,6 +8,8 @@
  * Private parts of the Sparkling API
  */
 
+#include <stdlib.h>
+
 #include "private.h"
 
 int nth_arg_idx(spn_uword *ip, int idx)
@@ -19,5 +21,27 @@ int nth_arg_idx(spn_uword *ip, int idx)
 	int regidx = (word >> shift) & 0xff;
 
 	return regidx;
+}
+
+void *spn_malloc(size_t n)
+{
+	void *ptr = malloc(n);
+
+	if (ptr == NULL) {
+		abort();
+	}
+
+	return ptr;
+}
+
+void *spn_realloc(void *ptr, size_t n)
+{
+	void *ret = realloc(ptr, n);
+
+	if (ret == NULL) {
+		abort();
+	}
+
+	return ret;
 }
 
