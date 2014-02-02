@@ -135,8 +135,8 @@ enum spn_ast_node {
 	SPN_NODE_NTHARG,	/* n-th unnamed function argument */
 
 	/* postfix unary */
-	SPN_NODE_POSTINCRMT,								/* XXX not done for arrays */
-	SPN_NODE_POSTDECRMT,								/* XXX not done for arrays */
+	SPN_NODE_POSTINCRMT,
+	SPN_NODE_POSTDECRMT,
 	SPN_NODE_ARRSUB,
 	SPN_NODE_MEMBEROF,	/* syntactic sugar for simulating OO */
 	SPN_NODE_FUNCCALL,

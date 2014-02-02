@@ -107,7 +107,9 @@ This function is similar to `spn_vm_addlib_cfuncs()`, but it accepts any valid
 This functions gives access to the global symbols currently registered with
 the virtual machine. This comes handy when one wants to call a function with
 a specific name: given a name, it is possible to get an `SpnValue` out of
-the array that corresponds to the function with the specified name.
+the array that corresponds to the function with the specified name. It is
+also possible to set (add or replace) a global constant using the C api.
+That should be done very carefully, though.
 
 **Important: this array is read-only. Do NOT modify it.** Only call the
 `spn_array_get()` function on it in order to retrieve the values. (you can
@@ -200,7 +202,7 @@ If you need user info (e. g. from within an extension function), use the
 
 These functions return the type and description of the last error that occurred
 in the context. If no error occurred, the error type is `SPN_ERROR_OK`, and
-int this case, the description is a `NULL` pointer.
+in this case, the description is a `NULL` pointer.
 
     spn_uword *spn_ctx_loadstring(SpnContext *ctx, const char *str);
     spn_uword *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname);
@@ -265,9 +267,6 @@ success and nonzero on error, in which case, it sets an error message.
 These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_seterrmsg()`,
 `spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()`, `spn_vm_addlib_values()` and
 `spn_vm_getglobals()`, respectively, on `ctx->vm`.
-
-**Warning:** The array returned by `spn_ctx_getglobals()` is read-only. See
-the notice and comments above `spn_vm_getglobals()` in `vm.h` for details.
 
 Writing native extension functions
 ----------------------------------

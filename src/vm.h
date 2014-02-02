@@ -83,10 +83,6 @@ SPN_API const char	**spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
 
 /* this returns an array that contains the global constants and functions.
  * the keys are symbol names (SpnString instances).
- * DO NOT MODIFY THIS ARRAY IN ANY WAY. Only read from it (you may retain
- * the keys and values and balance the retains with releases as necessary,
- * bot do not alter the values themselves). Only call `spn_array_get()`
- * on the returned array, and **NEVER** use `spn_array_set()`.
  * The returned pointer is non-owning: the result of a call to this function
  * is only valid as long as the virtual machine `vm' is itself alive as well.
  */
