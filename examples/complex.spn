@@ -6,12 +6,12 @@
 
 function cfmt(z)
 {
-	return fmtstring("(%.3f %+.3fi)", z.re, z.im);
+	return fmtstr("(%.3f %+.3fi)", z.re, z.im);
 }
 
 function pfmt(z)
 {
-	return fmtstring("%.3f * (cos %.3f + i sin %.3f)", z.r, z.theta, z.theta);
+	return fmtstr("%.3f * (cos %.3f + i sin %.3f)", z.r, z.theta, z.theta);
 }
 
 var z1 = { "re": 1, "im": -1 };

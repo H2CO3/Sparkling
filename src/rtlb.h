@@ -30,7 +30,7 @@ SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
  * indexof(), substr(), substrto(), substrfrom()
  * split(), repeat()
  * tolower(), toupper()
- * fmtstring()
+ * fmtstr()
  * tonumber(), toint(), tofloat()
  */
 #define SPN_LIBSIZE_STRING 12

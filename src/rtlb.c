@@ -900,7 +900,7 @@ static int rtlb_toupper(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_trcase(ret, argc, argv, 1, ctx);
 }
 
-static int rtlb_fmtstring(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_fmtstr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *fmt;
 	SpnString *res;
@@ -1024,7 +1024,7 @@ const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
 	{ "repeat",	rtlb_repeat	},
 	{ "tolower",	rtlb_tolower	},
 	{ "toupper",	rtlb_toupper	},
-	{ "fmtstring",	rtlb_fmtstring	},
+	{ "fmtstr",	rtlb_fmtstr	},
 	{ "tonumber",	rtlb_tonumber	},
 	{ "toint",	rtlb_toint	},
 	{ "tofloat",	rtlb_tofloat	},

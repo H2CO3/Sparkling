@@ -36,6 +36,7 @@ other tokens):
 - `false`
 - `for`
 - `function`
+- `global`
 - `if`
 - `nil`
 - `not`
@@ -72,13 +73,19 @@ English letter  (`a...z`, `A...Z`) or with an underscore (`_`), then any of
 ## Constants
 
 Constants can be declared and initialized at file scope only, using the `const`
-keyword. It is obligatory to initialize a constant. It is also obligatory for
-the initializer expression to be non-`nil` (initializing a constant to `nil`
-will result in a runtime error).
+or `global` keyword. It is obligatory to initialize a constant. It is also
+obligatory for the initializer expression to be non-`nil` (initializing a
+constant to `nil` will result in a runtime error).
 
     const E_SQUARED = exp(2);
     
     const my_number = 1 + 2, my_string = "foobar";
+
+    global myLibrary = {
+        "foo": function() {
+                   print("foo");
+               }
+    };
 
 ## Numbers
 

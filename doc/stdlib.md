@@ -177,7 +177,7 @@ Concatenates `str` with itself `n` times and returns the result.
 These return a copy of `str` with all alphabetical characters changed to
 lower- or uppercase, respectively.
 
-    string fmtstring(string format, ...)
+    string fmtstr(string format, ...)
 
 Works the same way as `printf()`, but instead of printing to stdout, it returns
 the whole formatted string.

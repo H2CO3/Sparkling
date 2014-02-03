@@ -67,7 +67,7 @@ statement			= empty-statement		|
 
 function-statement		= 'function' IDENT '(' argument-declaration-list ')' block-statement
 
-const-statement			= 'const' IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
+const-statement			= ( 'const' | 'global' ) IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
 
 empty-statement			= ';'
 
@@ -77,7 +77,7 @@ loop-statement			= for-statement		|
 				  while-statement	|
 				  do-while-statement
 
-for-statement			= 'for' (variable-declaration | expression) ';' expression ';' expression block-statement
+for-statement			= 'for' ( variable-declaration | expression ';' ) expression ';' expression block-statement
 
 while-statement			= 'while' expression block-statement
 
@@ -177,16 +177,17 @@ literal				= STRING	|
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		false		or
-argc		for		return
-break		function	sizeof
-const		if		true
-continue	nil		typeof
-do		not		var
-else		null		while
+and		else		if		sizeof
+argc		false		nil		true
+break		for		not		typeof
+const		function	null		var
+continue	global		or		while
+do				return
+
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
-tokens, respectively. Furthermore, 'null' is the same as 'nil'.
+tokens, respectively. Furthermore, 'null' is the same as 'nil', and 'global'
+is the same as 'const'.
 
 Literal tokens:
 ~~~~~~~~~~~~~~~
