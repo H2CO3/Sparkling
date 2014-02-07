@@ -231,6 +231,10 @@ The context info is an optional argument. The callback function must return
 `nil` or a Boolean. If it returns `false`, the enumeration is aborted and the
 `foreach()` function returns.
 
+**Warning:** it is illegal to modify an array while it is being enumerated.
+(If multiple `SpnIterator`s are used with the same array, the array must not
+be modified while any of the iterators is used.)
+
 4. Real, integer and complex mathematical functions (spn_libmath)
 -----------------------------------------------------------------
 Function names are self-explanatory. A. k. a., "nobody ain't no time for

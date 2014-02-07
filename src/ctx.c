@@ -27,7 +27,7 @@ struct SpnContext {
 static void prepend_bytecode_list(SpnContext *ctx, spn_uword *bc, size_t len);
 static void free_bytecode_list(struct spn_bc_list *head);
 
-SpnContext *spn_ctx_new()
+SpnContext *spn_ctx_new(void)
 {
 	SpnContext *ctx = spn_malloc(sizeof(*ctx));
 
@@ -210,7 +210,7 @@ int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret)
 
 /* abstraction (well, sort of) of the virtual machine API */
 
-int spn_ctx_callfunc(SpnContext *ctx, SpnValue *func, SpnValue *ret, int argc, SpnValue argv[])
+int spn_ctx_callfunc(SpnContext *ctx, const SpnValue *func, SpnValue *ret, int argc, SpnValue argv[])
 {
 	int status;
 
@@ -239,7 +239,7 @@ void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFun
 	spn_vm_addlib_cfuncs(ctx->vm, libname, fns, n);
 }
 
-void spn_ctx_addlib_values(SpnContext *ctx, const char *libname, SpnExtValue vals[], size_t n)
+void spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtValue vals[], size_t n)
 {
 	spn_vm_addlib_values(ctx->vm, libname, vals, n);
 }

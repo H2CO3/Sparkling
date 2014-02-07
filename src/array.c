@@ -16,6 +16,8 @@
 
 #include "array.h"
 #include "private.h"
+#include "str.h"
+
 
 #if UINT_MAX <= 0xffff
 #define SPN_LOW_MEMORY_PLATFORM 1
@@ -106,18 +108,18 @@ static const SpnClass spn_class_array = {
 };
 
 
-static TList *list_prepend(TList *head, SpnValue *key, SpnValue *val);
+static TList *list_prepend(TList *head, const SpnValue *key, const SpnValue *val);
 static KVPair *list_find(TList *head, const SpnValue *key);
 static TList *list_delete_releasing(TList *head, const SpnValue *key);
 static void list_free_releasing(TList *head);
 
 
 static void expand_array_if_needed(SpnArray *arr, unsigned long idx);
-static void insert_and_update_count_array(SpnArray *arr, unsigned long idx, SpnValue *val);
+static void insert_and_update_count_array(SpnArray *arr, unsigned long idx, const SpnValue *val);
 static void expand_hash(SpnArray *arr);
-static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue *val);
+static void insert_and_update_count_hash(SpnArray *arr, const SpnValue *key, const SpnValue *val);
 
-SpnArray *spn_array_new()
+SpnArray *spn_array_new(void)
 {
 	SpnArray *arr = spn_object_new(&spn_class_array);
 
@@ -148,7 +150,6 @@ static void free_array(void *obj)
 	}
 
 	free(arr->buckets);
-	free(arr);
 }
 
 size_t spn_array_count(SpnArray *arr)
@@ -163,37 +164,32 @@ void spn_array_get(SpnArray *arr, const SpnValue *key, SpnValue *val)
 	unsigned long hash;
 	TList *list;
 	KVPair *hit;
-	
-	/* integer key of which the value fits into the array part */
-	if (key->t == SPN_TYPE_NUMBER) {
-		if (key->f & SPN_TFLG_FLOAT) {
-			long i = key->v.fltv;
-			if (key->v.fltv == i /* int disguised as a float */
-			 && 0 <= i
-			 && i < ARRAY_MAXSIZE) {
-				size_t uidx = i; /* silence -Wsign-compare */
-			 	if (uidx < arr->arrallsz) {
-			 		 *val = arr->arr[i];
-			 	} else {
-			 		val->t = SPN_TYPE_NIL;
-			 		val->f = 0;
-			 	}
 
-				return;
+	/* integer key of which the value fits into the array part */
+	if (isfloat(key)) {
+		long i = floatvalue(key);
+		/* int disguised as a float */
+		if (floatvalue(key) == i && 0 <= i && i < ARRAY_MAXSIZE) {
+			size_t uidx = i; /* silence -Wsign-compare */
+		 	if (uidx < arr->arrallsz) {
+		 		*val = arr->arr[i];
+		 	} else {
+		 		*val = makenil();
+		 	}
+
+			return;
+		}
+	} else if (isint(key)) {
+		long i = intvalue(key);
+		if (0 <= i && i < ARRAY_MAXSIZE) {
+			size_t uidx = i; /* silence -Wsign-compare */
+			if (uidx < arr->arrallsz) {
+				*val = arr->arr[i];
+			} else {
+				*val = makenil();
 			}
-		} else {
-			long i = key->v.intv;
-			if (0 <= i && i < ARRAY_MAXSIZE) {
-				size_t uidx = i; /* silence -Wsign-compare */
-				if (uidx < arr->arrallsz) {
-					*val = arr->arr[i];
-				} else {
-					val->t = SPN_TYPE_NIL;
-					val->f = 0;
-				}
-				
-				return;
-			}
+
+			return;
 		}
 	}
 
@@ -201,8 +197,7 @@ void spn_array_get(SpnArray *arr, const SpnValue *key, SpnValue *val)
 
 	/* if the hash table is empty, it cannot contain any value at all */
 	if (nthsize(arr->hashszidx) == 0) {
-		val->t = SPN_TYPE_NIL;
-		val->f = 0;
+		*val = makenil();
 		return;
 	}
 
@@ -217,46 +212,71 @@ void spn_array_get(SpnArray *arr, const SpnValue *key, SpnValue *val)
 	if (hit != NULL) {
 		*val = hit->val;
 	} else {
-		val->t = SPN_TYPE_NIL;
-		val->f = 0;
+		*val = makenil();
 	}
 }
 
-void spn_array_set(SpnArray *arr, SpnValue *key, SpnValue *val)
+void spn_array_set(SpnArray *arr, const SpnValue *key, const SpnValue *val)
 {
 	/* integer key of which the value fits into the array part */
-	if (key->t == SPN_TYPE_NUMBER) {
-		if (key->f & SPN_TFLG_FLOAT) {
-			long i = key->v.fltv;	/* truncate */
-			if (key->v.fltv == i	/* is it actually an integer? */
-			 && 0 <= i			/* fits into array part? */
-			 && i < ARRAY_MAXSIZE) {
-				insert_and_update_count_array(arr, i, val);
-				return;
-			}
-		} else {
-			long i = key->v.intv;
-			if (0 <= i && i < ARRAY_MAXSIZE) { /* fits into array part? */
-				insert_and_update_count_array(arr, i, val);
-				return;
-			}
+	if (isfloat(key)) {
+		long i = floatvalue(key);	/* is it actually an integer? */
+		if (floatvalue(key) == i && 0 <= i && i < ARRAY_MAXSIZE) {
+			insert_and_update_count_array(arr, i, val);
+			return;
+		}
+	} else if (isint(key)) {
+		long i = intvalue(key);
+		if (0 <= i && i < ARRAY_MAXSIZE) { /* fits into array part? */
+			insert_and_update_count_array(arr, i, val);
+			return;
 		}
 	}
 
+
 	/* if they key is neither an integer that fits into the array part,
 	 * nor an integer disguised as a float which fits into the array part
-	 * (i. e. it's negative, too large, nil, boolean, a function
-	 * or an object), then it's inserted into the hash table part instead.
+	 * (i. e. it's negative, too large, nil, boolean, or an object),
+	 * then it's inserted into the hash table part instead.
 	 */
 
 	insert_and_update_count_hash(arr, key, val);
 }
 
-void spn_array_remove(SpnArray *arr, SpnValue *key)
+/* convenience API */
+
+void spn_array_remove(SpnArray *arr, const SpnValue *key)
 {
-	SpnValue nilval = { SPN_TYPE_NIL, 0, { 0 } };
+	const SpnValue nilval = makenil();
 	spn_array_set(arr, key, &nilval);
 }
+
+void spn_array_get_intkey(SpnArray *arr, long idx, SpnValue *val)
+{
+	const SpnValue key = makeint(idx);
+	spn_array_get(arr, &key, val);
+}
+
+void spn_array_get_strkey(SpnArray *arr, const char *str, SpnValue *val)
+{
+	const SpnValue key = makestring_nocopy(str);
+	spn_array_get(arr, &key, val);
+	spn_value_release(&key);
+}
+
+void spn_array_set_intkey(SpnArray *arr, long idx, const SpnValue *val)
+{
+	const SpnValue key = makeint(idx);
+	spn_array_set(arr, &key, val);
+}
+
+void spn_array_set_strkey(SpnArray *arr, const char *str, const SpnValue *val)
+{
+	const SpnValue key = makestring(str);
+	spn_array_set(arr, &key, val);
+	spn_value_release(&key);
+}
+
 
 /* iterators */
 
@@ -291,12 +311,9 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
 	/* search the array part first: cursor in [0...arraysize) (*) */
 	if (it->inarray) {
 		for (i = it->cursor; i < arr->arrallsz; i++) {
-			if (arr->arr[i].t != SPN_TYPE_NIL) {
+			if (!isnil(&arr->arr[i])) {
 				/* set up key */
-				key->t = SPN_TYPE_NUMBER;
-				key->f = 0;
-				key->v.intv = i;
-
+				*key = makeint(i);
 				/* set up value */
 				*val = arr->arr[i];
 
@@ -342,6 +359,18 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
 	return it->idx;
 }
 
+/* convenience value constructor */
+SpnValue spn_makearray(void)
+{
+	SpnArray *arr = spn_array_new();
+
+	SpnValue ret;
+	ret.type = SPN_TYPE_ARRAY;
+	ret.v.o = arr;
+
+	return ret;
+}
+
 /* 
  * Linked lists for collision resolution with separate chaining
  *
@@ -360,7 +389,7 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
  * Thus, when a new non-nil value is actually inserted, then we
  * do the retaining manually in spn_array_set().
  */
-static TList *list_prepend(TList *head, SpnValue *key, SpnValue *val)
+static TList *list_prepend(TList *head, const SpnValue *key, const SpnValue *val)
 {
 	TList *node = spn_malloc(sizeof(*node));
 
@@ -374,9 +403,8 @@ static KVPair *list_find(TList *head, const SpnValue *key)
 {
 	while (head != NULL) {
 		KVPair *pair = &head->pair;
-		SpnValue *pkey = &pair->key;
 
-		if (spn_value_equal(key, pkey)) {
+		if (spn_value_equal(key, &pair->key)) {
 			return pair;
 		}
 
@@ -442,25 +470,22 @@ static void expand_array_if_needed(SpnArray *arr, unsigned long idx)
 
 	/* and fill all the not-yet-existent fields with nil */
 	for (i = prevsz; i < arr->arrallsz; i++) {
-		arr->arr[i].t = SPN_TYPE_NIL;
-		arr->arr[i].f = 0;
+		arr->arr[i] = makenil();
 	}
 }
 
-static void insert_and_update_count_array(SpnArray *arr, unsigned long idx, SpnValue *val)
+static void insert_and_update_count_array(SpnArray *arr, unsigned long idx, const SpnValue *val)
 {
 	/* check if the array needs to expand beyond its current size */
 	expand_array_if_needed(arr, idx);
 
 	/* then check if a previously nonexistent object is inserted... */
-	if (arr->arr[idx].t == SPN_TYPE_NIL
-	 && val->t != SPN_TYPE_NIL) {
+	if (isnil(&arr->arr[idx]) && !isnil(val)) {
 		arr->arrcnt++;
 	}
 
 	/* ...or conversely, a previously existent object is deleted */
-	if (arr->arr[idx].t != SPN_TYPE_NIL
-	 && val->t == SPN_TYPE_NIL) {
+	if (!isnil(&arr->arr[idx]) && isnil(val)) {
 		arr->arrcnt--;
 	}
 
@@ -497,7 +522,7 @@ static void expand_hash(SpnArray *arr)
 
 	/* expand the bucket vector */
 	newsz = nthsize(arr->hashszidx);
-	new_buckets = spn_malloc(sizeof(new_buckets[0]) * newsz);
+	new_buckets = spn_malloc(newsz * sizeof new_buckets[0]);
 
 	for (i = 0; i < newsz; i++) {
 		new_buckets[i] = NULL;
@@ -524,7 +549,7 @@ static void expand_hash(SpnArray *arr)
 	arr->buckets = new_buckets;
 }
 
-static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue *val)
+static void insert_and_update_count_hash(SpnArray *arr, const SpnValue *key, const SpnValue *val)
 {
 	unsigned long hash, thash;
 	KVPair *pair;
@@ -536,7 +561,7 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 	 * in order it to be able to hold the first (non-nil) value.
 	 */
 	if (nthsize(arr->hashszidx) == 0) {
-		if (val->t == SPN_TYPE_NIL) {
+		if (isnil(val)) {
 			return;
 		}
 
@@ -556,7 +581,7 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 		 * check if the load factor is greater than 1/2, and if so,
 		 * double the size to minimize collisions
 		 */
-		if (val->t != SPN_TYPE_NIL) {
+		if (!isnil(val)) {
 			/* check load factor */
 			if (arr->hashcnt > nthsize(arr->hashszidx) / 2) {
 				expand_hash(arr);
@@ -585,8 +610,13 @@ static void insert_and_update_count_hash(SpnArray *arr, SpnValue *key, SpnValue 
 		 * the key and the value and decrease the count.
 		 * If it isn't nil, then just change the old *value*
 		 * to the new one and do nothing with the key and count.
+		 *
+		 * XXX: this relies on the fact that we do not need to extend
+		 * the hash table if only the value changes (i. e. the size of
+		 * the hash part doesn't grow). If it was necesary to extend
+		 * it, then the `pair` pointer would be invalidated!
 		 */
-		if (val->t == SPN_TYPE_NIL) {
+		if (isnil(val)) {
 			arr->buckets[hash] = list_delete_releasing(arr->buckets[hash], key);
 			arr->hashcnt--;
 		} else {

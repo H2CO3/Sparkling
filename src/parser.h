@@ -117,12 +117,12 @@ typedef struct SpnParser {
 	SpnToken	 curtok;	/* private */
 	int		 eof;		/* private */
 	int		 error;		/* private */
-	unsigned long	 lineno;	/* private */
+	int		 lineno;	/* private */
 	char		*errmsg;	/* public: the last error message */
 } SpnParser;
 
 
-SPN_API SpnParser	*spn_parser_new();
+SPN_API SpnParser	*spn_parser_new(void);
 SPN_API void	 	 spn_parser_free(SpnParser *p);
 
 /* parse `src' to an abstract syntax tree. returns NULL on error

@@ -348,9 +348,7 @@ static int lex_number(SpnParser *p)
 
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_INT;
-			p->curtok.val.t = SPN_TYPE_NUMBER;
-			p->curtok.val.f = 0;
-			p->curtok.val.v.intv = i;
+			p->curtok.val = makeint(i);
 
 			return 1;
 		} else { /* octal */
@@ -370,9 +368,7 @@ static int lex_number(SpnParser *p)
 
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_INT;
-			p->curtok.val.t = SPN_TYPE_NUMBER;
-			p->curtok.val.f = 0;
-			p->curtok.val.v.intv = i;
+			p->curtok.val = makeint(i);
 			return 1;
 		}
 	} else { /* decimal */
@@ -432,9 +428,7 @@ static int lex_number(SpnParser *p)
 
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_FLOAT;
-			p->curtok.val.t = SPN_TYPE_NUMBER;
-			p->curtok.val.f = SPN_TFLG_FLOAT;
-			p->curtok.val.v.fltv = d;
+			p->curtok.val = makefloat(d);
 
 			return 1;
 		} else {
@@ -448,9 +442,7 @@ static int lex_number(SpnParser *p)
 
 			p->pos = end;
 			p->curtok.tok = SPN_TOK_INT;
-			p->curtok.val.t = SPN_TYPE_NUMBER;
-			p->curtok.val.f = 0;
-			p->curtok.val.v.intv = i;
+			p->curtok.val = makeint(i);
 
 			return 1;
 		}
@@ -462,7 +454,6 @@ static int lex_ident(SpnParser *p)
 	size_t diff, i;
 	char *buf;
 	const char *end = p->pos;
-	SpnString *str;
 
 	/* here, order does not matter - keywords and identifiers have to be
 	 * delimited by whitespace or special characters, so there's no
@@ -511,15 +502,9 @@ static int lex_ident(SpnParser *p)
 	}
 
 	/* if not, it's a proper identifier */
-	p->curtok.tok = SPN_TOK_IDENT;
-
 	buf = spn_strndup(p->pos, diff);
-	str = spn_string_new_nocopy_len(buf, diff, 1);
-
-	p->curtok.val.t = SPN_TYPE_STRING;
-	p->curtok.val.f = SPN_TFLG_OBJECT;
-	p->curtok.val.v.ptrv = str;
-
+	p->curtok.tok = SPN_TOK_IDENT;
+	p->curtok.val = makestring_nocopy_len(buf, diff, 1);
 	p->pos = end;
 
 	return 1;
@@ -576,9 +561,7 @@ static int lex_char(SpnParser *p)
 	 * should be defined. Is this right?
 	 */
 	p->curtok.tok = SPN_TOK_INT;
-	p->curtok.val.t = SPN_TYPE_NUMBER;
-	p->curtok.val.f = 0;
-	p->curtok.val.v.intv = i;
+	p->curtok.val = makeint(i);
 
 	return 1;
 }
@@ -626,9 +609,7 @@ static int lex_string(SpnParser *p)
 	p->pos++;
 
 	p->curtok.tok = SPN_TOK_STR;
-	p->curtok.val.t = SPN_TYPE_STRING;
-	p->curtok.val.f = SPN_TFLG_OBJECT;
-	p->curtok.val.v.ptrv = spn_string_new_nocopy_len(buf, n, 1);
+	p->curtok.val = makestring_nocopy_len(buf, n, 1);
 
 	return 1;
 }
@@ -648,15 +629,14 @@ int spn_lex(SpnParser *p)
 
 	/* just so that it can always be released safely if
 	 * an unexpected token is encountered, without having to
-	 * know its exact type. Also, the pointer value (`val.v.ptrv')
+	 * know its exact type. Also, the object value (`val.v.o')
 	 * member is explicitly set to NULL because some parser methods
 	 * expecting an identifier read this member before knowing
 	 * whether or not the token is indeed an identifier. So we must
 	 * set it if we don't want to invoke undefined behavior.
 	 */
-	p->curtok.val.t = SPN_TYPE_NIL;
-	p->curtok.val.f = 0;
-	p->curtok.val.v.ptrv = NULL;
+	p->curtok.val = makenil();
+	p->curtok.val.v.o = NULL;
 
 	/* this needs to come before the check for `is_special()',
 	 * since numbers can begin with a dot too, therefore checking if the

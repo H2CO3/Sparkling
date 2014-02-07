@@ -79,7 +79,7 @@ static SpnAST *parse_binexpr_leftassoc(
 );
 
 
-SpnParser *spn_parser_new()
+SpnParser *spn_parser_new(void)
 {
 	SpnParser *p = spn_malloc(sizeof(*p));
 
@@ -106,7 +106,7 @@ void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
 	prefix_args[0] = &p->lineno;
 
 	prefix = spn_string_format_cstr(
-		"Sparkling: syntax error near line %u: ",
+		"Sparkling: syntax error near line %i: ",
 		&prefix_len,
 		prefix_args
 	);
@@ -283,7 +283,7 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 		}
 
 		node = SPN_NODE_FUNCSTMT;
-		name = p->curtok.val.v.ptrv;
+		name = stringvalue(&p->curtok.val);
 
 		/* skip identifier */
 		spn_lex(p);
@@ -779,7 +779,7 @@ static SpnAST *parse_term(SpnParser *p)
 		return parse_function(p, 0);
 	case SPN_TOK_IDENT:
 		ast = spn_ast_new(SPN_NODE_IDENT, p->lineno);
-		ast->name = p->curtok.val.v.ptrv;
+		ast->name = stringvalue(&p->curtok.val);
 
 		spn_lex(p);
 		if (p->error) {
@@ -790,9 +790,7 @@ static SpnAST *parse_term(SpnParser *p)
 		return ast;
 	case SPN_TOK_TRUE:
 		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value.t = SPN_TYPE_BOOL;
-		ast->value.f = 0;
-		ast->value.v.boolv = 1;
+		ast->value = makebool(1);
 
 		spn_lex(p);
 		if (p->error) {
@@ -803,9 +801,7 @@ static SpnAST *parse_term(SpnParser *p)
 		return ast;
 	case SPN_TOK_FALSE:
 		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value.t = SPN_TYPE_BOOL;
-		ast->value.f = 0;
-		ast->value.v.boolv = 0;
+		ast->value = makebool(0);
 
 		spn_lex(p);
 		if (p->error) {
@@ -816,8 +812,7 @@ static SpnAST *parse_term(SpnParser *p)
 		return ast;
 	case SPN_TOK_NIL:
 		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value.t = SPN_TYPE_NIL;
-		ast->value.f = 0;
+		ast->value = makenil();
 
 		spn_lex(p);
 		if (p->error) {
@@ -917,7 +912,7 @@ static SpnAST *parse_array_literal(SpnParser *p)
 static SpnAST *parse_decl_args(SpnParser *p)
 {
 	SpnAST *ast = NULL, *res;
-	SpnString *name = p->curtok.val.v.ptrv;
+	SpnString *name = stringvalue(&p->curtok.val);
 
 	if (!spn_accept(p, SPN_TOK_IDENT)) {
 		spn_parser_error(p, "expected identifier in function argument list", NULL);
@@ -932,7 +927,7 @@ static SpnAST *parse_decl_args(SpnParser *p)
 
 	while (spn_accept(p, SPN_TOK_COMMA)) {
 		SpnAST *tmp;
-		SpnString *name = p->curtok.val.v.ptrv;
+		SpnString *name = objvalue(&p->curtok.val);
 
 		if (!spn_accept(p, SPN_TOK_IDENT)) {
 			spn_parser_error(p, "expected identifier in function argument list", NULL);
@@ -1327,7 +1322,7 @@ static SpnAST *parse_vardecl(SpnParser *p)
 	spn_lex(p);
 
 	do {
-		SpnString *name = p->curtok.val.v.ptrv;
+		SpnString *name = stringvalue(&p->curtok.val);
 		SpnAST *expr = NULL, *tmp;
 
 		if (!spn_accept(p, SPN_TOK_IDENT)) {
@@ -1375,11 +1370,11 @@ static SpnAST *parse_const(SpnParser *p)
 	/* `ast' is the head of the list */
 	SpnAST *ast = NULL, *tail = NULL;
 
-	/* skip "const" keyword */
+	/* skip "const" or "global" keyword */
 	spn_lex(p);
 
 	do {
-		SpnString *name = p->curtok.val.v.ptrv;
+		SpnString *name = stringvalue(&p->curtok.val);
 		SpnAST *expr = NULL, *tmp;
 
 		if (!spn_accept(p, SPN_TOK_IDENT)) {

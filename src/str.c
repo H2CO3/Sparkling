@@ -20,8 +20,8 @@
 #include "private.h"
 
 
-static int compare_strings(const void *l, const void *r);
-static int equal_strings(const void *l, const void *r);
+static int compare_strings(void *lhs, void *rhs);
+static int equal_strings(void *lhs, void *rhs);
 static void free_string(void *obj);
 static unsigned long hash_string(void *obj);
 
@@ -36,23 +36,22 @@ static const SpnClass spn_class_string = {
 static void free_string(void *obj)
 {
 	SpnString *str = obj;
+
 	if (str->dealloc) {
 		free(str->cstr);
 	}
-
-	free(str);
 }
 
-static int compare_strings(const void *l, const void *r)
+static int compare_strings(void *lp, void *rp)
 {
-	const SpnString *lo = l, *ro = r;
-	return strcmp(lo->cstr, ro->cstr);
+	SpnString *lhs = lp, *rhs = rp;
+	return strcmp(lhs->cstr, rhs->cstr);
 }
 
-static int equal_strings(const void *l, const void *r)
+static int equal_strings(void *lp, void *rp)
 {
-	const SpnString *lo = l, *ro = r;	
-	return strcmp(lo->cstr, ro->cstr) == 0;
+	SpnString *lhs = lp, *rhs = rp;	
+	return strcmp(lhs->cstr, rhs->cstr) == 0;
 }
 
 /* since strings are immutable, it's enough to generate the hash on-demand,
@@ -63,7 +62,7 @@ static unsigned long hash_string(void *obj)
 	SpnString *str = obj;
 
 	if (!str->ishashed) {
-		str->hash = spn_hash(str->cstr, str->len);
+		str->hash = spn_hash_bytes(str->cstr, str->len);
 		str->ishashed = 1;
 	}
 
@@ -105,10 +104,11 @@ SpnString *spn_string_new_nocopy_len(const char *cstr, size_t len, int dealloc)
 SpnString *spn_string_concat(SpnString *lhs, SpnString *rhs)
 {
 	size_t len = lhs->len + rhs->len;
-
 	char *buf = spn_malloc(len + 1);
-	strcpy(buf, lhs->cstr);
-	strcpy(buf + lhs->len, rhs->cstr);
+
+	memcpy(buf, lhs->cstr, lhs->len);
+	memcpy(buf + lhs->len, rhs->cstr, rhs->len);
+	buf[len] = 0;
 
 	return spn_string_new_nocopy_len(buf, len, 1);
 }
@@ -475,8 +475,8 @@ static void format_errmsg(char **msg, enum format_error_kind kind, int argidx, .
 
 	switch (kind) {
 	case TYPE_MISMATCH: {
-		enum spn_val_type expect = va_arg(args, enum spn_val_type);
-		enum spn_val_type actual = va_arg(args, enum spn_val_type);
+		int expect = va_arg(args, int);
+		int actual = va_arg(args, int);
 
 		const void *argv[3];
 		argv[0] = &argidx;
@@ -537,18 +537,18 @@ static int append_format(
 
 			/* must be a string */
 			SpnValue *val = getarg_val(argv, argidx);
-			if (val->t != SPN_TYPE_STRING) {
+			if (!isstring(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
 					SPN_TYPE_STRING,
-					val->t
+					val->type
 				);
 				return -1;
 			}
 
-			strobj = val->v.ptrv;
+			strobj = stringvalue(val);
 			str = strobj->cstr;
 			len = strobj->len;
 		} else {
@@ -589,21 +589,21 @@ static int append_format(
 		if (isval) {
 			/* must be a number */
 			SpnValue *val = getarg_val(argv, argidx);
-			if (val->t != SPN_TYPE_NUMBER) {
+			if (!isnumber(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TYPE_NUMBER,
-					val->t
+					SPN_TTAG_NUMBER,
+					val->type
 				);
 				return -1;
 			}
 
-			if (val->f == 0) {
-				n = val->v.intv;
+			if (isint(val)) {
+				n = intvalue(val);
 			} else {
-				n = val->v.fltv; /* truncate */
+				n = floatvalue(val); /* truncate */
 			}
 		} else {
 			/* "%i" expects an int, others expect a long */
@@ -653,23 +653,23 @@ static int append_format(
 			/* must be an integer */
 			SpnValue *val = getarg_val(argv, argidx);
 
-			if (val->t != SPN_TYPE_NUMBER) {
+			if (!isnumber(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TYPE_NUMBER,
-					val->t
+					SPN_TTAG_NUMBER,
+					val->type
 				);
 				return -1;
 			}
 
-			if (val->f != 0) {
+			if (isfloat(val)) {
 				format_errmsg(errmsg, EXPECT_INTEGER, *argidx);
 				return -1;
 			}
 
-			ch = val->v.intv;
+			ch = intvalue(val);
 		} else {
 			ch = *(const long *)getarg_raw(argv, argidx);
 		}
@@ -698,21 +698,21 @@ static int append_format(
 
 		if (isval) {
 			SpnValue *val = getarg_val(argv, argidx);
-			if (val->t != SPN_TYPE_NUMBER) {
+			if (!isnumber(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TYPE_NUMBER,
-					val->t
+					SPN_TTAG_NUMBER,
+					val->type
 				);
 				return -1;
 			}
 
-			if (val->f & SPN_TFLG_FLOAT) {
-				x = val->v.fltv;
+			if (isfloat(val)) {
+				x = floatvalue(val);
 			} else {
-				x = val->v.intv;
+				x = intvalue(val);
 			}
 		} else {
 			x = *(const double *)getarg_raw(argv, argidx);
@@ -774,18 +774,18 @@ static int append_format(
 		if (isval) {
 			/* must be a boolean */
 			SpnValue *val = getarg_val(argv, argidx);
-			if (val->t != SPN_TYPE_BOOL) {
+			if (!isbool(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TYPE_BOOL,
-					val->t
+					SPN_TTAG_BOOL,
+					val->type
 				);
 				return -1;
 			}
 
-			boolval = val->v.boolv;
+			boolval = boolvalue(val);
 		} else {
 			boolval = *(const int *)getarg_raw(argv, argidx);
 		}
@@ -904,19 +904,19 @@ static char *make_format_string(
 
 					/* width specifier must be an integer */
 					widthptr = getarg_val(argv, &argidx);
-					if (widthptr->t != SPN_TYPE_NUMBER) {
+					if (!isnumber(widthptr)) {
 					 	format_errmsg(
 					 		errmsg,
 					 		TYPE_MISMATCH,
 					 		argidx,
-					 		SPN_TYPE_NUMBER,
-					 		widthptr->t
+					 		SPN_TTAG_NUMBER,
+					 		widthptr->type
 					 	);
 						free(bld.buf);
 						return NULL;
 					}
 
-					if (widthptr->f != 0) {
+					if (isfloat(widthptr)) {
 				 		format_errmsg(
 				 			errmsg,
 				 			EXPECT_INTEGER,
@@ -926,7 +926,7 @@ static char *make_format_string(
 						return NULL;
 					}
 
-					args.width = widthptr->v.intv;
+					args.width = intvalue(widthptr);
 				} else {
 					const int *widthptr = getarg_raw(argv, &argidx);
 					args.width = *widthptr;
@@ -963,19 +963,19 @@ static char *make_format_string(
 						/* precision must be an integer too */
 						precptr = getarg_val(argv, &argidx);
 
-						if (precptr->t != SPN_TYPE_NUMBER) {
+						if (!isnumber(precptr)) {
 							format_errmsg(
 								errmsg,
 								TYPE_MISMATCH,
 								argidx,
-								SPN_TYPE_NUMBER,
-								precptr->t
+								SPN_TTAG_NUMBER,
+								precptr->type
 							);
 							free(bld.buf);
 							return NULL;
 						}
 
-						if (precptr->f != 0) {
+						if (isfloat(precptr)) {
 					 		format_errmsg(
 					 			errmsg,
 					 			EXPECT_INTEGER,
@@ -985,7 +985,7 @@ static char *make_format_string(
 							return NULL;
 						}
 
-						args.precision = precptr->v.intv;
+						args.precision = intvalue(precptr);
 					} else {
 						const int *precptr = getarg_raw(argv, &argidx);
 						args.precision = *precptr;
@@ -1043,5 +1043,33 @@ SpnString *spn_string_format_obj(SpnString *fmt, int argc, SpnValue *argv, char 
 	size_t len;
 	char *buf = make_format_string(fmt->cstr, &len, argc, argv, 1, errmsg);
 	return buf ? spn_string_new_nocopy_len(buf, len, 1) : NULL;
+}
+
+/* convenience value constructors */
+
+static SpnValue string_to_val(SpnString *str)
+{
+	SpnValue ret;
+	ret.type = SPN_TYPE_STRING;
+	ret.v.o = str;
+	return ret;
+}
+
+SpnValue spn_makestring(const char *s)
+{
+	SpnString *str = spn_string_new(s);
+	return string_to_val(str);
+}
+
+SpnValue spn_makestring_nocopy(const char *s)
+{
+	SpnString *str = spn_string_new_nocopy(s, 0);
+	return string_to_val(str);
+}
+
+SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int dealloc)
+{
+	SpnString *str = spn_string_new_nocopy_len(s, len, dealloc);
+	return string_to_val(str);
 }
 

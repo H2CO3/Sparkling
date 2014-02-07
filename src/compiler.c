@@ -153,7 +153,7 @@ typedef struct SymtabEntry {
 	} repr;
 } SymtabEntry;
 
-static int symtabentry_equal(const void *lhs, const void *rhs)
+static int symtabentry_equal(void *lhs, void *rhs)
 {
 	const SymtabEntry *lo = lhs, *ro = rhs;
 	if (lo->type != ro->type) {
@@ -177,7 +177,7 @@ static unsigned long symtabentry_hash(void *obj)
 
 	switch (entry->type) {
 	case SYMTABENTRY_GLOBAL: {
-		SpnObject *base = (SpnObject *)(entry->repr.name);
+		SpnObject *base = &entry->repr.name->base;
 		return base->isa->hashfn(base);
 	}	
 	case SYMTABENTRY_LAMBDA:
@@ -195,8 +195,6 @@ static void symtabentry_free(void *obj)
 	if (entry->type == SYMTABENTRY_GLOBAL) {
 		spn_object_release(entry->repr.name);
 	}
-
-	free(entry);
 }
 
 static const SpnClass SymtabEntry_class = {
@@ -209,7 +207,7 @@ static const SpnClass SymtabEntry_class = {
 
 static SymtabEntry *symtabentry_new_global(SpnString *name)
 {
-	SymtabEntry *entry = spn_object_new(&SymtabEntry_class);
+	SymtabEntry *entry = (SymtabEntry *)(spn_object_new(&SymtabEntry_class));
 	entry->type = SYMTABENTRY_GLOBAL;
 	spn_object_retain(name);
 	entry->repr.name = name;
@@ -263,7 +261,7 @@ static int compile_expr_toplevel(SpnCompiler *cmp, SpnAST *ast, int *dst);
 static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst);
 
 /* takes a printf-like format string */
-static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *fmt, const void *args[]);
+static void compiler_error(SpnCompiler *cmp, int lineno, const char *fmt, const void *args[]);
 
 /* quick and dirty integer maximum function */
 static int max(int x, int y)
@@ -308,7 +306,7 @@ static int rts_count(RoundTripStore *rts);
 static void rts_delete_top(RoundTripStore *rts, int newsize);
 static void rts_free(RoundTripStore *rts);
 
-SpnCompiler *spn_compiler_new()
+SpnCompiler *spn_compiler_new(void)
 {
 	SpnCompiler *cmp = spn_malloc(sizeof(*cmp));
 
@@ -409,11 +407,7 @@ static int rts_add(RoundTripStore *rts, SpnValue *val)
 	int newsize;
 
 	/* insert element into last place */
-	SpnValue idxval;
-	idxval.t = SPN_TYPE_NUMBER;
-	idxval.f = 0;
-	idxval.v.intv = idx;
-
+	SpnValue idxval = makeint(idx);
 	spn_array_set(rts->fwd, &idxval, val);
 	spn_array_set(rts->inv, val, &idxval);
 
@@ -428,19 +422,14 @@ static int rts_add(RoundTripStore *rts, SpnValue *val)
 
 static void rts_getval(RoundTripStore *rts, int idx, SpnValue *val)
 {
-	SpnValue idxval;
-	idxval.t = SPN_TYPE_NUMBER;
-	idxval.f = 0;
-	idxval.v.intv = idx;
-
-	spn_array_get(rts->fwd, &idxval, val);
+	spn_array_get_intkey(rts->fwd, idx, val);
 }
 
 static int rts_getidx(RoundTripStore *rts, SpnValue *val)
 {
 	SpnValue res;
 	spn_array_get(rts->inv, val, &res);
-	return res.t == SPN_TYPE_NUMBER ? res.v.intv : -1;
+	return isnumber(&res) ? intvalue(&res) : -1;
 }
 
 static int rts_count(RoundTripStore *rts)
@@ -463,16 +452,12 @@ static void rts_delete_top(RoundTripStore *rts, int newsize)
 	assert(newsize <= oldsize);
 
 	for (i = newsize; i < oldsize; i++) {
-		SpnValue val, idx;
-
-		idx.t = SPN_TYPE_NUMBER;
-		idx.f = 0;
-		idx.v.intv = i;
+		SpnValue val, idx = makeint(i);
 
 		spn_array_get(rts->fwd, &idx, &val);
-		assert(val.t != SPN_TYPE_NIL);
+		assert(!isnil(&val));
 
-		spn_array_remove(rts->fwd, &idx);		
+		spn_array_remove(rts->fwd, &idx);
 		spn_array_remove(rts->inv, &val);
 	}
 
@@ -486,7 +471,7 @@ static void rts_free(RoundTripStore *rts)
 }
 
 
-static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *fmt, const void *args[])
+static void compiler_error(SpnCompiler *cmp, int lineno, const char *fmt, const void *args[])
 {
 	char *prefix, *msg;
 	size_t prefix_len, msg_len;
@@ -494,7 +479,7 @@ static void compiler_error(SpnCompiler *cmp, unsigned long lineno, const char *f
 	prefix_args[0] = &lineno;
 
 	prefix = spn_string_format_cstr(
-		"Sparkling: semantic error near line %u: ",
+		"Sparkling: semantic error near line %i: ",
 		&prefix_len,
 		prefix_args
 	);
@@ -549,11 +534,11 @@ static int write_symtab(SpnCompiler *cmp)
 		SpnValue sym;
 		rts_getval(cmp->symtab, i, &sym);
 
-		switch (sym.t) {
-		case SPN_TYPE_STRING: {
+		switch (valtype(&sym)) {
+		case SPN_TTAG_STRING: {
 			/* string literal */
 
-			SpnString *str = sym.v.ptrv;
+			SpnString *str = stringvalue(&sym);
 
 			/* append symbol type and length description */
 			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_STRCONST, str->len);
@@ -563,8 +548,8 @@ static int write_symtab(SpnCompiler *cmp)
 			append_cstring(&cmp->bc, str->cstr, str->len);
 			break;
 		}
-		case SPN_TYPE_USERINFO: {
-			SymtabEntry *entry = sym.v.ptrv;
+		case SPN_TTAG_USERINFO: {
+			SymtabEntry *entry = objvalue(&sym);
 
 			switch (entry->type) {
 			case SYMTABENTRY_GLOBAL: {
@@ -595,7 +580,7 @@ static int write_symtab(SpnCompiler *cmp)
 		default:
 			{
 				/* got something that's not supposed to be there */
-				int st = sym.t;
+				int st = valtype(&sym);
 				const void *args[1];
 				args[0] = &st;
 				compiler_error(cmp, 0, "wrong symbol type %i in write_symtab()", args);
@@ -763,12 +748,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	if (ast->node == SPN_NODE_FUNCEXPR) {
 		/* lambdas are identified by their offset in the bytecode */
 		SymtabEntry *entry = symtabentry_new_lambda(hdroff);
-
-		SpnValue offval;
-		offval.t = SPN_TYPE_USERINFO;
-		offval.f = SPN_TFLG_OBJECT;
-		offval.v.ptrv = entry;
-
+		SpnValue offval = makestrguserinfo(entry);
 		*symidx = rts_add(cmp->symtab, &offval);		
 		spn_object_release(entry);
 	}
@@ -778,9 +758,8 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	 */
 	for (arg = ast->left; arg != NULL; arg = arg->left) {
 		SpnValue argname;
-		argname.t = SPN_TYPE_STRING;
-		argname.f = SPN_TFLG_OBJECT;
-		argname.v.ptrv = arg->name;
+		argname.type = SPN_TYPE_STRING;
+		argname.v.o = arg->name;
 
 		/* check for double declaration of an argument */
 		if (rts_getidx(cmp->varstack, &argname) < 0) {
@@ -1214,9 +1193,8 @@ static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
 		spn_uword ins;
 
 		SpnValue name;
-		name.t = SPN_TYPE_STRING;
-		name.f = SPN_TFLG_OBJECT;
-		name.v.ptrv = head->name;
+		name.type = SPN_TYPE_STRING;
+		name.v.o = head->name;
 
 		/* check for erroneous re-declaration - the name must not yet be
 		 * in scope (i. e. in the variable stack)
@@ -1327,7 +1305,7 @@ static void compile_string_literal(SpnCompiler *cmp, SpnValue *str, int *dst)
 	spn_uword ins;
 	int idx;
 
-	assert(str->t == SPN_TYPE_STRING);
+	assert(isstring(str));
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
@@ -1411,9 +1389,8 @@ static int compile_assignment_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	/* get register index of variable using its name */
 	SpnValue ident;
-	ident.t = SPN_TYPE_STRING;
-	ident.f = SPN_TFLG_OBJECT;
-	ident.v.ptrv = ast->left->name;
+	ident.type = SPN_TYPE_STRING;
+	ident.v.o = ast->left->name;
 
 	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
@@ -1482,9 +1459,8 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	} else {
 		/* memberof */
 		SpnValue nameval;
-		nameval.t = SPN_TYPE_STRING;
-		nameval.f = SPN_TFLG_OBJECT;
-		nameval.v.ptrv = lhs->right->name;
+		nameval.type = SPN_TYPE_STRING;
+		nameval.v.o = lhs->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 
@@ -1536,9 +1512,8 @@ static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 
 	/* get register index of variable using its name */
 	SpnValue ident;
-	ident.t = SPN_TYPE_STRING;
-	ident.f = SPN_TFLG_OBJECT;
-	ident.v.ptrv = ast->left->name;
+	ident.type = SPN_TYPE_STRING;
+	ident.v.o = ast->left->name;
 
 	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
@@ -1613,9 +1588,8 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	} else {
 		/* memberof */
 		SpnValue nameval;
-		nameval.t = SPN_TYPE_STRING;
-		nameval.f = SPN_TFLG_OBJECT;
-		nameval.v.ptrv = lhs->right->name;
+		nameval.type = SPN_TYPE_STRING;
+		nameval.v.o = lhs->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 
@@ -1820,9 +1794,8 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	int idx;
 	SpnValue varname;
 
-	varname.t = SPN_TYPE_STRING;
-	varname.f = SPN_TFLG_OBJECT;
-	varname.v.ptrv = ast->name;
+	varname.type = SPN_TYPE_STRING;
+	varname.v.o = ast->name;
 
 	idx = rts_getidx(cmp->varstack, &varname);
 
@@ -1833,12 +1806,9 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (idx < 0) {
 		spn_uword ins;
 		int sym;
-		SymtabEntry *entry = symtabentry_new_global(ast->name);
 
-		SpnValue stub;
-		stub.t = SPN_TYPE_USERINFO;
-		stub.f = SPN_TFLG_OBJECT;
-		stub.v.ptrv = entry;
+		SymtabEntry *entry = symtabentry_new_global(ast->name);
+		SpnValue stub = makestrguserinfo(entry);
 
 		sym = rts_getidx(cmp->symtab, &stub);
 		if (sym < 0) {
@@ -1880,14 +1850,14 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		*dst = tmp_push(cmp);
 	}
 
-	switch (ast->value.t) {
-	case SPN_TYPE_NIL: {
+	switch (valtype(&ast->value)) {
+	case SPN_TTAG_NIL: {
 		spn_uword ins = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_NIL);
 		bytecode_append(&cmp->bc, &ins, 1);
 		break;
 	}
-	case SPN_TYPE_BOOL: {
-		enum spn_const_kind b = ast->value.v.boolv != 0
+	case SPN_TTAG_BOOL: {
+		enum spn_const_kind b = boolvalue(&ast->value)
 				      ? SPN_CONST_TRUE
 				      : SPN_CONST_FALSE;
 
@@ -1895,26 +1865,28 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		bytecode_append(&cmp->bc, &ins, 1);
 		break;
 	}
-	case SPN_TYPE_NUMBER: {
-		if (ast->value.f & SPN_TFLG_FLOAT) {
-			spn_uword ins[1 + ROUNDUP(sizeof(ast->value.v.fltv), sizeof(spn_uword))] = { 0 };
+	case SPN_TTAG_NUMBER: {
+		if (isfloat(&ast->value)) {
+			double num = floatvalue(&ast->value);
+			spn_uword ins[1 + ROUNDUP(sizeof num, sizeof(spn_uword))] = { 0 };
 
 			ins[0] = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_FLOAT);
-			memcpy(&ins[1], &ast->value.v.fltv, sizeof(ast->value.v.fltv));
+			memcpy(&ins[1], &num, sizeof num);
 
 			bytecode_append(&cmp->bc, ins, COUNT(ins));
 		} else {
-			spn_uword ins[1 + ROUNDUP(sizeof(ast->value.v.intv), sizeof(spn_uword))] = { 0 };
+			long num = intvalue(&ast->value);
+			spn_uword ins[1 + ROUNDUP(sizeof num, sizeof(spn_uword))] = { 0 };
 
 			ins[0] = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_INT);
-			memcpy(&ins[1], &ast->value.v.intv, sizeof(ast->value.v.intv));
+			memcpy(&ins[1], &num, sizeof num);
 
 			bytecode_append(&cmp->bc, ins, COUNT(ins));
 		}
 
 		break;
 	}
-	case SPN_TYPE_STRING:
+	case SPN_TTAG_STRING:
 		compile_string_literal(cmp, &ast->value, dst);
 		break;
 	default:
@@ -2052,9 +2024,8 @@ static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	} else {
 		/* memberof, dot/arrow notation */
 		SpnValue nameval;
-		nameval.t = SPN_TYPE_STRING;
-		nameval.f = SPN_TFLG_OBJECT;
-		nameval.v.ptrv = ast->right->name;
+		nameval.type = SPN_TYPE_STRING;
+		nameval.v.o = ast->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 
@@ -2213,7 +2184,7 @@ static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		SpnAST *negated;
 		int success;
 
-		if (op->value.t != SPN_TYPE_NUMBER) {
+		if (!isnumber(&op->value)) {
 			compiler_error(
 				cmp,
 				ast->lineno,
@@ -2225,14 +2196,10 @@ static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 		negated = spn_ast_new(SPN_NODE_LITERAL, ast->lineno);
 
-		if (op->value.f & SPN_TFLG_FLOAT) {
-			negated->value.t = SPN_TYPE_NUMBER;
-			negated->value.f = SPN_TFLG_FLOAT;
-			negated->value.v.fltv = -1.0 * op->value.v.fltv;
+		if (isfloat(&op->value)) {
+			negated->value = makefloat(-1.0 * floatvalue(&op->value));
 		} else {
-			negated->value.t = SPN_TYPE_NUMBER;
-			negated->value.f = 0;
-			negated->value.v.intv = -1 * op->value.v.intv;
+			negated->value = makeint(-1 * intvalue(&op->value));
 		}
 
 		success = compile_literal(cmp, negated, dst);
@@ -2253,9 +2220,8 @@ static int compile_incdec_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	assert(ast->left->node == SPN_NODE_IDENT);
 
-	varname.t = SPN_TYPE_STRING;
-	varname.f = SPN_TFLG_OBJECT;
-	varname.v.ptrv = ast->left->name;
+	varname.type = SPN_TYPE_STRING;
+	varname.v.o = ast->left->name;
 	idx = rts_getidx(cmp->varstack, &varname);
 
 	if (idx < 0) {
@@ -2355,9 +2321,8 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		}
 	} else { /* member-of, "." or "->" */
 		SpnValue nameval;
-		nameval.t = SPN_TYPE_STRING;
-		nameval.f = SPN_TFLG_OBJECT;
-		nameval.v.ptrv = lhs->right->name;
+		nameval.type = SPN_TYPE_STRING;
+		nameval.v.o = lhs->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 

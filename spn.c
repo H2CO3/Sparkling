@@ -150,25 +150,14 @@ static void register_args(SpnContext *ctx, int argc, char *argv[])
 	SpnArray *arr = spn_array_new();
 
 	for (i = 0; i < argc; i++) {
-		SpnValue key, val;
-		SpnString *str = spn_string_new_nocopy(argv[i], 0);
-
-		key.t = SPN_TYPE_NUMBER;
-		key.f = 0;
-		key.v.intv = i;
-
-		val.t = SPN_TYPE_STRING;
-		val.f = SPN_TFLG_OBJECT;
-		val.v.ptrv = str;
-
-		spn_array_set(arr, &key, &val);
-		spn_object_release(str);
+		SpnValue val = makestring_nocopy(argv[i]);
+		spn_array_set_intkey(arr, i, &val);
+		spn_value_release(&val);
 	}
 
 	vals.name = "argv";
-	vals.value.t = SPN_TYPE_ARRAY;
-	vals.value.f = SPN_TFLG_OBJECT;
-	vals.value.v.ptrv = arr;
+	vals.value.type = SPN_TYPE_ARRAY;
+	vals.value.v.o = arr;
 
 	spn_ctx_addlib_values(ctx, NULL, &vals, 1);
 	spn_object_release(arr);
@@ -314,7 +303,7 @@ static int enter_repl(enum cmd_args args)
 			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			print_stacktrace_if_needed(ctx);
 		} else {
-			if (ret.t != SPN_TYPE_NIL || args & FLAG_PRINTNIL) {
+			if (!isnil(&ret) || args & FLAG_PRINTNIL) {
 				spn_value_print(&ret);
 				printf("\n");
 			}
@@ -1042,8 +1031,8 @@ static void dump_ast(SpnAST *ast, int indent)
 	}
 
 	/* print formatted value */
-	if ((ast->value.t == SPN_TYPE_NIL && ast->node == SPN_NODE_LITERAL)
-	  || ast->value.t != SPN_TYPE_NIL) {
+	if ((isnil(&ast->value) && ast->node == SPN_NODE_LITERAL)
+	 || !isnil(&ast->value)) {
 		printf(" value = ");
 		spn_value_print(&ast->value);
 	}

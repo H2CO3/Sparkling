@@ -109,9 +109,7 @@ static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		*p = 0;
 	}
 
-	ret->t = SPN_TYPE_STRING;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_string_new(buf);
+	*ret = makestring(buf);
 	
 	return 0;
 }
@@ -139,21 +137,17 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a format string", NULL);
 		return -2;
 	}
 
-	fmt = argv[0].v.ptrv;
+	fmt = stringvalue(&argv[0]);
 	res = spn_string_format_obj(fmt, argc - 1, &argv[1], &errmsg);
 
 	if (res != NULL) {
 		fputs(res->cstr, stdout);
-
-		ret->t = SPN_TYPE_NUMBER;
-		ret->f = 0;
-		ret->v.intv = res->len;
-
+		*ret = makeint(res->len);
 		spn_object_release(res);
 	} else {
 		const void *args[1];
@@ -176,22 +170,19 @@ static int rtlb_fopen(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0]) || !isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "filename and mode must be strings", NULL);
 		return -2;
 	}
 
-	fname = argv[0].v.ptrv;
-	mode = argv[1].v.ptrv;
+	fname = stringvalue(&argv[0]);
+	mode = stringvalue(&argv[1]);
 	fp = fopen(fname->cstr, mode->cstr);
+
 	if (fp != NULL) {
-		ret->t = SPN_TYPE_USERINFO;
-		ret->f = 0;
-		ret->v.ptrv = fp;
-	} else {
-		ret->t = SPN_TYPE_NIL;
-		ret->f = 0;
+		*ret = makeweakuserinfo(fp);
 	}
+	/* else implicitly return nil */
 
 	return 0;
 }
@@ -205,12 +196,12 @@ static int rtlb_fclose(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
 		return -2;
 	}
 
-	fp = argv[0].v.ptrv;
+	fp = ptrvalue(&argv[0]);
 	fclose(fp);
 	return 0;
 }
@@ -227,27 +218,23 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be a format string", NULL);
 		return -2;
 	}
 
-	stream = argv[0].v.ptrv;
-	fmt = argv[1].v.ptrv;
+	stream = ptrvalue(&argv[0]);
+	fmt = stringvalue(&argv[1]);
 	res = spn_string_format_obj(fmt, argc - 2, &argv[2], &errmsg);
 
 	if (res != NULL) {
 		fputs(res->cstr, stream);
-
-		ret->t = SPN_TYPE_NUMBER;
-		ret->f = 0;
-		ret->v.intv = res->len;
-
+		*ret = makeint(res->len);
 		spn_object_release(res);
 	} else {
 		const void *args[1];
@@ -271,17 +258,15 @@ static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
 		return -2;
 	}
 
-	fp = argv[0].v.ptrv;
+	fp = ptrvalue(&argv[0]);
 
 	if (fgets(buf, sizeof(buf), fp) != NULL) {
-		ret->t = SPN_TYPE_STRING;
-		ret->f = SPN_TFLG_OBJECT;
-		ret->v.ptrv = spn_string_new(buf);
+		*ret = makestring(buf);
 	}
 	/* on EOF, return nil */
 
@@ -299,30 +284,27 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
+	if (!isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
 
-	fp = argv[0].v.ptrv;
-	n = argv[1].v.intv;
+	fp = ptrvalue(&argv[0]);
+	n = intvalue(&argv[1]);
 
 	buf = spn_malloc(n + 1);
 	buf[n] = 0;
 
 	if (fread(buf, n, 1, fp) != 1) {
 		free(buf);
-		ret->t = SPN_TYPE_NIL;
-		ret->f = 0;
+		/* implicitly return nil */
 	} else {
-		ret->t = SPN_TYPE_STRING;
-		ret->f = SPN_TFLG_OBJECT;
-		ret->v.ptrv = spn_string_new_nocopy_len(buf, n, 1);
+		*ret = makestring_nocopy_len(buf, n, 1);
 	}
 
 	return 0;
@@ -330,6 +312,7 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
+	int success;
 	FILE *fp;
 	SpnString *str;
 
@@ -338,22 +321,21 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be a string", NULL);
 		return -2;
 	}
 
-	fp = argv[0].v.ptrv;
-	str = argv[1].v.ptrv;
+	fp = ptrvalue(&argv[0]);
+	str = stringvalue(&argv[1]);
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = fwrite(str->cstr, str->len, 1, fp) == 1;
+	success = fwrite(str->cstr, str->len, 1, fp) == 1;
+	*ret = makebool(success);
 
 	return 0;
 }
@@ -368,18 +350,16 @@ static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argc > 0 && argv[0].t != SPN_TYPE_USERINFO) {
+	if (argc > 0 && !isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an output file handle", NULL);
 		return -2;
 	}
 
 	if (argc > 0) {
-		fp = argv[0].v.ptrv;
+		fp = ptrvalue(&argv[0]);
 	}
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = !fflush(fp);
+	*ret = makebool(!fflush(fp));
 
 	return 0;
 }
@@ -393,16 +373,14 @@ static int rtlb_ftell(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
 		return -2;
 	}
 
-	fp = argv[0].v.ptrv;
+	fp = ptrvalue(&argv[0]);
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = ftell(fp);
+	*ret = makeint(ftell(fp));
 
 	return 0;
 }
@@ -419,24 +397,24 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
+	if (!isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
 
-	if (argv[2].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[2])) {
 		spn_ctx_runtime_error(ctx, "third argument must be a mode string", NULL);
 		return -2;
 	}
 
-	fp = argv[0].v.ptrv;
-	off = argv[1].v.intv;
-	whence =  argv[2].v.ptrv;
+	fp = ptrvalue(&argv[0]);
+	off = intvalue(&argv[1]);
+	whence = stringvalue(&argv[2]);
 
 	if (strcmp(whence->cstr, "set") == 0) {
 		flag = SEEK_SET;
@@ -449,9 +427,7 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = !fseek(fp, off, flag);
+	*ret = makebool(!fseek(fp, off, flag));
 
 	return 0;
 }
@@ -465,16 +441,14 @@ static int rtlb_feof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_USERINFO) {
+	if (!isweakuserinfo(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
 		return -2;
 	}
 
-	fp = argv[0].v.ptrv;
+	fp = ptrvalue(&argv[0]);
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = feof(fp) != 0;
+	*ret = makebool(feof(fp) != 0);
 
 	return 0;
 }
@@ -488,16 +462,14 @@ static int rtlb_remove(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file path", NULL);
 		return -2;
 	}
 
-	fname = argv[0].v.ptrv;
+	fname = stringvalue(&argv[0]);
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = !remove(fname->cstr);
+	*ret = makebool(remove(fname->cstr) == 0);
 
 	return 0;
 }
@@ -511,17 +483,15 @@ static int rtlb_rename(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0]) || !isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be file paths", NULL);
 		return -2;
 	}
 
-	oldname = argv[0].v.ptrv;
-	newname = argv[1].v.ptrv;
+	oldname = stringvalue(&argv[0]);
+	newname = stringvalue(&argv[1]);
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = !rename(oldname->cstr, newname->cstr);
+	*ret = makebool(rename(oldname->cstr, newname->cstr) == 0);
 
 	return 0;
 }
@@ -532,9 +502,7 @@ static int rtlb_tmpnam(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	char buf[L_tmpnam];
 
 	if (tmpnam(buf) != NULL) {
-		ret->t = SPN_TYPE_STRING;
-		ret->f = SPN_TFLG_OBJECT;
-		ret->v.ptrv = spn_string_new(buf);
+		*ret = makestring(buf);
 	}
 	/* else: tmpnam() failed, return nil implicitly */
 
@@ -546,13 +514,9 @@ static int rtlb_tmpfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	FILE *fp = tmpfile();
 
 	if (fp != NULL) {
-		ret->t = SPN_TYPE_USERINFO;
-		ret->f = 0;
-		ret->v.ptrv = fp;
-	} else {
-		ret->t = SPN_TYPE_NIL;
-		ret->f = 0;
+		*ret = makeweakuserinfo(fp);
 	}
+	/* else implicitly return nil */
 
 	return 0;
 }
@@ -594,24 +558,24 @@ static int rtlb_indexof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0]) || !isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "first two arguments must be strings", NULL);
 		return -2;
 	}
 
 	/* if an offset is specified, respect it */
 	if (argc == 3) {
-		if (argv[2].t != SPN_TYPE_NUMBER || argv[2].f != 0) {
+		if (!isint(&argv[2])) {
 			/* not an integer */
 			spn_ctx_runtime_error(ctx, "third argument must be an integer", NULL);
 			return -3;
 		}
 
-		off = argv[2].v.intv;
+		off = intvalue(&argv[2]);
 	}
 
-	haystack = argv[0].v.ptrv;
-	needle   = argv[1].v.ptrv;
+	haystack = stringvalue(&argv[0]);
+	needle   = stringvalue(&argv[1]);
 	len = haystack->len;
 
 	/* if the offset is negative, count from the end of the string */
@@ -627,9 +591,7 @@ static int rtlb_indexof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	pos = strstr(haystack->cstr + off, needle->cstr);
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = pos != NULL ? pos - haystack->cstr : -1;
+	*ret = makeint(pos != NULL ? pos - haystack->cstr : -1);
 
 	return 0;	
 }
@@ -659,9 +621,7 @@ static int rtlb_aux_substr(SpnValue *ret, SpnString *str, long begin, long lengt
 	memcpy(buf, str->cstr + begin, length);
 	buf[length] = 0;
 
-	ret->t = SPN_TYPE_STRING;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_string_new_nocopy_len(buf, length, 1);
+	*ret = makestring_nocopy_len(buf, length, 1);
 
 	return 0;
 }
@@ -676,20 +636,19 @@ static int rtlb_substr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0
-	 || argv[2].t != SPN_TYPE_NUMBER || argv[2].f != 0) {
+	if (!isint(&argv[1]) || !isint(&argv[2])) {
 		spn_ctx_runtime_error(ctx, "second and third argument must be integers", NULL);
 		return -2;
 	}
 
-	str = argv[0].v.ptrv;
-	begin = argv[1].v.intv;
-	length = argv[2].v.intv;
+	str = stringvalue(&argv[0]);
+	begin = intvalue(&argv[1]);
+	length = intvalue(&argv[2]);
 
 	return rtlb_aux_substr(ret, str, begin, length, ctx);
 }
@@ -704,18 +663,18 @@ static int rtlb_substrto(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
+	if (!isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
 
-	str = argv[0].v.ptrv;
-	length = argv[1].v.intv;
+	str = stringvalue(&argv[0]);
+	length = intvalue(&argv[1]);
 
 	return rtlb_aux_substr(ret, str, 0, length, ctx);
 }
@@ -730,19 +689,19 @@ static int rtlb_substrfrom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
+	if (!isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
 
-	str = argv[0].v.ptrv;
+	str = stringvalue(&argv[0]);
 	slen = str->len;
-	begin = argv[1].v.intv;
+	begin = intvalue(&argv[1]);
 	length = slen - begin;
 
 	return rtlb_aux_substr(ret, str, begin, length, ctx);
@@ -755,48 +714,40 @@ static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	SpnString *haystack, *needle;
 	SpnArray *arr;
-	SpnValue key, val;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING || argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0]) || !isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be strings", NULL);
 		return -2;
 	}
 
-	haystack = argv[0].v.ptrv;
-	needle = argv[1].v.ptrv;
+	haystack = stringvalue(&argv[0]);
+	needle = stringvalue(&argv[1]);
 
 	arr = spn_array_new();
 
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = arr;
-
-	key.t = SPN_TYPE_NUMBER;
-	key.f = 0;
-
-	val.t = SPN_TYPE_STRING;
-	val.f = SPN_TFLG_OBJECT;
+	ret->type = SPN_TYPE_ARRAY;
+	ret->v.o = arr;
 
 	s = haystack->cstr;
 	t = strstr(s, needle->cstr);
 
 	while (1) {
-		const char *p = t != NULL ? t : haystack->cstr + haystack->len;
+		SpnValue val;
+		const char *p = t ? t : haystack->cstr + haystack->len;
 		size_t len = p - s;
 		char *buf = spn_malloc(len + 1);
 
 		memcpy(buf, s, len);
 		buf[len] = 0;
 
-		key.v.intv = i++;
-		val.v.ptrv = spn_string_new_nocopy_len(buf, len, 1);
-		spn_array_set(arr, &key, &val);
-		spn_object_release(val.v.ptrv);
+		val = makestring_nocopy_len(buf, len, 1);
+		spn_array_set_intkey(arr, i++, &val);
+		spn_value_release(&val);
 
 		if (t == NULL) {
 			break;
@@ -813,30 +764,30 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	char *buf;
 	size_t i, len, n;
-	SpnString *str, *rep;
+	SpnString *str;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
+	if (!isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -2;
 	}
 
-	if (argv[1].v.intv < 0) {
+	if (intvalue(&argv[1]) < 0) {
 		spn_ctx_runtime_error(ctx, "second argument must not be negative", NULL);
 		return -3;
 	}
 
-	str = argv[0].v.ptrv;
-	n = argv[1].v.intv;
+	str = stringvalue(&argv[0]);
+	n = intvalue(&argv[1]);
 	len = str->len * n;
 
 	buf = spn_malloc(len + 1);
@@ -846,11 +797,8 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	buf[len] = 0;
-	rep = spn_string_new_nocopy_len(buf, len, 1);
 
-	ret->t = SPN_TYPE_STRING;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = rep;
+	*ret = makestring_nocopy_len(buf, len, 1);
 
 	return 0;
 }
@@ -866,12 +814,12 @@ static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, Spn
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
 		return -2;
 	}
 
-	str = argv[0].v.ptrv;
+	str = stringvalue(&argv[0]);
 	p = str->cstr;
 
 	buf = spn_malloc(str->len + 1);
@@ -883,9 +831,7 @@ static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, Spn
 
 	*s = 0;
 
-	ret->t = SPN_TYPE_STRING;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_string_new_nocopy_len(buf, str->len, 1);
+	*ret = makestring_nocopy_len(buf, str->len, 1);
 
 	return 0;
 }
@@ -911,18 +857,17 @@ static int rtlb_fmtstr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a format string", NULL);
 		return -2;
 	}
 
-	fmt = argv[0].v.ptrv;
+	fmt = stringvalue(&argv[0]);
 	res = spn_string_format_obj(fmt, argc - 1, &argv[1], &errmsg);
 
 	if (res != NULL) {
-		ret->t = SPN_TYPE_STRING;
-		ret->f = SPN_TFLG_OBJECT;
-		ret->v.ptrv = res;
+		ret->type = SPN_TYPE_STRING;
+		ret->v.o = res;
 	} else {
 		const void *args[1];
 		args[0] = errmsg;
@@ -944,27 +889,25 @@ static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
 		return -2;
 	}
 
-	if (argc == 2 && (argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0)) {
+	if (argc == 2 && !isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
 		return -3;
 	}
 
-	str = argv[0].v.ptrv;
-	base = argc == 2 ? argv[1].v.intv : 0;
+	str = stringvalue(&argv[0]);
+	base = argc == 2 ? intvalue(&argv[1]) : 0;
 
 	if (base == 1 || base < 0 || base > 36) {
 		spn_ctx_runtime_error(ctx, "second argument must be zero or between [2...36]", NULL);
 		return -4;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = strtol(str->cstr, NULL, base);
+	*ret = makeint(strtol(str->cstr, NULL, base));
 
 	return 0;
 }
@@ -978,16 +921,14 @@ static int rtlb_tofloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
 		return -2;
 	}
 
-	str = argv[0].v.ptrv;
+	str = stringvalue(&argv[0]);
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = strtod(str->cstr, NULL);
+	*ret = makefloat(strtod(str->cstr, NULL));
 
 	return 0;
 }
@@ -1001,12 +942,12 @@ static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
 		return -2;
 	}
 
-	str = argv[0].v.ptrv;
+	str = stringvalue(&argv[0]);
 
 	if (strpbrk(str->cstr, ".eE") != NULL) {
 		return rtlb_tofloat(ret, argc, argv, ctx);
@@ -1047,22 +988,20 @@ static int rtlb_contains(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
 		return -2;
 	}
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = 0;
+	*ret = makebool(0);
 
-	arr = argv[0].v.ptrv;
+	arr = arrayvalue(&argv[0]);
 	n = spn_array_count(arr);
 	it = spn_iter_new(arr);
 
 	while (spn_iter_next(it, &key, &val) < n) {
 		if (spn_value_equal(&argv[1], &val)) {
-			ret->v.boolv = 1;
+			*ret = makebool(1);
 			break;
 		}
 	}
@@ -1083,32 +1022,29 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be a string", NULL);
 		return -2;
 	}
 
-	arr = argv[0].v.ptrv;
+	arr = arrayvalue(&argv[0]);
 	n = spn_array_count(arr);
 
-	delim = argv[1].v.ptrv;
+	delim = stringvalue(&argv[1]);
 
 	for (i = 0; i < n; i++) {
 		size_t addlen;
 		SpnString *str;
 
-		SpnValue key, val;
-		key.t = SPN_TYPE_NUMBER;
-		key.f = 0;
-		key.v.intv = i;
+		SpnValue val;
 
-		spn_array_get(arr, &key, &val);
-		if (val.t != SPN_TYPE_STRING) {
+		spn_array_get_intkey(arr, i, &val);
+		if (!isstring(&val)) {
 			free(buf);
 			spn_ctx_runtime_error(ctx, "array must contain strings only", NULL);
 			return -3;
@@ -1118,7 +1054,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		 * exponential buffer expansion. Maybe in alpha 2...
 		 */
 
-		str = val.v.ptrv;
+		str = stringvalue(&val);
 		addlen = i > 0 ? delim->len + str->len : str->len;
 
 		buf = spn_realloc(buf, len + addlen + 1);
@@ -1133,16 +1069,13 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		len += addlen;
 	}
 
-	ret->t = SPN_TYPE_STRING;
-	ret->f = SPN_TFLG_OBJECT;
-
 	if (i > 0) {
 		/* this may catch one error or two */
 		assert(buf != NULL);
 
 		/* add NUL terminator */
 		buf[len] = 0;
-		ret->v.ptrv = spn_string_new_nocopy_len(buf, len, 1);
+		*ret = makestring_nocopy_len(buf, len, 1);
 	} else {
 		assert(buf == NULL);
 
@@ -1150,7 +1083,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		 * (this is necessary because `buf` is now NULL,
 		 * and we definitely don't want this to segfault)
 		 */
-		ret->v.ptrv = spn_string_new_nocopy_len("", 0, 0);
+		*ret = makestring_nocopy_len("", 0, 0);
 	}
 
 	return 0;
@@ -1178,12 +1111,12 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_FUNC) {
+	if (!isfunc(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be a function", NULL);
 		return -2;
 	}
@@ -1195,7 +1128,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		args[3] = argv[2];
 	}
 
-	arr = argv[0].v.ptrv;
+	arr = arrayvalue(&argv[0]);
 	it = spn_iter_new(arr);
 	n = spn_array_count(arr);
 
@@ -1215,11 +1148,11 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		}
 
 		/* the callback must return a Boolean or nothing */
-		if (cbret.t == SPN_TYPE_BOOL) {
-			if (cbret.v.boolv == 0) {
+		if (isbool(&cbret)) {
+			if (boolvalue(&cbret) == 0) {
 				break;
 			}
-		} else if (cbret.t != SPN_TYPE_NIL) {
+		} else if (!isnil(&cbret)) {
 			spn_value_release(&cbret);
 			status = -3;
 			spn_ctx_runtime_error(ctx, "callback function must return boolean or nil", NULL);
@@ -1235,12 +1168,15 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "sort",	NULL		},
-	{ "linearsrch",	NULL		},
-	{ "binarysrch",	NULL		},
+	{ "linsearch",	NULL		},
+	{ "binsearch",	NULL		},
 	{ "contains",	rtlb_contains	},
 	{ "subarray",	NULL		},
 	{ "join",	rtlb_join	},
 	{ "foreach",	rtlb_foreach	},
+	{ "reduce",	NULL		},
+	{ "filter",	NULL		},
+	{ "map",	NULL		},
 	{ "insert",	NULL		},
 	{ "insertarr",	NULL		},
 	{ "delrange",	NULL		},
@@ -1257,8 +1193,8 @@ const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
  */
 static double val2float(SpnValue *val)
 {
-	assert(val->t == SPN_TYPE_NUMBER);
-	return val->f & SPN_TFLG_FLOAT ? val->v.fltv : val->v.intv;
+	assert(isnumber(val));
+	return isfloat(val) ? floatvalue(val) : intvalue(val);
 }
 
 /* cube root function, because c89 doesn't define it */
@@ -1314,7 +1250,7 @@ static int rtlb_aux_intize(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1326,9 +1262,7 @@ static int rtlb_aux_intize(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 		return -3;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = fn(x);
+	*ret = makeint(fn(x));
 
 	return 0;
 }
@@ -1355,30 +1289,26 @@ static int rtlb_sgn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-
-	if (argv[0].f & SPN_TFLG_FLOAT) {
-		double x = argv[0].v.fltv;
-		ret->f = SPN_TFLG_FLOAT;
+	if (isfloat(&argv[0])) {
+		double x = floatvalue(&argv[0]);
 
 		if (x > 0.0) {
-			ret->v.fltv = +1.0;
+			*ret = makefloat(+1.0);
 		} else if (x < 0.0) {
-			ret->v.fltv = -1.0;
+			*ret = makefloat(-1.0);
 		} else if (x == 0.0) {
-			ret->v.fltv = 0.0; /* yup, always +0 */
+			*ret = makefloat(0.0); /* yup, always +0 */
 		} else {
-			ret->v.fltv = 0.0 / 0.0; /* sgn(NaN) = NaN */
+			*ret = makefloat(0.0 / 0.0); /* sgn(NaN) = NaN */
 		}
 	} else {
-		long x = argv[0].v.intv;
-		ret->f = 0;
-		ret->v.intv = x > 0 ? +1 : x < 0 ? -1 : 0;
+		long x = intvalue(&argv[0]);
+		*ret = makeint(x > 0 ? +1 : x < 0 ? -1 : 0);
 	}
 
 	return 0;
@@ -1393,16 +1323,14 @@ static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
 
 	x = val2float(&argv[0]);
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = fn(x);
+	*ret = makefloat(fn(x));
 
 	return 0;
 }
@@ -1496,20 +1424,21 @@ static int rtlb_atan(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_atan2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
+	double x, y;
+
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER
-	 || argv[1].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0]) || !isnumber(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = atan2(val2float(&argv[0]), val2float(&argv[1]));
+	y = val2float(&argv[0]);
+	x = val2float(&argv[1]);
+	*ret = makefloat(atan2(y, x));
 
 	return 0;
 }
@@ -1522,7 +1451,7 @@ static int rtlb_hypot(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	for (i = 0; i < argc; i++) {
 		double x;
 
-		if (argv[i].t != SPN_TYPE_NUMBER) {
+		if (!isnumber(&argv[i])) {
 			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 			return -1;
 		}
@@ -1531,9 +1460,7 @@ static int rtlb_hypot(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		h += x * x;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = sqrt(h);
+	*ret = makefloat(sqrt(h));
 
 	return 0;
 }
@@ -1545,14 +1472,12 @@ static int rtlb_deg2rad(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = val2float(&argv[0]) / 180.0 * M_PI;
+	*ret = makefloat(val2float(&argv[0]) / 180.0 * M_PI);
 
 	return 0;
 }
@@ -1564,14 +1489,12 @@ static int rtlb_rad2deg(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = val2float(&argv[0]) / M_PI * 180.0;
+	*ret = makefloat(val2float(&argv[0]) / M_PI * 180.0);
 
 	return 0;
 }
@@ -1583,9 +1506,7 @@ static int rtlb_random(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	 * it's pointless to try improving it for simple use cases. If one
 	 * needs a decent PRNG, one will use a dedicated library anyway.
 	 */
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = rand() * 1.0 / RAND_MAX;
+	*ret = makefloat(rand() * 1.0 / RAND_MAX);
 
 	return 0;
 }
@@ -1597,12 +1518,12 @@ static int rtlb_seed(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
+	if (!isint(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an integer", NULL);
 		return -2;
 	}
 
-	srand(argv[0].v.intv);
+	srand(intvalue(&argv[0]));
 
 	return 0;
 }
@@ -1636,14 +1557,12 @@ static int rtlb_aux_fltclass(SpnValue *ret, int argc, SpnValue *argv, SpnContext
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-	ret->v.boolv = fn(val2float(&argv[0]));
+	*ret = makebool(fn(val2float(&argv[0])));
 
 	return 0;
 }
@@ -1670,17 +1589,17 @@ static int rtlb_abs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
 
-	*ret = argv[0];
+	*ret = argv[0]; /* don't need to retain a number */
 
-	if (ret->f & SPN_TFLG_FLOAT) {
-		ret->v.fltv = fabs(ret->v.fltv);
-	} else if (ret->v.intv < 0) {
-		ret->v.intv = -ret->v.intv;
+	if (isfloat(ret)) {
+		ret->v.f = fabs(ret->v.f);
+	} else if (ret->v.i < 0) {
+		ret->v.i = -ret->v.i;
 	}
 
 	return 0;
@@ -1693,30 +1612,26 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[1].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0]) || !isnumber(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
-
-	ret->t = SPN_TYPE_NUMBER;
 
 	/* if either of the base or the exponent is real,
 	 * then the result is real too.
 	 * Furthermore, if both the base and the exponent are integers,
 	 * but the exponent is negative, then the result is real.
-	 * The result is a integer only when the base is an integer and
+	 * The result is an integer only when the base is an integer and
 	 * the exponent is a non-negative integer at the same time.
 	 */
-	if (argv[0].f & SPN_TFLG_FLOAT || argv[1].f & SPN_TFLG_FLOAT) {
-		ret->f = SPN_TFLG_FLOAT;
-		ret->v.fltv = pow(val2float(&argv[0]), val2float(&argv[1]));	
-	} else if (argv[1].v.intv < 0) {
-		ret->f = SPN_TFLG_FLOAT;
-		ret->v.fltv = pow(val2float(&argv[0]), val2float(&argv[1]));	
+	if (isfloat(&argv[0]) || isfloat(&argv[1]) || intvalue(&argv[1]) < 0) {
+		double x = val2float(&argv[0]);
+		double y = val2float(&argv[1]);
+		*ret = makefloat(pow(x, y));
 	} else {
 		/* base, exponent, result */
-		long b = argv[0].v.intv;
-		long e = argv[1].v.intv;
+		long b = intvalue(&argv[0]);
+		long e = intvalue(&argv[1]);
 		long r = 1;
 
 		/* exponentation by squaring - http://stackoverflow.com/q/101439/ */
@@ -1729,8 +1644,7 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			e >>= 1;
 		}
 
-		ret->f = 0;
-		ret->v.intv = r;
+		*ret = makeint(r);
 	}
 
 	return 0;
@@ -1745,36 +1659,36 @@ static int rtlb_min(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
 
-	*ret = argv[0];
+	*ret = argv[0]; /* again, no need to retain numbers */
 
 	for (i = 1; i < argc; i++) {
-		if (argv[i].t != SPN_TYPE_NUMBER) {
+		if (!isnumber(&argv[i])) {
 			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 			return -2;
 		}
 
-		if (argv[i].f & SPN_TFLG_FLOAT) {
-			if (ret->f & SPN_TFLG_FLOAT) {
-				if (argv[i].v.fltv < ret->v.fltv) {
+		if (isfloat(&argv[i])) {
+			if (isfloat(ret)) {
+				if (floatvalue(&argv[i]) < floatvalue(ret)) {
 					*ret = argv[i];
 				}
 			} else {
-				if (argv[i].v.fltv < ret->v.intv) {
+				if (floatvalue(&argv[i]) < intvalue(ret)) {
 					*ret = argv[i];
 				}
 			}
 		} else {
-			if (ret->f & SPN_TFLG_FLOAT) {
-				if (argv[i].v.intv < ret->v.fltv) {
+			if (isfloat(ret)) {
+				if (intvalue(&argv[i]) < floatvalue(ret)) {
 					*ret = argv[i];
 				}
 			} else {
-				if (argv[i].v.intv < ret->v.intv) {
+				if (intvalue(&argv[i]) < intvalue(ret)) {
 					*ret = argv[i];
 				}
 			}
@@ -1793,7 +1707,7 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
@@ -1801,28 +1715,28 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	*ret = argv[0];
 
 	for (i = 1; i < argc; i++) {
-		if (argv[i].t != SPN_TYPE_NUMBER) {
+		if (!isnumber(&argv[i])) {
 			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 			return -2;
 		}
 
-		if (argv[i].f & SPN_TFLG_FLOAT) {
-			if (ret->f & SPN_TFLG_FLOAT) {
-				if (argv[i].v.fltv > ret->v.fltv) {
+		if (isfloat(&argv[i])) {
+			if (isfloat(ret)) {
+				if (floatvalue(&argv[i]) > floatvalue(ret)) {
 					*ret = argv[i];
 				}
 			} else {
-				if (argv[i].v.fltv > ret->v.intv) {
+				if (floatvalue(&argv[i]) > intvalue(ret)) {
 					*ret = argv[i];
 				}
 			}
 		} else {
-			if (ret->f & SPN_TFLG_FLOAT) {
-				if (argv[i].v.intv > ret->v.fltv) {
+			if (isfloat(ret)) {
+				if (intvalue(&argv[i]) > floatvalue(ret)) {
 					*ret = argv[i];
 				}
 			} else {
-				if (argv[i].v.intv > ret->v.intv) {
+				if (intvalue(&argv[i]) > intvalue(ret)) {
 					*ret = argv[i];
 				}
 			}
@@ -1839,14 +1753,7 @@ static int rtlb_isfloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-
-	if (argv[0].t == SPN_TYPE_NUMBER) {
-		ret->v.boolv = (argv[0].f & SPN_TFLG_FLOAT) != 0;
-	} else {
-		ret->v.boolv = 0;
-	}
+	*ret = makebool(isfloat(&argv[0]));
 
 	return 0;
 }
@@ -1858,44 +1765,37 @@ static int rtlb_isint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	ret->t = SPN_TYPE_BOOL;
-	ret->f = 0;
-
-	if (argv[0].t == SPN_TYPE_NUMBER) {
-		ret->v.boolv = (argv[0].f & SPN_TFLG_FLOAT) == 0;
-	} else {
-		ret->v.boolv = 0;
-	}
+	*ret = makebool(isint(&argv[0]));
 
 	return 0;
 }
 
 static int rtlb_fact(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	long i;
+	long i, n, r = 1;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
+	if (!isint(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an integer", NULL);
 		return -2;
 	}
 
-	if (argv[0].v.intv < 0) {
+	if (intvalue(&argv[0]) < 0) {
 		spn_ctx_runtime_error(ctx, "argument must not be negative", NULL);
 		return -3;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = 1;
+	n = intvalue(&argv[0]);
 
-	for (i = 2; i <= argv[0].v.intv; i++) {
-		ret->v.intv *= i;
+	for (i = 2; i <= n; i++) {
+		r *= i;
 	}
+
+	*ret = makeint(r);
 
 	return 0;
 }
@@ -1909,14 +1809,13 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0
-	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
+	if (!isint(&argv[0]) || !isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be integers", NULL);
 		return -2;
 	}
 
-	n = argv[0].v.intv;
-	k = argv[1].v.intv;
+	n = intvalue(&argv[0]);
+	k = intvalue(&argv[1]);
 
 	if (n < 0 || k < 0 || n < k) {
 		spn_ctx_runtime_error(ctx, "n >= k >= 0 is expected", NULL);
@@ -1934,9 +1833,7 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		p = p * i++ / j++;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = p;
+	*ret = makeint(p);
 
 	return 0;
 }
@@ -1953,22 +1850,17 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int polar, SpnContext *ctx)
 {
-	SpnValue re_r_key     = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } },
-		 im_theta_key = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } },
-		 re_r_val,
-		 im_theta_val;
+	SpnValue re_r_val, im_theta_val;
+	SpnArray *arr = arrayvalue(num);
+	const char *re_r_key, *im_theta_key;
 
-	re_r_key.v.ptrv     = spn_string_new_nocopy(polar ? "r"     : "re", 0);
-	im_theta_key.v.ptrv = spn_string_new_nocopy(polar ? "theta" : "im", 0);
+	re_r_key     = polar ? "r"     : "re";
+	im_theta_key = polar ? "theta" : "im";
 
-	spn_array_get(num->v.ptrv, &re_r_key, &re_r_val);
-	spn_array_get(num->v.ptrv, &im_theta_key, &im_theta_val);
+	spn_array_get_strkey(arr, re_r_key, &re_r_val);
+	spn_array_get_strkey(arr, im_theta_key, &im_theta_val);
 
-	spn_object_release(re_r_key.v.ptrv);
-	spn_object_release(im_theta_key.v.ptrv);
-
-	if (re_r_val.t     != SPN_TYPE_NUMBER
-	 || im_theta_val.t != SPN_TYPE_NUMBER) {
+	if (!isnumber(&re_r_val) || !isnumber(&im_theta_val)) {
 		spn_ctx_runtime_error(ctx, "keys 're' and 'im' or 'r' and 'theta' should correspond to numbers", NULL);
 		return -1;
 	}
@@ -1981,22 +1873,18 @@ static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int pola
 
 static void rtlb_cplx_set(SpnValue *num, double re_r, double im_theta, int polar)
 {
-	SpnValue re_r_key     = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } },
-		 im_theta_key = { SPN_TYPE_STRING, SPN_TFLG_OBJECT, { 0 } },
-		 re_r_val     = { SPN_TYPE_NUMBER, SPN_TFLG_FLOAT,  { 0 } },
-		 im_theta_val = { SPN_TYPE_NUMBER, SPN_TFLG_FLOAT,  { 0 } };
+	SpnValue re_r_val, im_theta_val;
+	SpnArray *arr = arrayvalue(num);
+	const char *re_r_key, *im_theta_key;
 
-	re_r_key.v.ptrv     = spn_string_new_nocopy(polar ? "r"     : "re", 0);
-	im_theta_key.v.ptrv = spn_string_new_nocopy(polar ? "theta" : "im", 0);
+	re_r_key     = polar ? "r"     : "re";
+	im_theta_key = polar ? "theta" : "im";
 
-	re_r_val.v.fltv     = re_r;
-	im_theta_val.v.fltv = im_theta;
+	re_r_val     = makefloat(re_r);
+	im_theta_val = makefloat(im_theta);
 
-	spn_array_set(num->v.ptrv, &re_r_key, &re_r_val);
-	spn_array_set(num->v.ptrv, &im_theta_key, &im_theta_val);
-
-	spn_object_release(re_r_key.v.ptrv);
-	spn_object_release(im_theta_key.v.ptrv);
+	spn_array_set_strkey(arr, re_r_key, &re_r_val);
+	spn_array_set_strkey(arr, im_theta_key, &im_theta_val);
 }
 
 
@@ -2016,7 +1904,7 @@ static int rtlb_cplx_binop(SpnValue *ret, int argc, SpnValue *argv, enum cplx_bi
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY || argv[1].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0]) || !isarray(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be arrays", NULL);
 		return -2;
 	}
@@ -2052,11 +1940,9 @@ static int rtlb_cplx_binop(SpnValue *ret, int argc, SpnValue *argv, enum cplx_bi
 		SHANT_BE_REACHED();
 	}
 
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_array_new();
-
+	*ret = makearray();
 	rtlb_cplx_set(ret, re, im, 0);
+
 	return 0;
 }
 
@@ -2096,7 +1982,7 @@ static int rtlb_aux_cplx_trig(SpnValue *ret, int argc, SpnValue *argv, enum cplx
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
 		return -2;
 	}
@@ -2128,11 +2014,9 @@ static int rtlb_aux_cplx_trig(SpnValue *ret, int argc, SpnValue *argv, enum cplx
 		SHANT_BE_REACHED();
 	}
 
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_array_new();
-
+	*ret = makearray();
 	rtlb_cplx_set(ret, re_out, im_out, 0);
+
 	return 0;
 }
 
@@ -2160,7 +2044,7 @@ static int rtlb_cplx_conj(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
 		return -2;
 	}
@@ -2169,11 +2053,9 @@ static int rtlb_cplx_conj(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_array_new();
-
+	*ret = makearray();
 	rtlb_cplx_set(ret, re, -im, 0);
+
 	return 0;
 }
 
@@ -2186,7 +2068,7 @@ static int rtlb_cplx_abs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
 		return -2;
 	}
@@ -2195,9 +2077,7 @@ static int rtlb_cplx_abs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = sqrt(re * re + im * im);
+	*ret = makefloat(sqrt(re * re + im * im));
 
 	return 0;
 }
@@ -2212,7 +2092,7 @@ static int rtlb_can2pol(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
 		return -2;
 	}
@@ -2224,11 +2104,9 @@ static int rtlb_can2pol(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	r = sqrt(re * re + im * im);
 	theta = atan2(im, re);
 
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_array_new();
-
+	*ret = makearray();
 	rtlb_cplx_set(ret, r, theta, 1);
+
 	return 0;
 }
 
@@ -2241,7 +2119,7 @@ static int rtlb_pol2can(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
 		return -2;
 	}
@@ -2253,11 +2131,9 @@ static int rtlb_pol2can(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	re = r * cos(theta);
 	im = r * sin(theta);
 
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_array_new();
-
+	*ret = makearray();
 	rtlb_cplx_set(ret, re, im, 0);
+
 	return 0;
 }
 
@@ -2313,7 +2189,7 @@ const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "pol2can",	rtlb_pol2can	},
 };
 
-
+	
 /***************************
  * OS/Shell access library *
  ***************************/
@@ -2328,18 +2204,16 @@ static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a string (name of an environment variable)", NULL);
 		return -2;
 	}
 
-	name = argv[0].v.ptrv;
+	name = stringvalue(&argv[0]);
 	env = getenv(name->cstr);
 
 	if (env != NULL) {
-		ret->t = SPN_TYPE_STRING;
-		ret->f = SPN_TFLG_OBJECT;
-		ret->v.ptrv = spn_string_new_nocopy(env, 0);
+		*ret = makestring(env);
 	}
 	/* else implicitly return nil */
 
@@ -2356,17 +2230,15 @@ static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a string (a command to execute)", NULL);
 		return -2;
 	}
 
-	cmd = argv[0].v.ptrv;
+	cmd = stringvalue(&argv[0]);
 	code = system(cmd->cstr);
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = code;
+	*ret = makeint(code);
 
 	return 0;
 }
@@ -2378,19 +2250,19 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_BOOL) {
+	if (!isbool(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "assertion condition must be a boolean", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "error message must be a string", NULL);
 		return -2;
 	}
 
 	/* actual assertion */
-	if (argv[0].v.boolv == 0) {
-		SpnString *msg = argv[1].v.ptrv;
+	if (boolvalue(&argv[0]) == 0) {
+		SpnString *msg = stringvalue(&argv[1]);
 		const void *args[1];
 		args[0] = msg->cstr;
 		spn_ctx_runtime_error(ctx, "assertion failed: %s", args);
@@ -2411,12 +2283,12 @@ static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	if (argc > 0) {
-		if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
+		if (!isint(&argv[0])) {
 			spn_ctx_runtime_error(ctx, "argument must be an integer exit code", NULL);
 			return -2;
 		}
 
-		code = argv[0].v.intv;
+		code = intvalue(&argv[0]);
 	}
 
 	exit(code);
@@ -2428,10 +2300,7 @@ static int rtlb_time(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	/* XXX: is time_t guaranteed to be signed? Is it unsigned on any
 	 * sensible implementation we should care about?
 	 */
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = 0;
-	ret->v.intv = time(NULL);
-
+	*ret = makeint(time(NULL));
 	return 0;
 }
 
@@ -2446,80 +2315,55 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, SpnContext *c
 	struct tm *ts;
 
 	SpnArray *arr;
-	SpnValue key, val;
+	SpnValue val;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0) {
+	if (!isint(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be an integer", NULL);
 		return -2;
 	}
 
 	/* the argument of this function is an integer returned by time() */
-	tmstp = argv[0].v.intv;
+	tmstp = intvalue(&argv[0]);
 	ts = islocal ? localtime(&tmstp) : gmtime(&tmstp);
 
 	arr = spn_array_new();
 
-	key.t = SPN_TYPE_STRING;
-	key.f = SPN_TFLG_OBJECT;
-
-	val.t = SPN_TYPE_NUMBER;
-	val.f = 0;
-
 	/* make an SpnArray out of the returned struct tm */
-	key.v.ptrv = spn_string_new_nocopy("sec", 0);
-	val.v.intv = ts->tm_sec;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_sec);
+	spn_array_set_strkey(arr, "sec", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("min", 0);
-	val.v.intv = ts->tm_min;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_min);
+	spn_array_set_strkey(arr, "min", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("hour", 0);
-	val.v.intv = ts->tm_hour;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_hour);
+	spn_array_set_strkey(arr, "hour", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("mday", 0);
-	val.v.intv = ts->tm_mday;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_mday);
+	spn_array_set_strkey(arr, "mday", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("mon", 0);
-	val.v.intv = ts->tm_mon;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_mon);
+	spn_array_set_strkey(arr, "mon", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("year", 0);
-	val.v.intv = ts->tm_year;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_year);
+	spn_array_set_strkey(arr, "year", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("wday", 0);
-	val.v.intv = ts->tm_wday;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_wday);
+	spn_array_set_strkey(arr, "wday", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("yday", 0);
-	val.v.intv = ts->tm_yday;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_yday);
+	spn_array_set_strkey(arr, "yday", &val);
 
-	key.v.ptrv = spn_string_new_nocopy("isdst", 0);
-	val.v.intv = ts->tm_isdst;
-	spn_array_set(arr, &key, &val);
-	spn_object_release(key.v.ptrv);
+	val = makeint(ts->tm_isdst);
+	spn_array_set_strkey(arr, "isdst", &val);
 
 	/* return the array */
-	ret->t = SPN_TYPE_ARRAY;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = arr;
+	ret->type = SPN_TYPE_ARRAY;
+	ret->v.o = arr;
 
 	return 0;
 }
@@ -2541,22 +2385,16 @@ static int rtlb_localtime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
  */
 static int rtlb_aux_extract_time(SpnArray *arr, const char *str, int *outval, SpnContext *ctx)
 {
-	SpnValue key, val;
+	SpnValue val;
 
-	key.t = SPN_TYPE_STRING;
-	key.f = SPN_TFLG_OBJECT;
-	key.v.ptrv = spn_string_new_nocopy(str, 0);
+	spn_array_get_strkey(arr, str, &val);
 
-	spn_array_get(arr, &key, &val);
-
-	spn_object_release(key.v.ptrv);
-
-	if (val.t != SPN_TYPE_NUMBER || val.f & SPN_TFLG_FLOAT) {
+	if (!isint(&val)) {
 		spn_ctx_runtime_error(ctx, "array members should be integers", NULL);
 		return -1;
 	}
 
-	*outval = val.v.intv;
+	*outval = intvalue(&val);
 	return 0;
 }
 
@@ -2574,12 +2412,12 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_STRING) {
+	if (!isstring(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a format string", NULL);
 		return -2;
 	}
 
-	if (argv[1].t != SPN_TYPE_ARRAY) {
+	if (!isarray(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "second argument must be an array", NULL);
 		return -2;
 	}
@@ -2587,8 +2425,8 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	/* first argument is the format, second one is the array that 
 	 * rtlb_aux_gettm() returned
 	 */
-	fmt = argv[0].v.ptrv;
-	arr = argv[1].v.ptrv;
+	fmt = stringvalue(&argv[0]);
+	arr = arrayvalue(&argv[1]);
 
 	/* convert array back to a struct tm */
 	if (rtlb_aux_extract_time(arr, "sec", &ts.tm_sec, ctx) != 0) {
@@ -2634,9 +2472,7 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	len = strftime(buf, RTLB_STRFTIME_BUFSIZE, fmt->cstr, &ts);
 
 	/* set return value */
-	ret->t = SPN_TYPE_STRING;
-	ret->f = SPN_TFLG_OBJECT;
-	ret->v.ptrv = spn_string_new_nocopy_len(buf, len, 1);
+	*ret = makestring_nocopy_len(buf, len, 1);
 
 	return 0;
 }
@@ -2648,15 +2484,12 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (argv[0].t != SPN_TYPE_NUMBER || argv[0].f != 0
-	 || argv[1].t != SPN_TYPE_NUMBER || argv[1].f != 0) {
+	if (!isint(&argv[0]) || !isint(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be integers", NULL);
 		return -2;
 	}
 
-	ret->t = SPN_TYPE_NUMBER;
-	ret->f = SPN_TFLG_FLOAT;
-	ret->v.fltv = difftime(argv[0].v.intv, argv[1].v.intv);
+	*ret = makefloat(difftime(intvalue(&argv[0]), intvalue(&argv[1])));
 
 	return 0;
 }
@@ -2691,101 +2524,63 @@ static void load_stdlib_constants(SpnVMachine *vm)
 
 	/* standard I/O streams */
 	values[0].name = "stdin";
-	values[0].value.t = SPN_TYPE_USERINFO;
-	values[0].value.f = 0;
-	values[0].value.v.ptrv = stdin;
+	values[0].value = makeweakuserinfo(stdin);
 
 	values[1].name = "stdout";
-	values[1].value.t = SPN_TYPE_USERINFO;
-	values[1].value.f = 0;
-	values[1].value.v.ptrv = stdout;
+	values[1].value = makeweakuserinfo(stdout);
 
 	values[2].name = "stderr";
-	values[2].value.t = SPN_TYPE_USERINFO;
-	values[2].value.f = 0;
-	values[2].value.v.ptrv = stderr;
+	values[2].value = makeweakuserinfo(stderr);
 
 	/* mathematical constants */
 	values[3].name = "M_E";
-	values[3].value.t = SPN_TYPE_NUMBER;
-	values[3].value.f = SPN_TFLG_FLOAT;
-	values[3].value.v.fltv = M_E;
+	values[3].value = makefloat(M_E);
 
 	values[4].name = "M_LOG2E";
-	values[4].value.t = SPN_TYPE_NUMBER;
-	values[4].value.f = SPN_TFLG_FLOAT;
-	values[4].value.v.fltv = M_LOG2E;
+	values[4].value = makefloat(M_LOG2E);
 
 	values[5].name = "M_LOG10E";
-	values[5].value.t = SPN_TYPE_NUMBER;
-	values[5].value.f = SPN_TFLG_FLOAT;
-	values[5].value.v.fltv = M_LOG10E;
+	values[5].value = makefloat(M_LOG10E);
 
 	values[6].name = "M_LN2";
-	values[6].value.t = SPN_TYPE_NUMBER;
-	values[6].value.f = SPN_TFLG_FLOAT;
-	values[6].value.v.fltv = M_LN2;
+	values[6].value = makefloat(M_LN2);
 
 	values[7].name = "M_LN10";
-	values[7].value.t = SPN_TYPE_NUMBER;
-	values[7].value.f = SPN_TFLG_FLOAT;
-	values[7].value.v.fltv = M_LN10;
+	values[7].value = makefloat(M_LN10);
 
 	values[8].name = "M_PI";
-	values[8].value.t = SPN_TYPE_NUMBER;
-	values[8].value.f = SPN_TFLG_FLOAT;
-	values[8].value.v.fltv = M_PI;
+	values[8].value = makefloat(M_PI);
 
 	values[9].name = "M_PI_2";
-	values[9].value.t = SPN_TYPE_NUMBER;
-	values[9].value.f = SPN_TFLG_FLOAT;
-	values[9].value.v.fltv = M_PI_2;
+	values[9].value = makefloat(M_PI_2);
 
 	values[10].name = "M_PI_4";
-	values[10].value.t = SPN_TYPE_NUMBER;
-	values[10].value.f = SPN_TFLG_FLOAT;
-	values[10].value.v.fltv = M_PI_4;
+	values[10].value = makefloat(M_PI_4);
 
 	values[11].name = "M_1_PI";
-	values[11].value.t = SPN_TYPE_NUMBER;
-	values[11].value.f = SPN_TFLG_FLOAT;
-	values[11].value.v.fltv = M_1_PI;
+	values[11].value = makefloat(M_1_PI);
 
 	values[12].name = "M_2_PI";
-	values[12].value.t = SPN_TYPE_NUMBER;
-	values[12].value.f = SPN_TFLG_FLOAT;
-	values[12].value.v.fltv = M_2_PI;
+	values[12].value = makefloat(M_2_PI);
 
 	values[13].name = "M_2_SQRTPI";
-	values[13].value.t = SPN_TYPE_NUMBER;
-	values[13].value.f = SPN_TFLG_FLOAT;
-	values[13].value.v.fltv = M_2_SQRTPI;
+	values[13].value = makefloat(M_2_SQRTPI);
 
 	values[14].name = "M_SQRT2";
-	values[14].value.t = SPN_TYPE_NUMBER;
-	values[14].value.f = SPN_TFLG_FLOAT;
-	values[14].value.v.fltv = M_SQRT2;
+	values[14].value = makefloat(M_SQRT2);
 
 	values[15].name = "M_SQRT1_2";
-	values[15].value.t = SPN_TYPE_NUMBER;
-	values[15].value.f = SPN_TFLG_FLOAT;
-	values[15].value.v.fltv = M_SQRT1_2;
+	values[15].value = makefloat(M_SQRT1_2);
 
 	values[16].name = "M_PHI";
-	values[16].value.t = SPN_TYPE_NUMBER;
-	values[16].value.f = SPN_TFLG_FLOAT;
-	values[16].value.v.fltv = M_PHI;
+	values[16].value = makefloat(M_PHI);
 
 	/* NaN and infinity */
 	values[17].name = "M_NAN";
-	values[17].value.t = SPN_TYPE_NUMBER;
-	values[17].value.f = SPN_TFLG_FLOAT;
-	values[17].value.v.fltv = 0.0 / 0.0; /* silent NaN */
+	values[17].value = makefloat(0.0 / 0.0);
 
 	values[18].name = "M_INF";
-	values[18].value.t = SPN_TYPE_NUMBER;
-	values[18].value.f = SPN_TFLG_FLOAT;
-	values[18].value.v.fltv = 1.0 / 0.0; /* silent +inf */
+	values[18].value = makefloat(1.0 / 0.0);
 
 	spn_vm_addlib_values(vm, NULL, values, SPN_N_STD_CONSTANTS);
 }

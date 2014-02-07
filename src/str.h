@@ -73,5 +73,12 @@ SPN_API SpnString *spn_string_format_obj(
 	char **errmsg		/* error description		*/
 );
 
+/* convenience value constructors and an accessor */
+SPN_API SpnValue spn_makestring(const char *s);
+SPN_API SpnValue spn_makestring_nocopy(const char *s);
+SPN_API SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int dealloc);
+
+#define spn_stringvalue(val) ((SpnString *)((val)->v.o))
+
 #endif /* SPN_STR_H */
 

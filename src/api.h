@@ -39,91 +39,17 @@ typedef signed long spn_sword;
 #define SPN_WORD_OCTETS 4
 
 
-/* 
- * Value API
- * (reference-counted generic values and corresponding types)
- */
-
-/* SPN_TFLG_PENDING denotes an unresolved reference to a global symbol.
- * This type is to be used exclusively in the local symbol table.
- * Any reference to such a symbol makes the Sparkling virtual machine attempt
- * to resolve the reference, and if it succeeds, it updates the symbol in the
- * local symbol table, then it loads the value as usual.
- * If the symbol cannot be resolved, a runtime error is generated.
- */
-
-/* main types */
-enum spn_val_type {
-	SPN_TYPE_NIL,
-	SPN_TYPE_BOOL,
-	SPN_TYPE_NUMBER,	/* floating-point if `FLOAT' flag is iset	*/
-	SPN_TYPE_FUNC,
-	SPN_TYPE_STRING,
-	SPN_TYPE_ARRAY,
-	SPN_TYPE_USERINFO	/* strong pointer when `OBJECT' flag is set	*/
-};
-
-/* additional type information flags and masks: at most 1 can be set! */
-enum spn_val_flag {
-	SPN_TFLG_OBJECT		= 1 << 0,	/* type is an object type	*/
-	SPN_TFLG_FLOAT		= 1 << 1,	/* number is floating-point	*/
-	SPN_TFLG_NATIVE		= 1 << 2,	/* function is native		*/
-	SPN_TFLG_PENDING	= 1 << 3	/* unresolved (stub) symbol	*/
-};
-
-typedef struct SpnValue SpnValue;
-
-typedef struct SpnFunction {
-	const char *name;
-	spn_uword *env; /* the bytecode in which the function was defined */
-	union {
-		int (*fn)(SpnValue *, int, SpnValue *, void *); /* C function */
-		spn_uword *bc; /* pointer to header (just before entry point) */
-	} r;
-} SpnFunction;
-
-struct SpnValue {
-	enum spn_val_type t;		/* type	tag	  */
-	enum spn_val_flag f;		/* extra flags	  */
-	union {
-		int boolv;		/* Boolean value  */
-		long intv;		/* integer value  */
-		double fltv;		/* float value	  */
-		void *ptrv;		/* object value	  */
-		SpnFunction fnv;	/* function value */
-	} v;				/* value union	  */
-};
-
-/* reference counting */
-SPN_API void spn_value_retain(SpnValue *val);
-SPN_API void spn_value_release(SpnValue *val);
-
-/* testing values for (in)equality */
-SPN_API int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs);
-SPN_API int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs);
-
-/* hashing (for generic data and for SpnValue structs) */
-SPN_API unsigned long spn_hash(const void *data, size_t n);
-SPN_API unsigned long spn_hash_value(const SpnValue *obj);
-
-/* prints the user-readable representation of a value to stdout */
-SPN_API void spn_value_print(const SpnValue *val);
-
-/* returns a string describing a particular type */
-SPN_API const char *spn_type_name(enum spn_val_type type);
-
-
 /*
  * Object API
  * Reference-counted objects: construction, memory management, etc.
  */
 
 typedef struct SpnClass {
-	size_t instsz;					/* sizeof(instance)			*/
-	int (*equal)(const void *, const void *);	/* non-zero: equal, zero: different	*/
-	int (*compare)(const void *, const void *);	/* -1, +1, 0: lhs is <, >, == to rhs	*/
-	unsigned long (*hashfn)(void *);		/* cache the hash if immutable!		*/
-	void (*destructor)(void *);			/* should call free() on its argument	*/
+	size_t instsz;				/* sizeof(instance)			*/
+	int (*equal)(void *, void *);		/* non-zero: equal, zero: different	*/
+	int (*compare)(void *, void *);		/* -1, +1, 0: lhs is <, >, == to rhs	*/
+	unsigned long (*hashfn)(void *);	/* cache the hash if immutable!		*/
+	void (*destructor)(void *);		/* should call free() on its argument	*/
 } SpnClass;
 
 typedef struct SpnObject {
@@ -131,8 +57,8 @@ typedef struct SpnObject {
 	unsigned refcnt;
 } SpnObject;
 
-/* allocates a partially uninitialized (only the `isa` and `refcount` members
- * are set up) object of clas `isa`. The returned instance should go through
+/* allocates a partially initialized (only the `isa` and `refcount` members
+ * are set up) object of class `isa`. The returned instance should go through
  * a dedicated constructor (see e. g. spn_string_new()).
  */
 SPN_API void *spn_object_new(const SpnClass *isa);
@@ -141,12 +67,12 @@ SPN_API void *spn_object_new(const SpnClass *isa);
  * of the same class, and either their pointers compare equal or they have
  * a non-NULL `compare` member function which returns nonzero.
  */
-SPN_API int spn_object_equal(const void *lhs, const void *rhs);
+SPN_API int spn_object_equal(void *lhs, void *rhs);
 
 /* ordered comparison of objects. follows the common C idiom:
  * returns -1 if lhs < rhs, 0 if lhs == rhs, 1 if lhs > rhs
  */
-SPN_API int spn_object_cmp(const void *lhs, const void *rhs);
+SPN_API int spn_object_cmp(void *lhs, void *rhs);
 
 /* these reference counting functions are called quite often.
  * for the sake of speed, they should probably be inlined. C89 doesn't have
@@ -163,9 +89,126 @@ SPN_API void spn_object_retain(void *o);
 SPN_API void spn_object_release(void *o);
 
 
+/* 
+ * Value API
+ * (reference-counted generic values and corresponding types)
+ */
+
+/* SPN_TFLG_PENDING denotes an unresolved reference to a global symbol.
+ * This type is to be used exclusively in the local symbol table.
+ * Any reference to such a symbol makes the Sparkling virtual machine attempt
+ * to resolve the reference, and if it succeeds, it updates the symbol in the
+ * local symbol table, then it loads the value as usual.
+ * If the symbol cannot be resolved, a runtime error is generated.
+ */
+
+
+#define SPN_MASK_TTAG 0x00ff
+#define SPN_MASK_FLAG 0xff00
+
+/* basic type tags */
+enum {
+	SPN_TTAG_NIL,
+	SPN_TTAG_BOOL,
+	SPN_TTAG_NUMBER,	/* floating-point if `FLOAT' flag is iset	*/
+	SPN_TTAG_STRING,
+	SPN_TTAG_ARRAY,
+	SPN_TTAG_FUNC,
+	SPN_TTAG_USERINFO	/* strong pointer when `OBJECT' flag is set	*/
+};
+
+/* additional type information flags */
+enum {
+	SPN_FLAG_OBJECT		= 1 << 8,	/* type is an object type	*/
+	SPN_FLAG_FLOAT		= 1 << 9,	/* number is floating-point	*/
+	SPN_FLAG_PENDING	= 1 << 10	/* value is pending. XXX: this should be removed ASAP! */
+};
+
+/* complete type definitions */
+#define SPN_TYPE_NIL		 SPN_TTAG_NIL
+#define SPN_TYPE_BOOL		 SPN_TTAG_BOOL
+#define SPN_TYPE_INT		 SPN_TTAG_NUMBER
+#define SPN_TYPE_FLOAT		(SPN_TTAG_NUMBER   | SPN_FLAG_FLOAT)
+#define SPN_TYPE_FUNC		(SPN_TTAG_FUNC     | SPN_FLAG_OBJECT)
+#define SPN_TYPE_STRING		(SPN_TTAG_STRING   | SPN_FLAG_OBJECT)
+#define SPN_TYPE_ARRAY		(SPN_TTAG_ARRAY    | SPN_FLAG_OBJECT)
+#define SPN_TYPE_WEAKUSERINFO	 SPN_TTAG_USERINFO
+#define SPN_TYPE_STRGUSERINFO	(SPN_TTAG_USERINFO | SPN_FLAG_OBJECT)
+
+/* type checking */
+#define spn_isobject(val)	((((val)->type) & SPN_FLAG_OBJECT) != 0)
+#define spn_typetag(t)		((t) & SPN_MASK_TTAG)
+#define spn_typeflag(t)		((t) & SPN_MASK_FLAG)
+#define spn_valtype(val)	spn_typetag((val)->type)
+#define spn_valflag(val)	spn_typeflag((val)->type)
+
+#define spn_isnil(val)		(spn_valtype(val) == SPN_TTAG_NIL)
+#define spn_isbool(val)		(spn_valtype(val) == SPN_TTAG_BOOL)
+#define spn_isnumber(val)	(spn_valtype(val) == SPN_TTAG_NUMBER)
+#define spn_isstring(val)	(spn_valtype(val) == SPN_TTAG_STRING)
+#define spn_isarray(val)	(spn_valtype(val) == SPN_TTAG_ARRAY)
+#define spn_isfunc(val)		(spn_valtype(val) == SPN_TTAG_FUNC)
+#define spn_isuserinfo(val)	(spn_valtype(val) == SPN_TTAG_USERINFO)
+
+#define spn_isint(val)		(spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) == 0))
+#define spn_isfloat(val)	(spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) != 0))
+#define spn_isweakuserinfo(val)	(spn_isuserinfo(val) && !spn_isobject(val))
+#define spn_isstrguserinfo(val)	(spn_isuserinfo(val) &&  spn_isobject(val))
+
+/* getting the value of a tagged union. These do *not* check the type.
+ * More of these macros can be found in headers implementing specific
+ * types (strings, arrays, functions).
+ */
+#define spn_boolvalue(val)	((val)->v.b)
+#define spn_intvalue(val)	((val)->v.i)
+#define spn_floatvalue(val)	((val)->v.f)
+#define spn_ptrvalue(val)	((val)->v.p)
+#define spn_objvalue(val)	((val)->v.o)
+
+typedef struct SpnValue {
+	int type;		/* type		 */
+	union {			/* value union	 */
+		int	 b;	/* Boolean value */
+		long	 i;	/* integer value */
+		double	 f;	/* float value	 */
+		void	*p;	/* user info	 */
+		void	*o;	/* object value	 */
+	} v;
+} SpnValue;
+
+/* Convenience constructors
+ * Again, more of these constructors are implemented for each
+ * specific object type separately in various header files.
+ */
+SPN_API SpnValue spn_makenil(void);
+SPN_API SpnValue spn_makebool(int b);
+SPN_API SpnValue spn_makeint(long i);
+SPN_API SpnValue spn_makefloat(double f);
+SPN_API SpnValue spn_makeweakuserinfo(void *p);
+SPN_API SpnValue spn_makestrguserinfo(void *o);
+
+/* reference counting */
+SPN_API void spn_value_retain(const SpnValue *val);
+SPN_API void spn_value_release(const SpnValue *val);
+
+/* testing values for (in)equality */
+SPN_API int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs);
+SPN_API int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs);
+
+/* hashing (for generic data and for SpnValue structs) */
+SPN_API unsigned long spn_hash_bytes(const void *data, size_t n);
+SPN_API unsigned long spn_hash_value(const SpnValue *obj);
+
+/* prints the user-readable representation of a value to stdout */
+SPN_API void spn_value_print(const SpnValue *val);
+
+/* returns a string describing a particular type */
+SPN_API const char *spn_type_name(int type);
+
+
 /*
  * File access API
- * Reading source and bytecode (or any other text/binary) files
+ * Reading source and bytecode (or any other kind of text/binary) files
  */
 
 /* a convenience function for reading source files into memory */
@@ -178,6 +221,7 @@ SPN_API char *spn_read_text_file(const char *name);
  * the code length in machine words.
  */
 SPN_API void *spn_read_binary_file(const char *name, size_t *sz);
+
 
 #endif /* SPN_API_H */
 

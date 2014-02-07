@@ -166,13 +166,13 @@ typedef struct SpnAST {
 	enum spn_ast_node node;		/* public: the node type (see the enum)	*/
 	SpnValue	  value;	/* public: the value of the node if any	*/
 	SpnString	 *name;		/* public: the name of the node, if any	*/
-	unsigned long	  lineno;	/* public: the line where the node is	*/
+	int		  lineno;	/* public: the line where the node is	*/
 	struct SpnAST	 *left;		/* public: left child or NULL		*/
 	struct SpnAST	 *right;	/* public: right child or NULL		*/
 } SpnAST;
 
 /* lineno is the line number where the parser is currently */
-SPN_API SpnAST	*spn_ast_new(enum spn_ast_node node, unsigned long lineno);
+SPN_API SpnAST	*spn_ast_new(enum spn_ast_node node, int lineno);
 SPN_API void	 spn_ast_free(SpnAST *ast);
 
 #endif /* SPN_AST_H */

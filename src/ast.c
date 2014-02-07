@@ -13,13 +13,12 @@
 #include "private.h"
 
 
-SpnAST *spn_ast_new(enum spn_ast_node node, unsigned long lineno)
+SpnAST *spn_ast_new(enum spn_ast_node node, int lineno)
 {
 	SpnAST *ast = spn_malloc(sizeof(*ast));
 
 	ast->node	= node;
-	ast->value.t	= SPN_TYPE_NIL;
-	ast->value.f	= 0;
+	ast->value	= makenil();
 	ast->name	= NULL;
 	ast->lineno	= lineno;
 	ast->left	= NULL;

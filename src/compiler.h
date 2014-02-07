@@ -20,7 +20,7 @@
 /* a compiler object takes an AST and outputs bytecode */
 typedef struct SpnCompiler SpnCompiler;
 
-SPN_API SpnCompiler	*spn_compiler_new();
+SPN_API SpnCompiler	*spn_compiler_new(void);
 SPN_API void		 spn_compiler_free(SpnCompiler *cmp);
 
 /* returns a pointer to bytecode that can be passed to spn_vm_exec()

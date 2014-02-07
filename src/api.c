@@ -19,99 +19,181 @@
 #include "compiler.h"
 #include "vm.h"
 #include "private.h"
+#include "func.h"
 
+
+/*
+ * Object API
+ */
+
+int spn_object_equal(void *lp, void *rp)
+{
+	SpnObject *lhs = lp, *rhs = rp;
+
+	if (lhs->isa != rhs->isa) {
+		return 0;
+	}
+
+	if (lhs->isa->equal != NULL) {
+		return lhs->isa->equal(lhs, rhs);
+	} else {
+		return lhs == rhs;
+	}
+}
+
+int spn_object_cmp(void *lp, void *rp)
+{
+	SpnObject *lhs = lp, *rhs = rp;
+
+	assert(lhs->isa == rhs->isa);
+	assert(lhs->isa->compare != NULL);
+
+	return lhs->isa->compare(lhs, rhs);
+}
+
+void *spn_object_new(const SpnClass *isa)
+{
+	SpnObject *obj = spn_malloc(isa->instsz);
+
+	obj->isa = isa;
+	obj->refcnt = 1;
+
+	return obj;
+}
+
+void spn_object_retain(void *o)
+{
+	SpnObject *obj = o;
+	obj->refcnt++;
+}
+
+void spn_object_release(void *o)
+{
+	SpnObject *obj = o;
+	if (--obj->refcnt == 0) {
+		if (obj->isa->destructor) {
+			obj->isa->destructor(obj);
+		}
+
+		free(obj);
+	}
+}
 
 /* 
  * Value API
  */
 
-void spn_value_retain(SpnValue *val)
+SpnValue spn_makenil(void)
 {
-	if (val->f & SPN_TFLG_OBJECT) {
-		assert(val->t == SPN_TYPE_STRING
-		    || val->t == SPN_TYPE_ARRAY
-		    || val->t == SPN_TYPE_USERINFO);
+	SpnValue ret = { SPN_TYPE_NIL, { 0 } };
+	return ret;
+}
 
-		spn_object_retain(val->v.ptrv);
+SpnValue spn_makebool(int b)
+{
+	SpnValue ret;
+	ret.type = SPN_TYPE_BOOL;
+	ret.v.b = b;
+	return ret;
+}
+
+SpnValue spn_makeint(long i)
+{
+	SpnValue ret;
+	ret.type = SPN_TYPE_INT;
+	ret.v.i = i;
+	return ret;
+}
+
+SpnValue spn_makefloat(double f)
+{
+	SpnValue ret;
+	ret.type = SPN_TYPE_FLOAT;
+	ret.v.f = f;
+	return ret;
+}
+
+SpnValue spn_makeweakuserinfo(void *p)
+{
+	SpnValue ret;
+	ret.type = SPN_TYPE_WEAKUSERINFO;
+	ret.v.p = p;
+	return ret;
+}
+
+SpnValue spn_makestrguserinfo(void *o)
+{
+	SpnValue ret;
+	ret.type = SPN_TYPE_STRGUSERINFO;
+	ret.v.o = o;
+	return ret;
+}
+
+void spn_value_retain(const SpnValue *val)
+{
+	if (isobject(val)) {
+		assert(isstring(val) || isarray(val)
+		    || isfunc(val)   || isuserinfo(val));
+
+		spn_object_retain(objvalue(val));
 	}
 }
 
-void spn_value_release(SpnValue *val)
+void spn_value_release(const SpnValue *val)
 {
-	if (val->f & SPN_TFLG_OBJECT) {
-		assert(val->t == SPN_TYPE_STRING
-		    || val->t == SPN_TYPE_ARRAY
-		    || val->t == SPN_TYPE_USERINFO);
+	if (isobject(val)) {
+		assert(isstring(val) || isarray(val)
+		    || isfunc(val)   || isuserinfo(val));
 
-		spn_object_release(val->v.ptrv);
+		spn_object_release(objvalue(val));
 	}
 }
 
 
 static int numeric_equal(const SpnValue *lhs, const SpnValue *rhs)
 {
-	assert(lhs->t == SPN_TYPE_NUMBER && rhs->t == SPN_TYPE_NUMBER);
+	assert(isnumber(lhs) && isnumber(rhs));
 
-	if (lhs->f & SPN_TFLG_FLOAT) {
-		return rhs->f & SPN_TFLG_FLOAT
-		     ? lhs->v.fltv == rhs->v.fltv
-		     : lhs->v.fltv == rhs->v.intv;
+	if (isfloat(lhs)) {
+		return isfloat(rhs) ? floatvalue(lhs) == floatvalue(rhs)
+				    : floatvalue(lhs) == intvalue(rhs);
 	} else {
-		return rhs->f & SPN_TFLG_FLOAT
-		     ? lhs->v.intv == rhs->v.fltv
-		     : lhs->v.intv == rhs->v.intv;
+		return isfloat(rhs) ? intvalue(lhs) == floatvalue(rhs)
+				    : intvalue(lhs) == intvalue(rhs);
 	}
 }
 
-/* functions are considered equal if either their names are not
- * NULL (i. e. none of them are closures) and the names are the
- * same, or their names are both NULL (both functions are
- * lambdas) and they point to the same entry point inside
- * the bytecode.
- */
-static int function_equal(const SpnValue *lhs, const SpnValue *rhs)
-{
-	assert(lhs->t == SPN_TYPE_FUNC && rhs->t == SPN_TYPE_FUNC);
-
-	/* a native function cannot be the same as a script function */
-	if ((lhs->f & SPN_TFLG_NATIVE) != (rhs->f & SPN_TFLG_NATIVE)) {
-		return 0;
-	}
-
-	/* if they are equal, they must point to the same function */
-	if (lhs->f & SPN_TFLG_NATIVE) {
-		return lhs->v.fnv.r.fn == rhs->v.fnv.r.fn;
-	} else {
-		return lhs->v.fnv.r.bc == rhs->v.fnv.r.bc;
-	}
-}
 
 int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 {
 	/* first, make sure that we compare values of the same type
 	 * (values of different types cannot possibly be equal)
 	 */
-	if (lhs->t != rhs->t) {
+	if (valtype(lhs) != valtype(rhs)) {
 		return 0;
 	}
 
-	switch (lhs->t) {
-	case SPN_TYPE_NIL:	{ return 1; /* nil can only be nil */	}
-	case SPN_TYPE_BOOL:	{ return lhs->v.boolv == rhs->v.boolv;	}
-	case SPN_TYPE_NUMBER:	{ return numeric_equal(lhs, rhs);	}
-	case SPN_TYPE_FUNC:	{ return function_equal(lhs, rhs);	}
-	case SPN_TYPE_STRING:
-	case SPN_TYPE_ARRAY:	{
-		return spn_object_equal(lhs->v.ptrv, rhs->v.ptrv);
+	switch (valtype(lhs)) {
+	case SPN_TTAG_NIL:	{ return 1; /* nil can only be nil */	   }
+	case SPN_TTAG_BOOL:	{ return boolvalue(lhs) == boolvalue(rhs); }
+	case SPN_TTAG_NUMBER:	{ return numeric_equal(lhs, rhs);	   }
+
+	case SPN_TTAG_STRING:
+	case SPN_TTAG_ARRAY:
+	case SPN_TTAG_FUNC:	{
+		return spn_object_equal(objvalue(lhs), objvalue(rhs));
 	}
-	case SPN_TYPE_USERINFO:	{
-		if ((lhs->f & SPN_TFLG_OBJECT) != (rhs->f & SPN_TFLG_OBJECT)) {
+
+	case SPN_TTAG_USERINFO:	{
+		if (isobject(lhs) != isobject(rhs)) {
 			return 0;
 		}
 
-		return lhs->f & SPN_TFLG_OBJECT
-		     ? spn_object_equal(lhs->v.ptrv, rhs->v.ptrv)
-		     : lhs->v.ptrv == rhs->v.ptrv;
+		if (isobject(lhs)) {
+			return spn_object_equal(objvalue(lhs), objvalue(rhs));
+		} else {
+			return ptrvalue(lhs) == ptrvalue(rhs);
+		}
 	}
 	default:
 		SHANT_BE_REACHED();
@@ -127,7 +209,7 @@ int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs)
 
 
 /*  The hash function is a variant of the SDBM hash */
-unsigned long spn_hash(const void *data, size_t n)
+unsigned long spn_hash_bytes(const void *data, size_t n)
 {
 	unsigned long h = 0;
 	const unsigned char *p = data;
@@ -154,52 +236,38 @@ unsigned long spn_hash(const void *data, size_t n)
 
 unsigned long spn_hash_value(const SpnValue *key)
 {
-	switch (key->t) {
-	case SPN_TYPE_NIL:	{ return 0;				}
-	case SPN_TYPE_BOOL:	{ return key->v.boolv; /* 0 or 1 */	}
-	case SPN_TYPE_NUMBER:	{
-		if (key->f & SPN_TFLG_FLOAT) {
-			return key->v.fltv == (long)(key->v.fltv)
-			     ? (unsigned long)(key->v.fltv)
-			     : spn_hash(&key->v.fltv, sizeof(key->v.fltv));
+	switch (valtype(key)) {
+	case SPN_TTAG_NIL:	{ return 0;				}
+	case SPN_TTAG_BOOL:	{ return boolvalue(key); /* 0 or 1 */	}
+	case SPN_TTAG_NUMBER:	{
+		if (isfloat(key)) {
+			double f = floatvalue(key);
+
+			if (f == (long)(f)) {
+				return (unsigned long)(f);
+			} else {
+				return spn_hash_bytes(&f, sizeof f);
+			}
 		}
 
 		/* the hash value of an integer is itself */
-		return key->v.intv;
+		return intvalue(key);
 	}
-	case SPN_TYPE_FUNC:	{
-		/* to understand why hashing is done as it is done, see the
-		 * notice about function equality above `function_equal()`
-		 * in src/spn.c
-		 *
-		 * if a function is a pending stub but it has no name, then:
-		 * 1. that doesn't make sense and it should not happen;
-		 * 2. it's impossible to decide whether it's equal to some
-		 * other function.
-		 */
-		assert(key->v.fnv.name != NULL || (key->f & SPN_TFLG_PENDING) == 0);
-
-		/* see http://stackoverflow.com/q/18282032 */
-		if (key->f & SPN_TFLG_NATIVE) {
-			return spn_hash(&key->v.fnv.r.fn, sizeof(key->v.fnv.r.fn));
-		} else {
-			return (unsigned long)(key->v.fnv.r.bc);
-		}
-	}
-	case SPN_TYPE_STRING:
-	case SPN_TYPE_ARRAY:	{
-		SpnObject *obj = key->v.ptrv;
+	case SPN_TTAG_STRING:
+	case SPN_TTAG_ARRAY:
+	case SPN_TTAG_FUNC:	{
+		SpnObject *obj = objvalue(key);
 		unsigned long (*hashfn)(void *) = obj->isa->hashfn;
-		return hashfn != NULL ? hashfn(obj) : (unsigned long)(obj);
+		return hashfn ? hashfn(obj) : (unsigned long)(obj);
 	}
-	case SPN_TYPE_USERINFO:	{
-		if (key->f & SPN_TFLG_OBJECT) {
-			SpnObject *obj = key->v.ptrv;
+	case SPN_TTAG_USERINFO:	{
+		if (isobject(key)) {
+			SpnObject *obj = objvalue(key);
 			unsigned long (*hashfn)(void *) = obj->isa->hashfn;
-			return hashfn != NULL ? hashfn(obj) : (unsigned long)(obj);			
+			return hashfn ? hashfn(obj) : (unsigned long)(obj);
 		}
 
-		return (unsigned long)(key->v.ptrv);
+		return (unsigned long)(ptrvalue(key));
 	}
 	default:
 		SHANT_BE_REACHED();
@@ -210,47 +278,49 @@ unsigned long spn_hash_value(const SpnValue *key)
 
 void spn_value_print(const SpnValue *val)
 {
-	switch (val->t) {
-	case SPN_TYPE_NIL:	{
+	switch (valtype(val)) {
+	case SPN_TTAG_NIL:	{
 		fputs("nil", stdout);
 		break;
 	}
-	case SPN_TYPE_BOOL:	{
-		fputs(val->v.boolv ? "true" : "false", stdout);
+	case SPN_TTAG_BOOL:	{
+		fputs(boolvalue(val) ? "true" : "false", stdout);
 		break;
 	}
-	case SPN_TYPE_NUMBER:	{
-		if (val->f & SPN_TFLG_FLOAT) {
-			printf("%.*g", DBL_DIG, val->v.fltv);
+	case SPN_TTAG_NUMBER:	{
+		if (isfloat(val)) {
+			printf("%.*g", DBL_DIG, floatvalue(val));
 		} else {
-			printf("%ld", val->v.intv);
+			printf("%ld", intvalue(val));
 		}
 
 		break;
 	}
-	case SPN_TYPE_FUNC:	{
-		const char *name = val->v.fnv.name ? val->v.fnv.name : SPN_LAMBDA_NAME;
-
-		if (val->f & SPN_TFLG_NATIVE) {
-			printf("<native function %s>", name);
-		} else {
-			const void *ptr = val->v.fnv.r.bc;
-			printf("<script function %p: %s>", ptr, name);
-		}
-
-		break;
-	}
-	case SPN_TYPE_STRING:	{
-		SpnString *s = val->v.ptrv;
+	case SPN_TTAG_STRING:	{
+		SpnString *s = stringvalue(val);
 		fputs(s->cstr, stdout);
 		break;
 	}
-	case SPN_TYPE_ARRAY:	{
-		printf("<array %p>", val->v.ptrv);
+	case SPN_TTAG_ARRAY:	{
+		printf("<array %p>", objvalue(val));
 		break;
 	}
-	case SPN_TYPE_USERINFO:	{
-		printf("<userinfo %p>", val->v.ptrv);
+	case SPN_TTAG_FUNC:	{
+		SpnFunction *func = funcvalue(val);
+		void *p;
+
+		if (func->native) {
+			p = (void *)(ptrdiff_t)(func->repr.fn);
+		} else {
+			p = func->repr.bc;
+		}
+
+		printf("<function %p>", p);
+		break;
+	}
+	case SPN_TTAG_USERINFO:	{
+		void *ptr = isobject(val) ? objvalue(val) : ptrvalue(val);
+		printf("<userinfo %p>", ptr);
 		break;
 	}
 	default:
@@ -259,76 +329,20 @@ void spn_value_print(const SpnValue *val)
 	}
 }
 
-const char *spn_type_name(enum spn_val_type type)
+const char *spn_type_name(int type)
 {
 	/* XXX: black magic, relies on the order of enum members */
 	static const char *const typenames[] = {
 		"nil",
 		"bool",
 		"number",
-		"function",
 		"string",
 		"array",
+		"function",
 		"userinfo"
 	};
 
-	return typenames[type];
-}
-
-
-/*
- * Object API
- */
-
-int spn_object_equal(const void *lhs, const void *rhs)
-{
-	const SpnObject *lo = lhs, *ro = rhs;
-
-	if (lo->isa != ro->isa) {
-		return 0;
-	}
-
-	if (lo->isa->equal != NULL) {
-		return lo->isa->equal(lo, ro);
-	} else {
-		return lo == ro;
-	}
-}
-
-int spn_object_cmp(const void *lhs, const void *rhs)
-{
-	const SpnObject *lo = lhs, *ro = rhs;
-
-	assert(lo->isa == ro->isa);
-	assert(lo->isa->compare != NULL);
-
-	return lo->isa->compare(lo, ro);
-}
-
-void *spn_object_new(const SpnClass *isa)
-{
-	SpnObject *obj = spn_malloc(isa->instsz);
-
-	obj->isa = isa;
-	obj->refcnt = 1;
-
-	return obj;
-}
-
-void spn_object_retain(void *o)
-{
-	SpnObject *obj = o;
-	obj->refcnt++;
-}
-
-void spn_object_release(void *o)
-{
-	SpnObject *obj = o;
-
-	/* it is the destructor's responsibility to `free()` the instance */
-	if (--obj->refcnt == 0) {
-		obj->isa->destructor(obj);
-	}
+	return typenames[typetag(type)];
 }
 
 

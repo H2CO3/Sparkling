@@ -42,7 +42,7 @@ typedef struct SpnExtValue {
 /* the virtual machine */
 typedef struct SpnVMachine SpnVMachine;
 
-SPN_API SpnVMachine	 *spn_vm_new();
+SPN_API SpnVMachine	 *spn_vm_new(void);
 SPN_API void		  spn_vm_free(SpnVMachine *vm);
 
 /* runs the bytecode pointed to by `bc`. Copies the return value of the
@@ -53,7 +53,7 @@ SPN_API int		  spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
 /* calls a Sparkling function from C-land. */
 SPN_API int spn_vm_callfunc(
 	SpnVMachine *vm,
-	SpnValue *fn,
+	const SpnValue *fn,
 	SpnValue *retval,
 	int argc,
 	SpnValue *argv
@@ -62,8 +62,8 @@ SPN_API int spn_vm_callfunc(
 /* these functions copy neither the names of the values nor the library name,
  * so make sure that the strings are valid thorughout the entire runtime.
  */
-SPN_API void		  spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc fns[], size_t n);
-SPN_API void		  spn_vm_addlib_values(SpnVMachine *vm, const char *libname, SpnExtValue vals[], size_t n);
+SPN_API void		  spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc  fns[],  size_t n);
+SPN_API void		  spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValue vals[], size_t n);
 
 /* get and set context info (arbitrarily usable pointer) */
 SPN_API void		 *spn_vm_getcontext(SpnVMachine *vm);

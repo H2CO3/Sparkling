@@ -29,7 +29,7 @@ An abstract syntax tree object. AST nodes have at most two children, and
 they are connected in a righ-leaning manner (the first child is called the
 left child, the second child is the right child).
 
-    SpnParser *spn_parser_new();
+    SpnParser *spn_parser_new(void);
 
 Creates an initialized parser object.
 
@@ -48,7 +48,7 @@ using `spn_ast_free()` after use.
 A compiler takes the syntax tree of a program and outputs a bytecode image.
 This bytecode can be run on the Sparkling virtual machine.
 
-    SpnCompiler *spn_compiler_new();
+    SpnCompiler *spn_compiler_new(void);
     void spn_compiler_free(SpnCompiler *);
 
 Memory management functions.
@@ -76,7 +76,7 @@ Returns the last error message. Check this if the compilation of an AST failed.
 
 A virtual machine is an object that manages the execution of bytecode images.
 
-    SpnVMachine *spn_vm_new();
+    SpnVMachine *spn_vm_new(void);
     void spn_vm_free(SpnVMachine *);
 
 Memory management functions.
@@ -93,7 +93,7 @@ when you're done with it.
 Registers `n` native (C language) extension functions to be made visible by all
 scripts running on the specified virtual machine instance. if `libname` is NULL,
 the functions will be available at global namespace. Else a new global array
-is be created with the name `libname`, and the functions will be members of
+will be created with the name `libname`, and the functions will be members of
 this global array. This is how you can create "modules" or "namespaces".
 
     void spn_vm_addlib_values(SpnVMachine *vm, const char *libname,
@@ -110,10 +110,6 @@ a specific name: given a name, it is possible to get an `SpnValue` out of
 the array that corresponds to the function with the specified name. It is
 also possible to set (add or replace) a global constant using the C api.
 That should be done very carefully, though.
-
-**Important: this array is read-only. Do NOT modify it.** Only call the
-`spn_array_get()` function on it in order to retrieve the values. (you can
-also use an `SpnIterator` to enumerate the keys and values in the array.)
 
     void *spn_vm_getcontext(SpnVMachine *);
 
@@ -189,7 +185,7 @@ API. **This API is the preferred way of accessing the Sparkling engine.**
 A context object encapsulates a parser, a compiler, a virtual machine,
 and each bytecode file that has been loaded into that context.
 
-    SpnContext *spn_ctx_new();
+    SpnContext *spn_ctx_new(void);
     void spn_ctx_free(SpnContext *ctx);
 
 These functions create and destroy a context object. `spn_ctx_new()` sets the
@@ -295,9 +291,9 @@ provided for this purpose.
 One word about the return value. Values are represented using the `SpnValue`
 struct, which is essentially a tagged union (with some additional flags).
 Values can be of type `nil`, Boolean, number (integer or floating-point),
-function, user info, string and array. Strings, arrays and user info values
-marked as such are object types (i. e. they have their `SPN_TFLG_OBJECT` flag
-set in the structure). It means that they are reference counted. As an
+function, user info, string and array. Strings, arrays, functions and user info
+values marked as such are object types (i. e. they have their `SPN_FLAG_OBJECT`
+flag set in the structure). It means that they are reference counted. As an
 implementation detail, it is reuired that if a native extension funcion returns
 a value of object type, i. e. a string, an array or an object-typed user info,
 then it shall own a reference to it (because internally, it will be released
@@ -327,35 +323,8 @@ This is how it should have been done:
         return 0;
     }
 
-When creating a value, one must do the following:
-
-1. Create an instance of an SpnValue struct.
-
-2. Set its type using the type enum and additional flags if needed.
-`val.t` must be one of `SPN_TYPE_NIL`, `SPN_TYPE_BOOL`, `SPN_TYPE_NUMBER`,
-`SPN_TYPE_FUNCTION`, `SPN_TYPE_STRING`, `SPN_TYPE_ARRAY` or `SPN_TYPE_USERINFO`.
-
-   If its type is Boolean, its `v.boolv` member should be set to zero for
-   false, 1 for true. (`true` must **always** be 1!)
-
-   If the type is number, then the `SPN_TFLG_FLOAT` flag may be set in the
-   `f` member if the number is a floating-point value. If this is the case,
-   the `v.fltv` member must be set, else the `v.intv` member is to be used.
-
-   If the value is a function, then the `SPN_TFLG_NATIVE` flag may be assigned
-   to the `f` member. A native function must then be represented by a function
-   pointer of type
-   
-       int (*)(SpnValue *, int, SpnValue *, void *)
-       
-   A non-native (script) function is represented by a pointer to its function
-   header in a bytecode image. It must also have its `v.fncv.env` member set
-   to the pointer to the bytecode that represents its environment (i. e. the
-   bytecode of the file/TU that in which function was defined). However,
-   **this is not something a native extension function normally does.**
-
-   If, and only if, a value is a string, an array or an object-based user info
-   structure, then the `f` member should be set to `SPN_TFLG_OBJECT`.
+Use the convenience value constructor functions from `api.h`, `str.h`,
+`array.h` and `func.h` in order to create value structs of any type.
 
 3. Sparkling API functions typically copy and retain input values, and return
    non-owning pointers when giving output to the caller. Thus, if you want to
