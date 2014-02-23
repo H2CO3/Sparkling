@@ -235,6 +235,65 @@ The context info is an optional argument. The callback function must return
 (If multiple `SpnIterator`s are used with the same array, the array must not
 be modified while any of the iterators is used.)
 
+    any reduce(array arr, any identity, any callback(any key, any val))
+
+Loops over `arr`, calling `callback()` with two arguments upon each iteration.
+The first argument of the callback function is `identity` during the first
+iteration, and the return value of the previous call to the function otherwise.
+The second argument is the next value in the `arr` array. `reduce()` returns
+the result of the last call to `callback()`. Here's a possible implementation:
+
+    function reduce(arr, identity, callback) {
+        var x = identity;
+        for var i = 0; i < sizeof arr; i++ {
+            x = callback(x, arr[i]);
+        }
+        return x;
+    }
+
+Since the order of keys may matter, this function uses successive integers to
+index into the array. Hence it is typically to be used with dense arrays with
+integral indices only. **Warning:** Just like in the case of `foreach()`, you
+may not mutate the array that is being reduced.
+
+    array filter(array arr, bool predicate(any key, any val))
+
+Returns the elements (key-value pairs) in `arr` for which `predicate()` returns
+true. The
+implementation could look something like the following pseudo-code:
+
+    function filter(arr, predicate) {
+        var res = {};
+        foreach(arr, function(key, val) {
+            if predicate(key, val) {
+                res[key] = val;
+            }
+        });
+        return res;
+    }
+
+Again, neither the order in which the predicate is called on the pairs of the
+old array nor the order of key-value pairs in the new array is specified. You
+must not mutate the array being `filter()`ed.
+
+    array map(array arr, any callback(any key, any val))
+
+Calls `callback()` with each key-value pair of `arr` (in an unspecified order).
+Returns a new array that contains the same keys as `arr`, and of which the
+values correspond to the return values of `callback()` called with the
+appropriate key-value pair. In short, the effect of this function is roughly
+equivalent with the following pseudo-code:
+
+    function map(arr, callback) {
+        var res = {};
+        foreach(arr, function(key, val) {
+            res[key] = callback(key, val);
+        });
+        return res;
+    }
+
+Again, you must not modify `arr` while it is being `map()`ped over.
+
 4. Real, integer and complex mathematical functions (spn_libmath)
 -----------------------------------------------------------------
 Function names are self-explanatory. A. k. a., "nobody ain't no time for
