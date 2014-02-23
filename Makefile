@@ -12,12 +12,12 @@ ifeq ($(OPSYS), darwin)
 	ifeq ($(ARCH), arm)
 		SYSROOT = /var/mobile/iPhoneOS6.1.sdk
 	else
-		SYSROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.7.sdk
+		SYSROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk
 	endif
 
 	CC = clang
 	CFLAGS = -isysroot $(SYSROOT)
-	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error-deprecated-declarations
 	LDFLAGS = -isysroot $(SYSROOT) -w
 	DYNLDFLAGS = -isysroot $(SYSROOT) -w -dynamiclib
 	LTO_FLAG = -flto

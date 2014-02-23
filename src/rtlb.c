@@ -1165,6 +1165,157 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return status;
 }
 
+static int rtlb_reduce(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t i, n;
+	int status = 0;
+	SpnArray *arr;
+	SpnValue args[2], tmp;
+	SpnValue *arrval, *first, *func;
+
+	if (argc != 3) {
+		spn_ctx_runtime_error(ctx, "expecting three arguments", NULL);
+		return -1;
+	}
+
+	arrval = &argv[0];
+	first  = &argv[1];
+	func   = &argv[2];
+
+	if (!isarray(arrval)) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isfunc(func)) {
+		spn_ctx_runtime_error(ctx, "third argument must be a function", NULL);
+		return -3;
+	}
+
+	arr = arrayvalue(arrval);
+	n = spn_array_count(arr);
+
+	spn_value_retain(first);
+	tmp = *first;
+	args[0] = makenil();
+
+	for (i = 0; i < n; i++) {
+		spn_value_release(&args[0]);
+		args[0] = tmp;
+
+		/* args[1] needn't be released: values returned by array getter
+		 * functions are non-owning
+		 */
+		spn_array_get_intkey(arr, i, &args[1]);
+
+		if (spn_ctx_callfunc(ctx, func, &tmp, COUNT(args), args) != 0) {
+			status = -4;
+			break;
+		}
+	}
+
+	*ret = tmp;
+	return status;
+}
+
+static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t n;
+	SpnArray *orig, *filt;
+	SpnIterator *it;
+	SpnValue args[2];
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isfunc(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be a function", NULL);
+		return -3;
+	}
+
+	orig = arrayvalue(&argv[0]);
+	it = spn_iter_new(orig);
+	n = spn_array_count(orig);
+	filt = spn_array_new();
+
+	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+		SpnValue cond;
+
+		if (spn_ctx_callfunc(ctx, &argv[1], &cond, COUNT(args), args) != 0) {
+			spn_object_release(filt);
+			spn_iter_free(it);
+			return -4;
+		}
+
+		if (isbool(&cond)) {
+			if (boolvalue(&cond)) {
+				spn_array_set(filt, &args[0], &args[1]);
+			}
+		} else {
+			spn_object_release(filt);
+			spn_iter_free(it);
+			spn_ctx_runtime_error(ctx, "predicate must return a boolean", NULL);
+			return -5;
+		}
+	}
+
+	ret->type = SPN_TYPE_ARRAY;
+	ret->v.o = filt;
+	spn_iter_free(it);
+	return 0;
+}
+
+static int rtlb_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t n;
+	SpnArray *orig, *mapped;
+	SpnIterator *it;
+	SpnValue args[2];
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isfunc(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be a function", NULL);
+		return -3;
+	}
+
+	orig = arrayvalue(&argv[0]);
+	it = spn_iter_new(orig);
+	n = spn_array_count(orig);
+	mapped = spn_array_new();
+
+	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+		SpnValue result;
+		if (spn_ctx_callfunc(ctx, &argv[1], &result, COUNT(args), args) != 0) {
+			spn_object_release(mapped);
+			spn_iter_free(it);
+			return -4;
+		}
+
+		spn_array_set(mapped, &args[0], &result);
+		spn_value_release(&result);
+	}
+
+	ret->type = SPN_TYPE_ARRAY;
+	ret->v.o = mapped;
+	spn_iter_free(it);
+	return 0;
+}
 
 const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "sort",	NULL		},
@@ -1174,9 +1325,9 @@ const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "subarray",	NULL		},
 	{ "join",	rtlb_join	},
 	{ "foreach",	rtlb_foreach	},
-	{ "reduce",	NULL		},
-	{ "filter",	NULL		},
-	{ "map",	NULL		},
+	{ "reduce",	rtlb_reduce	},
+	{ "filter",	rtlb_filter	},
+	{ "map",	rtlb_map	},
 	{ "insert",	NULL		},
 	{ "insertarr",	NULL		},
 	{ "delrange",	NULL		},
