@@ -1241,18 +1241,34 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_SIZEOF:
+		case SPN_INS_SIZEOF: {
+			SpnValue *a = VALPTR(vm->sp, OPA(ins));
+			SpnValue *b = VALPTR(vm->sp, OPB(ins));
+			SpnValue res;
+
+			if (!isarray(b) && !isstring(b)) {
+				const void *args[1];
+				args[0] = spn_type_name(b->type);
+				runtime_error(
+					vm,
+					ip - 1,
+					"sizeof applied to a %s value",
+					args
+				);
+				return -1;
+			}
+
+			res = sizeof_value(b);
+			spn_value_release(a);
+			*a = res;
+
+			break;
+		}
 		case SPN_INS_TYPEOF: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 
-			SpnValue res;
-			if (opcode == SPN_INS_SIZEOF) {
-				res = sizeof_value(b);
-			} else {
-				res = typeof_value(b);
-			}
-
+			SpnValue res = typeof_value(b);
 			spn_value_release(a);
 			*a = res;
 
@@ -1888,10 +1904,9 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 static SpnValue sizeof_value(SpnValue *val)
 {
 	switch (valtype(val)) {
-	case SPN_TTAG_NIL:    return makeint(0);
 	case SPN_TTAG_STRING: return makeint(stringvalue(val)->len);
 	case SPN_TTAG_ARRAY:  return makeint(spn_array_count(arrayvalue(val)));
-	default:	      return makeint(1);
+	default:	      SHANT_BE_REACHED(); return makenil();
 	}
 }
 

@@ -309,9 +309,9 @@ an exception is raised. It is an error to pass a negative, floating-point or
 non-number operand to this operator.
 
 §3.8.7. The `sizeof` operator. The sizeof operator yields the conceptual size
-(length) of its argument. For nil, this is 0, for strings, it is the number
-of bytes in the string, for arrays, it is the number of key-value pairs in the
-array. If called on any other value, `sizeof' yields 1.
+(length) of its argument. For strings, it is the number of bytes in the string,
+for arrays, it is the number of key-value pairs in the array. If called on any
+other type of value, `sizeof' throws a runtime error.
 
 §3.8.8. The `typeof` operator. Yields a string representation of the type of
 its operand. Thus, one of the strings "nil", "bool", "number", "function",
