@@ -8,7 +8,11 @@
  * Public parts of the Sparkling API
  */
 
+#if USE_FASTCGI
+#include "fcgi_stdio.h"
+#else
 #include <stdio.h>
+#endif
 #include <stdlib.h>
 #include <limits.h>
 #include <float.h>

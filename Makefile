@@ -5,6 +5,10 @@ BUILD ?= debug
 # if it doesn't compile with readline enabled, then try turning it off.
 READLINE ?= 1
 
+# this should reflect if FastCGI should be supported. Defaulting to no
+# Please note that this makes the resulting spn binary completly unusable for non-FastCGI uses
+FASTCGI ?= 0
+
 OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
 ARCH = $(shell uname -p | tr '[[:upper:]]' '[[:lower:]]')
 
@@ -44,6 +48,13 @@ ifneq ($(READLINE), 0)
 	LIBS += -lreadline
 else
 	DEFINES += -DUSE_READLINE=0
+endif
+
+ifneq ($(FASTCGI), 0)
+	DEFINES += -DUSE_FASTCGI=1
+	LIBS += -lfcgi
+else
+	DEFINES += -DUSE_FASTCGI=0
 endif
 
 ifeq ($(BUILD), debug)

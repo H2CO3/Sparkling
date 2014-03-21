@@ -8,7 +8,11 @@
  * Run-time support library
  */
 
+#if USE_FASTCGI
+#include "fcgi_stdio.h"
+#else
 #include <stdio.h>
+#endif
 #include <string.h>
 #include <stdlib.h>
 #include <ctype.h>

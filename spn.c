@@ -6,7 +6,11 @@
  * Licensed under the 2-clause BSD License
  */
 
+#if USE_FASTCGI
+#include "fcgi_stdio.h"
+#else
 #include <stdio.h>
+#endif
 #include <string.h>
 #include <stdlib.h>
 #include <stdarg.h>
@@ -22,6 +26,7 @@
 #include "spn.h"
 #include "private.h"
 
+#if !USE_FASTCGI
 
 #define N_CMDS		5
 #define N_FLAGS		2
@@ -108,6 +113,8 @@ static void show_help(const char *progname)
 	printf("\t<http://github.com/H2CO3/Sparkling>\n\n");
 }
 
+#endif /* !USE_FASTCGI */
+
 /* this is used to check the extension of a file in order to
  * decide if it's a text (source) or a binary (object) file
  */
@@ -143,6 +150,8 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 	}
 }
 
+#if !USE_FASTCGI
+
 static void register_args(SpnContext *ctx, int argc, char *argv[])
 {
 	int i;
@@ -162,6 +171,8 @@ static void register_args(SpnContext *ctx, int argc, char *argv[])
 	spn_ctx_addlib_values(ctx, NULL, &vals, 1);
 	spn_object_release(arr);
 }
+
+#endif /* !USE_FASTCGI */
 
 /* This checks if the file starts with a shebang, so that it can be run as a
  * stand-alone script if the shell supports this notation. This is necessary
@@ -210,6 +221,8 @@ static int run_script_file(SpnContext *ctx, const char *fname)
 
 	return err;
 }
+
+#if !USE_FASTCGI
 
 static int run_file(const char *fname, int argc, char *argv[])
 {
@@ -1095,16 +1108,48 @@ static void print_version()
 	printf("Sparkling build %s, copyright (C) 2013-2014, Árpád Goretity\n\n", REPL_VERSION);
 }
 
+#endif /* !USE_FASTCGI */
+
 int main(int argc, char *argv[])
 {
-	int status, pos;
+	int status;
+#if USE_FASTCGI
+	SpnContext *ctx;
+	char *fname;
+#else
+	int pos;
 	enum cmd_args args;
+#endif
 
 	if (argc < 1) {
 		fprintf(stderr, "Sparkling: internal error: argc < 1\n\n");
 		exit(EXIT_FAILURE);
 	}
 
+#if USE_FASTCGI
+	while(FCGI_Accept() >= 0) {
+		ctx = spn_ctx_new();
+		fname = getenv("SCRIPT_FILENAME");
+		/* check if file is a binary object or source text */
+		if (endswith(fname, ".spn")) {
+			if (run_script_file(ctx, fname) != 0) {
+				status = EXIT_FAILURE;
+			}
+		} else if (endswith(fname, ".spo")) {
+			if (spn_ctx_execobjfile(ctx, fname, NULL) != 0) {
+				fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+				print_stacktrace_if_needed(ctx);
+				status = EXIT_FAILURE;
+			}
+		} else {
+			fputs("Sparkling: generic error: invalid file extension\n", stderr);
+			status = EXIT_FAILURE;
+		}
+		spn_ctx_free(ctx);
+		fflush(stdout);
+		fflush(stderr);
+	}
+#else
 	args = process_args(argc, argv, &pos);
 
 	switch (args & CMDS_MASK) {
@@ -1144,6 +1189,7 @@ int main(int argc, char *argv[])
 		fprintf(stderr, "Sparkling: generic error: internal inconsistency\n\n");
 		status = EXIT_FAILURE;
 	}
+#endif
 
 	return status;
 }
