@@ -14,6 +14,7 @@
 #include <assert.h>
 
 #include "api.h"
+#include "vm.h"
 
 
 /* convenience SpnValue-related re-defines. For internal use only! */
@@ -96,6 +97,13 @@ SPN_API int nth_arg_idx(spn_uword *ip, int idx);
 /* "safe" allocator functions */
 SPN_API void *spn_malloc(size_t n);
 SPN_API void *spn_realloc(void *p, size_t n);
+
+/* typedef for function to be called on spn_load_stdlib */
+typedef void (*spn_libld_func)(SpnVMachine *);
+/* register function to be called on spn_load_stdlib */
+SPN_API void spn_add_libld(spn_libld_func f);
+/* run functions registered with above function */
+SPN_API void spn_run_libld(SpnVMachine *vm);
 
 #endif /* SPN_PRIVATE_H */
 

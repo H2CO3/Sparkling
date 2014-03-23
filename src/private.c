@@ -12,6 +12,9 @@
 
 #include "private.h"
 
+static spn_libld_func libld_funcs[100];
+static int spn_libld_n = 0;
+
 int nth_arg_idx(spn_uword *ip, int idx)
 {
 	int wordidx = idx / SPN_WORD_OCTETS;
@@ -43,5 +46,17 @@ void *spn_realloc(void *ptr, size_t n)
 	}
 
 	return ret;
+}
+
+void spn_add_libld(spn_libld_func f)
+{
+	libld_funcs[spn_libld_n++] = f;
+}
+
+void spn_run_libld(SpnVMachine *vm)
+{
+	int i;
+	for(i = 0; i < spn_libld_n; i++)
+		libld_funcs[i](vm);
 }
 

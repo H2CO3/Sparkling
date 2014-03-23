@@ -5,6 +5,9 @@ BUILD ?= debug
 # if it doesn't compile with readline enabled, then try turning it off.
 READLINE ?= 1
 
+# List of compiled-in modules to enable
+MOD_C99 ?= 0 # Provides some functions utilitzing C99 (e.g. microtime())
+
 OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
 ARCH = $(shell uname -p | tr '[[:upper:]]' '[[:lower:]]')
 
@@ -16,7 +19,7 @@ ifeq ($(OPSYS), darwin)
 	endif
 
 	CC = clang
-	CFLAGS = -isysroot $(SYSROOT)
+	PLATFORM_CFLAGS = -isysroot $(SYSROOT)
 	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error-deprecated-declarations
 	LDFLAGS = -isysroot $(SYSROOT) -w
 	DYNLDFLAGS = -isysroot $(SYSROOT) -w -dynamiclib
@@ -36,8 +39,12 @@ SRCDIR = src
 OBJDIR = bld
 DSTDIR ?= /usr/local
 
-WARNINGS = -Wall -Wextra -Werror $(EXTRA_WARNINGS)
-CFLAGS += -c -std=c89 -pedantic -pedantic-errors -fpic -fstrict-aliasing $(WARNINGS) $(DEFINES)
+MODS =
+ADDITIONAL_OBJS =
+ifeq ($(MOD_C99), 1)
+	MODS += c99
+	ADDITIONAL_OBJS += $(OBJDIR)/c99/*.o
+endif
 
 ifneq ($(READLINE), 0)
 	DEFINES += -DUSE_READLINE=1
@@ -56,21 +63,27 @@ else
 	DYNLDFLAGS += -O2 $(LTO_FLAG)
 endif
 
+BASIC_WARNINGS = -Wall -Wextra
+BASIC_CFLAGS = $(PLATFORM_CFLAGS) -c -fpic $(BASIC_WARNINGS)
+
+WARNINGS = $(BASIC_WARNINGS) -Werror $(EXTRA_WARNINGS)
+CFLAGS = $(BASIC_CFLAGS) -pedantic -pedantic-errors -fstrict-aliasing $(WARNINGS) $(DEFINES)
+
 OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))
 
 LIB = $(OBJDIR)/libspn.a
 DYNLIB = $(OBJDIR)/libspn.$(DYNEXT)
 REPL = $(OBJDIR)/spn
 
-all: $(LIB) $(DYNLIB) $(REPL)
+all: $(MODS) $(LIB) $(DYNLIB) $(REPL)
 
-$(LIB): $(OBJECTS)
+$(LIB): $(OBJECTS) $(ADDITIONAL_OBJS)
 	ar -cvr $@ $^
 
-$(DYNLIB): $(OBJECTS)
+$(DYNLIB): $(OBJECTS) $(ADDITIONAL_OBJS)
 	$(LD) -o $@ $^ $(DYNLDFLAGS)
 
-$(REPL): spn.o $(OBJECTS)
+$(REPL): spn.o $(OBJECTS) $(ADDITIONAL_OBJS)
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 install: all
@@ -85,12 +98,16 @@ install: all
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -o $@ $<
 
+%: $(SRCDIR)/%
+	mkdir -p $(OBJDIR)/$@
+	$(MAKE) SRCDIR=. OBJDIR=../../$(OBJDIR)/$@ CFLAGS="$(BASIC_CFLAGS) -I.." DSTDIR=$(DSTDIR) -C $(SRCDIR)/$@ all
+
 spn.o: spn.c
 	printf "#define REPL_VERSION \"%s\"\n" $(shell git rev-parse --short HEAD) > spn.h
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 clean:
-	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
+	$(RM) $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
 
 .PHONY: all install clean
 
