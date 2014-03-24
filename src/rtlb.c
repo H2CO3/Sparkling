@@ -980,7 +980,7 @@ const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
  * Most of this has been transliterated from Wikipedia's
  * pseudo-code at https://en.wikipedia.org/wiki/Quicksort
  */
-static void rtlb_aux_swap(SpnArray *a, size_t i, size_t j)
+static void rtlb_aux_swap(SpnArray *a, int i, int j)
 {
 	SpnValue x, y;
 	spn_array_get_intkey(a, i, &x);
@@ -992,12 +992,12 @@ static void rtlb_aux_swap(SpnArray *a, size_t i, size_t j)
 	spn_value_release(&x);
 }
 
-static size_t rtlb_aux_partition(SpnArray *a, size_t left, size_t right,
+static int rtlb_aux_partition(SpnArray *a, int left, int right,
 	SpnValue *comp, SpnContext *ctx, int *error)
 {
-	size_t store_idx = left;
-	size_t pivot_idx = left + (right - left) / 2;
-	size_t i;
+	int store_idx = left;
+	int pivot_idx = left + (right - left) / 2;
+	int i;
 
 	SpnValue pivot;
 	spn_array_get_intkey(a, pivot_idx, &pivot);
@@ -1010,28 +1010,12 @@ static size_t rtlb_aux_partition(SpnArray *a, size_t left, size_t right,
 		SpnValue ith_elem;
 		spn_array_get_intkey(a, i, &ith_elem);
 
-		if (!spn_values_comparable(&ith_elem, &pivot)) {
-			const void *args[2];
-			args[0] = spn_type_name(ith_elem.type);
-			args[1] = spn_type_name(pivot.type);
-
-			spn_ctx_runtime_error(
-				ctx,
-				"attempt to sort uncomparable values"
-				" of type %s and %s",
-				args
-			);
-
-			*error = 1;
-			return 0;
-		}
-
 		/* compare pivot to i-th element */
 		if (comp != NULL) {
 			SpnValue ret;
 			SpnValue argv[2];
-			argv[1] = ith_elem;
-			argv[0] = pivot;
+			argv[0] = ith_elem;
+			argv[1] = pivot;
 
 			if (spn_ctx_callfunc(ctx, comp, &ret, 2, argv) != 0) {
 				*error = 1;
@@ -1045,9 +1029,25 @@ static size_t rtlb_aux_partition(SpnArray *a, size_t left, size_t right,
 				return 0;
 			}
 
-			lessthan = !boolvalue(&ret);
+			lessthan = boolvalue(&ret);
 		} else {
-			lessthan = spn_value_compare(&ith_elem, &pivot) <= 0;
+			if (!spn_values_comparable(&ith_elem, &pivot)) {
+				const void *args[2];
+				args[0] = spn_type_name(ith_elem.type);
+				args[1] = spn_type_name(pivot.type);
+
+				spn_ctx_runtime_error(
+					ctx,
+					"attempt to sort uncomparable values"
+					" of type %s and %s",
+					args
+				);
+
+				*error = 1;
+				return 0;
+			}
+
+			lessthan = spn_value_compare(&ith_elem, &pivot) < 0;
 		}
 
 		if (lessthan) {
@@ -1059,9 +1059,9 @@ static size_t rtlb_aux_partition(SpnArray *a, size_t left, size_t right,
 	return store_idx;
 }
 
-static int rtlb_aux_qsort(SpnArray *a, size_t left, size_t right, SpnValue *comp, SpnContext *ctx)
+static int rtlb_aux_qsort(SpnArray *a, int left, int right, SpnValue *comp, SpnContext *ctx)
 {
-	size_t pivot_index;
+	int pivot_index;
 	int error = 0;
 
 	if (left >= right) {
