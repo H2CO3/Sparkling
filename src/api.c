@@ -208,6 +208,63 @@ int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs)
 }
 
 
+/* Functions for performing ordered comparison */
+
+static int numeric_compare(const SpnValue *lhs, const SpnValue *rhs)
+{
+	assert(isnumber(lhs) && isnumber(rhs));
+
+	if (isfloat(lhs)) {
+		if (isfloat(rhs)) {
+			return floatvalue(lhs) < floatvalue(rhs) ? -1
+			     : floatvalue(lhs) > floatvalue(rhs) ? +1
+			     :					    0;
+		} else {
+			return floatvalue(lhs) < intvalue(rhs) ? -1
+			     : floatvalue(lhs) > intvalue(rhs) ? +1
+			     :					  0;
+		}
+	} else {
+		if (isfloat(rhs)) {
+			return intvalue(lhs) < floatvalue(rhs) ? -1
+			     : intvalue(lhs) > floatvalue(rhs) ? +1
+			     :					  0;
+		} else {
+			return intvalue(lhs) < intvalue(rhs) ? -1
+			     : intvalue(lhs) > intvalue(rhs) ? +1
+			     :					0;
+		}
+	}
+}
+
+int spn_value_compare(const SpnValue *lhs, const SpnValue *rhs)
+{
+	if (isnumber(lhs) && isnumber(rhs)) {
+		return numeric_compare(lhs, rhs);
+	}
+
+	/* else assume comparable objects */
+	return spn_object_cmp(objvalue(lhs), objvalue(rhs));
+}
+
+int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs)
+{
+	if (isnumber(lhs) && isnumber(rhs)) {
+		return 1;
+	}
+
+	if (isobject(lhs) && isobject(rhs)) {
+		SpnObject *ol = objvalue(lhs), *or = objvalue(rhs);
+		if (ol->isa != or->isa) {
+			return 0;
+		}
+
+		return ol->isa->compare != NULL;
+	}
+
+	return 0;
+}
+
 /*  The hash function is a variant of the SDBM hash */
 unsigned long spn_hash_bytes(const void *data, size_t n)
 {

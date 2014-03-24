@@ -180,7 +180,6 @@ static SpnValue *nth_call_arg(TSlot *sp, spn_uword *ip, int idx);
 static SpnValue *nth_vararg(TSlot *sp, int idx);
 
 /* emulating the ALU... */
-static int numeric_compare(const SpnValue *lhs, const SpnValue *rhs, int op);
 static int cmp2bool(int res, int op);
 static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op);
 static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op);
@@ -1053,51 +1052,27 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 
-			/* values must be checked for being orderable */
-			if (isnumber(b) && isnumber(c)) {
-				int res = numeric_compare(b, c, opcode);
-				spn_value_release(a);
-				*a = makebool(res);
-			} else if (isobject(b) && isobject(c)) {
-				SpnObject *lhs = objvalue(b);
-				SpnObject *rhs = objvalue(c);
-				int res;
+			int cmpres;
 
-				if (lhs->isa != rhs->isa) {
-					runtime_error(
-						vm,
-						ip - 1,
-						"ordered comparison of objects of different classes",
-						NULL
-					);
-					return -1;
-				}
+			if (!spn_values_comparable(b, c)) {
+				const void *args[2];
+				args[0] = spn_type_name(b->type);
+				args[1] = spn_type_name(c->type);
 
-				if (lhs->isa->compare == NULL) {
-					runtime_error(
-						vm,
-						ip - 1,
-						"ordered comparison of uncomparable objects",
-						NULL
-					);
-					return -1;
-				}
-
-				/* compute answer */
-				res = spn_object_cmp(lhs, rhs);
-
-				/* clean and update destination register */
-				spn_value_release(a);
-				*a = makebool(cmp2bool(res, opcode));
-			} else {
 				runtime_error(
 					vm,
 					ip - 1,
-					"ordered comparison of uncomparable values",
-					NULL
+					"ordered comparison of uncomparable values"
+					" of type %s and %s",
+					args
 				);
+
 				return -1;
 			}
+
+			cmpres = spn_value_compare(b, c);
+			spn_value_release(a);
+			*a = makebool(cmp2bool(cmpres, opcode));
 
 			break;
 		}
@@ -1778,37 +1753,6 @@ static int cmp2bool(int res, int op)
 	}
 
 	return -1;
-}
-
-static int numeric_compare(const SpnValue *lhs, const SpnValue *rhs, int op)
-{
-	int res;
-
-	assert(isnumber(lhs) && isnumber(rhs));
-
-	if (isfloat(lhs)) {
-		if (isfloat(rhs)) {
-			res =	floatvalue(lhs) < floatvalue(rhs) ? -1
-			      : floatvalue(lhs) > floatvalue(rhs) ? +1
-			      :					     0;
-		} else {
-			res =	floatvalue(lhs) < intvalue(rhs) ? -1
-			      : floatvalue(lhs) > intvalue(rhs) ? +1
-			      :					   0;
-		}
-	} else {
-		if (isfloat(rhs)) {
-			res =	intvalue(lhs) < floatvalue(rhs) ? -1
-			      : intvalue(lhs) > floatvalue(rhs) ? +1
-			      :					   0;
-		} else {
-			res =	intvalue(lhs) < intvalue(rhs) ? -1
-			      : intvalue(lhs) > intvalue(rhs) ? +1
-			      :					 0;
-		}
-	}
-
-	return cmp2bool(res, op);
 }
 
 static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)

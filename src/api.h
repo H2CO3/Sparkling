@@ -49,7 +49,7 @@ typedef struct SpnClass {
 	int (*equal)(void *, void *);		/* non-zero: equal, zero: different	*/
 	int (*compare)(void *, void *);		/* -1, +1, 0: lhs is <, >, == to rhs	*/
 	unsigned long (*hashfn)(void *);	/* cache the hash if immutable!		*/
-	void (*destructor)(void *);		/* should call free() on its argument	*/
+	void (*destructor)(void *);		/* shouldn't call free on its argument	*/
 } SpnClass;
 
 typedef struct SpnObject {
@@ -67,12 +67,12 @@ SPN_API void *spn_object_new(const SpnClass *isa);
  * of the same class, and either their pointers compare equal or they have
  * a non-NULL `compare` member function which returns nonzero.
  */
-SPN_API int spn_object_equal(void *lhs, void *rhs);
+SPN_API int spn_object_equal(void *lp, void *rp);
 
 /* ordered comparison of objects. follows the common C idiom:
  * returns -1 if lhs < rhs, 0 if lhs == rhs, 1 if lhs > rhs
  */
-SPN_API int spn_object_cmp(void *lhs, void *rhs);
+SPN_API int spn_object_cmp(void *lp, void *rp);
 
 /* these reference counting functions are called quite often.
  * for the sake of speed, they should probably be inlined. C89 doesn't have
@@ -194,6 +194,15 @@ SPN_API void spn_value_release(const SpnValue *val);
 /* testing values for (in)equality */
 SPN_API int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs);
 SPN_API int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs);
+
+/* ordered comparison of values. The two value objects must be comparable
+ * (i. e. both of them must either be numbers or comparable objects)
+ * returns -1 if lhs < rhs, 0 if lhs == rhs, 1 if lhs > rhs
+ */
+SPN_API int spn_value_compare(const SpnValue *lhs, const SpnValue *rhs);
+
+/* returns non-zero if ordered comparison of the two values makes sense */
+SPN_API int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs);
 
 /* hashing (for generic data and for SpnValue structs) */
 SPN_API unsigned long spn_hash_bytes(const void *data, size_t n);

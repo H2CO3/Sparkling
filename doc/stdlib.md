@@ -194,17 +194,13 @@ If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 3. Array handling (spn_libarray)
 --------------------------------
 
-    nil sort(array arr [, function comparator [, any context]])
+    nil sort(array arr [, function comparator])
 
 `sort()` sorts the elements of `arr` in ascending order, using the comparator
 if present, or using the built-in `<` operator if no comparator is specified.
-The comparator takes two or three arguments: two elements of the array to be
-compared, and an optional context info value. It must return `true` if its
-first argument compares less than the second one, and `false` otherwise.
-The array to be sorted must contain integer keys only, and they keys should
-span the range `[0, sizeof arr)` without gap. `sortcmp()` works similarly to
-`sort()`, but it uses the function `comparator()` to compare elements. It should
-should return true if its first argument is ordered before the second one.
+The comparator function takes two: two elements of the array to be compared.
+It must return `true` if its first argument compares less than the second one,
+and `false` otherwise. The array must contain consecutive integer keys only.
 
     int linearsrch(array arr, any element)
 
