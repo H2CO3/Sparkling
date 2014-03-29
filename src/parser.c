@@ -105,6 +105,10 @@ void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
 	const void *prefix_args[1];
 	prefix_args[0] = &p->lineno;
 
+	if (p->error) {
+		return; /* only report first syntax error */
+	}
+
 	prefix = spn_string_format_cstr(
 		"Sparkling: syntax error near line %i: ",
 		&prefix_len,

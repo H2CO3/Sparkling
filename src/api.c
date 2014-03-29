@@ -265,7 +265,7 @@ int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs)
 	return 0;
 }
 
-/*  The hash function is a variant of the SDBM hash */
+/* The hash function is a variant of the SDBM hash */
 unsigned long spn_hash_bytes(const void *data, size_t n)
 {
 	unsigned long h = 0;

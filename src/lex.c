@@ -682,7 +682,7 @@ int spn_accept(struct SpnParser *p, enum spn_lex_token tok)
 {
 	if (p->curtok.tok == tok) {
 		spn_lex(p);
-		return 1;
+		return !p->error; /* return success status */
 	}
 
 	return 0;
