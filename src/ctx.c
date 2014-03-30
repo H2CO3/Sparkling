@@ -9,6 +9,7 @@
  */
 
 #include "ctx.h"
+#include "func.h"
 #include "private.h"
 
 
@@ -16,7 +17,7 @@ struct SpnContext {
 	SpnParser *parser;
 	SpnCompiler *cmp;
 	SpnVMachine *vm;
-	struct spn_bc_list *bclist; /* holds all bytecodes ever compiled */
+	SpnArray *programs; /* holds all programs ever compiled */
 
 	enum spn_error_type errtype; /* type of the last error */
 	const char *errmsg; /* last error message */
@@ -24,20 +25,17 @@ struct SpnContext {
 	void *info; /* context info initialized to NULL, use freely */
 };
 
-static void prepend_bytecode_list(SpnContext *ctx, spn_uword *bc, size_t len);
-static void free_bytecode_list(struct spn_bc_list *head);
-
 SpnContext *spn_ctx_new(void)
 {
 	SpnContext *ctx = spn_malloc(sizeof(*ctx));
 
-	ctx->parser  = spn_parser_new();
-	ctx->cmp     = spn_compiler_new();
-	ctx->vm      = spn_vm_new();
-	ctx->bclist  = NULL;
-	ctx->errtype = SPN_ERROR_OK;
-	ctx->errmsg  = NULL;
-	ctx->info    = NULL;
+	ctx->parser   = spn_parser_new();
+	ctx->cmp      = spn_compiler_new();
+	ctx->vm       = spn_vm_new();
+	ctx->programs = spn_array_new();
+	ctx->errtype  = SPN_ERROR_OK;
+	ctx->errmsg   = NULL;
+	ctx->info     = NULL;
 
 	spn_vm_setcontext(ctx->vm, ctx);
 	spn_load_stdlib(ctx->vm);
@@ -51,7 +49,7 @@ void spn_ctx_free(SpnContext *ctx)
 	spn_compiler_free(ctx->cmp);
 	spn_vm_free(ctx->vm);
 
-	free_bytecode_list(ctx->bclist);
+	spn_object_release(ctx->programs);
 	free(ctx);
 }
 
@@ -72,9 +70,9 @@ const char *spn_ctx_geterrmsg(SpnContext *ctx)
 	}
 }
 
-const struct spn_bc_list *spn_ctx_getbclist(SpnContext *ctx)
+SpnArray *spn_ctx_getprograms(SpnContext *ctx)
 {
-	return ctx->bclist;
+	return ctx->programs;
 }
 
 void *spn_ctx_getuserinfo(SpnContext *ctx)
@@ -87,14 +85,21 @@ void spn_ctx_setuserinfo(SpnContext *ctx, void *info)
 	ctx->info = info;
 }
 
+/* private helper function for adding a program to
+ * the list of compiled programs in a context
+ */
+static void add_to_programs(SpnContext *ctx, const SpnValue *fn)
+{
+	size_t idx = spn_array_count(ctx->programs);
+	spn_array_set_intkey(ctx->programs, idx, fn);
+}
 
 /* the essence */
 
-spn_uword *spn_ctx_loadstring(SpnContext *ctx, const char *str)
+int spn_ctx_loadstring(SpnContext *ctx, const char *str, SpnValue *result)
 {
 	SpnAST *ast;
-	spn_uword *bc;
-	size_t len;
+	int err;
 
 	ctx->errtype = SPN_ERROR_OK;
 
@@ -102,27 +107,27 @@ spn_uword *spn_ctx_loadstring(SpnContext *ctx, const char *str)
 	ast = spn_parser_parse(ctx->parser, str);
 	if (ast == NULL) {
 		ctx->errtype = SPN_ERROR_SYNTAX;
-		return NULL;
+		return -1;
 	}
 
 	/* attempt compilation, handle error */
-	bc = spn_compiler_compile(ctx->cmp, ast, &len);
+	err = spn_compiler_compile(ctx->cmp, ast, result);
 	spn_ast_free(ast);
 
-	if (bc == NULL) {
+	if (err != 0) {
 		ctx->errtype = SPN_ERROR_SEMANTIC;
-		return NULL;
+		return -2;
 	}
 
-	/* prepend bytecode to the link list */
-	prepend_bytecode_list(ctx, bc, len);
-	return bc;
+	/* add compiled bytecode to program list */
+	add_to_programs(ctx, result);
+	return 0;
 }
 
-spn_uword *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname)
+int spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname, SpnValue *result)
 {
 	char *src;
-	spn_uword *bc;
+	int err;
 
 	ctx->errtype = SPN_ERROR_OK;
 
@@ -130,16 +135,16 @@ spn_uword *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname)
 	if (src == NULL) {
 		ctx->errtype = SPN_ERROR_GENERIC;
 		ctx->errmsg = "Sparkling: I/O error: could not read source file";
-		return NULL;
+		return -1;
 	}
 
-	bc = spn_ctx_loadstring(ctx, src);
+	err = spn_ctx_loadstring(ctx, src, result);
 	free(src);
 
-	return bc;
+	return err;
 }
 
-spn_uword *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
+int spn_ctx_loadobjfile(SpnContext *ctx, const char *fname, SpnValue *result)
 {
 	spn_uword *bc;
 	size_t filesize, nwords;
@@ -150,63 +155,51 @@ spn_uword *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
 	if (bc == NULL) {
 		ctx->errtype = SPN_ERROR_GENERIC;
 		ctx->errmsg = "Sparkling: I/O error: could not read object file";
-		return NULL;
+		return -1;
 	}
 
 	/* the size of the object file is not the same
 	 * as the number of machine words in the bytecode
 	 */
 	nwords = filesize / sizeof(*bc);
-	prepend_bytecode_list(ctx, bc, nwords);
+	*result = maketopprgfunc(SPN_TOPFN, bc, nwords);
 
-	return bc;
+	add_to_programs(ctx, result);
+	return 0;
 }
 
 int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret)
 {
-	spn_uword *bc = spn_ctx_loadstring(ctx, str);
-	if (bc == NULL) {
+	SpnValue fn;
+
+	if (spn_ctx_loadstring(ctx, str, &fn) != 0) {
 		return -1;
 	}
 
-	return spn_ctx_execbytecode(ctx, bc, ret);
+	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
 }
 
 int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
-	spn_uword *bc = spn_ctx_loadsrcfile(ctx, fname);
-	if (bc == NULL) {
+	SpnValue fn;
+
+	if (spn_ctx_loadsrcfile(ctx, fname, &fn) != 0) {
 		return -1;
 	}
 
-	return spn_ctx_execbytecode(ctx, bc, ret);
+	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
 }
 
 int spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
-	spn_uword *bc = spn_ctx_loadobjfile(ctx, fname);
-	if (bc == NULL) {
+	SpnValue fn;
+
+	if (spn_ctx_loadobjfile(ctx, fname, &fn) != 0) {
 		return -1;
 	}
 
-	return spn_ctx_execbytecode(ctx, bc, ret);
+	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
 }
-
-/* NB: this does **not** add the bytecode to the linked list */
-int spn_ctx_execbytecode(SpnContext *ctx, spn_uword *bc, SpnValue *ret)
-{
-	int status;
-
-	ctx->errtype = SPN_ERROR_OK;
-
-	status = spn_vm_exec(ctx->vm, bc, ret);
-	if (status != 0) {
-		ctx->errtype = SPN_ERROR_RUNTIME;
-	}
-
-	return status;
-}
-
 
 /* abstraction (well, sort of) of the virtual machine API */
 
@@ -247,28 +240,5 @@ void spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtVal
 SpnArray *spn_ctx_getglobals(SpnContext *ctx)
 {
 	return spn_vm_getglobals(ctx->vm);
-}
-
-
-/* private bytecode link list functions */
-
-static void prepend_bytecode_list(SpnContext *ctx, spn_uword *bc, size_t len)
-{
-	struct spn_bc_list *node = spn_malloc(sizeof(*node));
-
-	node->bc = bc;
-	node->len = len;
-	node->next = ctx->bclist;
-	ctx->bclist = node;
-}
-
-static void free_bytecode_list(struct spn_bc_list *head)
-{
-	while (head != NULL) {
-		struct spn_bc_list *tmp = head->next;
-		free(head->bc);
-		free(head);
-		head = tmp;
-	}
 }
 

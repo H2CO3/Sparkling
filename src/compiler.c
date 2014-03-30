@@ -16,6 +16,7 @@
 #include "vm.h"
 #include "array.h"
 #include "private.h"
+#include "func.h"
 
 
 typedef struct TBytecode {
@@ -323,22 +324,19 @@ void spn_compiler_free(SpnCompiler *cmp)
 	free(cmp);
 }
 
-spn_uword *spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast, size_t *sz)
+int spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast, SpnValue *result)
 {
 	bytecode_init(&cmp->bc);
 
-	/* compile program */
-	if (compile_program(cmp, ast)) { /* success */
-		if (sz != NULL) {
-			*sz = cmp->bc.len;
-		}
-
-		return cmp->bc.insns;
+	if (compile_program(cmp, ast)) {
+		/* success. transfer ownership of cmp->bc.insns to `result' */
+		*result = maketopprgfunc(SPN_TOPFN, cmp->bc.insns, cmp->bc.len);
+		return 0;
 	}
 
 	/* error */
 	free(cmp->bc.insns);
-	return NULL;
+	return -1;
 }
 
 const char *spn_compiler_errmsg(SpnCompiler *cmp)
@@ -580,10 +578,9 @@ static int write_symtab(SpnCompiler *cmp)
 		default:
 			{
 				/* got something that's not supposed to be there */
-				int st = valtype(&sym);
 				const void *args[1];
-				args[0] = &st;
-				compiler_error(cmp, 0, "wrong symbol type %i in write_symtab()", args);
+				args[0] = spn_type_name(valtype(&sym));
+				compiler_error(cmp, 0, "wrong symbol type %s in write_symtab()", args);
 				return -1;
 			}
 		}
@@ -616,8 +613,8 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	RoundTripStore symtab, glbvars;
 
 	/* append stub program header (just make room for it) */
-	spn_uword header[SPN_PRGHDR_LEN] = { 0 };
-	bytecode_append(&cmp->bc, header, SPN_PRGHDR_LEN);
+	spn_uword header[SPN_FUNCHDR_LEN] = { 0 };
+	bytecode_append(&cmp->bc, header, SPN_FUNCHDR_LEN);
 
 	/* set up variable table and local symbol table */
 	rts_init(&symtab);
@@ -652,10 +649,10 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	assert(rts_count(cmp->symtab) >= 0);
 
 	/* now sufficient header info is available - fill in bytecode */
-	cmp->bc.insns[SPN_HDRIDX_MAGIC]	    = SPN_MAGIC;
-	cmp->bc.insns[SPN_HDRIDX_SYMTABOFF] = cmp->bc.len;
-	cmp->bc.insns[SPN_HDRIDX_SYMTABLEN] = rts_count(cmp->symtab);
-	cmp->bc.insns[SPN_HDRIDX_FRMSIZE]   = regcnt;
+	cmp->bc.insns[SPN_FUNCHDR_IDX_BODYLEN] = cmp->bc.len - SPN_FUNCHDR_LEN;
+	cmp->bc.insns[SPN_FUNCHDR_IDX_ARGC]    = 0; /* no formal params for top-level program */
+	cmp->bc.insns[SPN_FUNCHDR_IDX_NREGS]   = regcnt;
+	cmp->bc.insns[SPN_FUNCHDR_IDX_SYMCNT]  = rts_count(cmp->symtab);
 
 	/* write local symbol table, check for errors */
 	if (write_symtab(cmp) != 0) {
@@ -798,6 +795,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_BODYLEN]	= bodylen;
 	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_ARGC]	= argc;
 	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_NREGS]	= regcount;
+	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_SYMCNT]  = 0; /* unused anyway */
 
 	/* free local var stack, restore scope context data */
 	rts_free(&vs_this);

@@ -18,8 +18,8 @@
 
 #include "spn.h"
 #include "array.h"
+#include "func.h"
 #include "ctx.h"
-#include "spn.h"
 #include "private.h"
 
 
@@ -331,6 +331,8 @@ static int compile_files(int argc, char *argv[])
 		static char outname[FILENAME_MAX];
 		char *dotp;
 		FILE *outfile;
+		SpnValue fnval;
+		SpnFunction *fnobj;
 		spn_uword *bc;
 		size_t nwords;
 
@@ -338,8 +340,7 @@ static int compile_files(int argc, char *argv[])
 		fflush(stdout);
 		fflush(stderr);
 
-		bc = spn_ctx_loadsrcfile(ctx, argv[i]);
-		if (bc == NULL) {
+		if (spn_ctx_loadsrcfile(ctx, argv[i], &fnval) != 0) {
 			fprintf(stderr, "\n%s\n", spn_ctx_geterrmsg(ctx));
 			status = EXIT_FAILURE;
 			break;
@@ -360,8 +361,14 @@ static int compile_files(int argc, char *argv[])
 			break;
 		}
 
-		nwords = spn_ctx_getbclist(ctx)->len;
-		if (fwrite(bc, sizeof(*bc), nwords, outfile) < nwords) {
+		assert(isfunc(&fnval));
+		fnobj = funcvalue(&fnval);
+
+		assert(fnobj->topprg);
+		bc = fnobj->repr.bc;
+		nwords = fnobj->nwords;
+
+		if (fwrite(bc, sizeof bc[0], nwords, outfile) < nwords) {
 			fprintf(stderr, "\nSparkling: I/O error: can't write to file `%s'\n", outname);
 			fclose(outfile);
 			status = EXIT_FAILURE;
@@ -404,7 +411,7 @@ static void bail(const char *fmt, ...)
 /* process executable section ("text") */
 static int disasm_exec(spn_uword *bc, size_t textlen)
 {
-	spn_uword *text = bc + SPN_PRGHDR_LEN;
+	spn_uword *text = bc + SPN_FUNCHDR_LEN;
 	spn_uword *ip = text;
 	spn_uword *fnend[MAX_FUNC_NEST];
 	int i, fnlevel = 0;
@@ -855,35 +862,27 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 
 static int disasm_bytecode(spn_uword *bc, size_t len)
 {
-	unsigned long symtaboff, symtablen, nregs, magic;
+	spn_uword symtaboff, symtablen, nregs;
 
-	/* read program header */
-	magic = bc[SPN_HDRIDX_MAGIC];
-	if (magic != SPN_MAGIC) {
-		bail("invalid magic number");
-		return -1;
-	}
-
-	symtaboff = bc[SPN_HDRIDX_SYMTABOFF];
-	symtablen = bc[SPN_HDRIDX_SYMTABLEN];
-	nregs     = bc[SPN_HDRIDX_FRMSIZE];
+	symtaboff = bc[SPN_FUNCHDR_IDX_BODYLEN] + SPN_FUNCHDR_LEN;
+	symtablen = bc[SPN_FUNCHDR_IDX_SYMCNT];
+	nregs     = bc[SPN_FUNCHDR_IDX_NREGS];
 
 	/* print program header */
 	printf("# program header:\n");
-	printf("# magic number: 0x%08lx\n", magic);
-	printf("# number of registers: %lu\n\n", nregs);
+	printf("# number of registers: %" SPN_UWORD_FMT "\n\n", nregs);
 
 	/* disassemble executable section. The length of the executable data
 	 * is the symbol table offset minus the length of the program header.
 	 */
-	if (disasm_exec(bc, symtaboff - SPN_PRGHDR_LEN) != 0) {
+	if (disasm_exec(bc, symtaboff - SPN_FUNCHDR_LEN) != 0) {
 		return -1;
 	}
 
 	/* print symtab header */
 	printf("\n\n# local symbol table:\n");
-	printf("# start address: 0x%08lx\n", symtaboff);
-	printf("# number of symbols: %lu\n\n", symtablen);
+	printf("# start address: 0x%08" SPN_UWORD_FMT_HEX "\n", symtaboff);
+	printf("# number of symbols: %" SPN_UWORD_FMT "\n\n", symtablen);
 
 	/* disassemble symbol table. Its length is the overall length of the
 	 * bytecode minus the symtab offset.

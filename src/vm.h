@@ -45,11 +45,6 @@ typedef struct SpnVMachine SpnVMachine;
 SPN_API SpnVMachine	 *spn_vm_new(void);
 SPN_API void		  spn_vm_free(SpnVMachine *vm);
 
-/* runs the bytecode pointed to by `bc`. Copies the return value of the
- * program to `*retval'. Returns 0 if successful, nonzero on error.
- */
-SPN_API int		  spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval);
-
 /* calls a Sparkling function from C-land. */
 SPN_API int spn_vm_callfunc(
 	SpnVMachine *vm,
@@ -91,13 +86,13 @@ SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
 /* layout of a Sparkling bytecode file:
  * 
  * +------------------------------------+
- * | Sparkling magic bytes (spn_uword)	|
+ * | Length of executable code		|
  * +------------------------------------+
- * | symbol table offset (spn_uword)	|
+ * | number of formal parameters (0)	|
  * +------------------------------------+
- * | number of symbols (spn_uword)	|
+ * | size of 1st frame			|
  * +------------------------------------+
- * | size of 1st frame (spn_uword)	|
+ * | number of local symbols		|
  * +------------------------------------+
  * | executable code			|
  * +------------------------------------+
@@ -111,18 +106,12 @@ SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
 /* Bytecode magic number */
 #define SPN_MAGIC		0x4e50537f	/* "\x7fSPN" */
 
-/* description of the program header format */
-#define SPN_HDRIDX_MAGIC	0
-#define SPN_HDRIDX_SYMTABOFF	1
-#define SPN_HDRIDX_SYMTABLEN	2
-#define SPN_HDRIDX_FRMSIZE	3
-#define SPN_PRGHDR_LEN		4
-
 /* format of a Sparkling function's bytecode representation */
 #define SPN_FUNCHDR_IDX_BODYLEN	0
 #define SPN_FUNCHDR_IDX_ARGC	1
 #define SPN_FUNCHDR_IDX_NREGS	2
-#define SPN_FUNCHDR_LEN		3
+#define SPN_FUNCHDR_IDX_SYMCNT	3
+#define SPN_FUNCHDR_LEN		4
 
 /* macros for creating opcodes and instructions
  * instructions can have different formats:
@@ -271,13 +260,19 @@ enum spn_vm_ins {
  * The vertical bars are boundaries of `spn_uword`s.
  * 
  * +--------------------------------------------------------------------------+
- * | SPN_INS_FUNCDEF | 'foob' | 'ar\0\0' | 2 | 2 | 3 | ADD 2, 0, 1 | RETURN 2 |
+ * | INS_FUNCDEF | 'foob' | 'ar\0\0' | 2 | 2 | 3 | 0 | ADD 2, 0, 1 | RETURN 2 |
  * +--------------------------------------------------------------------------+
- *                                        ^   ^   ^   ^
- *                                        |   |   |   +--- actual entry point
- *                                        |   |   +--- total register count
- *                                        |   +--- number of decl. arguments
- *                                        +--- body length, without header
+ *                                     ^   ^   ^   ^   ^
+ *                                     |   |   |   |   +--- actual entry point
+ *                                     |   |   |   +--- no. of symbols (*)
+ *                                     |   |   +--- total register count
+ *                                     |   +--- number of decl. arguments (**)
+ *                                     +--- body length, without header
+ *
+ * (*)  The number of local symbols is always 0 unless the function
+ *      represents the top-level translation unit.
+ * (**) The number of declaration arguments ("formal parameters") is
+ *      always 0 in the top-level function.
  */
 
 #endif /* SPN_VM_H */

@@ -28,11 +28,13 @@ typedef unsigned int spn_uword;
 typedef signed int spn_sword;
 #define SPN_UWORD_FMT "u"
 #define SPN_SWORD_FMT "d"
+#define SPN_UWORD_FMT_HEX "x"
 #else
 typedef unsigned long spn_uword;
 typedef signed long spn_sword;
 #define SPN_UWORD_FMT "lu"
 #define SPN_SWORD_FMT "ld"
+#define SPN_UWORD_FMT_HEX "lx"
 #endif
 
 /* it is guaranteed that at least this many octets fit into an `spn_uword` */

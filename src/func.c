@@ -37,20 +37,43 @@ static unsigned long hash_func(void *obj)
 	}
 }
 
+static void free_func(void *obj)
+{
+	SpnFunction *func = obj;
+
+	if (func->topprg) {
+		free(func->repr.bc);
+	}
+}
+
 static const SpnClass spn_class_func = {
 	sizeof(SpnFunction),
 	equal_func,
 	NULL,
 	hash_func,
-	NULL /* free_func */
+	free_func
 };
 
 SpnFunction *spn_func_new_script(const char *name, spn_uword *bc, spn_uword *env)
 {
 	SpnFunction *func = spn_object_new(&spn_class_func);
 	func->native = 0;
+	func->topprg = 0;
+	func->nwords = 0;
 	func->name = name;
 	func->env = env;
+	func->repr.bc = bc;
+	return func;
+}
+
+SpnFunction *spn_func_new_topprg(const char *name, spn_uword *bc, size_t nwords)
+{
+	SpnFunction *func = spn_object_new(&spn_class_func);
+	func->native = 0;
+	func->topprg = 1;
+	func->nwords = nwords;
+	func->name = name;
+	func->env = bc;
 	func->repr.bc = bc;
 	return func;
 }
@@ -59,6 +82,8 @@ SpnFunction *spn_func_new_native(const char *name, int (*fn)(SpnValue *, int, Sp
 {
 	SpnFunction *func = spn_object_new(&spn_class_func);
 	func->native = 1;
+	func->topprg = 0;
+	func->nwords = 0;
 	func->name = name;
 	func->env = NULL;
 	func->repr.fn = fn;
@@ -70,6 +95,15 @@ SpnFunction *spn_func_new_native(const char *name, int (*fn)(SpnValue *, int, Sp
 SpnValue spn_makescriptfunc(const char *name, spn_uword *bc, spn_uword *env)
 {
 	SpnFunction *func = spn_func_new_script(name, bc, env);
+	SpnValue ret;
+	ret.type = SPN_TYPE_FUNC;
+	ret.v.o = func;
+	return ret;
+}
+
+SpnValue spn_maketopprgfunc(const char *name, spn_uword *bc, size_t nwords)
+{
+	SpnFunction *func = spn_func_new_topprg(name, bc, nwords);
 	SpnValue ret;
 	ret.type = SPN_TYPE_FUNC;
 	ret.v.o = func;

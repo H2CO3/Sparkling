@@ -51,6 +51,7 @@
 #define makeint(i)		spn_makeint(i)
 #define makefloat(f)		spn_makefloat(f)
 #define makescriptfunc(n, b, e)	spn_makescriptfunc(n, b, e)
+#define maketopprgfunc(n, b, w)	spn_maketopprgfunc(n, b, w)
 #define makenativefunc(n, f)	spn_makenativefunc(n, f)
 #define makeweakuserinfo(p)	spn_makeweakuserinfo(p)
 #define makestrguserinfo(o)	spn_makestrguserinfo(o)

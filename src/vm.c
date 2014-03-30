@@ -149,8 +149,8 @@ static void free_frames(SpnVMachine *vm);
 
 /* stack manipulation */
 static size_t stacksize(SpnVMachine *vm);
-static void push_first_frame(SpnVMachine *vm, spn_uword *env);
 static void expand_stack(SpnVMachine *vm, size_t nregs);
+
 static void push_frame(
 	SpnVMachine *vm,
 	int nregs,
@@ -166,9 +166,6 @@ static void pop_frame(SpnVMachine *vm);
 
 /* this function helps including native functions' names in the stack trace */
 static void push_native_pseudoframe(SpnVMachine *vm, const char *fnname);
-
-/* bytecode validation - returns 0 on success, nonzero on error */
-static int validate_magic(SpnVMachine *vm, spn_uword *bc);
 
 /* returns the index of the symtab of `bc`, creates local symtab if
  * necessary. Returns -1 on error.
@@ -317,31 +314,6 @@ static void clean_vm_if_needed(SpnVMachine *vm)
 	}
 }
 
-int spn_vm_exec(SpnVMachine *vm, spn_uword *bc, SpnValue *retval)
-{
-	spn_uword *ip;
-
-	/* clean up after a previous program having thrown a runtime error */
-	clean_vm_if_needed(vm);
-
-	/* check bytecode for magic bytes */
-	if (validate_magic(vm, bc) != 0) {
-		return -1;
-	}
-
-	/* read the local symbol table, if necessary */
-	read_local_symtab(vm, bc);
-
-	/* initialize global stack (read 1st frame size from bytecode) */
-	push_first_frame(vm, bc);
-
-	/* initialize instruction pointer to beginning of TU */
-	ip = bc + SPN_PRGHDR_LEN;
-
-	/* actually run the program */
-	return dispatch_loop(vm, ip, retval);
-}
-
 int spn_vm_callfunc(
 	SpnVMachine *vm,
 	const SpnValue *fn,
@@ -353,6 +325,7 @@ int spn_vm_callfunc(
 	struct args_copy_descriptor desc;
 	spn_uword *fnhdr;
 	spn_uword *entry;
+	SpnFunction *fnobj;
 
 	/* if this is the first call after the execution of a program
 	 * in which an error occurred, unwind the stack automagically
@@ -365,20 +338,22 @@ int spn_vm_callfunc(
 		return -1;
 	}
 
+	fnobj = funcvalue(fn);
+
 	/* native functions are easy to deal with */
-	if (funcvalue(fn)->native) {
+	if (fnobj->native) {
 		int err;
 
 		/* push pseudo-frame to include function name in stack trace */
-		push_native_pseudoframe(vm, funcvalue(fn)->name);
+		push_native_pseudoframe(vm, fnobj->name);
 
 		/* "return nothing" should mean "implicitly return nil" */
 		*retval = makenil();
 
-		err = funcvalue(fn)->repr.fn(retval, argc, argv, vm->ctx);
+		err = fnobj->repr.fn(retval, argc, argv, vm->ctx);
 		if (err != 0) {
 			const void *args[2];
-			args[0] = funcvalue(fn)->name;
+			args[0] = fnobj->name;
 			args[1] = &err;
 			spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
 		} else {
@@ -388,8 +363,16 @@ int spn_vm_callfunc(
 		return err;
 	}
 
-	/* if we got here, the callee is a valid Sparkling function. */
-	fnhdr = funcvalue(fn)->repr.bc;
+	/* if we got here, the callee is a valid Sparkling function.
+	 * First, check if the function is a top-level program.
+	 * If so, read the local symbol table (if necessary).
+	 */
+	if (fnobj->topprg) {
+		read_local_symtab(vm, fnobj->repr.bc);
+	}
+
+	/* compute entry point */
+	fnhdr = fnobj->repr.bc;
 	entry = fnhdr + SPN_FUNCHDR_LEN;
 
 	desc.caller_is_native = 1; /* because we are the calling function */
@@ -599,20 +582,6 @@ static void push_frame(
 	vm->sp[IDX_FRMHDR].h.fnname = fnname;
 }
 
-static void push_first_frame(SpnVMachine *vm, spn_uword *env)
-{
-	/* the next word in the bytecode is the number of global registers */
-	size_t nregs = env[SPN_HDRIDX_FRMSIZE];
-
-	/* push a large enough frame - return address: NULL (nowhere to
-	 * return from top-level program scope). A return value index < 0
-	 * (-1 in this case) indicates that the program or function returns to
-	 * C-land, and instead of indexing the stack, the return value should
-	 * be copied directly into the return value pointer.
-	 */
-	push_frame(vm, nregs, 0, 0, 0, NULL, -1, env, "<main program>");
-}
-
 static void push_native_pseudoframe(SpnVMachine *vm, const char *fnname)
 {
 	push_frame(vm, 0, 0, 0, 0, NULL, -1, NULL, fnname);
@@ -677,21 +646,23 @@ static void push_and_copy_args(
 	int extra_argc;
 	int nregs;
 	const char *fnname;
+	SpnFunction *fnobj;
 
 	/* this whole copying thingy only applies if we're calling
 	 * a Sparkling function. Native callees are handled separately.
 	 */
 	assert(isfunc(fn) && funcvalue(fn)->native == 0);
+	fnobj = funcvalue(fn);
 
 	/* see Remark (VI) in vm.h in order to get an
 	 * understanding of the layout of the
 	 * bytecode representing a function
 	 */
-	fnhdr = funcvalue(fn)->repr.bc;
-	env = funcvalue(fn)->env;
+	fnhdr = fnobj->repr.bc;
+	env = fnobj->env;
 	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
 	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
-	fnname = funcvalue(fn)->name;
+	fnname = fnobj->name;
 
 	/* if there are less call arguments than formal
 	 * parameters, we set extra_argc to 0 (and all
@@ -1619,28 +1590,21 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 	}
 }
 
-static int validate_magic(SpnVMachine *vm, spn_uword *bc)
-{
-	if (bc[SPN_HDRIDX_MAGIC] != SPN_MAGIC) {
-		spn_vm_seterrmsg(vm, "invalid magic number", NULL);
-		return -1;
-	}
-
-	return 0;
-}
-
 static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 {
 	TSymtab *cursymtab;
 
 	/* read the offset and size from bytecode */
-	ptrdiff_t offset = bc[SPN_HDRIDX_SYMTABOFF];
-	size_t symcount = bc[SPN_HDRIDX_SYMTABLEN];
+	ptrdiff_t offset = bc[SPN_FUNCHDR_IDX_BODYLEN];
+	size_t symcount = bc[SPN_FUNCHDR_IDX_SYMCNT];
 
-	spn_uword *stp = bc + offset;
+	spn_uword *stp = bc + SPN_FUNCHDR_LEN + offset;
 	size_t lsidx;
 
 	/* we only read the symbol table if it hasn't been read yet before */
+	/* XXX: when we change local symbol tables to SpnArrays in SpnFunction
+	 * objects, this simplifies to: SpnFunction::locsymtab != NULL
+	 */
 	size_t i;
 	for (i = 0; i < vm->lscount; i++) {
 		if (vm->lsymtabs[i].bc == bc) {
