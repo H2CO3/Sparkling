@@ -773,6 +773,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			TSlot *funcslot = SLOTPTR(vm->sp, OPB(ins));
 			SpnValue func = funcslot->v; /* copy the value struct */
+			SpnFunction *fnobj;
 
 			int argc = OPC(ins);
 
@@ -798,7 +799,9 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 */
 			assert((func.type & SPN_FLAG_PENDING) == 0);
 
-			if (funcvalue(&func)->native) {	/* native function */
+			fnobj = funcvalue(&func);
+
+			if (fnobj->native) {	/* native function */
 				int i, err;
 				SpnValue tmpret = makenil();
 				SpnValue *argv;
@@ -824,12 +827,12 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * the arguments, since those arguments are
 				 * taken from the topmost stack frame.
 				 */
-				push_native_pseudoframe(vm, funcvalue(&func)->name);
+				push_native_pseudoframe(vm, fnobj->name);
 
 				/* then call the native function. its return
 				 * value must have a reference count of one.
 				 */
-				err = funcvalue(&func)->repr.fn(&tmpret, argc, argv, vm->ctx);
+				err = fnobj->repr.fn(&tmpret, argc, argv, vm->ctx);
 
 				if (argc > MAX_AUTO_ARGC) {
 					free(argv);
@@ -853,7 +856,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 */
 				if (err != 0) {
 					const void *args[2];
-					args[0] = funcvalue(&func)->name;
+					args[0] = fnobj->name;
 					args[1] = &err;
 					spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
 					return err;
@@ -877,12 +880,19 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * current CALL instruction.
 				 */
 				spn_uword *retaddr = ip + narggroups;
-				spn_uword *fnhdr = funcvalue(&func)->repr.bc;
+				spn_uword *fnhdr = fnobj->repr.bc;
 				spn_uword *entry = fnhdr + SPN_FUNCHDR_LEN;
 				ptrdiff_t calleroff = vm->sp - vm->stack;
+				struct args_copy_descriptor desc;
+
+				/* if function designates top-level program,
+				 * then parse its local symbol table
+				 */
+				if (fnobj->topprg) {
+					read_local_symtab(vm, fnobj->repr.bc);
+				}
 
 				/* set up environment for push_and_copy_args */
-				struct args_copy_descriptor desc;
 				desc.caller_is_native = 0; /* we, the caller, are a Sparkling function */
 				desc.env.script_env.ip = ip;
 				desc.env.script_env.retaddr = retaddr;

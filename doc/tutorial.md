@@ -407,7 +407,7 @@ resulting code with the help of the `spn_ctx_callfunc()` function.
         }
     }
 
-When you no longer need access tmuo the Sparkling engine, you must free the
+When you no longer need access to the Sparkling engine, you must free the
 context object in order to reclaim all resources:
 
     spn_context_free(ctx);

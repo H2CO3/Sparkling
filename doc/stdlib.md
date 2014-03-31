@@ -139,6 +139,10 @@ Returns true on success, false on failure.
 These function return the name of a temporary file, or an alrady open handle
 to it, respectively.
 
+    string readfile(string filename)
+
+Reads the contents of the file named `filename` and returns it as a string.
+
 2. String manipulation (spn_libstring)
 --------------------------------------
     int indexof(string haystack, string needle [, int offset])
@@ -399,4 +403,11 @@ library function `strftime()`.
     float difftime(int ts2, int ts1)
 
 Returns the difference between the two timestamps.
+
+    function compile(string source)
+    function loadfile(string filename)
+
+These functions parse and compile the supplied source code (`compile()`) or
+named file (`loadfile()`). On success, they return the compiled function. On
+error, they return an error message.
 

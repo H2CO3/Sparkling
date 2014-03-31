@@ -20,10 +20,11 @@
  * fread(), fwrite()
  * fflush(), ftell(), fseek(), feof()
  * remove(), rename(), tmpnam(), tmpfile()
+ * readfile()
  * 
  * Constants: stdin, stdout, stderr
  */
-#define SPN_LIBSIZE_IO 17
+#define SPN_LIBSIZE_IO 18
 SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
 
 /* Functions:
@@ -79,8 +80,10 @@ SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
  * localtime()
  * strftime()
  * difftime()
+ * compile()
+ * loadfile()
  */
-#define SPN_LIBSIZE_SYS 9
+#define SPN_LIBSIZE_SYS 11
 SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 
 /* A convenience function that loads the entire standard library.

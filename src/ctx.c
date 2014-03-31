@@ -70,6 +70,11 @@ const char *spn_ctx_geterrmsg(SpnContext *ctx)
 	}
 }
 
+void spn_ctx_clearerror(SpnContext *ctx)
+{
+	ctx->errtype = SPN_ERROR_OK;
+}
+
 SpnArray *spn_ctx_getprograms(SpnContext *ctx)
 {
 	return ctx->programs;

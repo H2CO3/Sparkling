@@ -33,6 +33,8 @@ SPN_API void spn_ctx_free(SpnContext *ctx);
 
 SPN_API enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx);
 SPN_API const char *spn_ctx_geterrmsg(SpnContext *ctx);
+SPN_API void spn_ctx_clearerror(SpnContext *ctx);
+
 SPN_API SpnArray *spn_ctx_getprograms(SpnContext *ctx); /* read-only array! */
 SPN_API void *spn_ctx_getuserinfo(SpnContext *ctx);
 SPN_API void spn_ctx_setuserinfo(SpnContext *ctx, void *info);

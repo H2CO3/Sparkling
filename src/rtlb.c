@@ -15,6 +15,7 @@
 #include <math.h>
 #include <time.h>
 #include <limits.h>
+#include <errno.h>
 
 #include "rtlb.h"
 #include "str.h"
@@ -521,6 +522,58 @@ static int rtlb_tmpfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_readfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	const char *fname;
+	char *buf;
+	size_t size;
+	int status = 0;
+	FILE *f;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string (filename)", NULL);
+		return -2;
+	}
+
+	fname = stringvalue(&argv[0])->cstr;
+	f = fopen(fname, "rb");
+
+	if (f == NULL) {
+		const void *args[2];
+		args[0] = fname;
+		args[1] = strerror(errno);
+		spn_ctx_runtime_error(ctx, "can't open file `%s': %s", args);
+		return -3;
+	}
+
+	fseek(f, 0, SEEK_END);
+	size = ftell(f);
+
+	fseek(f, 0, SEEK_SET);
+	buf = spn_malloc(size + 1);
+
+	if (fread(buf, size, 1, f) != 1) {
+		const void *args[2];
+		args[0] = fname;
+		args[1] = strerror(errno);
+		spn_ctx_runtime_error(ctx, "can't read file `%s': %s", args);
+
+		free(buf);
+		status = -4;
+	} else {
+		buf[size] = 0;
+		*ret = makestring_nocopy_len(buf, size, 1);
+	}
+
+	fclose(f);
+	return status;
+}
+
 const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
 	{ "getline",	rtlb_getline	},
 	{ "print",	rtlb_print	},
@@ -538,7 +591,8 @@ const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
 	{ "remove",	rtlb_remove	},
 	{ "rename",	rtlb_rename	},
 	{ "tmpnam",	rtlb_tmpnam	},
-	{ "tmpfile",	rtlb_tmpfile	}
+	{ "tmpfile",	rtlb_tmpfile	},
+	{ "readfile",	rtlb_readfile	}
 };
 
 
@@ -2783,6 +2837,52 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_aux_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx, int isfile)
+{
+	SpnValue fn;
+	int err;
+	const char *src;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		return -2;
+	}
+
+	src = stringvalue(&argv[0])->cstr;
+
+	if (isfile) {
+		err = spn_ctx_loadsrcfile(ctx, src, &fn);
+	} else {
+		err = spn_ctx_loadstring(ctx, src, &fn);
+	}
+
+	if (err != 0) {	/* return parser/compiler error message	*/
+		const char *errmsg = spn_ctx_geterrmsg(ctx);
+		*ret = makestring(errmsg);
+		spn_ctx_clearerror(ctx);
+	} else {	/* return function, make it owning	*/
+		*ret = fn;
+		spn_value_retain(ret);
+	}
+
+	return 0;
+}
+
+static int rtlb_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_compile(ret, argc, argv, ctx, 0);
+}
+
+static int rtlb_loadfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_compile(ret, argc, argv, ctx, 1);
+}
+
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "getenv",	rtlb_getenv	},
 	{ "system",	rtlb_system	},
@@ -2792,7 +2892,9 @@ const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "gmtime",	rtlb_gmtime	},
 	{ "localtime",	rtlb_localtime	},
 	{ "strftime",	rtlb_strftime	},
-	{ "difftime",	rtlb_difftime	}
+	{ "difftime",	rtlb_difftime	},
+	{ "compile",	rtlb_compile	},
+	{ "loadfile",	rtlb_loadfile	}
 };
 
 
