@@ -142,7 +142,7 @@ To define an array you can compose array literals:
     var empty = {};
     var primes = { 2, 3, 5 };
 
-You can create an array contaning different types of values. Arrays indexing
+You can create an array contaning different types of values. Array indexing
 starts with zero.
 
     > print({ 1, 2, 3, "hello" }[3]);
@@ -188,6 +188,18 @@ is the same as
 
     an_array["some_member"]
 
+By the way, this is the idiomatic way of implementing and using modules or
+libraries in Sparkling: one assigns functions as members to a global array
+and accesses them using the dot notation.
+
+There's an arrow notation as well, for those who come from C or C++ and
+prefer to emphasize the pointer semantics of arrays. This notation is also
+completely equivalent with the dot notation:
+
+    print(an_array->some_member);
+    an_array->some_member = "bar";
+
+
 ## Expressions:
 
 This is a short list of the most important operators:
@@ -213,7 +225,7 @@ assignments
 `n`th variadic argument of the function it is used within (where `n` is the
 value of its operand), starting from zero. If the value of the integer
 expression is greater than or equal to the number of variadic arguments, throws
-and exception. It also throws a runtime exception if it is supplied a negative,
+an exception. It also throws a runtime exception if it is supplied a negative,
 non-integral or non-number argument.
 
 ## Loops
@@ -242,7 +254,9 @@ inside parentheses. Loops work in the same manner as those in C.
 
 ## The if statement
 
-You don't need to wrap the condition of the `if` stament in parentheses either:
+You don't need to wrap the condition of the `if` stament in parentheses either.
+However, it is obligatory to use the curly braces around the body of the `if`
+and `else` statements:
 
     if 0 == 0 {
         print("equal");
@@ -289,7 +303,8 @@ introduce a named function (function statement). If you want unnamed functions
     }(42));
 
 If you don't explicitly return anything from a function, it will implicitly
-return `nil`. The same applies to the entire translation unit itself.
+return `nil`. The same applies to the entire translation unit itself (since
+it is represented by a function too).
 
 To invoke a function, use the `()` operator:
 
@@ -372,15 +387,17 @@ It is also possible that you want to run a program multiple times. Then, for
 performance reasons, you may want to avoid parsing and compiling it repeatedly.
 In that case, you can use `spn_ctx_loadstring()` and `spn_ctx_loadsrcfile()`
 for parsing and compiling the source once. Once compiled, you can run the
-resulting code with the help of the `spn_ctx_execbytecode()` function.
+resulting code with the help of the `spn_ctx_callfunc()` function.
 
-    spn_uword *bc = spn_ctx_loadstring(ctx, "print(42);");
-    if (bc != NULL) {
-        /* `bc' is a pointer to a bytecode array representing the program */
+    SpnValue main_func;
+    if (spn_ctx_loadstring(ctx, "print(42);", &main_func) != 0) {
+        /* handle parser or syntax error */
+    } else {
+        /* `main_func' contains a function describing the main program */
         int i;
         for (i = 0; i < 1000000; i++) { /* run the program a lot of times */
             SpnValue retval;
-            if (spn_ctx_execbytecode(ctx, bc, &retval) == 0) {
+            if (spn_ctx_callfunc(ctx, &main_func, &retval, 0, NULL) == 0) {
                 /* optionally use return value, then release it */
                 spn_value_release(&retval);
             } else {
@@ -388,12 +405,10 @@ resulting code with the help of the `spn_ctx_execbytecode()` function.
                 break;		
             }
         }
-    } else {
-        /* handle parser or syntax error */
     }
 
-When you no longer need access to the Sparkling engine, you must have to
-free its context object in order to reclaim all resources:
+When you no longer need access tmuo the Sparkling engine, you must free the
+context object in order to reclaim all resources:
 
     spn_context_free(ctx);
 
