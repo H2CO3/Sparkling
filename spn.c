@@ -143,35 +143,16 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 	}
 }
 
-static void register_args(SpnContext *ctx, int argc, char *argv[])
-{
-	int i;
-	SpnExtValue vals;
-	SpnArray *arr = spn_array_new();
-
-	for (i = 0; i < argc; i++) {
-		SpnValue val = makestring_nocopy(argv[i]);
-		spn_array_set_intkey(arr, i, &val);
-		spn_value_release(&val);
-	}
-
-	vals.name = "argv";
-	vals.value.type = SPN_TYPE_ARRAY;
-	vals.value.v.o = arr;
-
-	spn_ctx_addlib_values(ctx, NULL, &vals, 1);
-	spn_object_release(arr);
-}
-
 /* This checks if the file starts with a shebang, so that it can be run as a
  * stand-alone script if the shell supports this notation. This is necessary
  * because Sparkling doesn't recognize '#' as a line comment delimiter.
  */
-static int run_script_file(SpnContext *ctx, const char *fname)
+static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *argv[])
 {
+	SpnValue fn, *vals;
 	char *buf = spn_read_text_file(fname);
 	const char *src;
-	int err;
+	int err, i;
 
 	if (buf == NULL) {
 		fputs("Sparkling: I/O error: cannot read file\n", stderr);
@@ -200,8 +181,28 @@ static int run_script_file(SpnContext *ctx, const char *fname)
 		src = buf;
 	}
 
-	err = spn_ctx_execstring(ctx, src, NULL);
+	/* compile */
+	err = spn_ctx_loadstring(ctx, src, &fn);
 	free(buf);
+
+	if (err != 0) {
+		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+		return err;
+	}
+
+	/* make arguments array */
+	vals = spn_malloc(argc * sizeof vals[0]);
+	for (i = 0; i < argc; i++) {
+		vals[i] = makestring_nocopy(argv[i]);
+	}
+
+	err = spn_ctx_callfunc(ctx, &fn, NULL, argc, vals);
+
+	/* free arguments array */
+	for (i = 0; i < argc; i++) {
+		spn_value_release(&vals[i]);
+	}
+	free(vals);
 
 	if (err != 0) {
 		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
@@ -216,12 +217,9 @@ static int run_file(const char *fname, int argc, char *argv[])
 	SpnContext *ctx = spn_ctx_new();
 	int status = EXIT_SUCCESS;
 
-	/* register command-line arguments */
-	register_args(ctx, argc, argv);
-
 	/* check if file is a binary object or source text */
 	if (endswith(fname, ".spn")) {
-		if (run_script_file(ctx, fname) != 0) {
+		if (run_script_file(ctx, fname, argc, argv) != 0) {
 			status = EXIT_FAILURE;
 		}
 	} else if (endswith(fname, ".spo")) {

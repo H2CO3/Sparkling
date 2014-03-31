@@ -1396,6 +1396,7 @@ static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 				spn_array_set(filt, &args[0], &args[1]);
 			}
 		} else {
+			spn_value_release(&cond);
 			spn_object_release(filt);
 			spn_iter_free(it);
 			spn_ctx_runtime_error(ctx, "predicate must return a boolean", NULL);

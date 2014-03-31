@@ -121,6 +121,7 @@ int spn_ctx_loadstring(SpnContext *ctx, const char *str, SpnValue *result)
 
 	/* add compiled bytecode to program list */
 	add_to_programs(ctx, result);
+	spn_value_release(result); /* still alive, retained by array */
 	return 0;
 }
 
@@ -165,6 +166,7 @@ int spn_ctx_loadobjfile(SpnContext *ctx, const char *fname, SpnValue *result)
 	*result = maketopprgfunc(SPN_TOPFN, bc, nwords);
 
 	add_to_programs(ctx, result);
+	spn_value_release(result); /* still alive, retained by array */
 	return 0;
 }
 
