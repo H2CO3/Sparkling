@@ -1,0 +1,32 @@
+CC ?= emcc
+LD = $(CC)
+
+# optimizations *MUST* be the same for compile- and link time
+OPTIMIZE = -Os -flto
+DEFINES = -DUSE_READLINE=0 -DNDEBUG
+WARNINGS = -Wall -Wextra -Wno-unused-parameter
+EXPORT = "['_jspn_compile', '_jspn_execute', '_jspn_errmsg', '_jspn_typeof', '_jspn_getbool', '_jspn_getint', '_jspn_getfloat', '_jspn_getstr', '_jspn_addnil', '_jspn_addbool', '_jspn_addnumber', '_jspn_addstr']"
+
+CFLAGS = -c -std=c89 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(DEFINES)
+LDFLAGS = $(OPTIMIZE) -dynamiclib --post-js jspn.js -s EXPORTED_FUNCTIONS=$(EXPORT)
+
+OBJECTS = $(patsubst src/%.c, bld/%.bc, $(wildcard src/*.c)) jspn.bc
+PAGE = libspn.html
+LIB = libspn.js
+
+all: $(PAGE)
+
+$(PAGE): $(OBJECTS)
+	$(LD) $(LDFLAGS) -o $@ $^
+
+bld/%.bc: src/%.c
+	$(CC) $(CFLAGS) -o $@ $<
+
+jspn.bc: jspn.c
+	$(CC) $(CFLAGS) -Isrc -o $@ $<
+
+clean:
+	rm -f $(OBJECTS) $(PAGE) $(LIB)
+
+.PHONY: all clean
+

@@ -21,6 +21,7 @@ typedef struct SpnFunction {
 	int topprg;	/* is top-level program?	*/
 	size_t nwords;	/* only if top-level		*/
 	spn_uword *env;
+	SpnArray *symtab;
 	union {
 		spn_uword *bc;
 		int (*fn)(SpnValue *, int, SpnValue *, void *);
