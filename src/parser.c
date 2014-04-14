@@ -1054,6 +1054,7 @@ static SpnAST *parse_if(SpnParser *p)
 	SpnAST *cond, *br_then, *br_else, *br, *ast;
 	/* skip `if' */
 	if (!spn_lex(p)) {
+		spn_parser_error(p, "expected condition after `if'", NULL);
 		return NULL;
 	}
 
@@ -1112,6 +1113,7 @@ static SpnAST *parse_while(SpnParser *p)
 
 	/* skip `while' */
 	if (!spn_lex(p)) {
+		spn_parser_error(p, "expected condition after `while'", NULL);
 		return NULL;
 	}
 
@@ -1139,6 +1141,7 @@ static SpnAST *parse_do(SpnParser *p)
 
 	/* skip `do' */
 	if (!spn_lex(p)) {
+		spn_parser_error(p, "expected loop body after `do'", NULL);
 		return NULL;
 	}
 
@@ -1182,6 +1185,7 @@ static SpnAST *parse_for(SpnParser *p)
 
 	/* skip `for' */
 	if (!spn_lex(p)) {
+		spn_parser_error(p, "expected initializer after `for'", NULL);
 		return NULL;
 	}
 
@@ -1258,6 +1262,7 @@ static SpnAST *parse_break(SpnParser *p)
 {
 	/* skip `break' */
 	if (!spn_lex(p)) {
+		spn_parser_error(p, "expected `;' after `break'", NULL);
 		return NULL;
 	}
 
@@ -1274,6 +1279,7 @@ static SpnAST *parse_continue(SpnParser *p)
 {
 	/* skip `continue' */
 	if (!spn_lex(p)) {
+		spn_parser_error(p, "expected `;' after `continue'", NULL);
 		return NULL;
 	}
 
@@ -1292,6 +1298,7 @@ static SpnAST *parse_return(SpnParser *p)
 
 	/* skip `return' */
 	if (!spn_lex(p)) {
+		spn_parser_error(p, "expected expression or `;' after `return'", NULL);
 		return NULL;
 	}
 
