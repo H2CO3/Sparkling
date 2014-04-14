@@ -35,10 +35,10 @@
 #endif
 
 
-/* 
+/*
  * The usual trick for dynamically sized arrays holds for the hash table
  * part -- expand storage exponentially:
- * 
+ *
  * 	if (size + 1 > allocation_size) {
  * 		allocation_size *= 2;
  * 	}
@@ -371,15 +371,15 @@ SpnValue spn_makearray(void)
 	return ret;
 }
 
-/* 
+/*
  * Linked lists for collision resolution with separate chaining
  *
  * -----
  *
  * prepend and not append, so that we can write something like
- * 
+ *
  * 	head = list_prepend(head, key_val_pair);
- * 
+ *
  * and have O(1) running time, instead of appending to the end
  * by traversing the whole list each time a collision occurs, which is O(n)
  *
@@ -499,7 +499,7 @@ static void insert_and_update_count_array(SpnArray *arr, unsigned long idx, cons
 	 * In that case, if we released it first, then it would be deallocated,
 	 * and the retain function would operate on garbage...
 	 */
-	spn_value_release(&arr->arr[idx]);		
+	spn_value_release(&arr->arr[idx]);
 	arr->arr[idx] = *val;
 }
 
@@ -510,7 +510,7 @@ static void expand_hash(SpnArray *arr)
 
 	/* we must perform a complete re-hash upon expansion,
 	 * since the hash values depend on the size of the bucket array.
-	 * 
+	 *
 	 * If the hash table reached its maximal capacity,
 	 * it cannot be expanded further.
 	 */
@@ -588,7 +588,7 @@ static void insert_and_update_count_hash(SpnArray *arr, const SpnValue *key, con
 				/* the hash changes after resizing! */
 				hash = thash % nthsize(arr->hashszidx);
 			}
-			
+
 			/* increment hash count, retain key and value, then
 			 * insert them at the beginning of the link list
 			 */
@@ -627,4 +627,3 @@ static void insert_and_update_count_hash(SpnArray *arr, const SpnValue *key, con
 		}
 	}
 }
-

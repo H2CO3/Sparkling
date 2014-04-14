@@ -66,4 +66,3 @@ SPN_API void		  spn_ctx_addlib_values(SpnContext *ctx, const char *libname, cons
 SPN_API SpnArray	 *spn_ctx_getglobals(SpnContext *ctx);
 
 #endif /* SPN_CTX_H */
-

@@ -1,8 +1,8 @@
-/* 
+/*
  * jspn.c
  * JavaScript bindings for Sparkling
  * Created by Árpád Goretity on 06/04/2014.
- * 
+ *
  * Licensed under the 2-clause BSD License
  */
 
@@ -118,7 +118,7 @@ SPN_API double jspn_compile(const char *src)
 	return add_to_global_values(&func);
 }
 
-/* parses a comma-separated list of doubles. 
+/* parses a comma-separated list of doubles.
  * No whitespace or any other kind of filling is allowed
  * between the floats.
  */
@@ -296,4 +296,3 @@ SPN_API double jspn_addstr(const char *s)
  */
 
 /* TODO: do something with user info values */
-

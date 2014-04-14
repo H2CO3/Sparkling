@@ -50,7 +50,7 @@ static int compare_strings(void *lp, void *rp)
 
 static int equal_strings(void *lp, void *rp)
 {
-	SpnString *lhs = lp, *rhs = rp;	
+	SpnString *lhs = lp, *rhs = rp;
 	return strcmp(lhs->cstr, rhs->cstr) == 0;
 }
 
@@ -1072,4 +1072,3 @@ SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int dealloc)
 	SpnString *str = spn_string_new_nocopy_len(s, len, dealloc);
 	return string_to_val(str);
 }
-

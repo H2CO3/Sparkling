@@ -36,4 +36,3 @@ SPN_API int		 spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast, SpnValue *resu
 SPN_API	const char	*spn_compiler_errmsg(SpnCompiler *cmp);
 
 #endif /* SPN_COMPILER_H */
-

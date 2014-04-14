@@ -1,8 +1,8 @@
-/* 
+/*
  * spn.c
  * The Sparkling interpreter
  * Created by Árpád Goretity on 05/10/2013.
- * 
+ *
  * Licensed under the 2-clause BSD License
  */
 
@@ -339,7 +339,8 @@ static int compile_files(int argc, char *argv[])
 		fflush(stderr);
 
 		if (spn_ctx_loadsrcfile(ctx, argv[i], &fnval) != 0) {
-			fprintf(stderr, "\n%s\n", spn_ctx_geterrmsg(ctx));
+			printf("\n");
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -772,7 +773,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 
 	return 0;
 }
-	
+
 /* process local symbol table ("data") */
 static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms)
 {
@@ -832,7 +833,7 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 			printf("global `%s'\n", symname);
 
 			ip += nwords;
-			break;	
+			break;
 		}
 		case SPN_LOCSYM_LAMBDA: {
 			unsigned long off = OPLONG(ins);
@@ -1144,4 +1145,3 @@ int main(int argc, char *argv[])
 
 	return status;
 }
-

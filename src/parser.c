@@ -371,7 +371,7 @@ static SpnAST *parse_block(SpnParser *p)
 	 * it's a single statement), then we create a wrapper SPN_NODE_BLOCK
 	 * node, add the original subtree as its (left) child, and then we
 	 * return the new (block) node.
-	 * 
+	 *
 	 * The reason why SPN_NODE_BLOCK isn't used immediately
 	 * in parse_stmt_list() is that it may return multiple levels of nested
 	 * compounds, but only the top-level node should be marked as a block.
@@ -709,14 +709,14 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 			tmp->left = ast;
 			tmp->right = ident;
-			
+
 			break;
 		case SPN_NODE_FUNCCALL:
 			tmp->left = ast;
 
 			if (p->curtok.tok != SPN_TOK_RPAREN) {
 				SpnAST *arglist = parse_call_args(p);
-			
+
 				if (arglist == NULL) {
 					spn_ast_free(tmp); /* this frees `ast' too */
 					return NULL;
@@ -1452,4 +1452,3 @@ static SpnAST *parse_empty(SpnParser *p)
 
 	return spn_ast_new(SPN_NODE_EMPTY, p->lineno);
 }
-

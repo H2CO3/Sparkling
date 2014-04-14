@@ -79,7 +79,7 @@ void spn_object_release(void *o)
 	}
 }
 
-/* 
+/*
  * Value API
  */
 
@@ -484,4 +484,3 @@ void *spn_read_binary_file(const char *name, size_t *sz)
 {
 	return read_file2mem(name, sz, 0);
 }
-

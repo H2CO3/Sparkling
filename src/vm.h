@@ -84,7 +84,7 @@ SPN_API const char	**spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
 SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
 
 /* layout of a Sparkling bytecode file:
- * 
+ *
  * +------------------------------------+
  * | Length of executable code		|
  * +------------------------------------+
@@ -121,7 +121,7 @@ SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
  * format "ABC":	8 bits opcode, 8 bits operand A, 8 bits operand B, 8 bits operand C, 0+ bits padding
  * format "mid":	8 bits opcode, 8 bits operand A, 16 bits operand B, 0+ bits padding
  * format "long":	8 bits opcode, 24 bits operand A, 0+ bits padding
- * 
+ *
  * note that this format is independent of the number of bits in a byte.
  * even if CHAR_BIT is not 8, the spn_uword (which is at least 32 bits wide)
  * is always split into 8-bit parts.
@@ -143,19 +143,19 @@ enum spn_const_kind {
 };
 
 /* kinds of local symbol table entries
- * 
+ *
  * the format of each symbol table entry is as follows:
- * 
+ *
  * SPN_LOCSYM_STRCONST: the long `a` operand of the instruction is the length
  * in bytes of the string literal. The bytes following the instruction are
  * the bytes of the string literal including a 0-terminator. (as usually, the
  * number of `spn_uword`s overlaying the bytes is
  * length / sizeof(spn_uword) + 1)
- * 
+ *
  * SPN_LOCSYM_SYMSTUB: the layout is the same as that of STRCONST, it's just
  * that SYMSTUB represents a named, unresolved global, not a string literal.
  * (the long `a` operand contains the length of the symbol name.)
- * 
+ *
  * SPN_LOCSYM_LAMBDA: the long `a` operand of the instruction, interpreted as
  * an `unsigned long`, represents the offset of the entry point of a lambda
  * function, measured from the beginning of the bytecode.
@@ -166,7 +166,7 @@ enum spn_local_symbol {
 	SPN_LOCSYM_LAMBDA
 };
 
-/* 
+/*
  * Instruction set of the virtual machine
  */
 enum spn_vm_ins {
@@ -213,16 +213,16 @@ enum spn_vm_ins {
 
 /* Remarks:
  * --------
- * 
+ *
  * (I): the CALL instruction must know and fill in the number of arguments and
  * the return address in the next (to-be-pushed) stack frame. Arguments:
  * a: return value; b: function to call; c: number of call-time arguments
  * (the following `c' octets are register indices which point to the
  * call arguments of the function)
- * 
+ *
  * (II): the caller stores the return value from the called frame
  * to its own operation stack, then pops (frees) the called frame.
- * 
+ *
  * (III): operators that have a result/destination register (that's pretty much
  * everything except halt, return and jumps) should release its value before
  * overwriting its contents in order to avoid memory leaks. Also, since the
@@ -230,7 +230,7 @@ enum spn_vm_ins {
  * instructions with a destination AND source registers need to compute the
  * result beforehand, store it in a temporary variable, and only after all
  * calculations are done, should the destination register be updated.
- * 
+ *
  * (IV): constants include `nil`, boolean literals, integer and floating-point
  * literals. integer and floating-point literals take up one or more additional
  * machine word, so they need special treatment (namely, the instruction
@@ -238,7 +238,7 @@ enum spn_vm_ins {
  *
  * (V): this loads a symbol in the local symbol table. Local symtab entries
  * can be string literals, unresolved references to functions and lambdas.
- * 
+ *
  * (VI): the data following the instruction is laid out as follows:
  * there's a 0-terminated C string which is the name of the function,
  * padded with zeroes to overlay an entire number of `spn_uword`s. Then the
@@ -250,15 +250,15 @@ enum spn_vm_ins {
  * runtime may be greater than the number of registers as indicated by the
  * bytecode if there are extra call-time arguments.) Then the actual bytecode
  * of the function body follows.
- * 
+ *
  * The instruction, besides the GLBSYM opcode, contains the length of the
  * symbol name in bytes (without the terminating NUL) in argument A.
  * It is checkeded that this number equals to the return value of `strlen()`
  * called on the function name.
- * 
+ *
  * Here's some visualisation for `function foobar(x, y) { return x + y; }`.
  * The vertical bars are boundaries of `spn_uword`s.
- * 
+ *
  * +--------------------------------------------------------------------------+
  * | INS_FUNCDEF | 'foob' | 'ar\0\0' | 2 | 2 | 3 | 0 | ADD 2, 0, 1 | RETURN 2 |
  * +--------------------------------------------------------------------------+
@@ -276,4 +276,3 @@ enum spn_vm_ins {
  */
 
 #endif /* SPN_VM_H */
-

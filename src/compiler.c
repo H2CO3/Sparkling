@@ -60,24 +60,24 @@ struct SpnCompiler {
 };
 
 /* Remarks:
- * 
+ *
  * (I): the index of the top of the temporary "stack". only registers with
  * an index greater than this number may be used as temporaries. (this value
  * may change within a single expression (as we walk different levels of an
  * expression AST) as well as across statements (when a new variable is
  * declared between two statements).
- * 
+ *
  * (II): number of registers maximally needed. This counter is only set if
  * an expression that needs temporaries is ever compiled. (this is why we
  * check if the number of local variables is greater than this number --
  * see the remark in the `compile_funcdef()` function.)
- * 
+ *
  * (III) - (IV): array of local symbols and stack of file-scope and local
  * (block-scope) variable names and the corresponding register indices
- * 
+ *
  * (V): link list for storing the offsets and types of unconditional
  * control flow statements `break` and `continue`
- * 
+ *
  * (VI): Boolean flag which is nonzero inside a loop and zero outside a
  * loop. It is used to limit the use of `break` and `continue` to loop bodies
  * (since it doesn't make sense to `break` or `continue` outside a loop).
@@ -180,7 +180,7 @@ static unsigned long symtabentry_hash(void *obj)
 	case SYMTABENTRY_GLOBAL: {
 		SpnObject *base = &entry->repr.name->base;
 		return base->isa->hashfn(base);
-	}	
+	}
 	case SYMTABENTRY_LAMBDA:
 		return entry->repr.offset;
 	default:
@@ -192,7 +192,7 @@ static unsigned long symtabentry_hash(void *obj)
 static void symtabentry_free(void *obj)
 {
 	SymtabEntry *entry = obj;
-	
+
 	if (entry->type == SYMTABENTRY_GLOBAL) {
 		spn_object_release(entry->repr.name);
 	}
@@ -208,7 +208,7 @@ static const SpnClass SymtabEntry_class = {
 
 static SymtabEntry *symtabentry_new_global(SpnString *name)
 {
-	SymtabEntry *entry = (SymtabEntry *)(spn_object_new(&SymtabEntry_class));
+	SymtabEntry *entry = spn_object_new(&SymtabEntry_class);
 	entry->type = SYMTABENTRY_GLOBAL;
 	spn_object_retain(name);
 	entry->repr.name = name;
@@ -596,7 +596,7 @@ static void append_return_nil(SpnCompiler *cmp)
 		SPN_MKINS_AB(SPN_INS_LDCONST, 0, SPN_CONST_NIL),
 		SPN_MKINS_A(SPN_INS_RET, 0)
 	};
-	bytecode_append(&cmp->bc, ins, COUNT(ins));	
+	bytecode_append(&cmp->bc, ins, COUNT(ins));
 
 	/* set register count to 1 if it was 0, since, although a function or
 	 * a program might not need any registers at all in itself,
@@ -746,7 +746,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 		/* lambdas are identified by their offset in the bytecode */
 		SymtabEntry *entry = symtabentry_new_lambda(hdroff);
 		SpnValue offval = makestrguserinfo(entry);
-		*symidx = rts_add(cmp->symtab, &offval);		
+		*symidx = rts_add(cmp->symtab, &offval);
 		spn_object_release(entry);
 	}
 
@@ -816,12 +816,12 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 
 /* helper function for filling in jump list (list of `break` and `continue`
  * statements) in a while, do-while or for loop.
- * 
+ *
  * `off_end` is the offset after the whole loop, where control flow should be
  * transferred by `break`. `off_cond` is the offset of the condition (or
  * that of the incrementing expression in the case of `for` loops) where a
  * `continue` statement should transfer the control flow.
- * 
+ *
  * This function also frees the link list on the fly.
  */
 static void fix_and_free_jump_list(SpnCompiler *cmp, spn_sword off_end, spn_sword off_cond)
@@ -1264,7 +1264,7 @@ static int compile_return(SpnCompiler *cmp, SpnAST *ast)
 		ins = SPN_MKINS_A(SPN_INS_RET, dst);
 		bytecode_append(&cmp->bc, &ins, 1);
 	} else {
-		append_return_nil(cmp);	
+		append_return_nil(cmp);
 	}
 
 	return 1;
@@ -2118,7 +2118,7 @@ static int compile_call(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	/* call arguments are in reverse order in the AST, so we can use
-	 * recursion to count and evaluate them	
+	 * recursion to count and evaluate them
 	 */
 	if (compile_callargs(cmp, ast->right, &idc, &argc) == 0) {
 		return 0;
@@ -2244,7 +2244,7 @@ static int compile_incdec_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		enum spn_vm_ins opcode = ast->node == SPN_NODE_PREINCRMT
 				       ? SPN_INS_INC
 				       : SPN_INS_DEC;
-		
+
 		/* increment or decrement first */
 		ins = SPN_MKINS_A(opcode, idx);
 		bytecode_append(&cmp->bc, &ins, 1);
@@ -2270,7 +2270,7 @@ static int compile_incdec_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		if (*dst < 0) {
 			*dst = tmp_push(cmp);
 			ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-			bytecode_append(&cmp->bc, &ins, 1);			
+			bytecode_append(&cmp->bc, &ins, 1);
 		} else if (*dst != idx) {
 			ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
 			bytecode_append(&cmp->bc, &ins, 1);
@@ -2444,7 +2444,7 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* call-time argument count */
 	case SPN_NODE_ARGC:		return compile_argc(cmp, ast, dst);
 
-	/* function expression, lambda */	
+	/* function expression, lambda */
 	case SPN_NODE_FUNCEXPR:		return compile_funcexpr(cmp, ast, dst);
 
 	/* array literal */
@@ -2487,4 +2487,3 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		}
 	}
 }
-

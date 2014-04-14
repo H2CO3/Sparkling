@@ -44,4 +44,3 @@ void spn_ast_free(SpnAST *ast)
 
 	free(ast);
 }
-

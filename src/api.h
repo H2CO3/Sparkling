@@ -91,7 +91,7 @@ SPN_API void spn_object_retain(void *o);
 SPN_API void spn_object_release(void *o);
 
 
-/* 
+/*
  * Value API
  * (reference-counted generic values and corresponding types)
  */
@@ -235,4 +235,3 @@ SPN_API void *spn_read_binary_file(const char *name, size_t *sz);
 
 
 #endif /* SPN_API_H */
-

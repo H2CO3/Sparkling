@@ -22,7 +22,7 @@
 extern "C" {
 #endif /* __cplusplus */
 
-/* look for the next token and store it in p->curtok. 
+/* look for the next token and store it in p->curtok.
  * returns 1 on success, 0 on error or end-of-input.
  */
 SPN_API int spn_lex(SpnParser *p);
@@ -40,4 +40,3 @@ SPN_API int spn_accept_multi(SpnParser *p, const enum spn_lex_token toks[], size
 #endif /* __cplusplus */
 
 #endif /* SPN_LEX_H */
-

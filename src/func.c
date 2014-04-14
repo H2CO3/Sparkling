@@ -118,4 +118,3 @@ SpnValue spn_makenativefunc(const char *name, int (*fn)(SpnValue *, int, SpnValu
 	ret.v.o = func;
 	return ret;
 }
-

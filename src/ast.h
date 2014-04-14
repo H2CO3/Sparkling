@@ -15,26 +15,26 @@
 #include "str.h"
 
 /* AST nodes
- * 
+ *
  * brief description:
  * ------------------
- * 
+ *
  * PROGRAM represents the entire translation unit. Its children are the
  * statements and function definitions in the same order they are present
  * in the source text.
- * 
+ *
  * BLOCK is a compound statement that opens a new lexical scope.
- * 
+ *
  * loops: while and do have their condition stored in the left child, while
  * for maintains a link list of FORHEADER nodes, describing the three parts
  * of the loop header (initialization, condition, increment)
- * 
+ *
  * the left child of SPN_NODE_IF is the condition, and its right child is
  * a BRANCHES node (left child: then-branch, right child: else-branch)
- * 
+ *
  * VARDECL has its `name` member set to the identifier of the variable, the
  * optional left child is the initializer expression, or NULL if none
- * 
+ *
  * expressions are laid out intuitively: the left child is the LHS, the right
  * child is the RHS. The exception is the conditional ternary operator:
  * its left child is the condition, the right child is a BRANCHES node.
@@ -43,11 +43,11 @@
  * packaged into the right child (which is an expression in the case of array
  * subscripts and memberof, and a link list of CALLARGS nodes in the case
  * of function calls).
- * 
+ *
  * the `name` member of an `IDENT' node is set to the actual identifier string
  * likewise, the `value` member of a `LITERAL' token is an SpnValue
  * (integer, floating-point number, string, etc.) describing the token
- * 
+ *
  * `FUNCEXPR' and `FUNCSTMT' are almost identical, except that the former can
  * only be part of an expression, whereas the latter can only appear at file
  * scope. The name of a global function is *still* an expression, though.
@@ -55,7 +55,7 @@
  * of the list is the left child of the node), with their `name` member set to
  * the name of the formal parameter. The function body is a block stored in
  * the right child of the function node.
- * 
+ *
  * the COMPOUND node is needed when a list of statements is to be represented
  * by a single node. It's used in a right-leaning manner: one statement is the
  * left child, the right child is either another statement or another COMPOUND
@@ -114,7 +114,7 @@ enum spn_ast_node {
 	/* logical operators */
 	SPN_NODE_LOGAND,
 	SPN_NODE_LOGOR,
-	
+
 	/* comparison operations */
 	SPN_NODE_EQUAL,
 	SPN_NODE_NOTEQ,
@@ -176,4 +176,3 @@ SPN_API SpnAST	*spn_ast_new(enum spn_ast_node node, int lineno);
 SPN_API void	 spn_ast_free(SpnAST *ast);
 
 #endif /* SPN_AST_H */
-

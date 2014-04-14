@@ -92,7 +92,7 @@ static int hexch_to_int(char c)
 	case 'a': case 'A': return 10;
 	case 'b': case 'B': return 11;
 	case 'c': case 'C': return 12;
-	case 'd': case 'D': return 13; 
+	case 'd': case 'D': return 13;
 	case 'e': case 'E': return 14;
 	case 'f': case 'F': return 15;
 	default: SHANT_BE_REACHED();
@@ -309,7 +309,7 @@ static int lex_op(SpnParser *p)
 		RESERVED_ENTRY("[",	SPN_TOK_LBRACKET),
 		RESERVED_ENTRY("]",	SPN_TOK_RBRACKET),
 		RESERVED_ENTRY("{",	SPN_TOK_LBRACE),
-		RESERVED_ENTRY("}",	SPN_TOK_RBRACE)	
+		RESERVED_ENTRY("}",	SPN_TOK_RBRACE)
 	};
 
 	for (i = 0; i < COUNT(ops); i++) {
@@ -340,7 +340,7 @@ static int lex_number(SpnParser *p)
 			}
 
 			i = strtol(p->pos, &tmp, 0);
-			if (tmp != end) {					
+			if (tmp != end) {
 				/* error */
 				spn_parser_error(p, "cannot parse hexadecimal integer literal", NULL);
 				return 0;
@@ -491,7 +491,7 @@ static int lex_ident(SpnParser *p)
 	diff = end - p->pos;
 
 	/* check if the word is one of the reserved keywords */
-	
+
 	for (i = 0; i < COUNT(kwds); i++) {
 		if (diff == kwds[i].len
 		 && strncmp(p->pos, kwds[i].word, kwds[i].len) == 0) {
@@ -699,4 +699,3 @@ int spn_accept_multi(struct SpnParser *p, const enum spn_lex_token toks[], size_
 
 	return -1;
 }
-

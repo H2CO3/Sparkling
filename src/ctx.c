@@ -248,4 +248,3 @@ SpnArray *spn_ctx_getglobals(SpnContext *ctx)
 {
 	return spn_vm_getglobals(ctx->vm);
 }
-

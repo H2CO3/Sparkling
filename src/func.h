@@ -40,4 +40,3 @@ SPN_API SpnValue spn_makenativefunc(const char *name, int (*fn)(SpnValue *, int,
 #define spn_funcvalue(val) ((SpnFunction *)((val)->v.o))
 
 #endif /* SPN_FUNC_H */
-

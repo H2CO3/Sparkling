@@ -21,7 +21,7 @@
  * fflush(), ftell(), fseek(), feof()
  * remove(), rename(), tmpnam(), tmpfile()
  * readfile()
- * 
+ *
  * Constants: stdin, stdout, stderr
  */
 #define SPN_LIBSIZE_IO 18
@@ -57,13 +57,13 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
  * random(), seed()
  * isfin(), isinf(), isnan(), isfloat(), isint()
  * fact(), binom()
- * 
+ *
  * Complex functions:
  * cplx_add(), cplx_sub(), cplx_mul(), cplx_div()
  * cplx_conj(), cplx_abs()
  * cplx_sin(), cplx_cos(), cplx_tan()
  * can2pol(), pol2can()
- * 
+ *
  * Constants: M_E, M_LOG2E, M_LOG10E, M_LN2, M_LN10, M_PI, M_PI_2, M_PI_4,
  * M_1_PI, M_2_PI, M_2_SQRTPI, M_SQRT2, M_SQRT1_2
  */
@@ -94,4 +94,3 @@ SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 SPN_API void spn_load_stdlib(SpnVMachine *vm);
 
 #endif /* SPN_RTLB_H */
-

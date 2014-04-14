@@ -44,4 +44,3 @@ void *spn_realloc(void *ptr, size_t n)
 
 	return ret;
 }
-

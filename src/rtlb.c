@@ -111,7 +111,7 @@ static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	*ret = makestring(buf);
-	
+
 	return 0;
 }
 
@@ -647,7 +647,7 @@ static int rtlb_indexof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	*ret = makeint(pos != NULL ? pos - haystack->cstr : -1);
 
-	return 0;	
+	return 0;
 }
 
 /* main substring function, used by substr(), substrto() and substrfrom() */
@@ -2532,7 +2532,7 @@ const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
 	{ "pol2can",	rtlb_pol2can	},
 };
 
-	
+
 /***************************
  * OS/Shell access library *
  ***************************/
@@ -2765,7 +2765,7 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	/* first argument is the format, second one is the array that 
+	/* first argument is the format, second one is the array that
 	 * rtlb_aux_gettm() returned
 	 */
 	fmt = stringvalue(&argv[0]);
@@ -2981,4 +2981,3 @@ void spn_load_stdlib(SpnVMachine *vm)
 	load_stdlib_functions(vm);
 	load_stdlib_constants(vm);
 }
-

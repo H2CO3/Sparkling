@@ -99,4 +99,3 @@ SPN_API void *spn_malloc(size_t n);
 SPN_API void *spn_realloc(void *p, size_t n);
 
 #endif /* SPN_PRIVATE_H */
-

@@ -18,7 +18,7 @@
 #include "func.h"
 #include "private.h"
 
-/* stack management macros 
+/* stack management macros
  * 0th slot: header
  * register ordinal numbers grow _downwards_
  *
@@ -31,10 +31,10 @@
  * | register #1              | <- SP - 3
  * +--------------------------+
  * |                          |
- * 
- * 
+ *
+ *
  * register layout within a stack frame:
- * 
+ *
  * [0...argc)			- declared arguments
  * [argc...nregs)		- other local variables and temporary registers
  * [nregs...nregs + extra_argc)	- unnamed (variadic) arguments
@@ -57,7 +57,7 @@
  * So, unless I either stop generating bytecode by hand or I'm entirely sure
  * that the compiler is perfect, I'd better stick to asserting that the
  * register indices are within the bounds of the stack frame...
- * 
+ *
  * arguments: `s` - stack pointer; `r`: register index
  */
 #ifndef NDEBUG
@@ -762,7 +762,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * a reference count of one. Here, it MUST NOT be
 			 * retained, only its contents should be copied to the
 			 * destination register.
-			 * 
+			 *
 			 * offsets insetad of pointers are used here because
 			 * a function call (in particular, push_frame()) may
 			 * `realloc()` the stack, thus rendering saved pointers
@@ -1691,7 +1691,7 @@ static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			 */
 
 			stp += nwords;
-			break;	
+			break;
 		}
 		case SPN_LOCSYM_LAMBDA: {
 			size_t hdroff = OPLONG(ins);
@@ -1833,4 +1833,3 @@ static SpnValue typeof_value(SpnValue *val)
 	const char *type = spn_type_name(val->type);
 	return makestring_nocopy(type);
 }
-
