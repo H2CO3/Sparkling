@@ -9,7 +9,7 @@ Code:
 	- Implement a way to pass down variadic arguments! ("..." operator?)			***Urgent***
 	- REFACTOR (especially in vm.c), and try very hard not to exceed the
 		80-character line length limit.
-	- Implement standard library								***Urgent***
+	- Implement standard library								mostly done
 	- and make the functions in there print meaningful error messages when			done
 		they encounter an error condition)
 	- Related: native functions should be able to set a custom error message		done
@@ -20,7 +20,7 @@ Language, syntax:
 	- what's a better fit for the 3rd argument of cond-expr?
 		cond-expr (current, as in C) or assignment-expr (as in C++)?			won't change this
 	- write the specification (yeah)							done
-	- OO, classes? anyone wants them? good for performance - fields can be
+	- OO, classes? anyone wants them? good for performance - fields can be			no, seems contradict language philosophy
 		numbered at compile-time, names thrown away, no need for string
 		hashing (similarly to C `struct`s)
 	- Or at least namespaces?
@@ -71,7 +71,7 @@ Compiler:
 		function), but this is conceptually wrong. Also: use SPN_TYPE_FUNC
 		to represent lambda functions in the local symbol table  instead
 		of the current approach that uses SPN_TYPE_NUMBER and an integer
-		offset to represent the offset of the lambda within the bytecode.		***Urgent***
+		offset to represent the offset of the lambda within the bytecode.		done
 	- Related: add a facility to declare global non-function values (constants
 		only, since global variables are a nightmare.) This involves extending
 		the parser (a new keyword/file-scope statement), the compiler and the
@@ -85,12 +85,12 @@ Compiler:
 		really.
 	- Issue a warning when an assignment is used in the condition of an if,
 		while, do-while or for statement.
-	- Eliminate expression statements that have no side effects (i. e. check
+	- Eliminate expression statements that have no side effects (i. e. check		ignore, too complex
 		the AST recursively for function calls, assignments and increment
 		or decrement operators. If none of them are found, then don't
 		emit code for the expression statement node.) Also, warn about it
 		because this is a potentially dangerous optimization.
-	- Do some basic constant folding on arithmetic and logical expressions and
+	- Do some basic constant folding on arithmetic and logical expressions and		ignore, too complex
 		on string concatenation as well.
 	- implement ++ and -- operators on array members					done
 	- implement break and continue statements						done
@@ -101,7 +101,7 @@ Compiler:
 		registers used by `compile_expr()` and its subroutines (for
 		computing intermediate results), and we need to take those
 		into account as well.
-	- do something with `if` statements that have no `else` part in order to
+	- do something with `if` statements that have no `else` part in order to		ignore, much work, little gain
 		avoid the extra 0-sized unconditional jump
 	- Pass back the symtab index of a just compiled lambda function				done
 		from `compile_funcdef()` to its caller so it can refer to it
@@ -125,10 +125,10 @@ Compiler:
 	- use line number information in AST							done
 
 VM:
-	- Avoid repeatedly allocating and deallocating memory for arguments of
+	- Avoid repeatedly allocating and deallocating memory for arguments of			done
 		native functions (maybe use a stack of lazily allocated SpnValue
 		arrays? (allocate them when first needed, and not deallocate them
-		until the end of the program)
+		until the end of the program) --> done using an auto array
 	- Native functions should be included in the stack trace as well			done
 	- !!! EXAMINE AND TEST REFERENCE COUNTING !!! Specifically, does the			seems to work
 		"release(dst); *dst = *retain(src)" idiom work? What if the same
@@ -164,7 +164,7 @@ VM:
 		occurs. XXX: there could be a separate debug symbol file, in order
 		the real bytecode not to be cluttered and slowed down.)
 	- Enable user to get a stack trace while running or after a runtime error		done
-	- Symbol table in the bytecode for functions, lambdas and string constants,	***	done
+	- Symbol table in the bytecode for functions, lambdas and string constants,		done
 		in order the VM not to have to create a new SpnString
 		every time it reads the name of a function (before each call!)
 		or when it encounters a string constant.
@@ -177,25 +177,22 @@ VM:
 	- in REPL, when a runtime error occurs: fix wrong assumption that it's always		done
 		the last node in the bytecode list that caused the failure
 
-***: these call for some less hackish implementation of linkage (firstly, there
-should be linkage at all...)
-
 Standard library:
 	- `sort()` function for arrays (and generally array functions)
 	- add and/or implement more complex and inverse hyperbolic functions
 	- document the run-time error codes (-1 generally means "bad number			obsolete, we've got error messages
 		of arguments", but not always, etc.)
-	- add the documentation of currently unimplemented standard library
+	- add the documentation of currently unimplemented standard library			done
 		functions (especially those in libarray) once they are
 		implemented.
-	- provide proper access to the Sparkling engine (compilefile(),
+	- provide proper access to the Sparkling engine (compilefile(),				done
 		compilestring(), etc. functions)
 	- check number of arguments in format strings						done
 	- complex mathematical functions (at least basic ones: conversion between		done
 		canonical and trigonometric form, absolute value, etc.)
 
 Miscellaneous:
-	- make convenience SpnValue constructors (spn_makeint, spn_makestring, etc.)		***Urgent***
+	- make convenience SpnValue constructors (spn_makeint, spn_makestring, etc.)		done
 		and use them throughout the code instead of directly setting types
 		and flags and values, for safety's sake.
 		*** Related: type checking functions (spn_isint(), spn_isfloat(),

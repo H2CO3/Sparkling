@@ -91,6 +91,19 @@ modern scripting language, running a program involves three simple steps:
 The Sparkling C API provides functions for these tasks. For usage information,
 have a look at implementation of the stand-alone interpreter in `repl.c`.
 
+Building the library and the REPL
+=================================
+
+To obtain a debug build (runs slowly, easy to debug):
+
+	make
+	sudo make install
+
+To make a release build (runs fast, hard to debug):
+
+	make BUILD=release
+	sudo make install
+
 How do I hack on it?
 ====================
 If you have fixed a bug, improved an algorithm or otherwise contributed to the
@@ -121,9 +134,7 @@ browse, edit and/or suggest modifications to it. Also check out the
 and implement some of them at your will (please let me know if/when you
 implement one, so that I can check it).
 
-If you are using Gedit for coding, install the `sparkling.lang` file in the
-appropriate location to have Gedit recognize the syntax of Sparkling and apply
-syntax highlighting on your code.
+The official Sparkling website is [h2co3.github.io](http://h2co3.github.io).
 
 This is an alpha release, so don't expect the engine to be perfect (actually,
 not even feature-complete). Although I always try to do my best and test
@@ -142,8 +153,29 @@ various situations, on different platforms. The more people use Sparkling,
 the better it will become. Check out the Makefile (with special regards to the
 `BUILD` variable) as well and tailor it to your needs.
 
+A word about text editors
+=========================
+
+**If you are using Emacs,** then you will for sure appreciate the Sparkling
+major mode (`tools/sparkling-mode.el`) and the Flycheck syntax checking plug-in
+(`tools/sparkling-flycheck.el`).
+
+To use the major mode, put `sparkling-mode.el`. into your `load-path`, then add
+the following line to your Emacs init file (`init.el` or `.emacs`):
+`(require 'sparkling-mode)` (You might want to adjust the default tab width in
+the major mode file if the default - 8 spaces - does not suit you.)
+
+Similarly, for using the Flycheck plug-in, place `sparkling-flycheck.el` inside
+your `load-path`, copy the `tools/spnlint` script in `$PATH`, then add
+`(require 'sparkling-flycheck)` to the init file **after** the line that says
+`(require 'flycheck)`.
+
+If you are using Gedit for coding, install the `tools/sparkling.lang` file in
+the appropriate location to have Gedit recognize the syntax of Sparkling and
+apply syntax highlighting on your code.
+
 Portability note:
------------------
+=================
 The **code** is portable and cross-platform (at least that is my aim), but the
 `Makefile` isn't. I can only test this on Linux, OS X and iOS. There are a
 couple of variables you can change in the Makefile if it doesn't work out of
@@ -162,10 +194,10 @@ possible solution, respectively:
    If it doesn't (the linker will tell you that), try `-fPIC` instead.
  - explicit linkage against some components of the C standard library (maths,
    time, I/O, etc.) may be necessary using different linker flags (e. g. `-lm`)
- - You may not be using GCC or clang, in which case I'm sorry but you're alone.
-   (a properly configured IDE should accept and import the code as-is; most
-   notably, if you are on Windows, then you are probably not using GCC or clang
-   but an IDE with some other compiler of which the name I don't even dare to
+ - You may not be using GCC or clang, in which case I'm sorry but you're on
+   your own. (a properly configured IDE should accept and import the code as-is;
+   most notably, if you are on Windows, then you are probably not using GCC or
+   clang but an IDE and a compiler of which the name I don't even dare to
    mention; in this case, drag'n'dropping the `src/` folder into your project
    should *still* work.)
 

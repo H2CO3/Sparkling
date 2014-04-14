@@ -1,0 +1,3 @@
+#!/bin/bash
+
+exec spn -c $1 2>&1 >/dev/null
