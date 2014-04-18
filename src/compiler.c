@@ -360,7 +360,7 @@ static void bytecode_append(TBytecode *bc, spn_uword *words, size_t n)
 		}
 
 		while (bc->allocsz < bc->len + n) {
-			bc->allocsz <<= 1;
+			bc->allocsz *= 2;
 		}
 
 		bc->insns = spn_realloc(bc->insns, bc->allocsz * sizeof(bc->insns[0]));

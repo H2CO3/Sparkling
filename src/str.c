@@ -134,7 +134,7 @@ static void expand_buffer(struct string_builder *bld, size_t extra)
 {
 	if (bld->allocsz < bld->len + extra) {
 		while (bld->allocsz < bld->len + extra) {
-			bld->allocsz <<= 1;
+			bld->allocsz *= 2;
 		}
 
 		bld->buf = spn_realloc(bld->buf, bld->allocsz);

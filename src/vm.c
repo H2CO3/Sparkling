@@ -521,7 +521,7 @@ static void expand_stack(SpnVMachine *vm, size_t nregs)
 	}
 
 	while (vm->stackallsz < newsize) {
-		vm->stackallsz <<= 1;
+		vm->stackallsz *= 2;
 	}
 
 	vm->stack = spn_realloc(vm->stack, vm->stackallsz * sizeof(vm->stack[0]));

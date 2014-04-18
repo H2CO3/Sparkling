@@ -90,7 +90,7 @@ spn.o: spn.c
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 clean:
-	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store
+	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store *~ src/*~
 
 .PHONY: all install clean
 

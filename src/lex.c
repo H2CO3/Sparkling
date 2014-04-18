@@ -598,7 +598,7 @@ static int lex_string(SpnParser *p)
 
 		/* expand the buffer if necessary */
 		if (n >= sz) {
-			sz <<= 1;
+			sz *= 2;
 			buf = spn_realloc(buf, sz);
 		}
 	}

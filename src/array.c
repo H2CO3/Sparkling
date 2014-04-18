@@ -462,7 +462,7 @@ static void expand_array_if_needed(SpnArray *arr, unsigned long idx)
 	}
 
 	while (idx >= arr->arrallsz) {	/* expand until index fits in vector	*/
-		arr->arrallsz <<= 1;
+		arr->arrallsz *= 2;
 	}
 
 	/* ask the OS to do its job */

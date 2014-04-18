@@ -89,29 +89,46 @@
  * I/O library *
  ***************/
 
+static void rtlb_aux_getline(SpnValue *ret, FILE *f)
+{
+	int no_lf = 1;
+	size_t n = 0, alloc_size = 0x10;
+	char *buf = spn_malloc(alloc_size);
+
+	while (1) {
+		int ch = fgetc(f);
+
+		if (ch == EOF) {
+			break;
+		}
+
+		if (ch == '\n') {
+			no_lf = 0;
+			break;
+		}
+
+		/* >=: make room for terminating NUL too */
+		if (++n >= alloc_size) {
+			alloc_size *= 2;
+			buf = spn_realloc(buf, alloc_size);
+		}
+
+		buf[n - 1] = ch;
+	}
+
+	/* handle empty file */
+	if (n == 0 && no_lf) {
+		free(buf);
+		*ret = makenil();
+	} else {
+		buf[n] = 0;
+		*ret = makestring_nocopy_len(buf, n, 1);
+	}
+}
+
 static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	char buf[LINE_MAX];
-	char *p;
-
-	/* handle EOF correctly */
-	if (fgets(buf, sizeof(buf), stdin) == NULL) {
-		return 0;
-	}
-
-	/* remove trailing newline */
-	p = strchr(buf, '\n');
-	if (p != NULL) {
-		*p = 0;
-	}
-
-	p = strchr(buf, '\r');
-	if (p != NULL) {
-		*p = 0;
-	}
-
-	*ret = makestring(buf);
-
+	rtlb_aux_getline(ret, stdin);
 	return 0;
 }
 
@@ -251,7 +268,6 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 /* XXX: should this remove newlines as well, like getline()? */
 static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	char buf[LINE_MAX];
 	FILE *fp;
 
 	if (argc != 1) {
@@ -265,12 +281,7 @@ static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	fp = ptrvalue(&argv[0]);
-
-	if (fgets(buf, sizeof(buf), fp) != NULL) {
-		*ret = makestring(buf);
-	}
-	/* on EOF, return nil */
-
+	rtlb_aux_getline(ret, fp);
 	return 0;
 }
 
