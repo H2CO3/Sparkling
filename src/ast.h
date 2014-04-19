@@ -176,3 +176,4 @@ SPN_API SpnAST	*spn_ast_new(enum spn_ast_node node, int lineno);
 SPN_API void	 spn_ast_free(SpnAST *ast);
 
 #endif /* SPN_AST_H */
+

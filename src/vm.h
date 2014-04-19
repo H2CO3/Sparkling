@@ -101,10 +101,7 @@ SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
  */
 
 /* the name used in the bytecode to indicate a lambda function */
-#define SPN_LAMBDA_NAME		"@lambda@"
-
-/* Bytecode magic number */
-#define SPN_MAGIC		0x4e50537f	/* "\x7fSPN" */
+#define SPN_LAMBDA_NAME		"<lambda>"
 
 /* format of a Sparkling function's bytecode representation */
 #define SPN_FUNCHDR_IDX_BODYLEN	0
@@ -276,3 +273,4 @@ enum spn_vm_ins {
  */
 
 #endif /* SPN_VM_H */
+

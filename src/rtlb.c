@@ -2992,3 +2992,4 @@ void spn_load_stdlib(SpnVMachine *vm)
 	load_stdlib_functions(vm);
 	load_stdlib_constants(vm);
 }
+

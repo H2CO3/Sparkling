@@ -699,3 +699,4 @@ int spn_accept_multi(struct SpnParser *p, const enum spn_lex_token toks[], size_
 
 	return -1;
 }
+

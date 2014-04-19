@@ -69,19 +69,6 @@
 #endif
 
 
-/* a local symbol table.
- * `bc' is a pointer to the bytecode out of which the symbol table was read.
- * This is necessary because local symbol tables need to be uniqued;
- * even if a certain file is run multiple times, its symtab should
- * only be created/added once. (duplicated symtabs do no real harm, but their
- * memory usage can add up if a certain file is run thousands of times...)
- */
-typedef struct TSymtab {
-	SpnValue *vals;
-	size_t size;
-	spn_uword *bc;
-} TSymtab;
-
 /* An index into the array of local symbol tables is used instead of a
  * pointer to the symtab struct itself because that array may be
  * `realloc()`ated, and then we have an invalid pointer once again
@@ -93,8 +80,7 @@ typedef struct TFrame {
 	int		 real_argc;	/* number of call args			*/
 	spn_uword	*retaddr;	/* return address (points to bytecode)	*/
 	ptrdiff_t	 retidx;	/* pointer into the caller's frame	*/
-	spn_uword	*env;		/* bytecode of the TU of the function 	*/
-	const char	*fnname;	/* name of the function being called	*/
+	SpnFunction	*callee;	/* the called function itself		*/
 } TFrame;
 
 /* see http://stackoverflow.com/q/18310789/ */
@@ -110,11 +96,8 @@ struct SpnVMachine {
 
 	SpnArray	*glbsymtab;	/* global symbol table		*/
 
-	TSymtab		*lsymtabs;	/* local symbol table		*/
-	size_t		 lscount;	/* number of the local symtabs	*/
-
 	char		*errmsg;	/* last (runtime) error message	*/
-	int		 haserror;	/* an error occurred		*/
+	int		 haserror;	/* whether an error occurred	*/
 	void		*ctx;		/* context info, use at will	*/
 };
 
@@ -159,18 +142,17 @@ static void push_frame(
 	int real_argc,
 	spn_uword *retaddr,
 	ptrdiff_t retidx,
-	spn_uword *env,
-	const char *fnname
+	SpnFunction *callee
 );
 static void pop_frame(SpnVMachine *vm);
 
 /* this function helps including native functions' names in the stack trace */
-static void push_native_pseudoframe(SpnVMachine *vm, const char *fnname);
+static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee);
 
-/* returns the index of the symtab of `bc`, creates local symtab if
- * necessary. Returns -1 on error.
+/* reads/creates the local symbol table of `program` if necessary,
+ * then stores it back into the function object.
  */
-static void read_local_symtab(SpnVMachine *vm, spn_uword *bc);
+static void read_local_symtab(SpnVMachine *vm, SpnFunction *program);
 
 /* accessing function arguments */
 static SpnValue *nth_call_arg(TSlot *sp, spn_uword *ip, int idx);
@@ -191,17 +173,6 @@ static SpnValue typeof_value(SpnValue *val);
 /* generating a runtime error (message) */
 static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const void *args[]);
 
-/* releases the entries of a local symbol table */
-static void free_local_symtab(TSymtab *symtab)
-{
-	size_t i;
-	for (i = 0; i < symtab->size; i++) {
-		spn_value_release(&symtab->vals[i]);
-	}
-
-	free(symtab->vals);
-}
-
 SpnVMachine *spn_vm_new(void)
 {
 	SpnVMachine *vm = spn_malloc(sizeof(*vm));
@@ -213,8 +184,6 @@ SpnVMachine *spn_vm_new(void)
 
 	/* initialize the global and local symbol tables */
 	vm->glbsymtab = spn_array_new();
-	vm->lsymtabs = NULL;
-	vm->lscount = 0;
 
 	/* set up error reporting and context info */
 	vm->errmsg = NULL;
@@ -226,22 +195,12 @@ SpnVMachine *spn_vm_new(void)
 
 void spn_vm_free(SpnVMachine *vm)
 {
-	size_t i;
-
 	/* free the stack */
 	free_frames(vm);
 	free(vm->stack);
 
 	/* free the global symbol table */
 	spn_object_release(vm->glbsymtab);
-
-	/* free each local symbol table... */
-	for (i = 0; i < vm->lscount; i++) {
-		free_local_symtab(&vm->lsymtabs[i]);
-	}
-
-	/* ...then free the array that contains them */
-	free(vm->lsymtabs);
 
 	/* free the error message buffer */
 	free(vm->errmsg);
@@ -278,7 +237,8 @@ const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 	sp = vm->sp;
 	while (sp > vm->stack) {
 		TFrame *frmhdr = &sp[IDX_FRMHDR].h;
-		buf[i++] = frmhdr->fnname ? frmhdr->fnname : SPN_LAMBDA_NAME;
+		const char *fnname = frmhdr->callee->name;
+		buf[i++] = fnname ? fnname : SPN_LAMBDA_NAME;
 		sp -= frmhdr->size;
 	}
 
@@ -345,7 +305,7 @@ int spn_vm_callfunc(
 		int err;
 
 		/* push pseudo-frame to include function name in stack trace */
-		push_native_pseudoframe(vm, fnobj->name);
+		push_native_pseudoframe(vm, fnobj);
 
 		/* "return nothing" should mean "implicitly return nil" */
 		*retval = makenil();
@@ -368,7 +328,7 @@ int spn_vm_callfunc(
 	 * If so, read the local symbol table (if necessary).
 	 */
 	if (fnobj->topprg) {
-		read_local_symtab(vm, fnobj->repr.bc);
+		read_local_symtab(vm, fnobj);
 	}
 
 	/* compute entry point */
@@ -392,15 +352,10 @@ void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
-		SpnValue libval;
-
-		storage = spn_array_new();
-
-		libval.type = SPN_TYPE_ARRAY;
-		libval.v.o = storage;
-
+		SpnValue libval = makearray();
 		spn_array_set_strkey(vm->glbsymtab, libname, &libval);
-		spn_object_release(storage); /* still alive, was retained */
+		spn_value_release(&libval); /* still alive, was retained */
+		storage = arrayvalue(&libval);
 	} else {
 		storage = vm->glbsymtab;
 	}
@@ -419,15 +374,10 @@ void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValu
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
-		SpnValue libval;
-
-		storage = spn_array_new();
-
-		libval.type = SPN_TYPE_ARRAY;
-		libval.v.o = storage;
-
+		SpnValue libval = makearray();
 		spn_array_set_strkey(vm->glbsymtab, libname, &libval);
-		spn_object_release(storage); /* still alive, was retained */
+		spn_value_release(&libval); /* still alive, was retained */
+		storage = arrayvalue(&libval);
 	} else {
 		storage = vm->glbsymtab;
 	}
@@ -453,7 +403,8 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 	}
 
 	if (ip != NULL) {
-		unsigned long addr = ip - vm->sp[IDX_FRMHDR].h.env;
+		spn_uword *prog_bc = vm->sp[IDX_FRMHDR].h.callee->env->repr.bc;
+		unsigned long addr = ip - prog_bc;
 		const void *prefix_args[1];
 		prefix_args[0] = &addr;
 		prefix = spn_string_format_cstr(
@@ -541,8 +492,7 @@ static void push_frame(
 	int real_argc,
 	spn_uword *retaddr,
 	ptrdiff_t retidx,
-	spn_uword *env,
-	const char *fnname
+	SpnFunction *callee
 )
 {
 	int i;
@@ -578,13 +528,12 @@ static void push_frame(
 	vm->sp[IDX_FRMHDR].h.real_argc = real_argc;
 	vm->sp[IDX_FRMHDR].h.retaddr = retaddr; /* if NULL, return to C-land */
 	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if negative, return to C-land */
-	vm->sp[IDX_FRMHDR].h.env = env;
-	vm->sp[IDX_FRMHDR].h.fnname = fnname;
+	vm->sp[IDX_FRMHDR].h.callee = callee;
 }
 
-static void push_native_pseudoframe(SpnVMachine *vm, const char *fnname)
+static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee)
 {
-	push_frame(vm, 0, 0, 0, 0, NULL, -1, NULL, fnname);
+	push_frame(vm, 0, 0, 0, 0, NULL, -1, callee);
 }
 
 static void pop_frame(SpnVMachine *vm)
@@ -641,7 +590,6 @@ static void push_and_copy_args(
 {
 	int i;
 	spn_uword *fnhdr;
-	spn_uword *env;
 	int decl_argc;
 	int extra_argc;
 	int nregs;
@@ -659,7 +607,6 @@ static void push_and_copy_args(
 	 * bytecode representing a function
 	 */
 	fnhdr = fnobj->repr.bc;
-	env = fnobj->env;
 	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
 	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
 	fnname = fnobj->name;
@@ -688,8 +635,7 @@ static void push_and_copy_args(
 		argc,
 		desc->caller_is_native ? NULL : desc->env.script_env.retaddr,
 		desc->caller_is_native ?   -1 : desc->env.script_env.retidx,
-		env,
-		fnname
+		fnobj
 	);
 
 	/* first, fill in arguments that fit into the
@@ -794,11 +740,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				return -1;
 			}
 
-			/* loading a symbol should have already resolved it
-			 * if it's a function -- assert that condition here
-			 */
-			assert((func.type & SPN_FLAG_PENDING) == 0);
-
 			fnobj = funcvalue(&func);
 
 			if (fnobj->native) {	/* native function */
@@ -827,7 +768,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * the arguments, since those arguments are
 				 * taken from the topmost stack frame.
 				 */
-				push_native_pseudoframe(vm, fnobj->name);
+				push_native_pseudoframe(vm, fnobj);
 
 				/* then call the native function. its return
 				 * value must have a reference count of one.
@@ -889,7 +830,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * then parse its local symbol table
 				 */
 				if (fnobj->topprg) {
-					read_local_symtab(vm, fnobj->repr.bc);
+					read_local_symtab(vm, fnobj);
 				}
 
 				/* set up environment for push_and_copy_args */
@@ -1297,40 +1238,31 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 */
 			SpnValue *dst = VALPTR(vm->sp, OPA(ins));
 			unsigned symidx = OPMID(ins); /* just if it's 16 bits */
-			SpnValue *symp;
 
 			TFrame *frmhdr = &vm->sp[IDX_FRMHDR].h;
-			TSymtab *symtab = NULL;
+			SpnArray *symtab = frmhdr->callee->symtab;
+			SpnValue sym;
 
-			/* search for symbol table of current function */
-			size_t i;
-			for (i = 0; i < vm->lscount; i++) {
-				if (vm->lsymtabs[i].bc == frmhdr->env) {
-					symtab = &vm->lsymtabs[i];
-					break;
-				}
-			}
-
-			/* in case someone calls a function unknown to the VM */
-			assert(symtab != NULL);
-
-			symp = &symtab->vals[symidx];
-
+			spn_array_get_intkey(symtab, symidx, &sym);
+			assert(isnil(&sym) == 0); /* must not be nil */
 
 			/* if the symbol is an unresolved reference
 			 * to a global, then attempt to resolve it
 			 * (it need not be of type function.)
+			 * Then, cache it in the local symbol table.
 			 */
-			if (symp->type & SPN_FLAG_PENDING) {
-				if (resolve_symbol(vm, ip - 1, symp) != 0) {
+			if (is_symstub(&sym)) {
+				if (resolve_symbol(vm, ip - 1, &sym) != 0) {
 					return -1;
 				}
+
+				spn_array_set_intkey(symtab, symidx, &sym);
 			}
 
 			/* set the new - now surely resolved - value */
-			spn_value_retain(symp);
+			spn_value_retain(&sym);
 			spn_value_release(dst);
-			*dst = *symp;
+			*dst = sym;
 
 			break;
 		}
@@ -1485,6 +1417,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			const char *symname = (const char *)(ip);
 			size_t namelen = OPLONG(ins); /* expected length */
 
+			/* +1: terminating NUL character */
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
 
 #ifndef NDEBUG
@@ -1517,11 +1450,12 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				break;
 			}
 
-			/* create function value, insert it in global symtab */
-			funcval = makescriptfunc(symname, hdr, vm->sp[IDX_FRMHDR].h.env);
-			/* (the environment of a global function is always the
-			 * environment of the compilation unit itself)
+			/* create function value, insert it in global symtab
+			 * (the environment of a global function is
+			 * always the the translation unit itself)
 			 */
+			assert(vm->sp[IDX_FRMHDR].h.callee->env == vm->sp[IDX_FRMHDR].h.callee);
+			funcval = makescriptfunc(symname, hdr, vm->sp[IDX_FRMHDR].h.callee);
 
 			/* check for a global symbol with the same name -- if
 			 * one exists, it's an error, there should be no
@@ -1570,7 +1504,9 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* skip symbol name */
 			ip += nwords;
 
-			/* attempt adding value to global symtab */
+			/* attempt adding value to global symtab.
+			 * Raise a runtime error if the name is taken.
+			 */
 			spn_array_get_strkey(vm->glbsymtab, symname, &auxval);
 			if (!isnil(&auxval)) {
 				const void *args[1];
@@ -1600,41 +1536,31 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 	}
 }
 
-static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
+static void read_local_symtab(SpnVMachine *vm, SpnFunction *program)
 {
-	TSymtab *cursymtab;
+	spn_uword *bc = program->repr.bc;
 
-	/* read the offset and size from bytecode */
+	/* read the offset and number of symbols from bytecode */
 	ptrdiff_t offset = bc[SPN_FUNCHDR_IDX_BODYLEN];
 	size_t symcount = bc[SPN_FUNCHDR_IDX_SYMCNT];
-
+	size_t i;
 	spn_uword *stp = bc + SPN_FUNCHDR_LEN + offset;
-	size_t lsidx;
+
+	/* can only read the symtab of a top-level program */
+	assert(program->topprg);
 
 	/* we only read the symbol table if it hasn't been read yet before */
-	/* XXX: when we change local symbol tables to SpnArrays in SpnFunction
-	 * objects, this simplifies to: SpnFunction::locsymtab != NULL
-	 */
-	size_t i;
-	for (i = 0; i < vm->lscount; i++) {
-		if (vm->lsymtabs[i].bc == bc) {
-			/* already known bytecode chunk, don't read symtab */
-			return;
-		}
+	if (program->readsymtab) {
+		return;
 	}
 
-	/* if we got here, the bytecode file is being run for the first time
-	 * on this VM instance, so we proceed to reading its symbol table
+	/* indicate that it has been read and proceed parsing */
+	program->readsymtab = 1;
+
+
+	/* if we got here, the bytecode file is being run for the
+	 * first time, so we proceed with reading its symbol table.
 	 */
-	lsidx = vm->lscount++;
-
-	vm->lsymtabs = spn_realloc(vm->lsymtabs, vm->lscount * sizeof(vm->lsymtabs[0]));
-
-	/* initialize new local symbol table */
-	cursymtab = &vm->lsymtabs[lsidx];
-	cursymtab->bc = bc;
-	cursymtab->size = symcount;
-	cursymtab->vals = spn_malloc(symcount * sizeof(cursymtab->vals[0]));
 
 	/* then actually read the symbols */
 	for (i = 0; i < symcount; i++) {
@@ -1644,6 +1570,7 @@ static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 		switch (sym) {
 		case SPN_LOCSYM_STRCONST: {
 			const char *cstr = (const char *)(stp);
+			SpnValue strval;
 
 			size_t len = OPLONG(ins);
 			size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
@@ -1658,15 +1585,23 @@ static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			assert(len == reallen);
 #endif
 
-			cursymtab->vals[i] = makestring_nocopy_len(cstr, len, 0);
+			strval = makestring_nocopy_len(cstr, len, 0);
+			spn_array_set_intkey(program->symtab, i, &strval);
+			spn_value_release(&strval);
 
 			stp += nwords;
 			break;
 		}
 		case SPN_LOCSYM_SYMSTUB: {
 			const char *symname = (const char *)(stp);
+
+			/* lenght of symbol name */
 			size_t len = OPLONG(ins);
+
+			/* +1: terminating NUL character */
 			size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
+
+			SpnValue symval;
 
 #ifndef NDEBUG
 			/* sanity check: the symbol name length recorded in
@@ -1679,16 +1614,9 @@ static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 #endif
 
 			/* we don't know the type of the symbol yet */
-			cursymtab->vals[i] = makescriptfunc(symname, NULL, NULL);
-			cursymtab->vals[i].type |= SPN_FLAG_PENDING; /* this is a hack */
-
-			/* note that `cursymtab->vals[i].v.fnv.env`
-			 * _must not_ be set here: a symbol stub is merely
-			 * an unresolved reference to a global symbol,
-			 * we don't know yet in which TU the actual definition
-			 * will be (in fact, we don't even know if it's really
-			 * going to be a function).
-			 */
+			symval = make_symstub(symname);
+			spn_array_set_intkey(program->symtab, i, &symval);
+			spn_value_release(&symval);
 
 			stp += nwords;
 			break;
@@ -1697,14 +1625,17 @@ static void read_local_symtab(SpnVMachine *vm, spn_uword *bc)
 			size_t hdroff = OPLONG(ins);
 			spn_uword *entry = bc + hdroff;
 
-			cursymtab->vals[i] = makescriptfunc(NULL, entry, bc);
+			SpnValue fnval = makescriptfunc(NULL, entry, program);
 
 			/* unlike global functions, lambda functions can only
-			 * be implemented in the same translation unit int
+			 * be implemented in the same translation unit in
 			 * which their local symtab entry is defined.
 			 * So we *can* (and should) fill in the `env'
 			 * member of the SpnValue while reading the symtab.
 			 */
+
+			spn_array_set_intkey(program->symtab, i, &fnval);
+			spn_value_release(&fnval);
 
 			break;
 		}
@@ -1788,12 +1719,16 @@ static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 {
 	SpnValue res;
-	const char *symname = funcvalue(symp)->name;
-	spn_array_get_strkey(vm->glbsymtab, symname, &res);
+	SymbolStub *symstub;
+
+	assert(is_symstub(symp));
+
+	symstub = symstubvalue(symp);
+	spn_array_get_strkey(vm->glbsymtab, symstub->name, &res);
 
 	if (isnil(&res)) {
 		const void *args[1];
-		args[0] = symname;
+		args[0] = symstub->name;
 		runtime_error(
 			vm,
 			ip,
@@ -1808,13 +1743,7 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 	 * local symbol table so that we don't
 	 * need to resolve it anymore.
 	 */
-	spn_value_release(symp);
 	*symp = res;
-
-	/* local symbol tables are supposed to hold
-	 * owning (strong) pointers to their values
-	 */
-	spn_value_retain(symp);
 
 	return 0;
 }
@@ -1833,3 +1762,4 @@ static SpnValue typeof_value(SpnValue *val)
 	const char *type = spn_type_name(val->type);
 	return makestring_nocopy(type);
 }
+

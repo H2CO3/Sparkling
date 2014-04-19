@@ -81,3 +81,4 @@ SPN_API SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int deallo
 #define spn_stringvalue(val) ((SpnString *)((val)->v.o))
 
 #endif /* SPN_STR_H */
+

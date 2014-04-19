@@ -63,3 +63,4 @@ SPN_API SpnValue	 spn_makearray(void);
 #define spn_arrayvalue(val) ((SpnArray *)((val)->v.o))
 
 #endif /* SPN_ARRAY_H */
+

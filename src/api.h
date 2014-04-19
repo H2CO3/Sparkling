@@ -122,8 +122,7 @@ enum {
 /* additional type information flags */
 enum {
 	SPN_FLAG_OBJECT		= 1 << 8,	/* type is an object type	*/
-	SPN_FLAG_FLOAT		= 1 << 9,	/* number is floating-point	*/
-	SPN_FLAG_PENDING	= 1 << 10	/* value is pending. XXX: this should be removed ASAP! */
+	SPN_FLAG_FLOAT		= 1 << 9	/* number is floating-point	*/
 };
 
 /* complete type definitions */
@@ -235,3 +234,4 @@ SPN_API void *spn_read_binary_file(const char *name, size_t *sz);
 
 
 #endif /* SPN_API_H */
+

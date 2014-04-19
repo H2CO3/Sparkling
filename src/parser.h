@@ -134,3 +134,4 @@ SPN_API SpnAST		*spn_parser_parse(SpnParser *p, const char *src);
 SPN_API void		 spn_parser_error(SpnParser *p, const char *msg, const void *args[]);
 
 #endif /* SPN_PARSER_H */
+

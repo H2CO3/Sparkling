@@ -98,4 +98,23 @@ SPN_API int nth_arg_idx(spn_uword *ip, int idx);
 SPN_API void *spn_malloc(size_t n);
 SPN_API void *spn_realloc(void *p, size_t n);
 
+/* this is a helper class for the virtual machine,
+ * used for representing a pending (unresolved) symbol
+ * "stub" in the local symbol table.
+ */
+typedef struct SymbolStub  {
+	SpnObject base;
+	const char *name;
+} SymbolStub;
+
+/* creates a SymbolStub value. Does _not_ copy `name'. */
+SPN_API SpnValue make_symstub(const char *name);
+
+/* returns nonzero if `val' represents an unresolved symbol, 0 otherwise */
+SPN_API int is_symstub(const SpnValue *val);
+
+/* yields the symbol stub object of an SpnValue */
+#define symstubvalue(val) ((SymbolStub *)((val)->v.o))
+
 #endif /* SPN_PRIVATE_H */
+

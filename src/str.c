@@ -1072,3 +1072,4 @@ SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int dealloc)
 	SpnString *str = spn_string_new_nocopy_len(s, len, dealloc);
 	return string_to_val(str);
 }
+

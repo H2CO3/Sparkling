@@ -2487,3 +2487,4 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		}
 	}
 }
+
