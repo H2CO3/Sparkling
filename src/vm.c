@@ -593,7 +593,6 @@ static void push_and_copy_args(
 	int decl_argc;
 	int extra_argc;
 	int nregs;
-	const char *fnname;
 	SpnFunction *fnobj;
 
 	/* this whole copying thingy only applies if we're calling
@@ -609,7 +608,6 @@ static void push_and_copy_args(
 	fnhdr = fnobj->repr.bc;
 	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
 	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
-	fnname = fnobj->name;
 
 	/* if there are less call arguments than formal
 	 * parameters, we set extra_argc to 0 (and all
