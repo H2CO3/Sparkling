@@ -48,9 +48,9 @@
  * likewise, the `value` member of a `LITERAL' token is an SpnValue
  * (integer, floating-point number, string, etc.) describing the token
  *
- * `FUNCEXPR' and `FUNCSTMT' are almost identical, except that the former can
- * only be part of an expression, whereas the latter can only appear at file
- * scope. The name of a global function is *still* an expression, though.
+ * `FUNCEXPR' represents a lambda expression (a named or unnamed function).
+ * A function statement results in a global constant initialized with such
+ * an expression. The function in a function statement always has a name.
  * The arguments are represented by a link list of `DECLARGS' nodes (the head
  * of the list is the left child of the node), with their `name` member set to
  * the name of the formal parameter. The function body is a block stored in
@@ -65,7 +65,6 @@
 enum spn_ast_node {
 	SPN_NODE_PROGRAM,	/* top-level program, translation unit */
 	SPN_NODE_BLOCK,		/* block, compound statement */
-	SPN_NODE_FUNCSTMT,	/* function statement (global definition) */
 
 	/* statements */
 	SPN_NODE_WHILE,

@@ -266,7 +266,6 @@ static SpnAST *parse_stmt(SpnParser *p, int is_global)
 
 static SpnAST *parse_function(SpnParser *p, int is_stmt)
 {
-	enum spn_ast_node node;
 	SpnString *name;
 	SpnAST *ast, *body;
 
@@ -278,7 +277,9 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 	}
 
 	if (is_stmt) {
-		/* named global function statement */
+		/* named global function statement: a global constant,
+		 * initialized with a named function expression
+		 */
 
 		if (p->curtok.tok != SPN_TOK_IDENT) {
 			spn_parser_error(p, "expected function name in function statement", NULL);
@@ -286,15 +287,18 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 			return NULL;
 		}
 
-		node = SPN_NODE_FUNCSTMT;
 		name = stringvalue(&p->curtok.val);
 
 		/* skip identifier */
 		spn_lex(p);
 	} else {
-		/* unnamed function expression, lambda */
-		node = SPN_NODE_FUNCEXPR;
-		name = NULL;
+		/* optionally named function expression, lambda */
+		if (p->curtok.tok == SPN_TOK_IDENT) {
+			name = stringvalue(&p->curtok.val);
+			spn_lex(p);
+		} else {
+			name = NULL;
+		}
 	}
 
 	if (!spn_accept(p, SPN_TOK_LPAREN)) {
@@ -308,8 +312,8 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 		return NULL;
 	}
 
-	ast = spn_ast_new(node, p->lineno);
-	ast->name = name;
+	ast = spn_ast_new(SPN_NODE_FUNCEXPR, p->lineno);
+	ast->name = name; /* ownership transfer */
 
 	if (!spn_accept(p, SPN_TOK_RPAREN)) {
 		SpnAST *arglist = parse_decl_args(p);
@@ -335,7 +339,31 @@ static SpnAST *parse_function(SpnParser *p, int is_stmt)
 	}
 
 	ast->right = body;
-	return ast;
+
+	/* if we are parsing a function statement, then we need to
+	 * return a node for a global constant, initialized with a
+	 * function _expression_.
+	 * Else we can just return the function expression itself.
+	 */
+
+	if (is_stmt) {
+		SpnAST *global = spn_ast_new(SPN_NODE_CONST, ast->lineno);
+
+		/* The name of the global is the same as the function name.
+		 * (we have to retain the name string because the AST assumes
+		 * that it's a strong pointer, so if we add it to another
+		 * node, we don't want it to be released twice if it doesn't
+		 * have a reference count of two.)
+		 */
+		assert(name != NULL);
+
+		spn_object_retain(name);
+		global->left = ast;
+		global->name = name;
+		return global;
+	} else {
+		return ast;
+	}
 }
 
 static SpnAST *parse_block(SpnParser *p)
@@ -1385,14 +1413,17 @@ static SpnAST *parse_const(SpnParser *p)
 	spn_lex(p);
 
 	do {
-		SpnString *name = stringvalue(&p->curtok.val);
-		SpnAST *expr = NULL, *tmp;
+		SpnString *name;
+		SpnAST *expr, *tmp;
 
-		if (!spn_accept(p, SPN_TOK_IDENT)) {
+		if (p->curtok.tok != SPN_TOK_IDENT) {
 			spn_parser_error(p, "expected identifier in const declaration", NULL);
 			spn_value_release(&p->curtok.val);
 			return NULL;
 		}
+
+		name = stringvalue(&p->curtok.val);
+		spn_lex(p);
 
 		if (!spn_accept(p, SPN_TOK_ASSIGN)) {
 			spn_parser_error(p, "expected `=' after identifier in const declaration", NULL);

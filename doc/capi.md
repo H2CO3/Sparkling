@@ -140,11 +140,9 @@ from within a native extension function. Throws a runtime error if:
 1. its `fn` argument does not contain a value of function type, or
 2. if `fn` is a native function and it returns a non-zero status code.
 
-Script functions are tied to bytecode file instances, so if `fn` is not a
+Script functions are tied to their top-level program, so if `fn` is not a
 native funciton, then it should be implemented in a translation unit that has
-already been run on the virtual machine `vm`. (That is, calling a non-native
-function is only valid on the same virtual machine that was used to obtain
-the value `fn` itself.)
+already been executed at least once.
 
 Returns the status code of `fn`.
 

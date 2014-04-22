@@ -125,7 +125,7 @@ static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
  *	SPN_TYPE_FUNCTION, with their name set to the symbol name. This is
  * 	conceptually wrong because global symbols can be of any type, not
  * 	just functions.
- * - Symbols corresponding to lambda functions in the current translation unit
+ * - Symbols corresponding to unnamed lambdas in the current translation unit
  * 	were stored as integers (SpnValue of type SPN_TYPE_NUMBER), since an
  * 	integer offset unambiguously identifies such an unnamed function, but
  * 	an SpnValue of function type cannot store integers. This is also wrong
@@ -142,30 +142,29 @@ static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
 
 enum symtabentry_type {
 	SYMTABENTRY_GLOBAL,
-	SYMTABENTRY_LAMBDA
+	SYMTABENTRY_FUNCTION
 };
 
 typedef struct SymtabEntry {
 	SpnObject base;
 	enum symtabentry_type type;
-	union {
-		SpnString *name;  /* name of the global symbol stub	*/
-		ptrdiff_t offset; /* offset of the lambda in bytecode	*/
-	} repr;
+	SpnString *name;  /* name of the function or global symbol stub	*/
+	ptrdiff_t offset; /* offset of the function in the bytecode	*/
 } SymtabEntry;
 
 static int symtabentry_equal(void *lhs, void *rhs)
 {
 	const SymtabEntry *lo = lhs, *ro = rhs;
+
 	if (lo->type != ro->type) {
 		return 0;
 	}
 
 	switch (lo->type) {
 	case SYMTABENTRY_GLOBAL:
-		return spn_object_equal(lo->repr.name, ro->repr.name);
-	case SYMTABENTRY_LAMBDA:
-		return lo->repr.offset == ro->repr.offset;
+		return spn_object_equal(lo->name, ro->name);
+	case SYMTABENTRY_FUNCTION:
+		return lo->offset == ro->offset;
 	default:
 		SHANT_BE_REACHED();
 		return 0;
@@ -178,11 +177,11 @@ static unsigned long symtabentry_hash(void *obj)
 
 	switch (entry->type) {
 	case SYMTABENTRY_GLOBAL: {
-		SpnObject *base = &entry->repr.name->base;
+		SpnObject *base = &entry->name->base;
 		return base->isa->hashfn(base);
 	}
-	case SYMTABENTRY_LAMBDA:
-		return entry->repr.offset;
+	case SYMTABENTRY_FUNCTION:
+		return entry->offset;
 	default:
 		SHANT_BE_REACHED();
 		return 0;
@@ -193,8 +192,8 @@ static void symtabentry_free(void *obj)
 {
 	SymtabEntry *entry = obj;
 
-	if (entry->type == SYMTABENTRY_GLOBAL) {
-		spn_object_release(entry->repr.name);
+	if (entry->name != NULL) {
+		spn_object_release(entry->name);
 	}
 }
 
@@ -211,15 +210,24 @@ static SymtabEntry *symtabentry_new_global(SpnString *name)
 	SymtabEntry *entry = spn_object_new(&SymtabEntry_class);
 	entry->type = SYMTABENTRY_GLOBAL;
 	spn_object_retain(name);
-	entry->repr.name = name;
+	entry->name = name;
 	return entry;
 }
 
-static SymtabEntry *symtabentry_new_lambda(ptrdiff_t offset)
+static SymtabEntry *symtabentry_new_function(ptrdiff_t offset, SpnString *name)
 {
 	SymtabEntry *entry = spn_object_new(&SymtabEntry_class);
-	entry->type = SYMTABENTRY_LAMBDA;
-	entry->repr.offset = offset;
+	entry->type = SYMTABENTRY_FUNCTION;
+	entry->offset = offset;
+
+	/* name is optional */
+	if (name != NULL) {
+		spn_object_retain(name);
+		entry->name = name;
+	} else {
+		entry->name = NULL;
+	}
+
 	return entry;
 }
 
@@ -508,7 +516,6 @@ static int compile(SpnCompiler *cmp, SpnAST *ast)
 	switch (ast->node) {
 	case SPN_NODE_COMPOUND:	return compile_compound(cmp, ast);
 	case SPN_NODE_BLOCK:	return compile_block(cmp, ast);
-	case SPN_NODE_FUNCSTMT:	return compile_funcdef(cmp, ast, NULL);
 	case SPN_NODE_WHILE:	return compile_while(cmp, ast);
 	case SPN_NODE_DO:	return compile_do(cmp, ast);
 	case SPN_NODE_FOR:	return compile_for(cmp, ast);
@@ -551,9 +558,9 @@ static int write_symtab(SpnCompiler *cmp)
 
 			switch (entry->type) {
 			case SYMTABENTRY_GLOBAL: {
-				SpnString *name = entry->repr.name;
+				SpnString *name = entry->name;
 
-				/* append symbol type */
+				/* append symbol type and name length */
 				spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_SYMSTUB, name->len);
 				bytecode_append(&cmp->bc, &ins, 1);
 
@@ -562,10 +569,23 @@ static int write_symtab(SpnCompiler *cmp)
 
 				break;
 			}
-			case SYMTABENTRY_LAMBDA: {
-				ptrdiff_t offset = entry->repr.offset;
-				spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_LAMBDA, offset);
-				bytecode_append(&cmp->bc, &ins, 1);
+			case SYMTABENTRY_FUNCTION: {
+				spn_uword symtype = SPN_MKINS_VOID(SPN_LOCSYM_FUNCDEF);
+				spn_uword offset = entry->offset;
+
+				SpnString *nobj = entry->name;
+				spn_uword namelen = nobj ? nobj->len : strlen(SPN_LAMBDA_NAME);
+				const char *name = nobj ? nobj->cstr : SPN_LAMBDA_NAME;
+
+				/* append symbol type */
+				bytecode_append(&cmp->bc, &symtype, 1);
+
+				/* append function header offset */
+				bytecode_append(&cmp->bc, &offset, 1);
+
+				/* append name length and name */
+				bytecode_append(&cmp->bc, &namelen, 1);
+				append_cstring(&cmp->bc, name, namelen);
 
 				break;
 			}
@@ -706,11 +726,15 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 {
 	int regcount, argc;
 	spn_uword ins, fnhdr[SPN_FUNCHDR_LEN] = { 0 };
-	size_t namelen, hdroff, bodylen;
-	const char *name; /* must always be non-NULL: append_cstring() dereferences it */
+	size_t hdroff, bodylen;
 	SpnAST *arg;
+	SymtabEntry *entry;
 	RoundTripStore vs_this;
 	ScopeInfo sci;
+	SpnValue offval;
+
+	/* self-examination (transitions are hard) */
+	assert(ast->node == SPN_NODE_FUNCEXPR);
 
 	/* save scope context data: local variables, temporary register stack
 	 * pointer, maximal number of registers, innermost loop offset
@@ -722,18 +746,9 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	cmp->varstack = &vs_this;
 	cmp->nregs = 0;
 
-	/* write VM instruction and function name length to bytecode */
-	if (ast->name != NULL) {
-		name = ast->name->cstr;
-		namelen = ast->name->len;
-	} else {
-		name = SPN_LAMBDA_NAME;
-		namelen = strlen(name);
-	}
-
-	ins = SPN_MKINS_LONG(SPN_INS_FUNCDEF, namelen);
+	/* write VM instruction `SPN_INS_FUNCTION' to bytecode */
+	ins = SPN_MKINS_VOID(SPN_INS_FUNCTION);
 	bytecode_append(&cmp->bc, &ins, 1);
-	append_cstring(&cmp->bc, name, namelen);
 
 	/* save the offset of the function header */
 	hdroff = cmp->bc.len;
@@ -741,14 +756,11 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	/* write stub function header */
 	bytecode_append(&cmp->bc, fnhdr, SPN_FUNCHDR_LEN);
 
-	/* if the function is a lambda, create a local symtab entry for it. */
-	if (ast->node == SPN_NODE_FUNCEXPR) {
-		/* lambdas are identified by their offset in the bytecode */
-		SymtabEntry *entry = symtabentry_new_lambda(hdroff);
-		SpnValue offval = makestrguserinfo(entry);
-		*symidx = rts_add(cmp->symtab, &offval);
-		spn_object_release(entry);
-	}
+	/* create a local symtab entry for the function */
+	entry = symtabentry_new_function(hdroff, ast->name);
+	offval = makestrguserinfo(entry);
+	*symidx = rts_add(cmp->symtab, &offval);
+	spn_object_release(entry);
 
 	/* bring function arguments in scope (they are put in the first
 	 * `argc' registers), and count them as well
@@ -1921,7 +1933,7 @@ static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		*dst = tmp_push(cmp);
 	}
 
-	/* compile definition of lambda */
+	/* compile definition of function */
 	if (compile_funcdef(cmp, ast, &symidx) == 0) {
 		return 0;
 	}

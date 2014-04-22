@@ -16,7 +16,7 @@
 
 typedef struct SpnFunction {
 	SpnObject base;
-	const char *name;	 /* name of the function (NULL: lambda)	*/
+	const char *name;	 /* name of the function		*/
 	int native;		 /* boolean flag, is native?		*/
 	int topprg;		 /* is top-level program?		*/
 	size_t nwords;		 /* only if top-level			*/

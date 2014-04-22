@@ -444,13 +444,13 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 		/* if this is the entry point of a function, then print some
 		 * newlines and "push" the entry point onto the "stack"
 		 */
-		if (opcode == SPN_INS_FUNCDEF) {
+		if (opcode == SPN_INS_FUNCTION) {
 			printf("\n");
 			fnlevel++;
 		}
 
 		/* print address (`ip - 1` for the same reason as above) */
-		printf("0x%08lx", addr);
+		printf("%#08lx", addr);
 
 		/* print indentation */
 		for (i = 0; i < fnlevel - 1; i++) {
@@ -462,7 +462,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 		 * "sibling" instructions are. It is the code of the function
 		 * body that is one level deeper.)
 		 */
-		if (opcode != SPN_INS_FUNCDEF) {
+		if (opcode != SPN_INS_FUNCTION) {
 			printf("\t");
 		}
 
@@ -499,7 +499,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			spn_sword offset = *ip++;
 			unsigned long dstaddr = ip + offset - bc;
 
-			printf("jmp\t%+" SPN_SWORD_FMT "\t# target: 0x%08lx\n", offset, dstaddr);
+			printf("jmp\t%+" SPN_SWORD_FMT "\t# target: %#08lx\n", offset, dstaddr);
 
 			break;
 		}
@@ -509,7 +509,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			unsigned long dstaddr = ip + offset - bc;
 			int reg = OPA(ins);
 
-			printf("%s\tr%d, %+" SPN_SWORD_FMT "\t# target: 0x%08lx\n",
+			printf("%s\tr%d, %+" SPN_SWORD_FMT "\t# target: %#08lx\n",
 				opcode == SPN_INS_JZE ? "jze" : "jnz",
 				reg,
 				offset,
@@ -627,7 +627,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 				memcpy(&unum, ip, sizeof(unum));
 				ip += ROUNDUP(sizeof(inum), sizeof(spn_uword));
 
-				printf("%ld\t# 0x%lx\n", inum, unum);
+				printf("%ld\t# %#lx\n", inum, unum);
 				break;
 			}
 			case SPN_CONST_FLOAT: {
@@ -682,30 +682,9 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			printf("getarg\tr%d, r%d\t# r%d = argv[r%d]\n", opa, opb, opa, opb);
 			break;
 		}
-		case SPN_INS_FUNCDEF: {
-			const char *symname = (const char *)(ip);
-			unsigned long namelen = OPLONG(ins);
-			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
-
-			size_t reallen = strlen(symname);
-
-			unsigned long bodylen, entry;
+		case SPN_INS_FUNCTION: {
+			unsigned long bodylen, hdroff = ip - bc;
 			int argc, nregs;
-
-			if (namelen != reallen) {
-				bail(
-					"\n\nfunction name length (%lu) does not match "
-					"expected (%lu) at address 0x%08lx\n",
-					(unsigned long)(reallen),
-					namelen,
-					addr
-				);
-				return -1;
-			}
-
-			/* skip symbol name, obtain function entry point */
-			ip += nwords;
-			entry = ip - bc;
 
 			/* ip += bodylen; --> NO! we want to disassemble the
 			 * function body, so we don't skip it, obviously.
@@ -717,8 +696,8 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			bodylen = ip[SPN_FUNCHDR_IDX_BODYLEN];
 			argc = ip[SPN_FUNCHDR_IDX_ARGC];
 			nregs = ip[SPN_FUNCHDR_IDX_NREGS];
-			printf("function %s (%d args, %d regs, code length: %lu, entry: 0x%08lx)\n",
-				symname, argc, nregs, bodylen, entry);
+			printf("function (%d args, %d registers, length: %lu, start: %#08lx)\n",
+				argc, nregs, bodylen, hdroff);
 
 			/* store the end address of the function body */
 			fnend[fnlevel - 1] = ip + SPN_FUNCHDR_LEN + bodylen;
@@ -751,7 +730,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			if (namelen != reallen) {
 				bail(
 					"\n\nsymbol name length (%lu) does not match "
-					"expected (%lu) at address 0x%08lx\n",
+					"expected (%lu) at address %#08lx\n",
 					(unsigned long)(reallen),
 					(unsigned long)(namelen),
 					addr
@@ -765,7 +744,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			break;
 		}
 		default:
-			bail("unrecognized opcode %d at address %08lx\n", opcode, addr);
+			bail("unrecognized opcode %d at address %#08lx\n", opcode, addr);
 			return -1;
 			break;
 		}
@@ -786,7 +765,7 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 		unsigned long addr = ip - 1 - bc;
 
 		/* print address */
-		printf("0x%08lx\tsymbol %d:\t", addr, i);
+		printf("%#08lx\tsymbol %d:\t", addr, i);
 
 		switch (kind) {
 		case SPN_LOCSYM_STRCONST: {
@@ -797,7 +776,7 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 
 			if (len != explen) {
 				bail(
-					"string literal at address %08lx: "
+					"string literal at address %#08lx: "
 					"actual string length (%lu) does not match "
 					"expected (%lu)\n",
 					addr,
@@ -820,7 +799,7 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 
 			if (len != explen) {
 				bail(
-					"symbol stub at address %08lx: "
+					"symbol stub at address %#08lx: "
 					"actual name length (%lu) does not match "
 					"expected (%lu)\n",
 					addr,
@@ -835,13 +814,33 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 			ip += nwords;
 			break;
 		}
-		case SPN_LOCSYM_LAMBDA: {
-			unsigned long off = OPLONG(ins);
-			printf("lambda function <entry point: 0x%08lx>\n", off);
+		case SPN_LOCSYM_FUNCDEF: {
+			size_t offset = *ip++;
+			size_t namelen = *ip++;
+			const char *name = (const char *)(ip);
+			size_t reallen = strlen(name);
+			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
+
+			if (namelen != reallen) {
+				bail(
+					"definition of function `%s' at %#08lx: "
+					"actual name length (%lu) does not match "
+					"expected (%lu)\n",
+					name,
+					addr,
+					(unsigned long)(reallen),
+					(unsigned long)(namelen)
+				);
+				return -1;
+			}
+
+			printf("function %s <start: %#08lx>\n", name, offset);
+
+			ip += nwords;
 			break;
 		}
 		default:
-			bail("incorrect local symbol type %d at address 0x%08lx\n", kind, addr);
+			bail("incorrect local symbol type %d at address %#08lx\n", kind, addr);
 			return -1;
 			break;
 		}
@@ -880,7 +879,7 @@ static int disasm_bytecode(spn_uword *bc, size_t len)
 
 	/* print symtab header */
 	printf("\n\n# local symbol table:\n");
-	printf("# start address: 0x%08" SPN_UWORD_FMT_HEX "\n", symtaboff);
+	printf("# start address: %#08" SPN_UWORD_FMT_HEX "\n", symtaboff);
 	printf("# number of symbols: %" SPN_UWORD_FMT "\n\n", symtablen);
 
 	/* disassemble symbol table. Its length is the overall length of the
@@ -938,7 +937,6 @@ static void dump_ast(SpnAST *ast, int indent)
 	static const char *const nodnam[] = {
 		"program",
 		"block-statement",
-		"function-statement",
 
 		"while",
 		"do-while",

@@ -281,22 +281,22 @@ Trying to use an expression of any other type will cause a runtime error.
 
 You can create named and anonymous functions with the `function` keyword:
 
-    /* named functions are globally accessible */
+    /* functions created by a function statement are globally accessible */
     function square(x)
     {
         return x * x;
     }
 
-    /* in contrast, unnamed functions have local scope */
+    /* in contrast, lambda functions (function expressions) have local scope */
     var fn = function(x) {
         return x + 1;
     };
 
-Named functions are only allowed at file scope. Unnamed functions are allowed
-everywhere, but due to an ambiguity in the grammar, at program scope, a
-statement starting with the `function` keyword will always be assumed to
-introduce a named function (function statement). If you want unnamed functions
-(function expressions) at program scope, put them inside parentheses:
+Function statements are only allowed at file scope. Lambda functions are
+allowed everywhere, but due to an ambiguity in the grammar, at program scope,
+a statement starting with the `function` keyword will always be assumed to
+introduce a global function (function statement). If you want named or unnamed
+function _expressions_ at program scope, put them inside parentheses:
 
     (function (x) {
         return x * x;

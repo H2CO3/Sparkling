@@ -31,6 +31,7 @@ They can be either integers or floating-point numbers.
 
 §1.4.4. The function type represents a piece of executable code, either named
 or unnamed. Global functions and lambda functions have function type.
+A top-level Sparkling program is also a function.
 
 §1.4.5. The string type encloses an array of bytes that represent either text
 or binary data. They also have a size, which is an integer number, the number
@@ -58,8 +59,8 @@ identifiers, although they satisfy the above conditions.
 
 §1.7. Scope.
 Scope is a the set of places in the code from where an identifier is visible.
-All named functions have global visibility (i. e. they are visible across all
-source files).
+All functions defined using a function statement have global visibility
+(i. e., they are visible across all source files).
 
 §1.7.1. Function bodies and the top level program have separate scope:
 a variable declared in a function is not visible at program (file) scope and
@@ -80,14 +81,20 @@ In a function call expression, call arguments are evaluated and bound to formal
 parameters, and the code in the function operates on its arguments accordingly.
 The type of a function is function.
 
+The function statement is syntactically equivalent to a `const-statement` that
+initializes a global constant with a named lambda function expression. Both
+the name of the global constant and the name of the lamda expression is the
+same as the name of the function defined using the function statement.
+
 §2.1.2. Formal parameters act as variables local to the function. As such, all
-formal parameters must have a distinct name within a function statement.
+formal parameters must have a distinct name within the same function.
 
-§2.1.3. Named functions are visible at global scope. They're just like other
-global constants. As such, it is illegal to define a function with the name of
-an already existing global and vice versa. Doing so results in a runtime error.
+§2.1.3. Functions defined using a function statement are visible at global
+scope. They're just like other global constants. As such, it is illegal to
+define a function with the name of an already existing global and vice versa.
+Doing so results in a runtime error.
 
-(remark: as a consequence, translation units that define named functions or
+(remark: as a consequence, translation units that define global functions or
 other globals can only be run once on a certain virtual machine.)
 
 §2.2. The if statement (`if-statement`).
@@ -130,9 +137,9 @@ statement.
 
 §2.6.2. Otherwise (if the return statement is at program scope), the calling
 context is the native runtime environment, and the execution of a return
-statement causes the termination of the Sparkling program. The `spn_vm_exec()`
-C function will copy over into C-land the value of the expression specified
-in the return statement, and it will return zero.
+statement causes the termination of the Sparkling program. The C API function
+`spn_vm_callfunc()` will copy over into C-land the value of the expression
+specified in the return statement, and it will return zero.
 
 §2.6.3. If there is no expression in the return statement, returning `nil` is
 implicitly assumed.
@@ -360,10 +367,10 @@ operator, except that the operand on the right-hand side must be an identifier,
 the array member.
 
 §3.10. Function expressions (`function-expression`).
-Function expressions create unnamed functions on the fly. A lambda function
-behaves the same way as a global function, except that it doesn't have a name
-and it isn't at global scope (that is, a lambda function is not visible outside
-its translation unit).
+Function expressions create named or unnamed functions (lambda) on the fly.
+A lambda function behaves in the same manner as a global function, except that
+it might not have a name and it isn't at global scope (that is, a lambda
+function is not visible outside its translation unit).
 
 §3.11. Literals
 
@@ -387,5 +394,5 @@ and the Boolean literals `true` and `false`.
 
 `argc` is a special keyword that evaluates to an integer which is the number of
 arguments that the function in which the `argc` keyword is used was called
-with. At file scope, this value is always zero.
+with.
 

@@ -1402,34 +1402,13 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_FUNCDEF: {
-			SpnValue funcval, auxval;
-
-			size_t bodylen;
-
+		case SPN_INS_FUNCTION: {
 			/* pointer to the symbol header, see the SPN_FUNCHDR_*
-			 * macros in vm.h
+			 * macros in vm.h.
+			 * save header position, fill in properties
 			 */
-			spn_uword *hdr;
-
-			const char *symname = (const char *)(ip);
-			size_t namelen = OPLONG(ins); /* expected length */
-
-			/* +1: terminating NUL character */
-			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
-
-#ifndef NDEBUG
-			/* this is the sanity check described in Remark (VI) */
-			size_t reallen = strlen(symname);
-			assert(namelen == reallen);
-#endif
-
-			/* skip symbol name */
-			ip += nwords;
-
-			/* save header position, fill in properties */
-			hdr = ip;
-			bodylen = hdr[SPN_FUNCHDR_IDX_BODYLEN];
+			spn_uword *hdr = ip;
+			size_t bodylen = hdr[SPN_FUNCHDR_IDX_BODYLEN];
 
 			/* sanity check: argc <= nregs is a must (else how
 			 * could arguments fit in the first `argc` registers?)
@@ -1438,46 +1417,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			/* skip the function header and function body */
 			ip += SPN_FUNCHDR_LEN + bodylen;
-
-			/* if the function is a lambda, do not add it
-			 * (XXX: this should be right here after modifying the
-			 * instruction pointer, because we *still* DO want to
-			 * skip the code of the function body.)
-			 */
-			if (strcmp(symname, SPN_LAMBDA_NAME) == 0) {
-				break;
-			}
-
-			/* create function value, insert it in global symtab
-			 * (the environment of a global function is
-			 * always the the translation unit itself)
-			 */
-			assert(vm->sp[IDX_FRMHDR].h.callee->env == vm->sp[IDX_FRMHDR].h.callee);
-			funcval = makescriptfunc(symname, hdr, vm->sp[IDX_FRMHDR].h.callee);
-
-			/* check for a global symbol with the same name -- if
-			 * one exists, it's an error, there should be no
-			 * global symbols with identical names.
-			 */
-			spn_array_get_strkey(vm->glbsymtab, symname, &auxval);
-			if (!isnil(&auxval)) {
-				const void *args[1];
-				args[0] = symname;
-				runtime_error(
-					vm,
-					ip - bodylen - SPN_FUNCHDR_LEN - nwords - 1,
-					"re-definition of global `%s'",
-					args
-				);
-
-				return -1;
-			}
-
-			/* if everything was OK, add the function to the global
-			 * symbol table
-			 */
-			spn_array_set_strkey(vm->glbsymtab, symname, &funcval);
-			spn_value_release(&funcval);
 
 			break;
 		}
@@ -1619,21 +1558,35 @@ static void read_local_symtab(SpnVMachine *vm, SpnFunction *program)
 			stp += nwords;
 			break;
 		}
-		case SPN_LOCSYM_LAMBDA: {
-			size_t hdroff = OPLONG(ins);
+		case SPN_LOCSYM_FUNCDEF: {
+			spn_uword hdroff = *stp++;
 			spn_uword *entry = bc + hdroff;
 
-			SpnValue fnval = makescriptfunc(NULL, entry, program);
+			size_t namelen = *stp++;
+			const char *name = (const char *)(stp);
+			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
 
-			/* unlike global functions, lambda functions can only
-			 * be implemented in the same translation unit in
-			 * which their local symtab entry is defined.
+			SpnValue fnval;
+
+#ifndef NDEBUG
+			/* some more sanity check */
+			size_t reallen = strlen(name);
+			assert(namelen == reallen);
+#endif
+
+			fnval = makescriptfunc(name, entry, program);
+
+			/* functions are implemented in the same translation
+			 * unit in which their local symtab entry is defined.
 			 * So we *can* (and should) fill in the `env'
 			 * member of the SpnValue while reading the symtab.
 			 */
 
 			spn_array_set_intkey(program->symtab, i, &fnval);
 			spn_value_release(&fnval);
+
+			/* skip function name */
+			stp += nwords;
 
 			break;
 		}

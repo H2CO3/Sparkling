@@ -160,7 +160,7 @@ enum spn_const_kind {
 enum spn_local_symbol {
 	SPN_LOCSYM_STRCONST,
 	SPN_LOCSYM_SYMSTUB,
-	SPN_LOCSYM_LAMBDA
+	SPN_LOCSYM_FUNCDEF
 };
 
 /*
@@ -204,8 +204,8 @@ enum spn_vm_ins {
 	SPN_INS_ARRGET,		/* a = b[c]				*/
 	SPN_INS_ARRSET,		/* a[b] = c				*/
 	SPN_INS_NTHARG,		/* a = argv[b] (accesses varargs only!)	*/
-	SPN_INS_FUNCDEF,	/* add function to global symtab (VI)	*/
-	SPN_INS_GLBVAL		/* add other value to global symtab	*/
+	SPN_INS_FUNCTION,	/* function definition 		(VI)	*/
+	SPN_INS_GLBVAL		/* add a value to the global symtab	*/
 };
 
 /* Remarks:
@@ -220,8 +220,8 @@ enum spn_vm_ins {
  * (II): the caller stores the return value from the called frame
  * to its own operation stack, then pops (frees) the called frame.
  *
- * (III): operators that have a result/destination register (that's pretty much
- * everything except halt, return and jumps) should release its value before
+ * (III): operators that have a result/destination register (that's pretty
+ * much everything except, return and jumps) should release its value before
  * overwriting its contents in order to avoid memory leaks. Also, since the
  * destination register can potentially be the same as one of the sources,
  * instructions with a destination AND source registers need to compute the
@@ -234,37 +234,25 @@ enum spn_vm_ins {
  * pointer is to be increased appropriately when loading such constants)
  *
  * (V): this loads a symbol in the local symbol table. Local symtab entries
- * can be string literals, unresolved references to functions and lambdas.
+ * can be string literals, unresolved references to globals and references
+ * to functions (either global or lambda) defined in the current file.
  *
- * (VI): the data following the instruction is laid out as follows:
- * there's a 0-terminated C string which is the name of the function,
- * padded with zeroes to overlay an entire number of `spn_uword`s. Then the
- * length of the function body in `spn_uword`s (*without* the three
- * `spn_uword`s of the header), the number of declaration arguments (some like
- * to call them "formal parameters"), and finally the total number of registers
- * (without the 2 extra slots, but including the registers reserved for the
- * declaration arguments) follow. (The size of a stack frame allocated at
- * runtime may be greater than the number of registers as indicated by the
- * bytecode if there are extra call-time arguments.) Then the actual bytecode
- * of the function body follows.
- *
- * The instruction, besides the GLBSYM opcode, contains the length of the
- * symbol name in bytes (without the terminating NUL) in argument A.
- * It is checkeded that this number equals to the return value of `strlen()`
- * called on the function name.
+ * (VI): the data following the instruction is the header of the function
+ * followed by the actual bytecode. The instruction itself has no parameters.
  *
  * Here's some visualisation for `function foobar(x, y) { return x + y; }`.
  * The vertical bars are boundaries of `spn_uword`s.
  *
- * +--------------------------------------------------------------------------+
- * | INS_FUNCDEF | 'foob' | 'ar\0\0' | 2 | 2 | 3 | 0 | ADD 2, 0, 1 | RETURN 2 |
- * +--------------------------------------------------------------------------+
- *                                     ^   ^   ^   ^   ^
- *                                     |   |   |   |   +--- actual entry point
- *                                     |   |   |   +--- no. of symbols (*)
- *                                     |   |   +--- total register count
- *                                     |   +--- number of decl. arguments (**)
- *                                     +--- body length, without header
+ *                    | <-- header -> |
+ * +-----------------------------------------------------------+
+ * | SPN_INS_FUNCTION | 2 | 2 | 3 | 0 | ADD 2, 0, 1 | RETURN 2 |
+ * +-----------------------------------------------------------+
+ *                      ^   ^   ^   ^   ^
+ *                      |   |   |   |   +--- actual entry point
+ *                      |   |   |   +--- number of symbols in local symtab (*)
+ *                      |   |   +--- total register count (variables & temp)
+ *                      |   +--- number of declaration arguments (**)
+ *                      +--- body length, without function header
  *
  * (*)  The number of local symbols is always 0 unless the function
  *      represents the top-level translation unit.

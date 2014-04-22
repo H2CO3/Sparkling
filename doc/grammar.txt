@@ -158,7 +158,7 @@ term				= IDENT				|
 				  function-expr			|
 				  array-expr
 
-function-expr			= 'function' '(' argument-declaration-list ')' block-statement
+function-expr			= 'function' [ IDENT ] '(' argument-declaration-list ')' block-statement
 
 array-expr			= '{' [ key-val ( ',' key-val )(*) ] '}'
 
