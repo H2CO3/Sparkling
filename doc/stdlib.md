@@ -411,3 +411,17 @@ These functions parse and compile the supplied source code (`compile()`) or
 named file (`loadfile()`). On success, they return the compiled function. On
 error, they return an error message.
 
+    function apply(function fn, array argv [, int argc)
+
+Calls the function `fn` with the elements of the `argv` array as arguments,
+returning the return value of `fn` itself. Throws an error if `fn` is not
+a function, `argv` is not an array or `argc` is not an integer.
+
+If the `argc` argument is not present, then it is assigned `sizeof argv`.
+
+The arguments of the called function `fn` will be the values in `argv`
+that correspond to the integer keys `[0...argc)`. Thus, supplying `argc`
+is only necessary when `argv` is sparse and/or it contains non-integral
+keys, because then the arguments passed to the function would be different
+from the elements of the array without an explicit argument count.
+

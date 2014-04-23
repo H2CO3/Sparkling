@@ -2894,6 +2894,76 @@ static int rtlb_loadfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_compile(ret, argc, argv, ctx, 1);
 }
 
+static int rtlb_apply(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+#define MAX_AUTO_ARGC 16
+
+	int callee_argc, status, i;
+	SpnValue callee_argv_auto[MAX_AUTO_ARGC];
+	SpnValue *callee_argv;
+	const SpnValue *callee;
+	SpnArray *arguments;
+
+	if (argc < 2 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 2 or 3 arguments", NULL);
+		return -1;
+	}
+
+	callee = &argv[0];
+
+	if (!isfunc(callee)) {
+		spn_ctx_runtime_error(ctx, "first argument must be a function", NULL);
+		return -2;
+	}
+
+	if (!isarray(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be an array", NULL);
+		return -3;
+	}
+
+	arguments = arrayvalue(&argv[1]);
+
+	if (argc == 3) {
+		if (!isint(&argv[2])) {
+			spn_ctx_runtime_error(ctx, "argument count must be an integer", NULL);
+			return -4;
+		}
+
+		callee_argc = intvalue(&argv[2]);
+	} else {
+		callee_argc = spn_array_count(arguments);
+	}
+
+	/* if there aren't too many arguments, store them in
+	 * an auto array. Only allocate dynamically when it's
+	 * necessary. (I have already benchmarked this in the
+	 * virtual machine (SPN_INS_CALL), and I found that
+	 * when one is calling a function frequently, then
+	 * the use of malloc slows down the mechanism a lot.)
+	 */
+	if (callee_argc > MAX_AUTO_ARGC) {
+		callee_argv = spn_malloc(callee_argc * sizeof callee_argv[0]);
+	} else {
+		callee_argv = callee_argv_auto;
+	}
+
+	/* copy arguments */
+	for (i = 0; i < callee_argc; i++) {
+		spn_array_get_intkey(arguments, i, &callee_argv[i]);
+	}
+
+	/* perform actual call */
+	status = spn_ctx_callfunc(ctx, callee, ret, callee_argc, callee_argv);
+
+	if (callee_argc > MAX_AUTO_ARGC) {
+		free(callee_argv);
+	}
+
+#undef MAX_AUTO_ARGC
+
+	return status;
+}
+
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "getenv",	rtlb_getenv	},
 	{ "system",	rtlb_system	},
@@ -2905,7 +2975,8 @@ const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "strftime",	rtlb_strftime	},
 	{ "difftime",	rtlb_difftime	},
 	{ "compile",	rtlb_compile	},
-	{ "loadfile",	rtlb_loadfile	}
+	{ "loadfile",	rtlb_loadfile	},
+	{ "apply",	rtlb_apply	}
 };
 
 
@@ -2992,4 +3063,3 @@ void spn_load_stdlib(SpnVMachine *vm)
 	load_stdlib_functions(vm);
 	load_stdlib_constants(vm);
 }
-
