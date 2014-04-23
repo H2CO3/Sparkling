@@ -1358,6 +1358,12 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				return -1;
 			}
 
+			/* NaN != NaN, so it can't be used as an array key */
+			if (isfloat(b) && floatvalue(b) != floatvalue(b)) {
+				runtime_error(vm, ip - 1, "array index cannot be NaN", NULL);
+				return -1;
+			}
+
 			spn_array_set(arrayvalue(a), b, c);
 			break;
 		}
