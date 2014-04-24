@@ -237,8 +237,7 @@ const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 	sp = vm->sp;
 	while (sp > vm->stack) {
 		TFrame *frmhdr = &sp[IDX_FRMHDR].h;
-		const char *fnname = frmhdr->callee->name;
-		buf[i++] = fnname ? fnname : SPN_LAMBDA_NAME;
+		buf[i++] = frmhdr->callee->name;
 		sp -= frmhdr->size;
 	}
 
