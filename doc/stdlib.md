@@ -353,8 +353,8 @@ libraries) are also available:
     number M_NAN: "Not a Number" value
     number M_INF: positive infinity
 
-5. Interfacing with the shell and the OS (spn_libsys)
------------------------------------------------------
+5. Accessing the shell, the OS and the Sparkling engine (spn_libsys)
+--------------------------------------------------------------------
     string getenv(string name)
 
 Returns the value of the environment variable `name`, or `nil` if it's not set.
@@ -411,7 +411,7 @@ These functions parse and compile the supplied source code (`compile()`) or
 named file (`loadfile()`). On success, they return the compiled function. On
 error, they return an error message.
 
-    function apply(function fn, array argv [, int argc)
+    function apply(function fn, array argv [, int argc])
 
 Calls the function `fn` with the elements of the `argv` array as arguments,
 returning the return value of `fn` itself. Throws an error if `fn` is not
