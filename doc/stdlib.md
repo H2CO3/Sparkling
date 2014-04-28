@@ -411,7 +411,7 @@ These functions parse and compile the supplied source code (`compile()`) or
 named file (`loadfile()`). On success, they return the compiled function. On
 error, they return an error message.
 
-    function apply(function fn, array argv [, int argc])
+    any apply(function fn, array argv [, int argc])
 
 Calls the function `fn` with the elements of the `argv` array as arguments,
 returning the return value of `fn` itself. Throws an error if `fn` is not
@@ -424,4 +424,10 @@ that correspond to the integer keys `[0...argc)`. Thus, supplying `argc`
 is only necessary when `argv` is sparse and/or it contains non-integral
 keys, because then the arguments passed to the function would be different
 from the elements of the array without an explicit argument count.
+
+    array backtrace()
+
+This function returns the stack trace, as an array of strings, which are
+the names of the currently active functions, at the point of execution
+where it is called.
 

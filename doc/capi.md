@@ -135,14 +135,26 @@ the string that `spn_vm_geterrmsg()` returns.
     );
 
 This function makes it possible to call any Sparkling (or native) function
-from within a native extension function. Throws a runtime error if:
+from C code (eg. from native extension functions or the host environment).
+
+On return, he value pointed by `retval' contains the return value of the
+called function. This is an owning structure: you must spn_value_release()
+it when you don't need it anymore. The returned value may refer to the
+program and/or bytecode (e. g. the strings returned by the `stacktrace()`
+standard library function), so you must not use the value after the main
+program itself has been deallocated. Usually this is not a problem, since
+normally, when using the context API, the lifetime of the programs is tied
+to the lifetime of the corresponding context object, and one should only
+free the context object one doesn't use the Sparling engine anymore.
+
+Throws a runtime error if:
 
 1. its `fn` argument does not contain a value of function type, or
 2. if `fn` is a native function and it returns a non-zero status code.
 
 Script functions are tied to their top-level program, so if `fn` is not a
-native funciton, then it should be implemented in a translation unit that has
-already been executed at least once.
+native funciton, then it should be implemented in a translation unit that
+has already been executed at least once.
 
 Returns the status code of `fn`.
 

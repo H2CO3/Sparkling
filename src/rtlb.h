@@ -83,8 +83,9 @@ SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
  * compile()
  * loadfile()
  * apply()
+ * backtrace()
  */
-#define SPN_LIBSIZE_SYS 12
+#define SPN_LIBSIZE_SYS 13
 SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 
 /* A convenience function that loads the entire standard library.
@@ -95,4 +96,3 @@ SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 SPN_API void spn_load_stdlib(SpnVMachine *vm);
 
 #endif /* SPN_RTLB_H */
-

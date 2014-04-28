@@ -2964,6 +2964,26 @@ static int rtlb_apply(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return status;
 }
 
+static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t n, i;
+	const char **cnames = spn_ctx_stacktrace(ctx, &n);
+	SpnArray *fnames = spn_array_new();
+
+	/* 'i' starts at 1: skip own stack frame */
+	for (i = 1; i < n; i++) {
+		SpnValue name = makestring_nocopy(cnames[i]);
+		spn_array_set_intkey(fnames, i - 1, &name);
+		spn_value_release(&name);
+	}
+
+	free(cnames);
+
+	ret->type = SPN_TYPE_ARRAY;
+	ret->v.o = fnames;
+	return 0;
+}
+
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "getenv",	rtlb_getenv	},
 	{ "system",	rtlb_system	},
@@ -2976,7 +2996,8 @@ const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "difftime",	rtlb_difftime	},
 	{ "compile",	rtlb_compile	},
 	{ "loadfile",	rtlb_loadfile	},
-	{ "apply",	rtlb_apply	}
+	{ "apply",	rtlb_apply	},
+	{ "backtrace",	rtlb_backtrace	}
 };
 
 
