@@ -2894,7 +2894,7 @@ static int rtlb_loadfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_compile(ret, argc, argv, ctx, 1);
 }
 
-static int rtlb_apply(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 #define MAX_AUTO_ARGC 16
 
@@ -2996,7 +2996,7 @@ const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "difftime",	rtlb_difftime	},
 	{ "compile",	rtlb_compile	},
 	{ "loadfile",	rtlb_loadfile	},
-	{ "apply",	rtlb_apply	},
+	{ "call",	rtlb_call	},
 	{ "backtrace",	rtlb_backtrace	}
 };
 

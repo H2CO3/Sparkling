@@ -411,7 +411,7 @@ These functions parse and compile the supplied source code (`compile()`) or
 named file (`loadfile()`). On success, they return the compiled function. On
 error, they return an error message.
 
-    any apply(function fn, array argv [, int argc])
+    any call(function fn, array argv [, int argc])
 
 Calls the function `fn` with the elements of the `argv` array as arguments,
 returning the return value of `fn` itself. Throws an error if `fn` is not

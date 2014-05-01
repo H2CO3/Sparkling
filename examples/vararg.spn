@@ -1,6 +1,6 @@
 //
 // vararg.spn
-// demonstrating the usage of `apply()`
+// demonstrating the usage of `call()`
 // by forwarding variadic arguments
 //
 // Created by Arpad Goretity on 23/04/2014
@@ -16,14 +16,14 @@ function tracingPrintf() {
   for var i = 0; i < argc; i++ {
     argv[i] = #i;
   }
-  return apply(printf, argv);
+  return call(printf, argv);
 }
 
 tracingPrintf("%d %s\n", 1337, "Hello world!");
 
 // a `max()` function that operates on arrays
 function arrayMax(arr) {
-  return apply(max, arr);
+  return call(max, arr);
 }
 
 print(arrayMax({ 3, 9, 2, 3, 1, 5, 4 })); // 9
@@ -34,7 +34,8 @@ print(arrayMax({ 3, 9, 2, 3, 1, 5, 4 })); // 9
 var argv = { 1, 2, nil, 4 };
 
 // this does not do what you might think it does
-apply(print, argv); // 1, 2, nil (sizeof argv == 3)
+call(print, argv); // 1, 2, nil (sizeof argv == 3)
 
 // however, this does do what it looks like it does
-apply(print, argv, 4); // 1, 2, nil, 4
+call(print, argv, 4); // 1, 2, nil, 4
+

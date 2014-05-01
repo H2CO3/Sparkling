@@ -137,7 +137,7 @@ the string that `spn_vm_geterrmsg()` returns.
 This function makes it possible to call any Sparkling (or native) function
 from C code (eg. from native extension functions or the host environment).
 
-On return, he value pointed by `retval' contains the return value of the
+On return, the value pointed by `retval' contains the return value of the
 called function. This is an owning structure: you must spn_value_release()
 it when you don't need it anymore. The returned value may refer to the
 program and/or bytecode (e. g. the strings returned by the `stacktrace()`
