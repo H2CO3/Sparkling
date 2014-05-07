@@ -1,0 +1,37 @@
+//
+// desolver.spn
+// a numeric solver for
+// ordinary differential equations
+//
+
+function solvede(a, b, y0, yprime) {
+  var N = 10000;
+  var dx = (b - a) * 1.0 / N;
+  var xv = {}, yv = {};
+  var s = y0;
+
+  for var i = 0; i < N; i++ {
+    var x = a + i * dx;
+    xv[i] = x;
+    yv[i] = s;
+    s += dx * yprime(x, s);
+  }
+
+  return { "x": xv, "y": yv };
+}
+
+var a = tofloat(#1), b = tofloat(#2), y0 = tofloat(#3);
+var src = "var x = #0, y = #1; return " .. #4 .. ";";
+var yprime = compile(src);
+
+if typeof yprime != "function" {
+  fprintf(stderr, "%s", yprime);
+  exit(-1);
+}
+
+var sol = solvede(a, b, y0, yprime);
+
+printf("x\ty\n");
+for var i = 0; i < sizeof sol.x; i++ {
+  printf("%f\t%f\n", sol.x[i], sol.y[i]);
+}
