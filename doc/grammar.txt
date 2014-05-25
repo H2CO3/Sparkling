@@ -89,7 +89,7 @@ block-statement			= '{' statement(*) '}'
 
 loop-control-flow-statement	= 'break' | 'continue' ';'
 
-variable-declaration		= 'var' IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
+variable-declaration		= ( 'var' | 'let' ) IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
 
 expression-statement		= expression ';'
 
@@ -177,12 +177,12 @@ literal				= STRING	|
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		else		if		sizeof
+and		else		let		sizeof
 argc		false		nil		true
 break		for		not		typeof
 const		function	null		var
 continue	global		or		while
-do				return
+do		if		return
 
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'

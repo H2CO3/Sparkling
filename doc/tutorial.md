@@ -38,6 +38,7 @@ other tokens):
 - `function`
 - `global`
 - `if`
+- `let`
 - `nil`
 - `not`
 - `null`
@@ -51,8 +52,8 @@ other tokens):
 
 ## Variables
 
-All variables need to be declared with `var` before they can be used. Variables
-can be initialized when declared. For example:
+All variables need to be declared with `var` or `let` before they
+can be used. Variables can be initialized when declared. For example:
 
     var i = 10;
     var j;
@@ -60,6 +61,7 @@ can be initialized when declared. For example:
 You can combine multiple declarations by separating them with commas:
 
     var i, j;
+    let foo = "bar", bar = "quirk";
 
 An identifier that is undeclared is assumed to refer to a global constant. It
 is not possible to assign to globals (for safety reasons), but it is possible

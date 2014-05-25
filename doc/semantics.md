@@ -170,6 +170,9 @@ declaration. The variable is alive from the point where its identifier appears,
 and its value is initially `nil`. If there is an initializer expression, then
 it is evaluated and assigned to the variable. (Note: thus all of the
 statements `var x;`, `var x = nil;` and `var x = x;` mean the same thing).
+An alternate form of the variable declaration statement is using the `let`
+keyword, which is synonymous with `var`. An example of the alternate form is
+`let x = 3, y = 2;`
 
 §2.11.2. It is illegal to declare a variable that has the name of a variable
 which already exists (which is already visible) in a scope.
