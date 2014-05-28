@@ -407,13 +407,13 @@ static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const
 		const void *prefix_args[1];
 		prefix_args[0] = &addr;
 		prefix = spn_string_format_cstr(
-			"Sparkling: at address 0x%08x: runtime error: ",
+			"runtime error at address 0x%08x: ",
 			&prefix_len,
 			prefix_args
 		);
 	} else {
 		prefix = spn_string_format_cstr( /* glorified strdup() */
-			"Sparkling: in native code: runtime error: ",
+			"runtime error in native code: ",
 			&prefix_len,
 			NULL
 		);
@@ -1718,4 +1718,3 @@ static SpnValue typeof_value(SpnValue *val)
 	const char *type = spn_type_name(val->type);
 	return makestring_nocopy(type);
 }
-

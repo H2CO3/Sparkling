@@ -155,7 +155,7 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 	int err, i;
 
 	if (buf == NULL) {
-		fputs("Sparkling: I/O error: cannot read file\n", stderr);
+		fputs("I/O error: cannot read file\n", stderr);
 		return -1;
 	}
 
@@ -229,7 +229,7 @@ static int run_file(const char *fname, int argc, char *argv[])
 			status = EXIT_FAILURE;
 		}
 	} else {
-		fputs("Sparkling: generic error: invalid file extension\n", stderr);
+		fputs("generic error: invalid file extension\n", stderr);
 		status = EXIT_FAILURE;
 	}
 
@@ -355,7 +355,7 @@ static int compile_files(int argc, char *argv[])
 
 		outfile = fopen(outname, "wb");
 		if (outfile == NULL) {
-			fprintf(stderr, "\nSparkling: I/O error: can't open file `%s'\n", outname);
+			fprintf(stderr, "\nI/O error: can't open file `%s'\n", outname);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -368,7 +368,7 @@ static int compile_files(int argc, char *argv[])
 		nwords = fnobj->nwords;
 
 		if (fwrite(bc, sizeof bc[0], nwords, outfile) < nwords) {
-			fprintf(stderr, "\nSparkling: I/O error: can't write to file `%s'\n", outname);
+			fprintf(stderr, "\nI/O error: can't write to file `%s'\n", outname);
 			fclose(outfile);
 			status = EXIT_FAILURE;
 			break;
@@ -393,7 +393,7 @@ static void bail(const char *fmt, ...)
 {
 	va_list args;
 
-	fprintf(stderr, "Sparkling: bytecode error: ");
+	fprintf(stderr, "error disassembling bytecode: ");
 
 	va_start(args, fmt);
 	vfprintf(stderr, fmt, args);
@@ -705,7 +705,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			/* sanity check */
 			if (argc > nregs) {
 				bail(
-					"error: number of arguments (%d) is greater "
+					"number of arguments (%d) is greater "
 					"than number of registers (%d)!\n",
 					argc,
 					nregs
@@ -900,7 +900,7 @@ static int disassemble_files(int argc, char *argv[])
 
 		bc = spn_read_binary_file(argv[i], &fsz);
 		if (bc == NULL) {
-			fprintf(stderr, "Sparkling: I/O error: could not read file `%s'\n", argv[i]);
+			fprintf(stderr, "I/O error: could not read file `%s'\n", argv[i]);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -1064,7 +1064,7 @@ static int dump_ast_of_files(int argc, char *argv[])
 
 		char *src = spn_read_text_file(argv[i]);
 		if (src == NULL) {
-			fprintf(stderr, "Sparkling: I/O error: cannot read file `%s'\n", argv[i]);
+			fprintf(stderr, "I/O error: cannot read file `%s'\n", argv[i]);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -1097,7 +1097,7 @@ int main(int argc, char *argv[])
 	enum cmd_args args;
 
 	if (argc < 1) {
-		fprintf(stderr, "Sparkling: internal error: argc < 1\n\n");
+		fprintf(stderr, "internal error: argc < 1\n\n");
 		exit(EXIT_FAILURE);
 	}
 
@@ -1137,7 +1137,7 @@ int main(int argc, char *argv[])
 		status = dump_ast_of_files(argc - pos, &argv[pos]);
 		break;
 	default:
-		fprintf(stderr, "Sparkling: generic error: internal inconsistency\n\n");
+		fprintf(stderr, "generic error: internal inconsistency\n\n");
 		status = EXIT_FAILURE;
 	}
 

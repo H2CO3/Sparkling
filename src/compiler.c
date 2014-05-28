@@ -485,7 +485,7 @@ static void compiler_error(SpnCompiler *cmp, int lineno, const char *fmt, const 
 	prefix_args[0] = &lineno;
 
 	prefix = spn_string_format_cstr(
-		"Sparkling: semantic error near line %i: ",
+		"semantic error near line %i: ",
 		&prefix_len,
 		prefix_args
 	);
@@ -2499,4 +2499,3 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		}
 	}
 }
-
