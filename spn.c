@@ -743,6 +743,48 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			ip += nwords;
 			break;
 		}
+		case SPN_INS_CLOSURE: {
+			int regidx = OPA(ins);
+			int n_upvals = OPB(ins);
+			int i;
+
+			printf("closure\tr%d\t; upvalues: ", regidx);
+
+			for (i = 0; i < n_upvals; i++) {
+				spn_uword upval_desc = *ip++;
+				enum spn_upval_type upval_type = OPCODE(upval_desc);
+				int upval_index = OPA(upval_desc);
+
+				char upval_typechr;
+
+				if (i > 0) {
+					printf(", ");
+				}
+
+				switch (upval_type) {
+				case SPN_UPVAL_LOCAL:
+					upval_typechr = 'L';
+					break;
+				case SPN_UPVAL_OUTER:
+					upval_typechr = 'O';
+					break;
+				default:
+					bail("Unknown upvaule type %d\n", upval_type);
+					break;
+				}
+
+				printf("%d [%c]", upval_index, upval_typechr);
+			}
+
+			printf("\n");
+			break;
+		}
+		case SPN_INS_LDUPVAL: {
+			int regidx = OPA(ins);
+			int upvalidx = OPB(ins);
+			printf("ldupval\tr%d, upval[%d]\n", regidx, upvalidx);
+			break;
+		}
 		default:
 			bail("unrecognized opcode %d at address %#08lx\n", opcode, addr);
 			return -1;

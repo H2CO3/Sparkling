@@ -55,6 +55,7 @@
 #define makenativefunc(n, f)	spn_makenativefunc(n, f)
 #define makeweakuserinfo(p)	spn_makeweakuserinfo(p)
 #define makestrguserinfo(o)	spn_makestrguserinfo(o)
+#define makeclosure(p)		spn_makeclosure(p)
 
 /* invokes spn_string_new(s) */
 #define makestring(s)		spn_makestring(s)
@@ -117,4 +118,3 @@ SPN_API int is_symstub(const SpnValue *val);
 #define symstubvalue(val) ((SymbolStub *)((val)->v.o))
 
 #endif /* SPN_PRIVATE_H */
-

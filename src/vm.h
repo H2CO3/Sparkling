@@ -153,14 +153,23 @@ enum spn_const_kind {
  * that SYMSTUB represents a named, unresolved global, not a string literal.
  * (the long `a` operand contains the length of the symbol name.)
  *
- * SPN_LOCSYM_LAMBDA: the long `a` operand of the instruction, interpreted as
- * an `unsigned long`, represents the offset of the entry point of a lambda
- * function, measured from the beginning of the bytecode.
+ * SPN_LOCSYM_FUNCDEF: the `spn_uword`s following the instruction are:
+ * 1. the offset of the entry point of the function in the bytecode;
+ * 2. the length of the name of the function.
+ * The following bytes contain the actual name string in the usual format.
  */
 enum spn_local_symbol {
 	SPN_LOCSYM_STRCONST,
 	SPN_LOCSYM_SYMSTUB,
 	SPN_LOCSYM_FUNCDEF
+};
+
+/*
+ * Type of an upvalue (a captured variable in a closure)
+ */
+enum spn_upval_type {
+	SPN_UPVAL_LOCAL,
+	SPN_UPVAL_OUTER
 };
 
 /*
@@ -205,7 +214,9 @@ enum spn_vm_ins {
 	SPN_INS_ARRSET,		/* a[b] = c				*/
 	SPN_INS_NTHARG,		/* a = argv[b] (accesses varargs only!)	*/
 	SPN_INS_FUNCTION,	/* function definition 		(VI)	*/
-	SPN_INS_GLBVAL		/* add a value to the global symtab	*/
+	SPN_INS_GLBVAL,		/* add a value to the global symtab	*/
+	SPN_INS_CLOSURE,       	/* create closure from free func (VII)	*/
+	SPN_INS_LDUPVAL		/* a = upvalues[b];			*/
 };
 
 /* Remarks:
@@ -258,7 +269,30 @@ enum spn_vm_ins {
  *      represents the top-level translation unit.
  * (**) The number of declaration arguments ("formal parameters") is
  *      always 0 in the top-level function.
+ *
+ * (VII): SPN_INS_CLOSURE takes two parameters, the index of the register
+ * in which a free function resides (operand A), and the number of upvalues
+ * (operand B). After the opcode follow as many `spn_uword`s as there are
+ * upvalues (B). Each spn_uword describes an upvalue (a local variable in an
+ * enclosing  function, captured by the closure) using the following format:
+ *
+ * +-------------------------------+------------------------------+
+ * | Upvalue type (OPCODE, 8 bits) | Upvalue index (OPA), 8 bits) |
+ * +-------------------------------+------------------------------+
+ *
+ * The upvalue type is one of the members of the `spn_upval_type` enum:
+ *
+ * - SPN_UPVAL_LOCAL represents an upvalue which is a local variable of the
+ * immediately enclosing function.
+ * - SPN_UPVAL_OUTER, on the other hand, refers to a variable which itself is
+ * in the closure of the enclosing function (i. e. it's not an own local
+ * variable thereof, but rather a variable of a function two or more levels
+ * up the lexical scope).
+ *
+ * The instruction reads the unbound function value from the specified
+ * register, creates a closure function object from it, sets its upvalues,
+ * then replaces the contents of the register (the original function object)
+ * with the newly created closure.
  */
 
 #endif /* SPN_VM_H */
-

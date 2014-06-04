@@ -1466,6 +1466,84 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			spn_array_set_strkey(vm->glbsymtab, symname, src);
 			break;
 		}
+		case SPN_INS_CLOSURE: {
+			int reg_index = OPA(ins);
+			int n_upvals = OPB(ins);
+			int i;
+
+			SpnFunction *prototype;
+			SpnFunction *closure;
+
+			/* We need a reference to the environment of the closure
+			 * to be created. It is the currently executing function.
+			 */
+			SpnFunction *enclosing_fn = vm->sp[IDX_FRMHDR].h.callee;
+
+			/* create a closure function object by appropriately
+			 * "copying" the prototype in the reg_index-th register
+			 */
+			SpnValue *prototype_val = VALPTR(vm->sp, reg_index);
+			assert(isfunc(prototype_val));
+			prototype = funcvalue(prototype_val);
+
+			closure = spn_func_new_closure(prototype);
+
+			for (i = 0; i < n_upvals; i++) {
+				spn_uword upval_desc = *ip++;
+				enum spn_upval_type upval_type = OPCODE(upval_desc);
+				int upval_index = OPA(upval_desc);
+
+				switch (upval_type) {
+				case SPN_UPVAL_LOCAL: {
+					/* upvalue is local variable of enclosing function */
+					SpnValue *upval = VALPTR(vm->sp, upval_index);
+					spn_array_set_intkey(closure->upvalues, i, upval);
+					break;
+				}
+				case SPN_UPVAL_OUTER: {
+					/* upvalue is in the closure of enclosing function */
+					SpnValue upval;
+					assert(enclosing_fn->upvalues);
+					spn_array_get_intkey(enclosing_fn->upvalues, upval_index, &upval);
+					spn_array_set_intkey(closure->upvalues, i, &upval);
+					break;
+				}
+				default:
+					SHANT_BE_REACHED();
+				}
+			}
+
+			/* replace the prototype in the register
+			 * with the newly created closure object
+			 *
+			 * We can re-use the pointer since this instruction
+			 * does not push to the stack, so the stack is not
+			 * realloc()'ed, and consequently, pointers into the
+			 * stack frame are not invalidated.
+			 */
+			spn_value_release(prototype_val);
+			prototype_val->type = SPN_TYPE_FUNC;
+			prototype_val->v.o = closure;
+
+			break;
+		}
+		case SPN_INS_LDUPVAL: {
+			int reg_index   = OPA(ins);
+			int upval_index = OPB(ins);
+
+			/* grab a reference to the currently executing function */
+			SpnFunction *current_fn = vm->sp[IDX_FRMHDR].h.callee;
+
+			/* release previous content of `reg_index`-th register */
+			SpnValue *reg = VALPTR(vm->sp, reg_index);
+			spn_value_release(reg);
+
+			/* store upvalue into register and retain it */
+			spn_array_get_intkey(current_fn->upvalues, upval_index, reg);
+			spn_value_retain(reg);
+
+			break;
+		}
 		default: /* I am sorry for the indentation here. */
 			{
 				unsigned long lopcode = opcode;
