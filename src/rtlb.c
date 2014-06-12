@@ -2281,6 +2281,7 @@ static int rtlb_cplx_binop(SpnValue *ret, int argc, SpnValue *argv, enum cplx_bi
 	}
 	default:
 		SHANT_BE_REACHED();
+		return -1;
 	}
 
 	*ret = makearray();
@@ -2355,6 +2356,7 @@ static int rtlb_aux_cplx_trig(SpnValue *ret, int argc, SpnValue *argv, enum cplx
 	}
 	default:
 		SHANT_BE_REACHED();
+		return -1;
 	}
 
 	*ret = makearray();

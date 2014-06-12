@@ -770,7 +770,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 					break;
 				default:
 					bail("Unknown upvalue type %d\n", upval_type);
-					break;
+					return -1;
 				}
 
 				printf("%d: #%d [%c]", i, upval_index, upval_typechr);
