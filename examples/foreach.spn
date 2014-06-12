@@ -1,7 +1,7 @@
-/* 
+/*
  * foreach.spn
  * iterating over the key-value pairs of an associative array
- * 
+ *
  * created by Árpád Goretity on 30/09/2013
  */
 
@@ -15,11 +15,10 @@ var arr = {
 	"quirk"	:	3.14159265358979323846
 };
 
-foreach(arr, function(key, val, arr, ctx) {
+foreach(arr, function(key, val) {
 	print("array = ", arr);
-	print(key, " -> ", val, "; context = ", ctx);
+	print(key, " -> ", val);
 	if typeof val == "function" {
 		val(42, 43);
 	}
-}, "Context Info");
-
+});
