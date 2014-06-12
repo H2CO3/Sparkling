@@ -118,3 +118,4 @@ SPN_API int is_symstub(const SpnValue *val);
 #define symstubvalue(val) ((SymbolStub *)((val)->v.o))
 
 #endif /* SPN_PRIVATE_H */
+

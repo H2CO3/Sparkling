@@ -1490,3 +1490,4 @@ static SpnAST *parse_empty(SpnParser *p)
 
 	return spn_ast_new(SPN_NODE_EMPTY, p->lineno);
 }
+

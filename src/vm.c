@@ -1796,3 +1796,4 @@ static SpnValue typeof_value(SpnValue *val)
 	const char *type = spn_type_name(val->type);
 	return makestring_nocopy(type);
 }
+

@@ -58,18 +58,60 @@ and the '_' (underscore) character, but it may not begin with a digit.
 identifiers, although they satisfy the above conditions.
 
 §1.7. Scope.
-Scope is a the set of places in the code from where an identifier is visible.
+Scope is the set of places in the code from where an identifier is visible.
 All functions defined using a function statement have global visibility
 (i. e., they are visible across all source files).
 
 §1.7.1. Function bodies and the top level program have separate scope:
-a variable declared in a function is not visible at program (file) scope and
-vice versa. Furthermore, a variable declared in the body of one function is
-not visible in the body of another function.
+a variable declared in a function is not visible at program (file) scope.
+Furthermore, a variable declared in the body of one function is
+not visible in the body of another function at the same syntactic level.
+
+E. g.:
+
+    function foo() {
+        let a = 42;
+    }
+
+    function bar() {
+        let b = 1337;
+    }
+
+Here, `foo` can use `a` but it cannot see `b`. Similarly, `bar` has `b` in its
+scope, but it doesn't have `a`.
 
 §1.7.2. Variables declared in a scope are visible from within that scope
-and all enclosed sub-scopes, except if the sub-scope is a function scope,
-as per §1.7.1.
+and all enclosed sub-scopes. If the sub-scope is a function scope (i. e.
+the variable is in the closure of said function, in contrast with its local
+variables), then the inner function has read-only access to the variable.
+The value of the aforementioned variable is bound to the function: it is copied
+at the moment the closure is created. As a consequence, if the value of the
+variable changes subsequently (i. e. after the creation of the closure), it
+the change will not be reflected inside the closure.
+
+Example:
+
+    let n = 1;
+
+    function foo() {
+        print(n); // OK: `n' is visible inside `foo()' because it's in its closure
+        n++; // compilation error, because, `n' is read-only inside `foo()'
+    }
+
+Example:
+
+    var a = {};
+    var i;
+
+    for i = 0; i < 2; i++ {
+        a[i] = function() {
+            print(i);
+        };
+    }
+
+    a[0]();   // prints '0'
+    a[1]();   // prints '1'
+    print(i); // prints '2'
 
 §2. Statements
 --------------
@@ -111,8 +153,8 @@ be an expression of type boolean). The "incrementing" expression is evaluated
 each time the loop body finished execution. The initializer statement may be
 either an expression statement or a variable declaration. If it is a variable
 declaration, then the scope of the declared identifiers is limited to the loop:
-they are only visible in the condition, in the increment expression and inside
-the block of the loop body.
+they are only visible in the initialization, in the condition, in the increment
+expression and inside the block of the loop body.
 
 §2.4. The while statement (`while-statement`).
 The while statement is another loop statement that executes its body repeatedly
@@ -175,7 +217,11 @@ keyword, which is synonymous with `var`. An example of the alternate form is
 `let x = 3, y = 2;`
 
 §2.11.2. It is illegal to declare a variable that has the name of a variable
-which already exists (which is already visible) in a scope.
+which already exists (which is already visible) in a scope inside the same
+function. If, however, within a certain function body, a variable is declared
+with the same name as one of the variables in the closure of the function, then
+the newly declared variable - which has narrower scope - shadows (hides) the
+original variable in the closure.
 
 §2.11.3. Comma-separated variable declarations happen in their syntactic order
 (i. e. the first declaration is compiled first, then the second, etc.)
@@ -255,8 +301,10 @@ are equal if and only if:
 	  in the same order;
 	- they are functions and they refer to the same executable entity
 	  (for native functions, this means that the underlying C function
-	  pointers compare equal; for Sparkling functions, this means that
-	  the bytecode pointers point to the same function entry point.), or
+	  pointers compare equal; for stand-alone Sparkling functions, it means
+	  that the bytecode pointers point to the same function entry point,
+	  and for Sparkling closures, it means that they reference the same
+	  closure object); or
 	- they are arrays and they both reference the same array object, or
 	- they are both user info values but not objects and reference the
 	  same C pointer, or
@@ -372,7 +420,7 @@ the array member.
 §3.10. Function expressions (`function-expression`).
 Function expressions create named or unnamed functions (lambda) on the fly.
 A lambda function behaves in the same manner as a global function, except that
-it might not have a name and it isn't at global scope (that is, a lambda
+it might be anonymous and it isn't at global scope (that is, a lambda
 function is not visible outside its translation unit).
 
 §3.11. Literals

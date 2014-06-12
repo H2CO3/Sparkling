@@ -222,3 +222,4 @@ SpnValue spn_makeclosure(SpnFunction *prototype)
 	ret.v.o = func;
 	return ret;
 }
+

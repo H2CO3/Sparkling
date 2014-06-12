@@ -296,3 +296,4 @@ enum spn_vm_ins {
  */
 
 #endif /* SPN_VM_H */
+

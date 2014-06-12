@@ -76,3 +76,4 @@ SPN_API SpnValue spn_makeclosure(SpnFunction *prototype);
 #define spn_funcvalue(val) ((SpnFunction *)((val)->v.o))
 
 #endif /* SPN_FUNC_H */
+

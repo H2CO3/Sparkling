@@ -1306,10 +1306,10 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	int status = 0;
 	SpnArray *arr;
 	SpnIterator *it;
-	SpnValue args[4]; /* key, value, array and optional user info */
+	SpnValue args[2]; /* key and value */
 
-	if (argc < 2 || argc > 3) {
-		spn_ctx_runtime_error(ctx, "two or three arguments are required", NULL);
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "two arguments are required", NULL);
 		return -1;
 	}
 
@@ -1323,26 +1323,15 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	args[2] = argv[0];
-
-	/* if there's any user info, store it */
-	if (argc > 2) {
-		args[3] = argv[2];
-	}
-
 	arr = arrayvalue(&argv[0]);
 	it = spn_iter_new(arr);
 	n = spn_array_count(arr);
 
-	/* argc is always the same as the number of arguments in args,
-	 * because both have two leading elements (the array and the
-	 * callback in `argv', and the key and the value in `args').
-	 */
 	while (spn_iter_next(it, &args[0], &args[1]) < n) {
 		int err;
 		SpnValue cbret;
 
-		err = spn_ctx_callfunc(ctx, &argv[1], &cbret, argc + 1, args);
+		err = spn_ctx_callfunc(ctx, &argv[1], &cbret, COUNT(args), args);
 
 		if (err != 0) {
 			status = err;
@@ -3084,3 +3073,4 @@ void spn_load_stdlib(SpnVMachine *vm)
 	load_stdlib_functions(vm);
 	load_stdlib_constants(vm);
 }
+

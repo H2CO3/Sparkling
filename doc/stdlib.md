@@ -223,13 +223,12 @@ All elements in the array must be strings, the array must have integer indices
 only, ranging from `0` to `sizeof arr`. The return value is the concatenation
 of the elements interleaved by `sep`.
 
-    nil foreach(array arr, function callback [, any context])
+    nil foreach(array arr, function callback)
 
 Iterates through the elements of the array `arr`, calling `callback` with each
-key-value pair in the array (like `callback(key, arr[key], arr, context)`).
-The context info is an optional argument. The callback function must return
-`nil` or a Boolean. If it returns `false`, the enumeration is aborted and the
-`foreach()` function returns.
+key-value pair in the array (like `callback(key, arr[key])`).
+The callback function must return `nil` or a Boolean. If it returns `false`,
+then the enumeration is aborted and the `foreach()` function returns.
 
 **Warning:** it is illegal to modify an array while it is being enumerated.
 (If multiple `SpnIterator`s are used with the same array, the array must not

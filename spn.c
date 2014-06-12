@@ -763,17 +763,17 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 
 				switch (upval_type) {
 				case SPN_UPVAL_LOCAL:
-					upval_typechr = 'L';
+					upval_typechr = 'L'; /* [L]ocal */
 					break;
 				case SPN_UPVAL_OUTER:
-					upval_typechr = 'O';
+					upval_typechr = 'O'; /* [O]uter */
 					break;
 				default:
-					bail("Unknown upvaule type %d\n", upval_type);
+					bail("Unknown upvalue type %d\n", upval_type);
 					break;
 				}
 
-				printf("%d [%c]", upval_index, upval_typechr);
+				printf("%d: #%d [%c]", i, upval_index, upval_typechr);
 			}
 
 			printf("\n");

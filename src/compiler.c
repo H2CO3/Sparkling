@@ -44,9 +44,21 @@ struct jump_stmt_list {
 static void prepend_jumplist_node(SpnCompiler *cmp, spn_sword offset, int is_break);
 static void free_jumplist(struct jump_stmt_list *hdr);
 
+/* used for looking up upvalues (bound variables) of closures */
+typedef struct UpvalChain {
+	/* strong pointer: maps variable names to upvalue indices */
+	SpnArray *name_to_index;
+	/* weak pointer: maps upvalue indices to upvalue descriptors */
+	SpnArray *index_to_desc;
+	/* weak pointer: points to the enclosing function's variable stack */
+	RoundTripStore *enclosing_varstack;
+	/* strong pointer: link list, points to scope of enclosing function */
+	struct UpvalChain *next;
+} UpvalChain;
+
 /* if you ever add a member to this structure, consider adding it to the
- * scope context info as well if necessary (and extend the `save_scope()` and
- * `restore_scope()` functions accordingly).
+ * scope context info as well if necessary (and extend the `save_scope()`
+ * and `restore_scope()` functions accordingly).
  */
 struct SpnCompiler {
 	TBytecode		 bc;
@@ -57,6 +69,7 @@ struct SpnCompiler {
 	RoundTripStore		*varstack;	/* (IV)		*/
 	struct jump_stmt_list	*jumplist;	/* (V)		*/
 	int			 is_in_loop;	/* (VI)		*/
+	UpvalChain		*upval_chain;	/* (VII)	*/
 };
 
 /* Remarks:
@@ -81,6 +94,16 @@ struct SpnCompiler {
  * (VI): Boolean flag which is nonzero inside a loop and zero outside a
  * loop. It is used to limit the use of `break` and `continue` to loop bodies
  * (since it doesn't make sense to `break` or `continue` outside a loop).
+ *
+ * (VII): the UpvalChain link list forms a stack. Each node contains two
+ * arrays: they contain the same 'spn_uword's (the "upvalue descriptors"),
+ * that describe which variables in the scope of the containing function are
+ * referred to as upvalues in the function corresponding to a given node.
+ * The `names_to_desc` array maps variable names to upvalue descriptors,
+ * and is unordered; meanwhile, `index_to_desc` is sorted. The former array
+ * is used for looking up the external local variables _during_ compilation,
+ * the latter is used for generating the SPN_INS_CLOSURE instruction _after_
+ * the compilation of the function body.
  */
 
 /* information describing the state of the global scope or a function scope.
@@ -239,7 +262,7 @@ static int compile(SpnCompiler *cmp, SpnAST *ast);
 static int compile_program(SpnCompiler *cmp, SpnAST *ast);
 static int compile_compound(SpnCompiler *cmp, SpnAST *ast);
 static int compile_block(SpnCompiler *cmp, SpnAST *ast);
-static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx);
+static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray *upvalues);
 static int compile_while(SpnCompiler *cmp, SpnAST *ast);
 static int compile_do(SpnCompiler *cmp, SpnAST *ast);
 static int compile_for(SpnCompiler *cmp, SpnAST *ast);
@@ -322,6 +345,7 @@ SpnCompiler *spn_compiler_new(void)
 	cmp->errmsg = NULL;
 	cmp->jumplist = NULL;
 	cmp->is_in_loop = 0;
+	cmp->upval_chain = NULL;
 
 	return cmp;
 }
@@ -339,6 +363,10 @@ int spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast, SpnValue *result)
 	if (compile_program(cmp, ast)) {
 		/* success. transfer ownership of cmp->bc.insns to `result' */
 		*result = maketopprgfunc(SPN_TOPFN, cmp->bc.insns, cmp->bc.len);
+
+		/* should be at global scope when compilation is done */
+		assert(cmp->upval_chain == NULL);
+
 		return 0;
 	}
 
@@ -350,6 +378,113 @@ int spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast, SpnValue *result)
 const char *spn_compiler_errmsg(SpnCompiler *cmp)
 {
 	return cmp->errmsg;
+}
+
+/* Functions for working with upvalues
+ * the 'upvalues' argument of upval_chain_push() is an already existing,
+ * empty array, which will be filled by 'compile_funcdef()'.
+ */
+static void upval_chain_push(SpnCompiler *cmp, SpnArray *upvalues)
+{
+	UpvalChain *node = spn_malloc(sizeof(*node));
+
+	node->name_to_index = spn_array_new();
+	node->index_to_desc = upvalues;
+	node->enclosing_varstack = cmp->varstack;
+	node->next = cmp->upval_chain;
+
+	cmp->upval_chain = node;
+}
+
+static void upval_chain_pop(SpnCompiler *cmp)
+{
+	UpvalChain *head = cmp->upval_chain;
+	UpvalChain *next = head->next;
+
+	spn_object_release(head->name_to_index);
+
+	/* nothing to do with head->index_to_desc and head->enclosing_varstack,
+	 * since they are weak (non-owning) pointers
+	 */
+
+	free(head);
+	cmp->upval_chain = next;
+}
+
+/* returns the index of the upvalue (in the closure of the current,
+ * innermost function) if it is in scope.
+ *
+ * XXX: If there's no variable in scope with the given name, returns -1.
+ */
+static int search_upvalues(UpvalChain *node, SpnValue *name)
+{
+	int enclosing_varidx, enclosing_upvalidx, flat_upvalidx;
+	spn_uword flat_upvaldesc;
+	SpnValue upval_idx_val, flat_upvalidx_val, flat_upvaldesc_val;
+
+	if (node == NULL) {
+		return -1;
+	}
+
+	assert(isstring(name));
+
+	/* first, search in the closure of the current function */
+	spn_array_get(node->name_to_index, name, &upval_idx_val);
+
+	/* if it's found, return its index */
+	if (isint(&upval_idx_val)) {
+		return intvalue(&upval_idx_val);
+	}
+
+	assert(isnil(&upval_idx_val));
+
+	/* if it's not there, search the locals of the enclosing function */
+	enclosing_varidx = rts_getidx(node->enclosing_varstack, name);
+
+	/* if found, add to the closure of current function, and return it */
+	if (enclosing_varidx >= 0) {
+		/* make an upvalue descriptor */
+		spn_uword upval_desc = SPN_MKINS_A(SPN_UPVAL_LOCAL, enclosing_varidx);
+		SpnValue upval_desc_val = makeint(upval_desc);
+
+		/* add to current closure */
+		int upval_idx = spn_array_count(node->name_to_index);
+		SpnValue new_idx_val = makeint(upval_idx);
+
+		/* the two upvalue arrays should contain the same
+		 * entries, therefore their sizes must be equal.
+		 */
+		assert(spn_array_count(node->index_to_desc) == upval_idx);
+
+		spn_array_set(node->name_to_index, name, &new_idx_val);
+		spn_array_set_intkey(node->index_to_desc, upval_idx, &upval_desc_val);
+
+		return upval_idx;
+	}
+
+	/* else continue searching in enclosing function recursively */
+	enclosing_upvalidx = search_upvalues(node->next, name);
+
+	/* if not found even there, return -1 to indicate "not found" */
+	if (enclosing_upvalidx < 0) {
+		return -1;
+	}
+
+	/* But if is found, add it to the current closure and return it.
+	 * (This is the step which makes the closures "flat".)
+	 */
+	flat_upvalidx = spn_array_count(node->name_to_index);
+	flat_upvalidx_val = makeint(flat_upvalidx);
+
+	assert(spn_array_count(node->index_to_desc) == flat_upvalidx);
+
+	flat_upvaldesc = SPN_MKINS_A(SPN_UPVAL_OUTER, enclosing_upvalidx);
+	flat_upvaldesc_val = makeint(flat_upvaldesc);
+
+	spn_array_set(node->name_to_index, name, &flat_upvalidx_val);
+	spn_array_set_intkey(node->index_to_desc, flat_upvalidx, &flat_upvaldesc_val);
+
+	return flat_upvalidx;
 }
 
 /* bytecode manipulation */
@@ -722,7 +857,7 @@ static int compile_block(SpnCompiler *cmp, SpnAST *ast)
 	return success;
 }
 
-static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
+static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray *upvalues)
 {
 	int regcount, argc;
 	spn_uword ins, fnhdr[SPN_FUNCHDR_LEN] = { 0 };
@@ -735,6 +870,14 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 
 	/* self-examination (transitions are hard) */
 	assert(ast->node == SPN_NODE_FUNCEXPR);
+
+	/* The `upval_chain_push()` function must be called BEFORE we replace
+	 * `cmp->varstack` with our own, new variable stack, because the head
+	 * of the upvalue chain needs to refer to the scope of the enclosing
+	 * function; otherwise, `search_upvalues()` function would not really
+	 * search the upvalues of the current function, but rather its locals.
+	 */
+	upval_chain_push(cmp, upvalues);
 
 	/* save scope context data: local variables, temporary register stack
 	 * pointer, maximal number of registers, innermost loop offset
@@ -778,8 +921,11 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 			const void *args[1];
 			args[0] = arg->name->cstr;
 			compiler_error(cmp, arg->lineno, "argument `%s' already declared", args);
+
 			rts_free(&vs_this);
 			restore_scope(cmp, &sci);
+			upval_chain_pop(cmp);
+
 			return 0;
 		}
 	}
@@ -790,6 +936,8 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	if (compile(cmp, ast->right) == 0) {
 		rts_free(&vs_this);
 		restore_scope(cmp, &sci);
+		upval_chain_pop(cmp);
+
 		return 0;
 	}
 
@@ -812,6 +960,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx)
 	/* free local var stack, restore scope context data */
 	rts_free(&vs_this);
 	restore_scope(cmp, &sci);
+	upval_chain_pop(cmp);
 
 	if (regcount > MAX_REG_FRAME) {
 		compiler_error(
@@ -1809,32 +1958,54 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 	idx = rts_getidx(cmp->varstack, &varname);
 
-	/* if `rts_getidx()` returns -1, then the variable is undeclared --
-	 * assume a global symbol and search the symtab. If not found,
-	 * create a symtab entry that references the unresolved global.
+	/* if `rts_getidx()` returns -1, then the variable is not in the
+	 * current scope, so we search for its name in the enclosing scopes.
+	 * If it is found in one of the enclosing scopes, then we load it as
+	 * the appropriate upvalue. Else we assume that it referes to a global
+	 * symbol and we search the symbol table. If it's not yet in the symbol
+	 * table, we create a symtab entry referencing the unresolved global.
 	 */
 	if (idx < 0) {
-		spn_uword ins;
-		int sym;
+		int upval_idx = search_upvalues(cmp->upval_chain, &varname);
 
-		SymtabEntry *entry = symtabentry_new_global(ast->name);
-		SpnValue stub = makestrguserinfo(entry);
+		/* if it's not found in the closure either, assume a global */
+		if (upval_idx < 0) {
+			spn_uword ins;
+			int sym;
 
-		sym = rts_getidx(cmp->symtab, &stub);
-		if (sym < 0) {
-			/* not found, append to symtab */
-			sym = rts_add(cmp->symtab, &stub);
+			SymtabEntry *entry = symtabentry_new_global(ast->name);
+			SpnValue stub = makestrguserinfo(entry);
+
+			sym = rts_getidx(cmp->symtab, &stub);
+			if (sym < 0) {
+				/* not found, append to symtab */
+				sym = rts_add(cmp->symtab, &stub);
+			}
+
+			spn_object_release(entry);
+
+			/* compile "load symbol" instruction */
+			if (*dst < 0) {
+				*dst = tmp_push(cmp);
+			}
+
+			ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, sym);
+			bytecode_append(&cmp->bc, &ins, 1);
+		} else {
+			/* if this is reached, the variable (upvalue) was
+			 * found in the enclosing scope
+			 */
+			spn_uword ins;
+
+			/* XXX: TODO: check that upval_idx <= 255! */
+
+			if (*dst < 0) {
+				*dst = tmp_push(cmp);
+			}
+
+			ins = SPN_MKINS_AB(SPN_INS_LDUPVAL, *dst, upval_idx);
+			bytecode_append(&cmp->bc, &ins, 1);
 		}
-
-		spn_object_release(entry);
-
-		/* compile "load symbol" instruction */
-		if (*dst < 0) {
-			*dst = tmp_push(cmp);
-		}
-
-		ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, sym);
-		bytecode_append(&cmp->bc, &ins, 1);
 
 		return 1;
 	}
@@ -1927,20 +2098,51 @@ static int compile_argc(SpnCompiler *cmp, SpnAST *ast, int *dst)
 static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int symidx;
+	int upval_count;
 	spn_uword ins;
+	SpnArray *upvalues = spn_array_new();
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
 	/* compile definition of function */
-	if (compile_funcdef(cmp, ast, &symidx) == 0) {
+	if (compile_funcdef(cmp, ast, &symidx, upvalues) == 0) {
+		spn_object_release(upvalues);
 		return 0;
 	}
 
 	/* emit load instruction */
 	ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, symidx);
 	bytecode_append(&cmp->bc, &ins, 1);
+
+	/* By now, the `upvalues' array should be filled with upvalue
+	 * descriptors, in the order they will be written to the bytecode.
+	 * As an optimization, we create a closure object _only_ if the
+	 * function uses at least one upvalue.
+	 */
+	upval_count = spn_array_count(upvalues);
+
+	if (upval_count > 0) {
+		int i;
+
+		/* append SPN_INS_CLOSURE instruction */
+		ins = SPN_MKINS_AB(SPN_INS_CLOSURE, *dst, upval_count);
+		bytecode_append(&cmp->bc, &ins, 1);
+
+		/* add upvalue descriptors */
+		for (i = 0; i < upval_count; i++) {
+			SpnValue upval_desc;
+
+			spn_array_get_intkey(upvalues, i, &upval_desc);
+			assert(isint(&upval_desc));
+
+			ins = intvalue(&upval_desc);
+			bytecode_append(&cmp->bc, &ins, 1);
+		}
+	}
+
+	spn_object_release(upvalues);
 
 	return 1;
 }
@@ -2499,3 +2701,4 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		}
 	}
 }
+
