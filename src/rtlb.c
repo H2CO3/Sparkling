@@ -1536,7 +1536,7 @@ const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
  */
 static double val2float(SpnValue *val)
 {
-	assert(isnumber(val));
+	assert(isnum(val));
 	return isfloat(val) ? floatvalue(val) : intvalue(val);
 }
 
@@ -1593,7 +1593,7 @@ static int rtlb_aux_intize(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1632,7 +1632,7 @@ static int rtlb_sgn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1666,7 +1666,7 @@ static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1774,7 +1774,7 @@ static int rtlb_atan2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0]) || !isnumber(&argv[1])) {
+	if (!isnum(&argv[0]) || !isnum(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
@@ -1794,7 +1794,7 @@ static int rtlb_hypot(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	for (i = 0; i < argc; i++) {
 		double x;
 
-		if (!isnumber(&argv[i])) {
+		if (!isnum(&argv[i])) {
 			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 			return -1;
 		}
@@ -1815,7 +1815,7 @@ static int rtlb_deg2rad(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1832,7 +1832,7 @@ static int rtlb_rad2deg(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1900,7 +1900,7 @@ static int rtlb_aux_fltclass(SpnValue *ret, int argc, SpnValue *argv, SpnContext
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1932,7 +1932,7 @@ static int rtlb_abs(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
 		return -2;
 	}
@@ -1955,7 +1955,7 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0]) || !isnumber(&argv[1])) {
+	if (!isnum(&argv[0]) || !isnum(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
@@ -2002,7 +2002,7 @@ static int rtlb_min(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
@@ -2010,7 +2010,7 @@ static int rtlb_min(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	*ret = argv[0]; /* again, no need to retain numbers */
 
 	for (i = 1; i < argc; i++) {
-		if (!isnumber(&argv[i])) {
+		if (!isnum(&argv[i])) {
 			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 			return -2;
 		}
@@ -2050,7 +2050,7 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isnumber(&argv[0])) {
+	if (!isnum(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 		return -2;
 	}
@@ -2058,7 +2058,7 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	*ret = argv[0];
 
 	for (i = 1; i < argc; i++) {
-		if (!isnumber(&argv[i])) {
+		if (!isnum(&argv[i])) {
 			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
 			return -2;
 		}
@@ -2203,7 +2203,7 @@ static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int pola
 	spn_array_get_strkey(arr, re_r_key, &re_r_val);
 	spn_array_get_strkey(arr, im_theta_key, &im_theta_val);
 
-	if (!isnumber(&re_r_val) || !isnumber(&im_theta_val)) {
+	if (!isnum(&re_r_val) || !isnum(&im_theta_val)) {
 		spn_ctx_runtime_error(ctx, "keys 're' and 'im' or 'r' and 'theta' should correspond to numbers", NULL);
 		return -1;
 	}

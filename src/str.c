@@ -589,7 +589,7 @@ static int append_format(
 		if (isval) {
 			/* must be a number */
 			SpnValue *val = getarg_val(argv, argidx);
-			if (!isnumber(val)) {
+			if (!isnum(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
@@ -653,7 +653,7 @@ static int append_format(
 			/* must be an integer */
 			SpnValue *val = getarg_val(argv, argidx);
 
-			if (!isnumber(val)) {
+			if (!isnum(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
@@ -698,7 +698,7 @@ static int append_format(
 
 		if (isval) {
 			SpnValue *val = getarg_val(argv, argidx);
-			if (!isnumber(val)) {
+			if (!isnum(val)) {
 				format_errmsg(
 					errmsg,
 					TYPE_MISMATCH,
@@ -904,7 +904,7 @@ static char *make_format_string(
 
 					/* width specifier must be an integer */
 					widthptr = getarg_val(argv, &argidx);
-					if (!isnumber(widthptr)) {
+					if (!isnum(widthptr)) {
 					 	format_errmsg(
 					 		errmsg,
 					 		TYPE_MISMATCH,
@@ -963,7 +963,7 @@ static char *make_format_string(
 						/* precision must be an integer too */
 						precptr = getarg_val(argv, &argidx);
 
-						if (!isnumber(precptr)) {
+						if (!isnum(precptr)) {
 							format_errmsg(
 								errmsg,
 								TYPE_MISMATCH,

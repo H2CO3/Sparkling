@@ -152,7 +152,7 @@ void spn_value_release(const SpnValue *val)
 
 static int numeric_equal(const SpnValue *lhs, const SpnValue *rhs)
 {
-	assert(isnumber(lhs) && isnumber(rhs));
+	assert(isnum(lhs) && isnum(rhs));
 
 	if (isfloat(lhs)) {
 		return isfloat(rhs) ? floatvalue(lhs) == floatvalue(rhs)
@@ -212,7 +212,7 @@ int spn_value_noteq(const SpnValue *lhs, const SpnValue *rhs)
 
 static int numeric_compare(const SpnValue *lhs, const SpnValue *rhs)
 {
-	assert(isnumber(lhs) && isnumber(rhs));
+	assert(isnum(lhs) && isnum(rhs));
 
 	if (isfloat(lhs)) {
 		if (isfloat(rhs)) {
@@ -239,7 +239,7 @@ static int numeric_compare(const SpnValue *lhs, const SpnValue *rhs)
 
 int spn_value_compare(const SpnValue *lhs, const SpnValue *rhs)
 {
-	if (isnumber(lhs) && isnumber(rhs)) {
+	if (isnum(lhs) && isnum(rhs)) {
 		return numeric_compare(lhs, rhs);
 	}
 
@@ -249,7 +249,7 @@ int spn_value_compare(const SpnValue *lhs, const SpnValue *rhs)
 
 int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs)
 {
-	if (isnumber(lhs) && isnumber(rhs)) {
+	if (isnum(lhs) && isnum(rhs)) {
 		return 1;
 	}
 

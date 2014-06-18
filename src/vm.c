@@ -1004,7 +1004,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 			SpnValue res;
 
-			if (!isnumber(b) || !isnumber(c)) {
+			if (!isnum(b) || !isnum(c)) {
 				runtime_error(vm, ip - 1, "arithmetic on non-numbers", NULL);
 				return -1;
 			}
@@ -1040,7 +1040,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 
-			if (!isnumber(b)) {
+			if (!isnum(b)) {
 				runtime_error(vm, ip - 1, "negation of non-number", NULL);
 				return -1;
 			}
@@ -1061,7 +1061,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 		case SPN_INS_DEC: {
 			SpnValue *val = VALPTR(vm->sp, OPA(ins));
 
-			if (!isnumber(val)) {
+			if (!isnum(val)) {
 				runtime_error(vm, ip - 1, "incrementing or decrementing non-number", NULL);
 				return -1;
 			}
@@ -1696,7 +1696,7 @@ static int cmp2bool(int res, int op)
 
 static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 {
-	assert(isnumber(lhs) && isnumber(rhs));
+	assert(isnum(lhs) && isnum(rhs));
 
 	if (isfloat(lhs) || isfloat(rhs)) {
 		double a = isfloat(lhs) ? floatvalue(lhs) : intvalue(lhs);

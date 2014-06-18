@@ -570,7 +570,7 @@ static int rts_getidx(RoundTripStore *rts, SpnValue *val)
 {
 	SpnValue res;
 	spn_array_get(rts->inv, val, &res);
-	return isnumber(&res) ? intvalue(&res) : -1;
+	return isnum(&res) ? intvalue(&res) : -1;
 }
 
 static int rts_count(RoundTripStore *rts)
@@ -2396,7 +2396,7 @@ static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		SpnAST *negated;
 		int success;
 
-		if (!isnumber(&op->value)) {
+		if (!isnum(&op->value)) {
 			compiler_error(
 				cmp,
 				ast->lineno,

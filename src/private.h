@@ -19,7 +19,7 @@
 /* convenience SpnValue-related re-defines. For internal use only! */
 #define isnil(val)		spn_isnil(val)
 #define isbool(val)		spn_isbool(val)
-#define isnumber(val)		spn_isnumber(val)
+#define isnum(val)		spn_isnumber(val)
 #define isstring(val)		spn_isstring(val)
 #define isarray(val)		spn_isarray(val)
 #define isfunc(val)		spn_isfunc(val)
