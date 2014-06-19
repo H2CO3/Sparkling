@@ -231,7 +231,7 @@ SPN_API long jspn_getint(double key)
 	SpnValue n;
 	get_value(key, &n);
 
-	if (!isnumber(&n)) {
+	if (!isnum(&n)) {
 		return 0;
 	}
 
@@ -243,7 +243,7 @@ SPN_API double jspn_getfloat(double key)
 	SpnValue n;
 	get_value(key, &n);
 
-	if (!isnumber(&n)) {
+	if (!isnum(&n)) {
 		return 0;
 	}
 
@@ -296,3 +296,4 @@ SPN_API double jspn_addstr(const char *s)
  */
 
 /* TODO: do something with user info values */
+
