@@ -15,6 +15,7 @@ Code:
 	- Related: native functions should be able to set a custom error message		done
 	
 Language, syntax:
+	- Implement "switch" statement.
 	- is the context-free grammar in grammar.txt correct? especially with
 		regards to expressions (associativity, precedence!)				seems fine
 	- what's a better fit for the 3rd argument of cond-expr?
@@ -51,6 +52,10 @@ Language, syntax:
 	- fill in array-expr in the grammar							done
 
 Parser:
+	- Fix source location markers in error reporting: Make the lexer and the
+	  parser report the ACTUAL line numbers, not the line number of the next
+	  token. Furthermore, report the column (character number) in the source too.
+
 	- Is it appropriate to always release the value of the current token if an
 		unexpected token is encountered (compilation error)? If it is not
 		released, then it will leak memory (what if we got an identifier or
@@ -178,7 +183,13 @@ VM:
 		the last node in the bytecode list that caused the failure
 
 Standard library:
-	- `sort()` function for arrays (and generally array functions)
+	- Register common constants (NSStringEncoding, UIControlEvent, etc.) for
+	  the Objective-C bindings
+	- Related: class definition statement (with proper subclasses, properties,
+	  methods, etc.)
+	- Related: "import" statement that loads code (frameworks) dynamically
+
+	- `sort()` function for arrays (and generally array functions)				done
 	- add and/or implement more complex and inverse hyperbolic functions
 	- document the run-time error codes (-1 generally means "bad number			obsolete, we've got error messages
 		of arguments", but not always, etc.)
