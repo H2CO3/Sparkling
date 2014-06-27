@@ -351,9 +351,15 @@ void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
-		SpnValue libval = makearray();
-		spn_array_set_strkey(vm->glbsymtab, libname, &libval);
-		spn_value_release(&libval); /* still alive, was retained */
+		SpnValue libval;
+		spn_array_get_strkey(vm->glbsymtab, libname, &libval);
+
+		/* if library does not exist it must be created */
+		if (spn_isnil(&libval)) {
+			libval = makearray();
+			spn_array_set_strkey(vm->glbsymtab, libname, &libval);
+			spn_value_release(&libval); /* still alive, was retained */
+		}
 		storage = arrayvalue(&libval);
 	} else {
 		storage = vm->glbsymtab;
@@ -373,9 +379,15 @@ void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValu
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
-		SpnValue libval = makearray();
-		spn_array_set_strkey(vm->glbsymtab, libname, &libval);
-		spn_value_release(&libval); /* still alive, was retained */
+		SpnValue libval;
+		spn_array_get_strkey(vm->glbsymtab, libname, &libval);
+
+		/* if library does not exist it must be created */
+		if (spn_isnil(&libval)) {
+		libval = makearray();
+			spn_array_set_strkey(vm->glbsymtab, libname, &libval);
+			spn_value_release(&libval); /* still alive, was retained */
+		}
 		storage = arrayvalue(&libval);
 	} else {
 		storage = vm->glbsymtab;
