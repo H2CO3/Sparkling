@@ -140,7 +140,7 @@ int spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname, SpnValue *result)
 	src = spn_read_text_file(fname);
 	if (src == NULL) {
 		ctx->errtype = SPN_ERROR_GENERIC;
-		ctx->errmsg = "Sparkling: I/O error: could not read source file";
+		ctx->errmsg = "I/O error: could not read source file";
 		return -1;
 	}
 
@@ -160,7 +160,7 @@ int spn_ctx_loadobjfile(SpnContext *ctx, const char *fname, SpnValue *result)
 	bc = spn_read_binary_file(fname, &filesize);
 	if (bc == NULL) {
 		ctx->errtype = SPN_ERROR_GENERIC;
-		ctx->errmsg = "Sparkling: I/O error: could not read object file";
+		ctx->errmsg = "I/O error: could not read object file";
 		return -1;
 	}
 
