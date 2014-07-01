@@ -177,24 +177,18 @@ int spn_ctx_loadobjfile(SpnContext *ctx, const char *fname, SpnValue *result)
 
 int spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t objsize, SpnValue *result)
 {
-	spn_uword *bc = malloc(objsize);
-	memcpy(bc, objdata, objsize);
 	size_t nwords;
-	
+	spn_uword *bc = spn_malloc(objsize);
+
+	memcpy(bc, objdata, objsize);
 	ctx->errtype = SPN_ERROR_OK;
-	
-	if (bc == NULL) {
-		ctx->errtype = SPN_ERROR_GENERIC;
-		ctx->errmsg = "I/O error: object data was NULL";
-		return -1;
-	}
-	
+
 	/* the size of the object file is not the same
 	 * as the number of machine words in the bytecode
 	 */
 	nwords = objsize / sizeof(*bc);
 	*result = maketopprgfunc(SPN_TOPFN, bc, nwords);
-	
+
 	add_to_programs(ctx, result);
 	spn_value_release(result); /* still alive, retained by array */
 	return 0;
@@ -218,7 +212,7 @@ int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 	if (spn_ctx_loadsrcfile(ctx, fname, &fn) != 0) {
 		return -1;
 	}
-	
+
 	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
 }
 
@@ -236,11 +230,11 @@ int spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 int spn_ctx_execobjdata(SpnContext *ctx, const void *objdata, size_t objsize, SpnValue *ret)
 {
 	SpnValue fn;
-	
+
 	if (spn_ctx_loadobjdata(ctx, objdata, objsize, &fn) != 0) {
 		return -1;
 	}
-	
+
 	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
 }
 
