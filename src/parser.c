@@ -129,18 +129,52 @@ void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
 	p->error = 1;
 }
 
+static void init_parser(SpnParser *p, const char *src)
+{
+	p->pos = src;
+	p->eof = 0;
+	p->error = 0;
+	p->lineno = 1;
+}
+
 /* re-initialize the parser object (so that it can be reused for parsing
  * multiple translation units), then kick off the actual recursive descent
  * parser to process the source text
  */
 SpnAST *spn_parser_parse(SpnParser *p, const char *src)
 {
-	p->pos = src;
-	p->eof = 0;
-	p->error = 0;
-	p->lineno = 1;
-
+	init_parser(p, src);
 	return parse_program(p);
+}
+
+SpnAST *spn_parser_parse_expression(SpnParser *p, const char *src)
+{
+	SpnAST *expr;
+
+	init_parser(p, src);
+	spn_lex(p);
+	expr = parse_expr(p);
+
+	if (expr == NULL) {
+		return NULL;
+	}
+
+	if (p->eof) {
+		SpnAST *return_stmt, *program;
+
+		return_stmt = spn_ast_new(SPN_NODE_RETURN, 1);
+		return_stmt->left = expr;
+
+		program = spn_ast_new(SPN_NODE_PROGRAM, 1);
+		program->left = return_stmt;
+
+		return program;
+	}
+
+	/* it is an error if we are not at the end of the source */
+	spn_ast_free(expr);
+	spn_parser_error(p, "garbage after input", NULL);
+	return NULL;
 }
 
 static SpnAST *parse_program(SpnParser *p)
@@ -159,11 +193,7 @@ static SpnAST *parse_program(SpnParser *p)
 
 	/* if not, then there's garbage after the source */
 	spn_ast_free(tree);
-
-	if (!p->error) {	/* if there's no error message yet */
-		spn_parser_error(p, "garbage after input", NULL);
-	}
-
+	spn_parser_error(p, "garbage after input", NULL);
 	return NULL;
 }
 

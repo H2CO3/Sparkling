@@ -130,6 +130,11 @@ SPN_API void	 	 spn_parser_free(SpnParser *p);
  */
 SPN_API SpnAST		*spn_parser_parse(SpnParser *p, const char *src);
 
+/* parses an expression and wraps it in a program that
+ * just returns its result. Used in the REPL.
+ */
+SPN_API SpnAST		*spn_parser_parse_expression(SpnParser *p, const char *src);
+
 /* error reporting function. sets p->errmsg */
 SPN_API void		 spn_parser_error(SpnParser *p, const char *msg, const void *args[]);
 

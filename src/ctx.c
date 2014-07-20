@@ -259,6 +259,38 @@ void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
 	spn_vm_seterrmsg(ctx->vm, fmt, args);
 }
 
+int spn_ctx_eval_expr(SpnContext *ctx, const char *expr, SpnValue *result, int argc, SpnValue argv[])
+{
+	SpnAST *ast;
+	SpnValue program;
+	int err;
+
+	ctx->errtype = SPN_ERROR_OK;
+
+	/* parse as expression */
+	ast = spn_parser_parse_expression(ctx->parser, expr);
+	if (ast == NULL) {
+		ctx->errtype = SPN_ERROR_SYNTAX;
+		return -1;
+	}
+
+	/* compile */
+	err = spn_compiler_compile(ctx->cmp, ast, &program);
+	spn_ast_free(ast);
+
+	if (err != 0) {
+		ctx->errtype = SPN_ERROR_SEMANTIC;
+		return -2;
+	}
+
+	/* add program to list of programs, balance reference count */
+	add_to_programs(ctx, &program);
+	spn_value_release(&program);
+
+	/* finally, execute it */
+	return spn_ctx_callfunc(ctx, &program, result, argc, argv);
+}
+
 const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
 {
 	return spn_vm_stacktrace(ctx->vm, size);

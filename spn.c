@@ -267,6 +267,7 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 static int enter_repl(enum cmd_args args)
 {
 	SpnContext *ctx = spn_ctx_new();
+	int session_no = 1;
 
 	while (1) {
 		SpnValue ret;
@@ -274,12 +275,19 @@ static int enter_repl(enum cmd_args args)
 
 #if USE_READLINE
 		char *buf;
+
+		/* 32 characters are enough for 'spn:> ' and the 0-terminator;
+		 * CHAR_BIT * sizeof session_no is enough for session_no
+		 */
+		char prompt[CHAR_BIT * sizeof session_no + 32];
 #else
 		static char buf[LINE_MAX];
 #endif
 
 #if USE_READLINE
-		if ((buf = readline("> ")) == NULL) {
+		sprintf(prompt, "spn:%d> ", session_no);
+
+		if ((buf = readline(prompt)) == NULL) {
 			printf("\n");
 			break;
 		}
@@ -289,17 +297,55 @@ static int enter_repl(enum cmd_args args)
 			add_history(buf);
 		}
 #else
-		printf("> ");
+		printf("spn:%d> ", session_no);
 		if (fgets(buf, sizeof buf, stdin) == NULL) {
 			printf("\n");
 			break;
 		}
 #endif
 
+		/* first, try treating the input as a statement.
+		 * If that fails, try interpreting it as an expression.
+		 */
 		status = spn_ctx_execstring(ctx, buf, &ret);
 		if (status != 0) {
-			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
-			print_stacktrace_if_needed(ctx);
+			if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
+				fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+				print_stacktrace_if_needed(ctx);
+			} else {
+				/* Save the original error message, because
+				 * it's probably going to be more meaningful.
+				 */
+				const char *errmsg = spn_ctx_geterrmsg(ctx);
+				size_t len = strlen(errmsg);
+				char *orig_errmsg = spn_malloc(len + 1);
+				memcpy(orig_errmsg, errmsg, len + 1);
+
+				status = spn_ctx_eval_expr(ctx, buf, &ret, 0, NULL);
+
+				/* if the error was a syntactic or semantic error, then
+				 * probably it was already there originally (when we were
+				 * treating the source as a statement). So we print the
+				 * original error message instead.
+				 * If, however, the error is a run-time exception, then
+				 * we managed to parse and compile the string as an
+				 * expression, so it's the new error message that is relevant.
+				 */
+				if (status != 0) {
+					if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
+						fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+						print_stacktrace_if_needed(ctx);
+					} else {
+						fprintf(stderr, "%s\n", orig_errmsg);
+					}
+				} else {
+					spn_value_print(&ret);
+					spn_value_release(&ret);
+					printf("\n");
+				}
+
+				free(orig_errmsg);
+			}
 		} else {
 			if (!isnil(&ret) || args & FLAG_PRINTNIL) {
 				spn_value_print(&ret);
@@ -312,6 +358,8 @@ static int enter_repl(enum cmd_args args)
 #if USE_READLINE
 		free(buf);
 #endif
+
+		session_no++;
 	}
 
 	spn_ctx_free(ctx);
@@ -1185,3 +1233,4 @@ int main(int argc, char *argv[])
 
 	return status;
 }
+
