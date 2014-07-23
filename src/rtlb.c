@@ -870,7 +870,7 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, SpnContext *ctx)
 {
-	const char *p;
+	const char *p, *end;
 	char *buf, *s;
 	SpnString *str;
 
@@ -886,11 +886,12 @@ static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, Spn
 
 	str = stringvalue(&argv[0]);
 	p = str->cstr;
+	end = p + str->len;
 
 	buf = spn_malloc(str->len + 1);
 	s = buf;
 
-	while (*p) {
+	while (p < end) {
 		*s++ = upc ? toupper(*p++) : tolower(*p++);
 	}
 
@@ -2771,42 +2772,17 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	arr = arrayvalue(&argv[1]);
 
 	/* convert array back to a struct tm */
-	if (rtlb_aux_extract_time(arr, "sec", &ts.tm_sec, ctx) != 0) {
+	if (rtlb_aux_extract_time(arr, "sec",   &ts.tm_sec,   ctx) != 0
+	 || rtlb_aux_extract_time(arr, "min",   &ts.tm_min,   ctx) != 0
+	 || rtlb_aux_extract_time(arr, "hour",  &ts.tm_hour,  ctx) != 0
+	 || rtlb_aux_extract_time(arr, "mday",  &ts.tm_mday,  ctx) != 0
+	 || rtlb_aux_extract_time(arr, "mon",   &ts.tm_mon,   ctx) != 0
+	 || rtlb_aux_extract_time(arr, "year",  &ts.tm_year,  ctx) != 0
+	 || rtlb_aux_extract_time(arr, "wday",  &ts.tm_wday,  ctx) != 0
+	 || rtlb_aux_extract_time(arr, "yday",  &ts.tm_yday,  ctx) != 0
+	 || rtlb_aux_extract_time(arr, "isdst", &ts.tm_isdst, ctx) != 0) {
 		return -3;
 	}
-
-	if (rtlb_aux_extract_time(arr, "min", &ts.tm_min, ctx) != 0) {
-		return -3;
-	}
-
-	if (rtlb_aux_extract_time(arr, "hour", &ts.tm_hour, ctx) != 0) {
-		return -3;
-	}
-
-	if (rtlb_aux_extract_time(arr, "mday", &ts.tm_mday, ctx) != 0) {
-		return -3;
-	}
-
-	if (rtlb_aux_extract_time(arr, "mon", &ts.tm_mon, ctx) != 0) {
-		return -3;
-	}
-
-	if (rtlb_aux_extract_time(arr, "year", &ts.tm_year, ctx) != 0) {
-		return -3;
-	}
-
-	if (rtlb_aux_extract_time(arr, "wday", &ts.tm_wday, ctx) != 0) {
-		return -3;
-	}
-
-	if (rtlb_aux_extract_time(arr, "yday", &ts.tm_yday, ctx) != 0) {
-		return -3;
-	}
-
-	if (rtlb_aux_extract_time(arr, "isdst", &ts.tm_isdst, ctx) != 0) {
-		return -3;
-	}
-
 
 	buf = spn_malloc(RTLB_STRFTIME_BUFSIZE);
 
@@ -2880,6 +2856,29 @@ static int rtlb_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_loadfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	return rtlb_aux_compile(ret, argc, argv, ctx, 1);
+}
+
+static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "requiring exactly one argument", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		return -2;
+	}
+
+	if (spn_ctx_compile_expr(ctx, stringvalue(&argv[0])->cstr, ret) != 0) {
+		const char *errmsg = spn_ctx_geterrmsg(ctx);
+		*ret = makestring(errmsg);
+		spn_ctx_clearerror(ctx);
+	} else {
+		spn_value_retain(ret);
+	}
+
+	return 0;
 }
 
 static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
@@ -2960,7 +2959,7 @@ static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	/* 'i' starts at 1: skip own stack frame */
 	for (i = 1; i < n; i++) {
-		SpnValue name = makestring_nocopy(cnames[i]);
+		SpnValue name = makestring(cnames[i]);
 		spn_array_set_intkey(fnames, i - 1, &name);
 		spn_value_release(&name);
 	}
@@ -2983,6 +2982,7 @@ const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "strftime",	rtlb_strftime	},
 	{ "difftime",	rtlb_difftime	},
 	{ "compile",	rtlb_compile	},
+	{ "exprtofn",	rtlb_exprtofn	},
 	{ "loadfile",	rtlb_loadfile	},
 	{ "call",	rtlb_call	},
 	{ "backtrace",	rtlb_backtrace	}

@@ -313,6 +313,7 @@ static int enter_repl(enum cmd_args args)
 				fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 				print_stacktrace_if_needed(ctx);
 			} else {
+				SpnValue fn;
 				/* Save the original error message, because
 				 * it's probably going to be more meaningful.
 				 */
@@ -320,8 +321,6 @@ static int enter_repl(enum cmd_args args)
 				size_t len = strlen(errmsg);
 				char *orig_errmsg = spn_malloc(len + 1);
 				memcpy(orig_errmsg, errmsg, len + 1);
-
-				status = spn_ctx_eval_expr(ctx, buf, &ret, 0, NULL);
 
 				/* if the error was a syntactic or semantic error, then
 				 * probably it was already there originally (when we were
@@ -331,17 +330,18 @@ static int enter_repl(enum cmd_args args)
 				 * we managed to parse and compile the string as an
 				 * expression, so it's the new error message that is relevant.
 				 */
-				if (status != 0) {
-					if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
+				if (spn_ctx_compile_expr(ctx, buf, &fn) != 0) {
+					fprintf(stderr, "%s\n", orig_errmsg);
+				} else {
+					if (spn_ctx_callfunc(ctx, &fn, &ret, 0, NULL) != 0) {
 						fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 						print_stacktrace_if_needed(ctx);
 					} else {
-						fprintf(stderr, "%s\n", orig_errmsg);
+						printf("= ");
+						spn_value_print(&ret);
+						printf("\n");
+						spn_value_release(&ret);
 					}
-				} else {
-					spn_value_print(&ret);
-					spn_value_release(&ret);
-					printf("\n");
 				}
 
 				free(orig_errmsg);

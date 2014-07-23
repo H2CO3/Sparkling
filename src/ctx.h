@@ -63,8 +63,8 @@ SPN_API int		  spn_ctx_callfunc(SpnContext *ctx, const SpnValue *func, SpnValue 
 SPN_API void		  spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[]);
 SPN_API const char	**spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
 
-/* evaluate an expression */
-SPN_API int		  spn_ctx_eval_expr(SpnContext *ctx, const char *expr, SpnValue *result, int argc, SpnValue argv[]);
+/* compile and evaluate expressions */
+SPN_API int		  spn_ctx_compile_expr(SpnContext *ctx, const char *expr, SpnValue *result);
 
 /* accessors for library functions and other globals */
 SPN_API void		  spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc  fns[],  size_t n);

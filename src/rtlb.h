@@ -81,11 +81,12 @@ SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
  * strftime()
  * difftime()
  * compile()
+ * exprtofn()
  * loadfile()
  * call()
  * backtrace()
  */
-#define SPN_LIBSIZE_SYS 13
+#define SPN_LIBSIZE_SYS 14
 SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 
 /* A convenience function that loads the entire standard library.

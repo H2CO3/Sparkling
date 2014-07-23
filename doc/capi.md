@@ -140,12 +140,11 @@ from C code (eg. from native extension functions or the host environment).
 On return, the value pointed by `retval' contains the return value of the
 called function. This is an owning structure: you must spn_value_release()
 it when you don't need it anymore. The returned value may refer to the
-program and/or bytecode (e. g. the strings returned by the `stacktrace()`
-standard library function), so you must not use the value after the main
+program and/or bytecode, so you must not use the value after the main
 program itself has been deallocated. Usually this is not a problem, since
 normally, when using the context API, the lifetime of the programs is tied
 to the lifetime of the corresponding context object, and one should only
-free the context object one doesn't use the Sparling engine anymore.
+free the context object when one doesn't use the Sparling engine anymore.
 
 Throws a runtime error if:
 
