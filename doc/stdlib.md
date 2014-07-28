@@ -293,6 +293,20 @@ equivalent with the following pseudo-code:
 
 Again, you must not modify `arr` while it is being `map()`ped over.
 
+    array range(int n)
+    array range(int begin, int end)
+    array range(float begin, float end, float step)
+
+The first "overload" of the `range()` function produces an array of `n`
+integers, in the half-closed interval `[0, n)`.
+
+The second variation returns an array of `begin - end` integers, in the
+half-closed range `[begin, end)`.
+
+The third version returns an array of floating-point numbers, in the **closed
+interval** `[begin, end]`, with the difference between two consecutive values
+being `step`.
+
 4. Real, integer and complex mathematical functions (spn_libmath)
 -----------------------------------------------------------------
 Function names are self-explanatory. A. k. a., "nobody ain't no time for

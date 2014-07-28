@@ -1507,6 +1507,87 @@ static int rtlb_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	int i;
+	SpnArray *range;
+
+	if (argc < 1 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 1, 2 or 3 arguments", NULL);
+		return -1;
+	}
+
+	for (i = 0; i < argc; i++) {
+		if (!isnum(&argv[i])) {
+			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
+			return -2;
+		}
+	}
+
+	range = spn_array_new();
+
+	switch (argc) {
+	case 1: {
+		long i, n;
+
+		if (!isint(&argv[0])) {
+			spn_ctx_runtime_error(ctx, "argument must be an integer", NULL);
+			return -3;
+		}
+
+		for (i = 0, n = intvalue(&argv[0]); i < n; i++) {
+			SpnValue v = makeint(i);
+			spn_array_set_intkey(range, i, &v);
+		}
+
+		break;
+	}
+	case 2: {
+		long i, begin, end;
+
+		if (!isint(&argv[0]) || !isint(&argv[1])) {
+			spn_ctx_runtime_error(ctx, "arguments must be integers", NULL);
+			return -3;
+		}
+
+		begin = intvalue(&argv[0]);
+		end = intvalue(&argv[1]);
+		for (i = 0; i < end - begin; i++) {
+			SpnValue v = makeint(i + begin);
+			spn_array_set_intkey(range, i, &v);
+		}
+
+		break;
+	}
+	case 3: {
+		#define FLOATVAL(f) (isint(f) ? intvalue(f) : floatvalue(f))
+
+		double begin = FLOATVAL(&argv[0]);
+		double end   = FLOATVAL(&argv[1]);
+		double step  = FLOATVAL(&argv[2]);
+
+		#undef FLOATVAL
+
+		long i;
+		double x;
+
+		for (i = 0, x = begin; x <= end; x = begin + step * ++i) {
+			SpnValue v = makefloat(x);
+			spn_array_set_intkey(range, i, &v);
+		}
+
+		break;
+	}
+	default:
+		SHANT_BE_REACHED();
+	}
+
+	ret->type = SPN_TYPE_ARRAY;
+	ret->v.o = range;
+
+	return 0;
+}
+
 const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "sort",	rtlb_sort	},
 	{ "linsearch",	NULL		},
@@ -1521,7 +1602,8 @@ const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
 	{ "insert",	NULL		},
 	{ "insertarr",	NULL		},
 	{ "delrange",	NULL		},
-	{ "clear",	NULL		}
+	{ "clear",	NULL		},
+	{ "range",	rtlb_range	}
 };
 
 

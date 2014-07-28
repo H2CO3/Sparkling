@@ -43,8 +43,9 @@ SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
  * subarray(), join()
  * foreach(), reduce(), filter(), map() (returns an array of mapped elements)
  * insert(), insertarr(), delrange(), clear()
+ * range()
  */
-#define SPN_LIBSIZE_ARRAY 14
+#define SPN_LIBSIZE_ARRAY 15
 SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
 
 /* Real functions:
