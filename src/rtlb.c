@@ -2772,7 +2772,7 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, SpnContext *c
 	spn_array_set_strkey(arr, "mday", &val);
 
 	val = makeint(ts->tm_mon);
-	spn_array_set_strkey(arr, "mon", &val);
+	spn_array_set_strkey(arr, "month", &val);
 
 	val = makeint(ts->tm_year);
 	spn_array_set_strkey(arr, "year", &val);
@@ -2783,7 +2783,7 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, SpnContext *c
 	val = makeint(ts->tm_yday);
 	spn_array_set_strkey(arr, "yday", &val);
 
-	val = makeint(ts->tm_isdst);
+	val = makebool(ts->tm_isdst > 0);
 	spn_array_set_strkey(arr, "isdst", &val);
 
 	/* return the array */
@@ -2793,7 +2793,7 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, SpnContext *c
 	return 0;
 }
 
-static int rtlb_gmtime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_utctime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	return rtlb_aux_gettm(ret, argc, argv, ctx, 0);
 }
@@ -2815,7 +2815,7 @@ static int rtlb_aux_extract_time(SpnArray *arr, const char *str, int *outval, Sp
 	spn_array_get_strkey(arr, str, &val);
 
 	if (!isint(&val)) {
-		spn_ctx_runtime_error(ctx, "array members should be integers", NULL);
+		spn_ctx_runtime_error(ctx, "time components should be integers", NULL);
 		return -1;
 	}
 
@@ -2823,7 +2823,7 @@ static int rtlb_aux_extract_time(SpnArray *arr, const char *str, int *outval, Sp
 	return 0;
 }
 
-static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_fmtdate(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	char *buf;
 	struct tm ts;
@@ -2831,6 +2831,7 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	SpnString *fmt;
 	SpnArray *arr;
+	SpnValue isdst;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
@@ -2858,13 +2859,21 @@ static int rtlb_strftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	 || rtlb_aux_extract_time(arr, "min",   &ts.tm_min,   ctx) != 0
 	 || rtlb_aux_extract_time(arr, "hour",  &ts.tm_hour,  ctx) != 0
 	 || rtlb_aux_extract_time(arr, "mday",  &ts.tm_mday,  ctx) != 0
-	 || rtlb_aux_extract_time(arr, "mon",   &ts.tm_mon,   ctx) != 0
+	 || rtlb_aux_extract_time(arr, "month", &ts.tm_mon,   ctx) != 0
 	 || rtlb_aux_extract_time(arr, "year",  &ts.tm_year,  ctx) != 0
 	 || rtlb_aux_extract_time(arr, "wday",  &ts.tm_wday,  ctx) != 0
-	 || rtlb_aux_extract_time(arr, "yday",  &ts.tm_yday,  ctx) != 0
-	 || rtlb_aux_extract_time(arr, "isdst", &ts.tm_isdst, ctx) != 0) {
+	 || rtlb_aux_extract_time(arr, "yday",  &ts.tm_yday,  ctx) != 0) {
 		return -3;
 	}
+
+	/* treat isdst specially, since it's a boolean */
+	spn_array_get_strkey(arr, "isdst", &isdst);
+	if (!isbool(&isdst)) {
+		spn_ctx_runtime_error(ctx, "isdst must be a boolean", NULL);
+		return -4;
+	}
+
+	ts.tm_isdst = boolvalue(&isdst);
 
 	buf = spn_malloc(RTLB_STRFTIME_BUFSIZE);
 
@@ -3059,9 +3068,9 @@ const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "assert",	rtlb_assert	},
 	{ "exit",	rtlb_exit	},
 	{ "time",	rtlb_time	},
-	{ "gmtime",	rtlb_gmtime	},
+	{ "utctime",	rtlb_utctime	},
 	{ "localtime",	rtlb_localtime	},
-	{ "strftime",	rtlb_strftime	},
+	{ "fmtdate",	rtlb_fmtdate	},
 	{ "difftime",	rtlb_difftime	},
 	{ "compile",	rtlb_compile	},
 	{ "exprtofn",	rtlb_exprtofn	},

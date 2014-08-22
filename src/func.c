@@ -152,7 +152,7 @@ SpnFunction *spn_func_new_native(const char *name, int (*fn)(SpnValue *, int, Sp
 	return func;
 }
 
-SPN_API SpnFunction *spn_func_new_closure(SpnFunction *prototype)
+SpnFunction *spn_func_new_closure(SpnFunction *prototype)
 {
 	SpnFunction *func = spn_object_new(&spn_class_func);
 

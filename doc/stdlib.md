@@ -390,7 +390,7 @@ terminates the **host program** by calling the C standard library function
 
 Returns the current Unix timestamp in seconds.
 
-    array gmtime(int timestamp)
+    array utctime(int timestamp)
     array localtime(int timestamp)
 
 Returns an array representing the timestamp, interpreted with respect to UTC
@@ -399,17 +399,16 @@ or the local zone time. The keys in the array are strings:
  - "sec", "min", "hour" contain the number of seconds, minutes and hours as
  integers.
  - "mday" corresponds to the ordinal number of the day in the month.
- - values corresponding to "mon" and "year" contain the month and year number
+ - values corresponding to "month" and "year" contain the month and year number
  as integers.
  - "wday" and "yday" yield the number of the day within the week and the year,
  respectively.
- - "isdst" is another integer which is greater than zero if DST is in effect,
- less than zero if DST information is unavailable, and zero if DST is not
- currently in effect.
+ - "isdst" is a boolean which is true if DST is in effect, and false if DST
+ is not currently in effect or if DST information is unavailable.
 
-    string strftime(string fmt, array timespec)
+    string fmtdate(string fmt, array timespec)
 
-Returns a formatted date/time string from an array returned by `gmtime()` or
+Returns a formatted date/time string from an array returned by `utctime()` or
 `localtime()`. The format specification follows the rules of the C standard
 library function `strftime()`.
 
