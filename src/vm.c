@@ -1502,6 +1502,20 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			closure = spn_func_new_closure(prototype);
 
+			/* replace the prototype in the register with the newly
+			 * created closure object early, so that if the closure
+			 * is self-capturing, then it still correctly captures
+			 * itself (i. e. the closure object) as an upvalue,
+			 * as opposed to its prototype (which is not a closure).
+			 *
+			 * We can re-use the pointer since this instruction
+			 * does not push to the stack, so the stack is not
+			 * realloc()'ed, and consequently, pointers into the
+			 * stack frame are not invalidated.
+			 */
+			prototype_val->type = SPN_TYPE_FUNC; /* redundant */
+			prototype_val->v.o = closure;
+
 			for (i = 0; i < n_upvals; i++) {
 				spn_uword upval_desc = *ip++;
 				enum spn_upval_type upval_type = OPCODE(upval_desc);
@@ -1527,17 +1541,10 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				}
 			}
 
-			/* replace the prototype in the register
-			 * with the newly created closure object
-			 *
-			 * We can re-use the pointer since this instruction
-			 * does not push to the stack, so the stack is not
-			 * realloc()'ed, and consequently, pointers into the
-			 * stack frame are not invalidated.
+			/* relinquish ownership of the prototype function of
+			 * the closure object as it is not needed anymore
 			 */
-			spn_value_release(prototype_val);
-			prototype_val->type = SPN_TYPE_FUNC;
-			prototype_val->v.o = closure;
+			spn_object_release(prototype);
 
 			break;
 		}
