@@ -143,7 +143,7 @@ void spn_value_release(const SpnValue *val)
 {
 	if (isobject(val)) {
 		assert(isstring(val) || isarray(val)
-		    || isfunc(val) || isuserinfo(val));
+		    || isfunc(val)   || isuserinfo(val));
 
 		spn_object_release(objvalue(val));
 	}
