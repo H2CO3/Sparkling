@@ -52,13 +52,13 @@
 static unsigned long nthsize(int idx)
 {
 	static const unsigned long szprims[HASH_NSIZES] = {
-		0,		7,		17,		29,
-		67,		131,		257,		509,
-		1031,		2053,		4099,		8209,
+		0,          7,          17,         29,
+		67,         131,        257,        509,
+		1031,       2053,       4099,       8209,
 #if !SPN_LOW_MEMORY_PLATFORM
-		16381,		32771,		65539,		131063,
-		262139,		524287,		1048583,	2097169,
-		4194301,	8388617,	16777213,	33554467
+		16381,      32771,      65539,      131063,
+		262139,     524287,     1048583,    2097169,
+		4194301,    8388617,    16777213,   33554467
 #endif
 	};
 
@@ -76,23 +76,23 @@ typedef struct TList {
 } TList;
 
 struct SpnArray {
-	SpnObject	  base;		/* for being a valid object		*/
+	SpnObject base;        /* for being a valid object          */
 
-	SpnValue	 *arr;		/* the array part			*/
-	size_t		  arrcnt;	/* logical size				*/
-	size_t		  arrallsz;	/* allocation (actual) size		*/
+	SpnValue *arr;         /* the array part                    */
+	size_t    arrcnt;      /* logical size                      */
+	size_t    arrallsz;    /* allocation (actual) size          */
 
-	TList		**buckets;	/* the hash table part			*/
-	size_t		  hashcnt;	/* logical size				*/
-	int		  hashszidx;	/* index of allocation (actual) size	*/
+	TList   **buckets;     /* the hash table part               */
+	size_t    hashcnt;     /* logical size                      */
+	int       hashszidx;   /* index of allocation (actual) size */
 };
 
 struct SpnIterator {
-	SpnArray	 *arr;		/* weak reference to owning array	*/
-	size_t		  idx;		/* ordinal number of key-value pair	*/
-	size_t		  cursor;	/* the essence				*/
-	TList		 *list;		/* linked list entry for the hash part	*/
-	int		  inarray;	/* helper flag for traversing hash part	*/
+	SpnArray *arr;         /* weak reference to owning array       */
+	size_t    idx;         /* ordinal number of key-value pair     */
+	size_t    cursor;      /* the essence                          */
+	TList    *list;        /* linked list entry for the hash part  */
+	int       inarray;     /* helper flag for traversing hash part */
 };
 
 
@@ -627,4 +627,3 @@ static void insert_and_update_count_hash(SpnArray *arr, const SpnValue *key, con
 		}
 	}
 }
-

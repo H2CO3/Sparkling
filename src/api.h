@@ -47,11 +47,11 @@ typedef signed long spn_sword;
  */
 
 typedef struct SpnClass {
-	size_t instsz;				/* sizeof(instance)			*/
-	int (*equal)(void *, void *);		/* non-zero: equal, zero: different	*/
-	int (*compare)(void *, void *);		/* -1, +1, 0: lhs is <, >, == to rhs	*/
-	unsigned long (*hashfn)(void *);	/* cache the hash if immutable!		*/
-	void (*destructor)(void *);		/* shouldn't call free on its argument	*/
+	size_t instsz;                   /* sizeof(instance)                    */
+	int (*equal)(void *, void *);    /* non-zero: equal, zero: different    */
+	int (*compare)(void *, void *);  /* -1, +1, 0: lhs is <, >, == to rhs   */
+	unsigned long (*hashfn)(void *); /* cache the hash if immutable!        */
+	void (*destructor)(void *);      /* shouldn't call free on its argument */
 } SpnClass;
 
 typedef struct SpnObject {
@@ -121,59 +121,59 @@ enum {
 
 /* additional type information flags */
 enum {
-	SPN_FLAG_OBJECT		= 1 << 8,	/* type is an object type	*/
-	SPN_FLAG_FLOAT		= 1 << 9	/* number is floating-point	*/
+	SPN_FLAG_OBJECT = 1 << 8, /* type is an object type   */
+	SPN_FLAG_FLOAT  = 1 << 9  /* number is floating-point */
 };
 
 /* complete type definitions */
-#define SPN_TYPE_NIL		 SPN_TTAG_NIL
-#define SPN_TYPE_BOOL		 SPN_TTAG_BOOL
-#define SPN_TYPE_INT		 SPN_TTAG_NUMBER
-#define SPN_TYPE_FLOAT		(SPN_TTAG_NUMBER   | SPN_FLAG_FLOAT)
-#define SPN_TYPE_FUNC		(SPN_TTAG_FUNC     | SPN_FLAG_OBJECT)
-#define SPN_TYPE_STRING		(SPN_TTAG_STRING   | SPN_FLAG_OBJECT)
-#define SPN_TYPE_ARRAY		(SPN_TTAG_ARRAY    | SPN_FLAG_OBJECT)
-#define SPN_TYPE_WEAKUSERINFO	 SPN_TTAG_USERINFO
-#define SPN_TYPE_STRGUSERINFO	(SPN_TTAG_USERINFO | SPN_FLAG_OBJECT)
+#define SPN_TYPE_NIL              SPN_TTAG_NIL
+#define SPN_TYPE_BOOL             SPN_TTAG_BOOL
+#define SPN_TYPE_INT              SPN_TTAG_NUMBER
+#define SPN_TYPE_FLOAT           (SPN_TTAG_NUMBER   | SPN_FLAG_FLOAT)
+#define SPN_TYPE_FUNC            (SPN_TTAG_FUNC     | SPN_FLAG_OBJECT)
+#define SPN_TYPE_STRING          (SPN_TTAG_STRING   | SPN_FLAG_OBJECT)
+#define SPN_TYPE_ARRAY           (SPN_TTAG_ARRAY    | SPN_FLAG_OBJECT)
+#define SPN_TYPE_WEAKUSERINFO     SPN_TTAG_USERINFO
+#define SPN_TYPE_STRGUSERINFO    (SPN_TTAG_USERINFO | SPN_FLAG_OBJECT)
 
 /* type checking */
-#define spn_isobject(val)	((((val)->type) & SPN_FLAG_OBJECT) != 0)
-#define spn_typetag(t)		((t) & SPN_MASK_TTAG)
-#define spn_typeflag(t)		((t) & SPN_MASK_FLAG)
-#define spn_valtype(val)	spn_typetag((val)->type)
-#define spn_valflag(val)	spn_typeflag((val)->type)
+#define spn_isobject(val)   ((((val)->type) & SPN_FLAG_OBJECT) != 0)
+#define spn_typetag(t)      ((t) & SPN_MASK_TTAG)
+#define spn_typeflag(t)     ((t) & SPN_MASK_FLAG)
+#define spn_valtype(val)    spn_typetag((val)->type)
+#define spn_valflag(val)    spn_typeflag((val)->type)
 
-#define spn_isnil(val)		(spn_valtype(val) == SPN_TTAG_NIL)
-#define spn_isbool(val)		(spn_valtype(val) == SPN_TTAG_BOOL)
-#define spn_isnumber(val)	(spn_valtype(val) == SPN_TTAG_NUMBER)
-#define spn_isstring(val)	(spn_valtype(val) == SPN_TTAG_STRING)
-#define spn_isarray(val)	(spn_valtype(val) == SPN_TTAG_ARRAY)
-#define spn_isfunc(val)		(spn_valtype(val) == SPN_TTAG_FUNC)
-#define spn_isuserinfo(val)	(spn_valtype(val) == SPN_TTAG_USERINFO)
+#define spn_isnil(val)          (spn_valtype(val) == SPN_TTAG_NIL)
+#define spn_isbool(val)         (spn_valtype(val) == SPN_TTAG_BOOL)
+#define spn_isnumber(val)       (spn_valtype(val) == SPN_TTAG_NUMBER)
+#define spn_isstring(val)       (spn_valtype(val) == SPN_TTAG_STRING)
+#define spn_isarray(val)        (spn_valtype(val) == SPN_TTAG_ARRAY)
+#define spn_isfunc(val)         (spn_valtype(val) == SPN_TTAG_FUNC)
+#define spn_isuserinfo(val)     (spn_valtype(val) == SPN_TTAG_USERINFO)
 
-#define spn_isint(val)		(spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) == 0))
-#define spn_isfloat(val)	(spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) != 0))
-#define spn_isweakuserinfo(val)	(spn_isuserinfo(val) && !spn_isobject(val))
-#define spn_isstrguserinfo(val)	(spn_isuserinfo(val) &&  spn_isobject(val))
+#define spn_isint(val)          (spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) == 0))
+#define spn_isfloat(val)        (spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) != 0))
+#define spn_isweakuserinfo(val) (spn_isuserinfo(val) && !spn_isobject(val))
+#define spn_isstrguserinfo(val) (spn_isuserinfo(val) &&  spn_isobject(val))
 
 /* getting the value of a tagged union. These do *not* check the type.
  * More of these macros can be found in headers implementing specific
  * types (strings, arrays, functions).
  */
-#define spn_boolvalue(val)	((val)->v.b)
-#define spn_intvalue(val)	((val)->v.i)
-#define spn_floatvalue(val)	((val)->v.f)
-#define spn_ptrvalue(val)	((val)->v.p)
-#define spn_objvalue(val)	((val)->v.o)
+#define spn_boolvalue(val)  ((val)->v.b)
+#define spn_intvalue(val)   ((val)->v.i)
+#define spn_floatvalue(val) ((val)->v.f)
+#define spn_ptrvalue(val)   ((val)->v.p)
+#define spn_objvalue(val)   ((val)->v.o)
 
 typedef struct SpnValue {
-	int type;		/* type		 */
-	union {			/* value union	 */
-		int	 b;	/* Boolean value */
-		long	 i;	/* integer value */
-		double	 f;	/* float value	 */
-		void	*p;	/* user info	 */
-		void	*o;	/* object value	 */
+	int type;       /* type          */
+	union {         /* value union   */
+		int    b;   /* Boolean value */
+		long   i;   /* integer value */
+		double f;   /* float value   */
+		void  *p;   /* user info     */
+		void  *o;   /* object value  */
 	} v;
 } SpnValue;
 
@@ -234,4 +234,3 @@ SPN_API void *spn_read_binary_file(const char *name, size_t *sz);
 
 
 #endif /* SPN_API_H */
-

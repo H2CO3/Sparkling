@@ -143,7 +143,7 @@ void spn_value_release(const SpnValue *val)
 {
 	if (isobject(val)) {
 		assert(isstring(val) || isarray(val)
-		    || isfunc(val)   || isuserinfo(val));
+		    || isfunc(val) || isuserinfo(val));
 
 		spn_object_release(objvalue(val));
 	}
@@ -156,10 +156,10 @@ static int numeric_equal(const SpnValue *lhs, const SpnValue *rhs)
 
 	if (isfloat(lhs)) {
 		return isfloat(rhs) ? floatvalue(lhs) == floatvalue(rhs)
-				    : floatvalue(lhs) == intvalue(rhs);
+		                    : floatvalue(lhs) == intvalue(rhs);
 	} else {
 		return isfloat(rhs) ? intvalue(lhs) == floatvalue(rhs)
-				    : intvalue(lhs) == intvalue(rhs);
+		                    : intvalue(lhs) == intvalue(rhs);
 	}
 }
 
@@ -174,9 +174,9 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 	}
 
 	switch (valtype(lhs)) {
-	case SPN_TTAG_NIL:	{ return 1; /* nil can only be nil */	   }
-	case SPN_TTAG_BOOL:	{ return boolvalue(lhs) == boolvalue(rhs); }
-	case SPN_TTAG_NUMBER:	{ return numeric_equal(lhs, rhs);	   }
+	case SPN_TTAG_NIL:    { return 1; /* nil can only be nil */	   }
+	case SPN_TTAG_BOOL:   { return boolvalue(lhs) == boolvalue(rhs); }
+	case SPN_TTAG_NUMBER: { return numeric_equal(lhs, rhs);	   }
 
 	case SPN_TTAG_STRING:
 	case SPN_TTAG_ARRAY:
@@ -218,21 +218,21 @@ static int numeric_compare(const SpnValue *lhs, const SpnValue *rhs)
 		if (isfloat(rhs)) {
 			return floatvalue(lhs) < floatvalue(rhs) ? -1
 			     : floatvalue(lhs) > floatvalue(rhs) ? +1
-			     :					    0;
+			     :                                      0;
 		} else {
 			return floatvalue(lhs) < intvalue(rhs) ? -1
 			     : floatvalue(lhs) > intvalue(rhs) ? +1
-			     :					  0;
+			     :                                    0;
 		}
 	} else {
 		if (isfloat(rhs)) {
 			return intvalue(lhs) < floatvalue(rhs) ? -1
 			     : intvalue(lhs) > floatvalue(rhs) ? +1
-			     :					  0;
+			     :                                    0;
 		} else {
 			return intvalue(lhs) < intvalue(rhs) ? -1
 			     : intvalue(lhs) > intvalue(rhs) ? +1
-			     :					0;
+			     :                                  0;
 		}
 	}
 }
@@ -277,14 +277,14 @@ unsigned long spn_hash_bytes(const void *data, size_t n)
 	}
 
 	switch (n & 7) {
-	case 0: do {	h =  7159 * h + *p++;
-	case 7:		h = 13577 * h + *p++;
-	case 6:		h = 23893 * h + *p++;
-	case 5:		h = 38791 * h + *p++;
-	case 4:		h = 47819 * h + *p++;
-	case 3:		h = 56543 * h + *p++;
-	case 2:		h = 65587 * h + *p++;
-	case 1:		h = 77681 * h + *p++;
+	case 0: do { h =  7159 * h + *p++;
+	case 7:      h = 13577 * h + *p++;
+	case 6:      h = 23893 * h + *p++;
+	case 5:      h = 38791 * h + *p++;
+	case 4:      h = 47819 * h + *p++;
+	case 3:      h = 56543 * h + *p++;
+	case 2:      h = 65587 * h + *p++;
+	case 1:      h = 77681 * h + *p++;
 		} while (--i);
 	}
 
@@ -296,7 +296,7 @@ unsigned long spn_hash_value(const SpnValue *key)
 	switch (valtype(key)) {
 	case SPN_TTAG_NIL:	{ return 0;				}
 	case SPN_TTAG_BOOL:	{ return boolvalue(key); /* 0 or 1 */	}
-	case SPN_TTAG_NUMBER:	{
+	case SPN_TTAG_NUMBER: {
 		if (isfloat(key)) {
 			double f = floatvalue(key);
 
@@ -312,12 +312,12 @@ unsigned long spn_hash_value(const SpnValue *key)
 	}
 	case SPN_TTAG_STRING:
 	case SPN_TTAG_ARRAY:
-	case SPN_TTAG_FUNC:	{
+	case SPN_TTAG_FUNC: {
 		SpnObject *obj = objvalue(key);
 		unsigned long (*hashfn)(void *) = obj->isa->hashfn;
 		return hashfn ? hashfn(obj) : (unsigned long)(obj);
 	}
-	case SPN_TTAG_USERINFO:	{
+	case SPN_TTAG_USERINFO: {
 		if (isobject(key)) {
 			SpnObject *obj = objvalue(key);
 			unsigned long (*hashfn)(void *) = obj->isa->hashfn;
@@ -336,15 +336,15 @@ unsigned long spn_hash_value(const SpnValue *key)
 void spn_value_print(const SpnValue *val)
 {
 	switch (valtype(val)) {
-	case SPN_TTAG_NIL:	{
+	case SPN_TTAG_NIL: {
 		fputs("nil", stdout);
 		break;
 	}
-	case SPN_TTAG_BOOL:	{
+	case SPN_TTAG_BOOL: {
 		fputs(boolvalue(val) ? "true" : "false", stdout);
 		break;
 	}
-	case SPN_TTAG_NUMBER:	{
+	case SPN_TTAG_NUMBER: {
 		if (isfloat(val)) {
 			printf("%.*g", DBL_DIG, floatvalue(val));
 		} else {
@@ -353,16 +353,16 @@ void spn_value_print(const SpnValue *val)
 
 		break;
 	}
-	case SPN_TTAG_STRING:	{
+	case SPN_TTAG_STRING: {
 		SpnString *s = stringvalue(val);
 		fputs(s->cstr, stdout);
 		break;
 	}
-	case SPN_TTAG_ARRAY:	{
+	case SPN_TTAG_ARRAY: {
 		printf("<array %p>", objvalue(val));
 		break;
 	}
-	case SPN_TTAG_FUNC:	{
+	case SPN_TTAG_FUNC: {
 		SpnFunction *func = funcvalue(val);
 		void *p;
 
@@ -375,7 +375,7 @@ void spn_value_print(const SpnValue *val)
 		printf("<function %p>", p);
 		break;
 	}
-	case SPN_TTAG_USERINFO:	{
+	case SPN_TTAG_USERINFO: {
 		void *ptr = isobject(val) ? objvalue(val) : ptrvalue(val);
 		printf("<userinfo %p>", ptr);
 		break;
@@ -484,4 +484,3 @@ void *spn_read_binary_file(const char *name, size_t *sz)
 {
 	return read_file2mem(name, sz, 0);
 }
-

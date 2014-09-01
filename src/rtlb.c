@@ -30,59 +30,59 @@
 /* definitions for maths library and others */
 
 #ifndef M_E
-#define M_E		2.71828182845904523536028747135266250
+#define M_E        2.71828182845904523536028747135266250
 #endif
 
 #ifndef M_LOG2E
-#define M_LOG2E		1.44269504088896340735992468100189214
+#define M_LOG2E    1.44269504088896340735992468100189214
 #endif
 
 #ifndef M_LOG10E
-#define M_LOG10E	0.434294481903251827651128918916605082
+#define M_LOG10E   0.434294481903251827651128918916605082
 #endif
 
 #ifndef M_LN2
-#define M_LN2		0.693147180559945309417232121458176568
+#define M_LN2      0.693147180559945309417232121458176568
 #endif
 
 #ifndef M_LN10
-#define M_LN10		2.30258509299404568401799145468436421
+#define M_LN10     2.30258509299404568401799145468436421
 #endif
 
 #ifndef M_PI
-#define M_PI		3.14159265358979323846264338327950288
+#define M_PI       3.14159265358979323846264338327950288
 #endif
 
 #ifndef M_PI_2
-#define M_PI_2		1.57079632679489661923132169163975144
+#define M_PI_2     1.57079632679489661923132169163975144
 #endif
 
 #ifndef M_PI_4
-#define M_PI_4		0.785398163397448309615660845819875721
+#define M_PI_4     0.785398163397448309615660845819875721
 #endif
 
 #ifndef M_1_PI
-#define M_1_PI		0.318309886183790671537767526745028724
+#define M_1_PI     0.318309886183790671537767526745028724
 #endif
 
 #ifndef M_2_PI
-#define M_2_PI		0.636619772367581343075535053490057448
+#define M_2_PI     0.636619772367581343075535053490057448
 #endif
 
 #ifndef M_2_SQRTPI
-#define M_2_SQRTPI	1.12837916709551257389615890312154517
+#define M_2_SQRTPI 1.12837916709551257389615890312154517
 #endif
 
 #ifndef M_SQRT2
-#define M_SQRT2		1.41421356237309504880168872420969808
+#define M_SQRT2    1.41421356237309504880168872420969808
 #endif
 
 #ifndef M_SQRT1_2
-#define	M_SQRT1_2	0.707106781186547524400844362104849039
+#define	M_SQRT1_2  0.707106781186547524400844362104849039
 #endif
 
 #ifndef M_PHI
-#define M_PHI		1.61803398874989484820458683436563811
+#define M_PHI      1.61803398874989484820458683436563811
 #endif
 
 /***************
@@ -586,24 +586,24 @@ static int rtlb_readfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 }
 
 const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
-	{ "getline",	rtlb_getline	},
-	{ "print",	rtlb_print	},
-	{ "printf",	rtlb_printf	},
-	{ "fopen",	rtlb_fopen	},
-	{ "fclose",	rtlb_fclose	},
-	{ "fprintf",	rtlb_fprintf	},
-	{ "fgetline",	rtlb_fgetline	},
-	{ "fread",	rtlb_fread	},
-	{ "fwrite",	rtlb_fwrite	},
-	{ "fflush",	rtlb_fflush	},
-	{ "ftell",	rtlb_ftell	},
-	{ "fseek",	rtlb_fseek	},
-	{ "feof",	rtlb_feof	},
-	{ "remove",	rtlb_remove	},
-	{ "rename",	rtlb_rename	},
-	{ "tmpnam",	rtlb_tmpnam	},
-	{ "tmpfile",	rtlb_tmpfile	},
-	{ "readfile",	rtlb_readfile	}
+	{ "getline",  rtlb_getline  },
+	{ "print",    rtlb_print    },
+	{ "printf",   rtlb_printf   },
+	{ "fopen",    rtlb_fopen    },
+	{ "fclose",   rtlb_fclose   },
+	{ "fprintf",  rtlb_fprintf  },
+	{ "fgetline", rtlb_fgetline },
+	{ "fread",    rtlb_fread    },
+	{ "fwrite",   rtlb_fwrite   },
+	{ "fflush",   rtlb_fflush   },
+	{ "ftell",    rtlb_ftell    },
+	{ "fseek",    rtlb_fseek    },
+	{ "feof",     rtlb_feof     },
+	{ "remove",   rtlb_remove   },
+	{ "rename",   rtlb_rename   },
+	{ "tmpnam",   rtlb_tmpnam   },
+	{ "tmpfile",  rtlb_tmpfile  },
+	{ "readfile", rtlb_readfile }
 };
 
 
@@ -1023,18 +1023,18 @@ static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 }
 
 const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
-	{ "indexof",	rtlb_indexof	},
-	{ "substr",	rtlb_substr	},
-	{ "substrto",	rtlb_substrto	},
-	{ "substrfrom",	rtlb_substrfrom	},
-	{ "split",	rtlb_split	},
-	{ "repeat",	rtlb_repeat	},
-	{ "tolower",	rtlb_tolower	},
-	{ "toupper",	rtlb_toupper	},
-	{ "fmtstr",	rtlb_fmtstr	},
-	{ "tonumber",	rtlb_tonumber	},
-	{ "toint",	rtlb_toint	},
-	{ "tofloat",	rtlb_tofloat	},
+	{ "indexof",    rtlb_indexof    },
+	{ "substr",     rtlb_substr     },
+	{ "substrto",   rtlb_substrto   },
+	{ "substrfrom", rtlb_substrfrom },
+	{ "split",      rtlb_split      },
+	{ "repeat",     rtlb_repeat     },
+	{ "tolower",    rtlb_tolower    },
+	{ "toupper",    rtlb_toupper    },
+	{ "fmtstr",     rtlb_fmtstr     },
+	{ "tonumber",   rtlb_tonumber   },
+	{ "toint",      rtlb_toint      },
+	{ "tofloat",    rtlb_tofloat    },
 };
 
 
@@ -1059,7 +1059,7 @@ static void rtlb_aux_swap(SpnArray *a, int i, int j)
 }
 
 static int rtlb_aux_partition(SpnArray *a, int left, int right,
-	SpnValue *comp, SpnContext *ctx, int *error)
+	SpnFunction *comp, SpnContext *ctx, int *error)
 {
 	int store_idx = left;
 	int pivot_idx = left + (right - left) / 2;
@@ -1125,7 +1125,7 @@ static int rtlb_aux_partition(SpnArray *a, int left, int right,
 	return store_idx;
 }
 
-static int rtlb_aux_qsort(SpnArray *a, int left, int right, SpnValue *comp, SpnContext *ctx)
+static int rtlb_aux_qsort(SpnArray *a, int left, int right, SpnFunction *comp, SpnContext *ctx)
 {
 	int pivot_index;
 	int error = 0;
@@ -1153,7 +1153,7 @@ static int rtlb_aux_qsort(SpnArray *a, int left, int right, SpnValue *comp, SpnC
 static int rtlb_sort(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnArray *array;
-	SpnValue *comparator = NULL;
+	SpnFunction *comparator = NULL;
 
 	if (argc < 1 || argc > 2) {
 		spn_ctx_runtime_error(ctx, "one or two arguments are required", NULL);
@@ -1173,7 +1173,7 @@ static int rtlb_sort(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			return -3;
 		}
 
-		comparator = &argv[1];
+		comparator = funcvalue(&argv[1]);
 	}
 
 	return rtlb_aux_qsort(array, 0, spn_array_count(array) - 1, comparator, ctx);
@@ -1305,6 +1305,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	SpnArray *arr;
 	SpnIterator *it;
 	SpnValue args[2]; /* key and value */
+	SpnFunction *predicate;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "two arguments are required", NULL);
@@ -1322,6 +1323,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	arr = arrayvalue(&argv[0]);
+	predicate = funcvalue(&argv[1]);
 	it = spn_iter_new(arr);
 	n = spn_array_count(arr);
 
@@ -1329,7 +1331,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		int err;
 		SpnValue cbret;
 
-		err = spn_ctx_callfunc(ctx, &argv[1], &cbret, COUNT(args), args);
+		err = spn_ctx_callfunc(ctx, predicate, &cbret, COUNT(args), args);
 
 		if (err != 0) {
 			status = err;
@@ -1360,7 +1362,8 @@ static int rtlb_reduce(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	int status = 0;
 	SpnArray *arr;
 	SpnValue args[2], tmp;
-	SpnValue *arrval, *first, *func;
+	SpnValue *arrval, *first;
+	SpnFunction *func;
 
 	if (argc != 3) {
 		spn_ctx_runtime_error(ctx, "expecting three arguments", NULL);
@@ -1369,18 +1372,18 @@ static int rtlb_reduce(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	arrval = &argv[0];
 	first  = &argv[1];
-	func   = &argv[2];
 
 	if (!isarray(arrval)) {
 		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
 		return -2;
 	}
 
-	if (!isfunc(func)) {
+	if (!isfunc(&argv[2])) {
 		spn_ctx_runtime_error(ctx, "third argument must be a function", NULL);
 		return -3;
 	}
 
+	func = funcvalue(&argv[2]);
 	arr = arrayvalue(arrval);
 	n = spn_array_count(arr);
 
@@ -1413,6 +1416,7 @@ static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	SpnArray *orig, *filt;
 	SpnIterator *it;
 	SpnValue args[2];
+	SpnFunction *predicate;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
@@ -1430,6 +1434,7 @@ static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	orig = arrayvalue(&argv[0]);
+	predicate = funcvalue(&argv[1]);
 	it = spn_iter_new(orig);
 	n = spn_array_count(orig);
 	filt = spn_array_new();
@@ -1437,7 +1442,7 @@ static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	while (spn_iter_next(it, &args[0], &args[1]) < n) {
 		SpnValue cond;
 
-		if (spn_ctx_callfunc(ctx, &argv[1], &cond, COUNT(args), args) != 0) {
+		if (spn_ctx_callfunc(ctx, predicate, &cond, COUNT(args), args) != 0) {
 			spn_object_release(filt);
 			spn_iter_free(it);
 			return -4;
@@ -1468,6 +1473,7 @@ static int rtlb_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	SpnArray *orig, *mapped;
 	SpnIterator *it;
 	SpnValue args[2];
+	SpnFunction *predicate;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
@@ -1485,13 +1491,14 @@ static int rtlb_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	orig = arrayvalue(&argv[0]);
+	predicate = funcvalue(&argv[1]);
 	it = spn_iter_new(orig);
 	n = spn_array_count(orig);
 	mapped = spn_array_new();
 
 	while (spn_iter_next(it, &args[0], &args[1]) < n) {
 		SpnValue result;
-		if (spn_ctx_callfunc(ctx, &argv[1], &result, COUNT(args), args) != 0) {
+		if (spn_ctx_callfunc(ctx, predicate, &result, COUNT(args), args) != 0) {
 			spn_object_release(mapped);
 			spn_iter_free(it);
 			return -4;
@@ -1589,21 +1596,21 @@ static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 }
 
 const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
-	{ "sort",	rtlb_sort	},
-	{ "linsearch",	NULL		},
-	{ "binsearch",	NULL		},
-	{ "contains",	rtlb_contains	},
-	{ "subarray",	NULL		},
-	{ "join",	rtlb_join	},
-	{ "foreach",	rtlb_foreach	},
-	{ "reduce",	rtlb_reduce	},
-	{ "filter",	rtlb_filter	},
-	{ "map",	rtlb_map	},
-	{ "insert",	NULL		},
-	{ "insertarr",	NULL		},
-	{ "delrange",	NULL		},
-	{ "clear",	NULL		},
-	{ "range",	rtlb_range	}
+	{ "sort",      rtlb_sort       },
+	{ "linsearch",  NULL           },
+	{ "binsearch",  NULL           },
+	{ "contains",   rtlb_contains  },
+	{ "subarray",   NULL           },
+	{ "join",       rtlb_join      },
+	{ "foreach",    rtlb_foreach   },
+	{ "reduce",     rtlb_reduce    },
+	{ "filter",     rtlb_filter    },
+	{ "map",        rtlb_map       },
+	{ "insert",     NULL           },
+	{ "insertarr",  NULL           },
+	{ "delrange",   NULL           },
+	{ "clear",      NULL           },
+	{ "range",      rtlb_range     }
 };
 
 
@@ -2563,55 +2570,55 @@ static int rtlb_pol2can(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 }
 
 const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
-	{ "abs",	rtlb_abs	},
-	{ "min",	rtlb_min	},
-	{ "max",	rtlb_max	},
-	{ "floor",	rtlb_floor	},
-	{ "ceil",	rtlb_ceil	},
-	{ "round",	rtlb_round	},
-	{ "sgn",	rtlb_sgn	},
-	{ "hypot",	rtlb_hypot	},
-	{ "sqrt",	rtlb_sqrt	},
-	{ "cbrt",	rtlb_cbrt	},
-	{ "pow",	rtlb_pow	},
-	{ "exp",	rtlb_exp	},
-	{ "exp2",	rtlb_exp2	},
-	{ "exp10",	rtlb_exp10	},
-	{ "log",	rtlb_log	},
-	{ "log2",	rtlb_log2	},
-	{ "log10",	rtlb_log10	},
-	{ "sin",	rtlb_sin	},
-	{ "cos",	rtlb_cos	},
-	{ "tan",	rtlb_tan	},
-	{ "sinh",	rtlb_sinh	},
-	{ "cosh",	rtlb_cosh	},
-	{ "tanh",	rtlb_tanh	},
-	{ "asin",	rtlb_asin	},
-	{ "acos",	rtlb_acos	},
-	{ "atan",	rtlb_atan	},
-	{ "atan2",	rtlb_atan2	},
-	{ "deg2rad",	rtlb_deg2rad	},
-	{ "rad2deg",	rtlb_rad2deg	},
-	{ "random",	rtlb_random	},
-	{ "seed",	rtlb_seed	},
-	{ "isfin",	rtlb_isfin	},
-	{ "isinf",	rtlb_isinf	},
-	{ "isnan",	rtlb_isnan	},
-	{ "isfloat",	rtlb_isfloat	},
-	{ "isint",	rtlb_isint	},
-	{ "fact",	rtlb_fact	},
-	{ "binom",	rtlb_binom	},
-	{ "cplx_add",	rtlb_cplx_add	}, /* TODO: add square root, power and logarithm */
-	{ "cplx_sub",	rtlb_cplx_sub	},
-	{ "cplx_mul",	rtlb_cplx_mul	},
-	{ "cplx_div",	rtlb_cplx_div	},
-	{ "cplx_sin",	rtlb_cplx_sin	}, /* TODO: add inverse and hyperbolic functions */
-	{ "cplx_cos",	rtlb_cplx_cos	},
-	{ "cplx_tan",	rtlb_cplx_tan	},
-	{ "cplx_conj",	rtlb_cplx_conj	},
-	{ "cplx_abs",	rtlb_cplx_abs	},
-	{ "can2pol",	rtlb_can2pol	},
-	{ "pol2can",	rtlb_pol2can	},
+	{ "abs",       rtlb_abs         },
+	{ "min",       rtlb_min         },
+	{ "max",       rtlb_max         },
+	{ "floor",     rtlb_floor       },
+	{ "ceil",      rtlb_ceil        },
+	{ "round",     rtlb_round       },
+	{ "sgn",       rtlb_sgn         },
+	{ "hypot",     rtlb_hypot       },
+	{ "sqrt",      rtlb_sqrt        },
+	{ "cbrt",      rtlb_cbrt        },
+	{ "pow",       rtlb_pow         },
+	{ "exp",       rtlb_exp         },
+	{ "exp2",      rtlb_exp2        },
+	{ "exp10",     rtlb_exp10       },
+	{ "log",       rtlb_log         },
+	{ "log2",      rtlb_log2        },
+	{ "log10",     rtlb_log10       },
+	{ "sin",       rtlb_sin         },
+	{ "cos",       rtlb_cos         },
+	{ "tan",       rtlb_tan         },
+	{ "sinh",      rtlb_sinh        },
+	{ "cosh",      rtlb_cosh        },
+	{ "tanh",      rtlb_tanh        },
+	{ "asin",      rtlb_asin        },
+	{ "acos",      rtlb_acos        },
+	{ "atan",      rtlb_atan        },
+	{ "atan2",     rtlb_atan2       },
+	{ "deg2rad",   rtlb_deg2rad     },
+	{ "rad2deg",   rtlb_rad2deg     },
+	{ "random",    rtlb_random      },
+	{ "seed",      rtlb_seed        },
+	{ "isfin",     rtlb_isfin       },
+	{ "isinf",     rtlb_isinf       },
+	{ "isnan",     rtlb_isnan       },
+	{ "isfloat",   rtlb_isfloat     },
+	{ "isint",     rtlb_isint       },
+	{ "fact",      rtlb_fact        },
+	{ "binom",     rtlb_binom       },
+	{ "cplx_add",  rtlb_cplx_add	}, /* TODO: add square root, power and logarithm */
+	{ "cplx_sub",  rtlb_cplx_sub	},
+	{ "cplx_mul",  rtlb_cplx_mul	},
+	{ "cplx_div",  rtlb_cplx_div	},
+	{ "cplx_sin",  rtlb_cplx_sin	}, /* TODO: add inverse and hyperbolic functions */
+	{ "cplx_cos",  rtlb_cplx_cos	},
+	{ "cplx_tan",  rtlb_cplx_tan    },
+	{ "cplx_conj", rtlb_cplx_conj   },
+	{ "cplx_abs",  rtlb_cplx_abs    },
+	{ "can2pol",   rtlb_can2pol     },
+	{ "pol2can",   rtlb_pol2can     },
 };
 
 
@@ -2905,8 +2912,7 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_aux_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx, int isfile)
 {
-	SpnValue fn;
-	int err;
+	SpnFunction *fn;
 	const char *src;
 
 	if (argc != 1) {
@@ -2922,17 +2928,18 @@ static int rtlb_aux_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx, 
 	src = stringvalue(&argv[0])->cstr;
 
 	if (isfile) {
-		err = spn_ctx_loadsrcfile(ctx, src, &fn);
+		fn = spn_ctx_loadsrcfile(ctx, src);
 	} else {
-		err = spn_ctx_loadstring(ctx, src, &fn);
+		fn = spn_ctx_loadstring(ctx, src);
 	}
 
-	if (err != 0) {	/* return parser/compiler error message	*/
+	if (fn == NULL) {	/* return parser/compiler error message	*/
 		const char *errmsg = spn_ctx_geterrmsg(ctx);
 		*ret = makestring(errmsg);
 		spn_ctx_clearerror(ctx);
 	} else {	/* return function, make it owning	*/
-		*ret = fn;
+		ret->type = SPN_TYPE_FUNC;
+		ret->v.o = fn;
 		spn_value_retain(ret);
 	}
 
@@ -2951,6 +2958,8 @@ static int rtlb_loadfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
+	SpnFunction *fn;
+
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "requiring exactly one argument", NULL);
 		return -1;
@@ -2961,11 +2970,14 @@ static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	if (spn_ctx_compile_expr(ctx, stringvalue(&argv[0])->cstr, ret) != 0) {
+	fn = spn_ctx_compile_expr(ctx, stringvalue(&argv[0])->cstr);
+	if (fn == NULL) {
 		const char *errmsg = spn_ctx_geterrmsg(ctx);
 		*ret = makestring(errmsg);
 		spn_ctx_clearerror(ctx);
 	} else {
+		ret->type = SPN_TYPE_FUNC;
+		ret->v.o = fn;
 		spn_value_retain(ret);
 	}
 
@@ -2979,7 +2991,7 @@ static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	int callee_argc, status, i;
 	SpnValue callee_argv_auto[MAX_AUTO_ARGC];
 	SpnValue *callee_argv;
-	const SpnValue *callee;
+	SpnFunction *callee;
 	SpnArray *arguments;
 
 	if (argc < 2 || argc > 3) {
@@ -2987,9 +2999,7 @@ static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	callee = &argv[0];
-
-	if (!isfunc(callee)) {
+	if (!isfunc(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a function", NULL);
 		return -2;
 	}
@@ -2999,6 +3009,7 @@ static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
+	callee = funcvalue(&argv[0]);
 	arguments = arrayvalue(&argv[1]);
 
 	if (argc == 3) {
@@ -3063,20 +3074,20 @@ static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 }
 
 const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
-	{ "getenv",	rtlb_getenv	},
-	{ "system",	rtlb_system	},
-	{ "assert",	rtlb_assert	},
-	{ "exit",	rtlb_exit	},
-	{ "time",	rtlb_time	},
-	{ "utctime",	rtlb_utctime	},
-	{ "localtime",	rtlb_localtime	},
-	{ "fmtdate",	rtlb_fmtdate	},
-	{ "difftime",	rtlb_difftime	},
-	{ "compile",	rtlb_compile	},
-	{ "exprtofn",	rtlb_exprtofn	},
-	{ "loadfile",	rtlb_loadfile	},
-	{ "call",	rtlb_call	},
-	{ "backtrace",	rtlb_backtrace	}
+	{ "getenv",     rtlb_getenv     },
+	{ "system",     rtlb_system     },
+	{ "assert",     rtlb_assert     },
+	{ "exit",       rtlb_exit       },
+	{ "time",       rtlb_time       },
+	{ "utctime",    rtlb_utctime    },
+	{ "localtime",  rtlb_localtime  },
+	{ "fmtdate",    rtlb_fmtdate    },
+	{ "difftime",   rtlb_difftime   },
+	{ "compile",    rtlb_compile    },
+	{ "exprtofn",   rtlb_exprtofn   },
+	{ "loadfile",   rtlb_loadfile   },
+	{ "call",       rtlb_call       },
+	{ "backtrace",  rtlb_backtrace  }
 };
 
 
@@ -3163,4 +3174,3 @@ void spn_load_stdlib(SpnVMachine *vm)
 	load_stdlib_functions(vm);
 	load_stdlib_constants(vm);
 }
-

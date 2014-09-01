@@ -16,6 +16,7 @@
 
 #include "api.h"
 #include "array.h"
+#include "func.h"
 
 /* an extension function written in C. It receives a pointer to the return
  * value, the number of call arguments, a pointer to an array of the arguments.
@@ -42,13 +43,13 @@ typedef struct SpnExtValue {
 /* the virtual machine */
 typedef struct SpnVMachine SpnVMachine;
 
-SPN_API SpnVMachine	 *spn_vm_new(void);
-SPN_API void		  spn_vm_free(SpnVMachine *vm);
+SPN_API SpnVMachine *spn_vm_new(void);
+SPN_API void         spn_vm_free(SpnVMachine *vm);
 
 /* calls a Sparkling function from C-land. */
 SPN_API int spn_vm_callfunc(
 	SpnVMachine *vm,
-	const SpnValue *fn,
+	SpnFunction *fn,
 	SpnValue *retval,
 	int argc,
 	SpnValue *argv
@@ -57,31 +58,31 @@ SPN_API int spn_vm_callfunc(
 /* these functions copy neither the names of the values nor the library name,
  * so make sure that the strings are valid thorughout the entire runtime.
  */
-SPN_API void		  spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc  fns[],  size_t n);
-SPN_API void		  spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValue vals[], size_t n);
+SPN_API void  spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc  fns[],  size_t n);
+SPN_API void  spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValue vals[], size_t n);
 
 /* get and set context info (arbitrarily usable pointer) */
-SPN_API void		 *spn_vm_getcontext(SpnVMachine *vm);
-SPN_API void		  spn_vm_setcontext(SpnVMachine *vm, void *ctx);
+SPN_API void *spn_vm_getcontext(SpnVMachine *vm);
+SPN_API void  spn_vm_setcontext(SpnVMachine *vm, void *ctx);
 
 /* the getter retrieves the last runtime error message, whereas the setter
  * can be used by native extension functions before returning an error code
  * in order to generate a custom error message.
  */
-SPN_API const char	 *spn_vm_geterrmsg(SpnVMachine *vm);
-SPN_API void		  spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const void *args[]);
+SPN_API const char *spn_vm_geterrmsg(SpnVMachine *vm);
+SPN_API void        spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const void *args[]);
 
 /* returns an array of strings containing a symbolicated stack trace.
  * Must be `free()`'d when you're done with it.
  */
-SPN_API const char	**spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
+SPN_API const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
 
 /* this returns an array that contains the global constants and functions.
  * the keys are symbol names (SpnString instances).
  * The returned pointer is non-owning: the result of a call to this function
  * is only valid as long as the virtual machine `vm' is itself alive as well.
  */
-SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
+SPN_API SpnArray *spn_vm_getglobals(SpnVMachine *vm);
 
 /* layout of a Sparkling bytecode file:
  *
@@ -104,39 +105,39 @@ SPN_API SpnArray	 *spn_vm_getglobals(SpnVMachine *vm);
 #define SPN_LAMBDA_NAME		"<lambda>"
 
 /* format of a Sparkling function's bytecode representation */
-#define SPN_FUNCHDR_IDX_BODYLEN	0
-#define SPN_FUNCHDR_IDX_ARGC	1
-#define SPN_FUNCHDR_IDX_NREGS	2
-#define SPN_FUNCHDR_IDX_SYMCNT	3
-#define SPN_FUNCHDR_LEN		4
+#define SPN_FUNCHDR_IDX_BODYLEN 0
+#define SPN_FUNCHDR_IDX_ARGC    1
+#define SPN_FUNCHDR_IDX_NREGS   2
+#define SPN_FUNCHDR_IDX_SYMCNT  3
+#define SPN_FUNCHDR_LEN         4
 
 /* macros for creating opcodes and instructions
  * instructions can have different formats:
- * format "void":	8 bits opcode, 24+ bits padding (no operands)
- * format "A":		8 bits opcode, 8 bits operand A, 16+ bits padding
- * format "AB":		8 bits opcode, 8 bits operand A, 8 bits operand B, 8+ bits padding
- * format "ABC":	8 bits opcode, 8 bits operand A, 8 bits operand B, 8 bits operand C, 0+ bits padding
- * format "mid":	8 bits opcode, 8 bits operand A, 16 bits operand B, 0+ bits padding
- * format "long":	8 bits opcode, 24 bits operand A, 0+ bits padding
+ * format "void":   8 bits opcode, 24+ bits padding (no operands)
+ * format "A":      8 bits opcode, 8 bits operand A, 16+ bits padding
+ * format "AB":     8 bits opcode, 8 bits operand A, 8 bits operand B, 8+ bits padding
+ * format "ABC":    8 bits opcode, 8 bits operand A, 8 bits operand B, 8 bits operand C, 0+ bits padding
+ * format "mid":    8 bits opcode, 8 bits operand A, 16 bits operand B, 0+ bits padding
+ * format "long":   8 bits opcode, 24 bits operand A, 0+ bits padding
  *
  * note that this format is independent of the number of bits in a byte.
  * even if CHAR_BIT is not 8, the spn_uword (which is at least 32 bits wide)
  * is always split into 8-bit parts.
  */
-#define SPN_MKINS_VOID(o)		((spn_uword)((o) & 0xff))
-#define SPN_MKINS_A(o, a)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8)))
-#define SPN_MKINS_AB(o, a, b)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xff) << 16)))
-#define SPN_MKINS_ABC(o, a, b, c)	((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xff) << 16) | (((spn_uword)(c) & 0xff) << 24)))
-#define SPN_MKINS_MID(o, a, b)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xffff) << 16)))
-#define SPN_MKINS_LONG(o, a)		((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xffffff) << 8)))
+#define SPN_MKINS_VOID(o)         ((spn_uword)((o) & 0xff))
+#define SPN_MKINS_A(o, a)         ((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8)))
+#define SPN_MKINS_AB(o, a, b)     ((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xff) << 16)))
+#define SPN_MKINS_ABC(o, a, b, c) ((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xff) << 16) | (((spn_uword)(c) & 0xff) << 24)))
+#define SPN_MKINS_MID(o, a, b)    ((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xff) << 8) | (((spn_uword)(b) & 0xffff) << 16)))
+#define SPN_MKINS_LONG(o, a)      ((spn_uword)(((o) & 0xff) | (((spn_uword)(a) & 0xffffff) << 8)))
 
 /* constant kinds (see SPN_INST_LDCONST and comment (IV) for more info) */
 enum spn_const_kind {
-	SPN_CONST_NIL,		/* nil, obviously	*/
-	SPN_CONST_TRUE,		/* Boolean true		*/
-	SPN_CONST_FALSE,	/* Boolean false	*/
-	SPN_CONST_INT,		/* integer literal	*/
-	SPN_CONST_FLOAT		/* floating literal	*/
+	SPN_CONST_NIL,   /* nil, obviously   */
+	SPN_CONST_TRUE,  /* Boolean true     */
+	SPN_CONST_FALSE, /* Boolean false    */
+	SPN_CONST_INT,   /* integer literal  */
+	SPN_CONST_FLOAT  /* floating literal */
 };
 
 /* kinds of local symbol table entries
@@ -176,47 +177,47 @@ enum spn_upval_type {
  * Instruction set of the virtual machine
  */
 enum spn_vm_ins {
-	SPN_INS_CALL,		/* a = b(...) [total: c arguments] (I)	*/
-	SPN_INS_RET,		/* return a			(II)	*/
-	SPN_INS_JMP,		/* unconditional jump			*/
-	SPN_INS_JZE,		/* conditional jump if a == false	*/
-	SPN_INS_JNZ,		/* conditional jump if a == true	*/
-	SPN_INS_EQ,		/* a = b == c			(III)	*/
-	SPN_INS_NE,		/* a = b != c				*/
-	SPN_INS_LT,		/* a = b < c				*/
-	SPN_INS_LE,		/* a = b <= c				*/
-	SPN_INS_GT,		/* a = b > c				*/
-	SPN_INS_GE,		/* a = b >= c				*/
-	SPN_INS_ADD,		/* a = b + c				*/
-	SPN_INS_SUB,		/* a = b - c				*/
-	SPN_INS_MUL,		/* a = b * c				*/
-	SPN_INS_DIV,		/* a = b / c				*/
-	SPN_INS_MOD,		/* a = b % c				*/
-	SPN_INS_NEG,		/* a = -b				*/
-	SPN_INS_INC,		/* ++a					*/
-	SPN_INS_DEC,		/* --a					*/
-	SPN_INS_AND,		/* a = b & c				*/
-	SPN_INS_OR,		/* a = b | c				*/
-	SPN_INS_XOR,		/* a = b ^ c				*/
-	SPN_INS_SHL,		/* a = b << c				*/
-	SPN_INS_SHR,		/* a = b >> c				*/
-	SPN_INS_BITNOT,		/* a = ~b				*/
-	SPN_INS_LOGNOT,		/* a = !b				*/
-	SPN_INS_SIZEOF,		/* a = sizeof(b)			*/
-	SPN_INS_TYPEOF,		/* a = typeof(b)			*/
-	SPN_INS_CONCAT,		/* a = b .. c				*/
-	SPN_INS_LDCONST,	/* a = <constant> 		(IV)	*/
-	SPN_INS_LDSYM,		/* a = local symtab[b]		(V)	*/
-	SPN_INS_MOV,		/* a = b				*/
-	SPN_INS_LDARGC,		/* a = argc (# of call-time arguments)	*/
-	SPN_INS_NEWARR,		/* a = new array			*/
-	SPN_INS_ARRGET,		/* a = b[c]				*/
-	SPN_INS_ARRSET,		/* a[b] = c				*/
-	SPN_INS_NTHARG,		/* a = argv[b] (accesses varargs only!)	*/
-	SPN_INS_FUNCTION,	/* function definition 		(VI)	*/
-	SPN_INS_GLBVAL,		/* add a value to the global symtab	*/
-	SPN_INS_CLOSURE,       	/* create closure from free func (VII)	*/
-	SPN_INS_LDUPVAL		/* a = upvalues[b];			*/
+	SPN_INS_CALL,     /* a = b(...) [total: c arguments] (I)  */
+	SPN_INS_RET,      /* return a (II)                        */
+	SPN_INS_JMP,      /* unconditional jump                   */
+	SPN_INS_JZE,      /* conditional jump if a == false       */
+	SPN_INS_JNZ,      /* conditional jump if a == true        */
+	SPN_INS_EQ,       /* a = b == c (III)                     */
+	SPN_INS_NE,       /* a = b != c                           */
+	SPN_INS_LT,       /* a = b < c                            */
+	SPN_INS_LE,       /* a = b <= c                           */
+	SPN_INS_GT,       /* a = b > c                            */
+	SPN_INS_GE,       /* a = b >= c                           */
+	SPN_INS_ADD,      /* a = b + c                            */
+	SPN_INS_SUB,      /* a = b - c                            */
+	SPN_INS_MUL,      /* a = b * c                            */
+	SPN_INS_DIV,      /* a = b / c                            */
+	SPN_INS_MOD,      /* a = b % c                            */
+	SPN_INS_NEG,      /* a = -b                               */
+	SPN_INS_INC,      /* ++a                                  */
+	SPN_INS_DEC,      /* --a                                  */
+	SPN_INS_AND,      /* a = b & c                            */
+	SPN_INS_OR,       /* a = b | c                            */
+	SPN_INS_XOR,      /* a = b ^ c                            */
+	SPN_INS_SHL,      /* a = b << c                           */
+	SPN_INS_SHR,      /* a = b >> c                           */
+	SPN_INS_BITNOT,   /* a = ~b                               */
+	SPN_INS_LOGNOT,   /* a = !b                               */
+	SPN_INS_SIZEOF,   /* a = sizeof(b)                        */
+	SPN_INS_TYPEOF,   /* a = typeof(b)                        */
+	SPN_INS_CONCAT,   /* a = b .. c                           */
+	SPN_INS_LDCONST,  /* a = <constant> (IV)                  */
+	SPN_INS_LDSYM,    /* a = local symtab[b] (V)              */
+	SPN_INS_MOV,      /* a = b                                */
+	SPN_INS_LDARGC,   /* a = argc (# of call-time arguments)  */
+	SPN_INS_NEWARR,   /* a = new array                        */
+	SPN_INS_ARRGET,   /* a = b[c]                             */
+	SPN_INS_ARRSET,   /* a[b] = c                             */
+	SPN_INS_NTHARG,   /* a = argv[b] (accesses varargs only!) */
+	SPN_INS_FUNCTION, /* function definition (VI)             */
+	SPN_INS_GLBVAL,   /* add a value to the global symtab     */
+	SPN_INS_CLOSURE,  /* create closure from free func (VII)  */
+	SPN_INS_LDUPVAL   /* a = upvalues[b];                     */
 };
 
 /* Remarks:
@@ -296,4 +297,3 @@ enum spn_vm_ins {
  */
 
 #endif /* SPN_VM_H */
-

@@ -23,26 +23,26 @@
 #include "private.h"
 
 
-#define N_CMDS		5
-#define N_FLAGS		2
-#define N_ARGS		(N_CMDS + N_FLAGS)
+#define N_CMDS     5
+#define N_FLAGS    2
+#define N_ARGS    (N_CMDS + N_FLAGS)
 
-#define CMDS_MASK	0x00ff
-#define FLAGS_MASK	0xff00
+#define CMDS_MASK  0x00ff
+#define FLAGS_MASK 0xff00
 
 #ifndef LINE_MAX
-#define LINE_MAX	0x1000
+#define LINE_MAX   0x1000
 #endif
 
 enum cmd_args {
-	CMD_HELP	= 1 << 0,
-	CMD_EXECUTE	= 1 << 1,
-	CMD_COMPILE	= 1 << 2,
-	CMD_DISASM	= 1 << 3,
-	CMD_DUMPAST	= 1 << 4,
+	CMD_HELP      = 1 << 0,
+	CMD_EXECUTE   = 1 << 1,
+	CMD_COMPILE   = 1 << 2,
+	CMD_DISASM    = 1 << 3,
+	CMD_DUMPAST   = 1 << 4,
 
-	FLAG_PRINTNIL	= 1 << 8,
-	FLAG_PRINTRET	= 1 << 9
+	FLAG_PRINTNIL = 1 << 8,
+	FLAG_PRINTRET = 1 << 9
 };
 
 /* `pos' is the index of the first non-option */
@@ -53,13 +53,13 @@ static enum cmd_args process_args(int argc, char *argv[], int *pos)
 		const char *lnopt; /* long option */
 		enum cmd_args mask;
 	} args[N_ARGS] = {
-		{ "-h",	"--help",	CMD_HELP	},
-		{ "-e",	"--execute",	CMD_EXECUTE	},
-		{ "-c", "--compile",	CMD_COMPILE	},
-		{ "-d", "--disasm",	CMD_DISASM	},
-		{ "-a", "--dump-ast",	CMD_DUMPAST	},
-		{ "-n", "--print-nil",	FLAG_PRINTNIL	},
-		{ "-t", "--print-ret",	FLAG_PRINTRET	}
+		{ "-h", "--help",      CMD_HELP      },
+		{ "-e", "--execute",   CMD_EXECUTE   },
+		{ "-c", "--compile",   CMD_COMPILE   },
+		{ "-d", "--disasm",    CMD_DISASM    },
+		{ "-a", "--dump-ast",  CMD_DUMPAST   },
+		{ "-n", "--print-nil", FLAG_PRINTNIL },
+		{ "-t", "--print-ret", FLAG_PRINTRET }
 	};
 
 	enum cmd_args opts = 0;
@@ -149,7 +149,8 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
  */
 static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *argv[])
 {
-	SpnValue fn, *vals;
+	SpnValue *vals;
+	SpnFunction *fn;
 	char *buf = spn_read_text_file(fname);
 	const char *src;
 	int err, i;
@@ -182,12 +183,12 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 	}
 
 	/* compile */
-	err = spn_ctx_loadstring(ctx, src, &fn);
+	fn = spn_ctx_loadstring(ctx, src);
 	free(buf);
 
-	if (err != 0) {
+	if (fn == NULL) {
 		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
-		return err;
+		return -1;
 	}
 
 	/* make arguments array */
@@ -196,7 +197,7 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 		vals[i] = makestring_nocopy(argv[i]);
 	}
 
-	err = spn_ctx_callfunc(ctx, &fn, NULL, argc, vals);
+	err = spn_ctx_callfunc(ctx, fn, NULL, argc, vals);
 
 	/* free arguments array */
 	for (i = 0; i < argc; i++) {
@@ -313,7 +314,7 @@ static int enter_repl(enum cmd_args args)
 				fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 				print_stacktrace_if_needed(ctx);
 			} else {
-				SpnValue fn;
+				SpnFunction *fn;
 				/* Save the original error message, because
 				 * it's probably going to be more meaningful.
 				 */
@@ -330,10 +331,11 @@ static int enter_repl(enum cmd_args args)
 				 * we managed to parse and compile the string as an
 				 * expression, so it's the new error message that is relevant.
 				 */
-				if (spn_ctx_compile_expr(ctx, buf, &fn) != 0) {
+				fn = spn_ctx_compile_expr(ctx, buf);
+				if (fn == NULL) {
 					fprintf(stderr, "%s\n", orig_errmsg);
 				} else {
-					if (spn_ctx_callfunc(ctx, &fn, &ret, 0, NULL) != 0) {
+					if (spn_ctx_callfunc(ctx, fn, &ret, 0, NULL) != 0) {
 						fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 						print_stacktrace_if_needed(ctx);
 					} else {
@@ -377,8 +379,7 @@ static int compile_files(int argc, char *argv[])
 		static char outname[FILENAME_MAX];
 		char *dotp;
 		FILE *outfile;
-		SpnValue fnval;
-		SpnFunction *fnobj;
+		SpnFunction *fn;
 		spn_uword *bc;
 		size_t nwords;
 
@@ -386,7 +387,8 @@ static int compile_files(int argc, char *argv[])
 		fflush(stdout);
 		fflush(stderr);
 
-		if (spn_ctx_loadsrcfile(ctx, argv[i], &fnval) != 0) {
+		fn = spn_ctx_loadsrcfile(ctx, argv[i]);
+		if (fn == NULL) {
 			printf("\n");
 			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 			status = EXIT_FAILURE;
@@ -408,12 +410,9 @@ static int compile_files(int argc, char *argv[])
 			break;
 		}
 
-		assert(isfunc(&fnval));
-		fnobj = funcvalue(&fnval);
-
-		assert(fnobj->topprg);
-		bc = fnobj->repr.bc;
-		nwords = fnobj->nwords;
+		assert(fn->topprg);
+		bc = fn->repr.bc;
+		nwords = fn->nwords;
 
 		if (fwrite(bc, sizeof bc[0], nwords, outfile) < nwords) {
 			fprintf(stderr, "\nI/O error: can't write to file `%s'\n", outname);
@@ -450,10 +449,10 @@ static void bail(const char *fmt, ...)
 	fprintf(stderr, "\n");
 }
 
-/* hopefully there'll be no more than 256 levels of nested function bodies.
+/* hopefully there'll be no more than 4096 levels of nested function bodies.
  * if you write code that has more of them, you should feel bad (and refactor).
  */
-#define MAX_FUNC_NEST	0x100
+#define MAX_FUNC_NEST	0x1000
 
 /* process executable section ("text") */
 static int disasm_exec(spn_uword *bc, size_t textlen)
@@ -1233,4 +1232,3 @@ int main(int argc, char *argv[])
 
 	return status;
 }
-

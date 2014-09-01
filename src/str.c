@@ -156,37 +156,37 @@ static void append_string(struct string_builder *bld, const char *str, size_t le
 #define PR_LONG_DIGITS (sizeof(long) * CHAR_BIT + 3)
 
 enum format_flags {
-	FLAG_ZEROPAD		= 1 << 0, /* pad field width with zeroes, not spaces	*/
-	FLAG_NEGATIVE		= 1 << 1, /* the number to be printed is negative	*/
-	FLAG_EXPLICITSIGN	= 1 << 2, /* always print '+' or '-' sign		*/
-	FLAG_PADSIGN		= 1 << 3, /* prepend space if negative			*/
-	FLAG_EXPONENTSIGN	= 1 << 4, /* explicitly signed exponent (+/-e...)	*/
-	FLAG_BASEPREFIX		= 1 << 5, /* prepend "0b", "0" or "0x" prefix		*/
-	FLAG_CAPS		= 1 << 6  /* for hex: use 'A'..'Z' instead of 'a'..'z';
-					   * for `%e': use 'E' instead of 'e'		*/
+	FLAG_ZEROPAD        = 1 << 0, /* pad field width with zeroes, not spaces */
+	FLAG_NEGATIVE       = 1 << 1, /* the number to be printed is negative    */
+	FLAG_EXPLICITSIGN   = 1 << 2, /* always print '+' or '-' sign            */
+	FLAG_PADSIGN        = 1 << 3, /* prepend space if negative               */
+	FLAG_EXPONENTSIGN   = 1 << 4, /* explicitly signed exponent (+/-e...)    */
+	FLAG_BASEPREFIX     = 1 << 5, /* prepend "0b", "0" or "0x" prefix        */
+	FLAG_CAPS           = 1 << 6  /* for hex: use 'A'..'Z' instead of 'a'..'z';
+	                               * for `%e': use 'E' instead of 'e'        */
 };
 
 /* XXX: this should really be an inline function */
-#define APPEND_BASE_PREFIX(bs, bg, caps)		\
-	do {						\
-		switch (bs) {				\
-		case 2:					\
-			*--bg = 'b';			\
-			*--bg = '0';			\
-			break;				\
-		case 8:					\
-			*--bg = '0';			\
-			break;				\
-		case 10:				\
-			break;				\
-		case 16:				\
-			*--bg = (caps) ? 'X' : 'x';	\
-			*--bg = '0';			\
-			break;				\
-		default:				\
-			abort();			\
-			break;				\
-		}					\
+#define APPEND_BASE_PREFIX(bs, bg, caps) \
+	do {                                 \
+		switch (bs) {                    \
+		case 2:                          \
+			*--bg = 'b';                 \
+			*--bg = '0';                 \
+			break;                       \
+		case 8:                          \
+			*--bg = '0';                 \
+			break;                       \
+		case 10:                         \
+			break;                       \
+		case 16:                         \
+			*--bg = (caps) ? 'X' : 'x';  \
+			*--bg = '0';                 \
+			break;                       \
+		default:                         \
+			abort();                     \
+			break;                       \
+		}                                \
 	} while(0)
 
 static int prefix_length(unsigned base)
@@ -840,9 +840,9 @@ static char *make_format_string(
 	struct string_builder bld;
 	int argidx = 0;
 	const char *s = fmt;
-	const char *p = s;	/* points to the beginning of the next
-				 * non-format part of the format string
-				 */
+	const char *p = s;   /* points to the beginning of the next
+	                      * non-format part of the format string
+	                      */
 
 	init_builder(&bld);
 
@@ -1072,4 +1072,3 @@ SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int dealloc)
 	SpnString *str = spn_string_new_nocopy_len(s, len, dealloc);
 	return string_to_val(str);
 }
-

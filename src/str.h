@@ -16,12 +16,12 @@
 #include "api.h"
 
 typedef struct SpnString {
-	SpnObject	 base;		/* private		*/
-	char		*cstr;		/* public, readonly	*/
-	size_t		 len;		/* public, readonly	*/
-	int		 dealloc;	/* private		*/
-	int		 ishashed;	/* private		*/
-	unsigned long	 hash;		/* private		*/
+	SpnObject     base;     /* private          */
+	char         *cstr;     /* public, readonly */
+	size_t        len;      /* public, readonly */
+	int           dealloc;  /* private          */
+	int           ishashed; /* private          */
+	unsigned long hash;     /* private          */
 } SpnString;
 
 /* these create an SpnString object. "nocopy" versions don't copy the
@@ -29,15 +29,15 @@ typedef struct SpnString {
  * string, others do. The `dealloc` flag should be non-zero if you want the
  * backing buffer to be freed when the destructor runs.
  */
-SPN_API	SpnString	*spn_string_new(const char *cstr);
-SPN_API	SpnString	*spn_string_new_nocopy(const char *cstr, int dealloc);
-SPN_API	SpnString	*spn_string_new_len(const char *cstr, size_t len);
-SPN_API	SpnString	*spn_string_new_nocopy_len(const char *cstr, size_t len, int dealloc);
+SPN_API	SpnString *spn_string_new(const char *cstr);
+SPN_API	SpnString *spn_string_new_nocopy(const char *cstr, int dealloc);
+SPN_API	SpnString *spn_string_new_len(const char *cstr, size_t len);
+SPN_API	SpnString *spn_string_new_nocopy_len(const char *cstr, size_t len, int dealloc);
 
 /* appends rhs to the end of lhs and returns the result.
  * the original strings aren't modified.
  */
-SPN_API SpnString	*spn_string_concat(SpnString *lhs, SpnString *rhs);
+SPN_API SpnString *spn_string_concat(SpnString *lhs, SpnString *rhs);
 
 /* The following functions create a formatted string.
  * The format specifiers are documented in doc/stdlib.md.
@@ -51,9 +51,9 @@ SPN_API SpnString	*spn_string_concat(SpnString *lhs, SpnString *rhs);
  * instead.
  */
 SPN_API char *spn_string_format_cstr(
-	const char *fmt,	/* printf-style format string	*/
-	size_t *len,		/* on return, length of string	*/
-	const void **argv	/* array of objects to format	*/
+	const char *fmt,    /* printf-style format string  */
+	size_t *len,        /* on return, length of string */
+	const void **argv   /* array of objects to format  */
 );
 
 /* this function is used for creating format strings in the Sparkling standard
@@ -67,10 +67,10 @@ SPN_API char *spn_string_format_cstr(
  * necessary format arguments to the formatter functions.
  */
 SPN_API SpnString *spn_string_format_obj(
-	SpnString *fmt,		/* printf-style format string	*/
-	int argc,		/* number of objects to format	*/
-	SpnValue *argv,		/* array of objects to format	*/
-	char **errmsg		/* error description		*/
+	SpnString *fmt,     /* printf-style format string  */
+	int argc,           /* number of objects to format */
+	SpnValue *argv,     /* array of objects to format  */
+	char **errmsg       /* error description           */
 );
 
 /* convenience value constructors and an accessor */
@@ -81,4 +81,3 @@ SPN_API SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int deallo
 #define spn_stringvalue(val) ((SpnString *)((val)->v.o))
 
 #endif /* SPN_STR_H */
-

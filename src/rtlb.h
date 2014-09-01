@@ -77,9 +77,9 @@ SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
  * assert()
  * exit()
  * time()
- * gmtime()
+ * utctime()
  * localtime()
- * strftime()
+ * fmtdate()
  * difftime()
  * compile()
  * exprtofn()
@@ -98,4 +98,3 @@ SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 SPN_API void spn_load_stdlib(SpnVMachine *vm);
 
 #endif /* SPN_RTLB_H */
-

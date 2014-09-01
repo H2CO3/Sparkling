@@ -16,19 +16,19 @@
 
 typedef struct SpnFunction {
 	SpnObject base;
-	const char *name;	 /* name of the function		*/
-	int native;		 /* boolean flag, is native?		*/
-	int topprg;		 /* is top-level program?		*/
-	int is_closure;		 /* is closure?				*/
-	size_t nwords;		 /* only if top-level			*/
-	struct SpnFunction *env; /* program in which function resides	*/
-	int readsymtab;		 /* top-level only: parsed symtab yet?	*/
-	SpnArray *symtab;	 /* symtab to look for local symbols in	*/
-	SpnArray *upvalues;	 /* upvalues if function is a closure	*/
+	const char *name;        /* name of the function                */
+	int native;              /* boolean flag, is native?            */
+	int topprg;              /* is top-level program?               */
+	int is_closure;          /* is closure?                         */
+	size_t nwords;           /* only if top-level                   */
+	struct SpnFunction *env; /* program in which function resides   */
+	int readsymtab;          /* top-level only: parsed symtab yet?  */
+	SpnArray *symtab;        /* symtab to look for local symbols in */
+	SpnArray *upvalues;      /* upvalues if function is a closure   */
 	union {
 		spn_uword *bc;
 		int (*fn)(SpnValue *, int, SpnValue *, void *);
-	} repr;			 /* representation			*/
+	} repr;                  /* representation                      */
 } SpnFunction;
 
 /* `name' is always a weak pointer, regardless of whether
@@ -76,4 +76,3 @@ SPN_API SpnValue spn_makeclosure(SpnFunction *prototype);
 #define spn_funcvalue(val) ((SpnFunction *)((val)->v.o))
 
 #endif /* SPN_FUNC_H */
-

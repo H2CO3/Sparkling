@@ -61,12 +61,12 @@ enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx)
 const char *spn_ctx_geterrmsg(SpnContext *ctx)
 {
 	switch (ctx->errtype) {
-	case SPN_ERROR_OK:		return NULL;
-	case SPN_ERROR_SYNTAX:		return ctx->parser->errmsg;
-	case SPN_ERROR_SEMANTIC:	return spn_compiler_errmsg(ctx->cmp);
-	case SPN_ERROR_RUNTIME:		return spn_vm_geterrmsg(ctx->vm);
-	case SPN_ERROR_GENERIC:		return ctx->errmsg;
-	default:			return NULL;
+	case SPN_ERROR_OK:       return NULL;
+	case SPN_ERROR_SYNTAX:   return ctx->parser->errmsg;
+	case SPN_ERROR_SEMANTIC: return spn_compiler_errmsg(ctx->cmp);
+	case SPN_ERROR_RUNTIME:  return spn_vm_geterrmsg(ctx->vm);
+	case SPN_ERROR_GENERIC:  return ctx->errmsg;
+	default:                 return NULL;
 	}
 }
 
@@ -93,18 +93,21 @@ void spn_ctx_setuserinfo(SpnContext *ctx, void *info)
 /* private helper function for adding a program to
  * the list of compiled programs in a context
  */
-static void add_to_programs(SpnContext *ctx, const SpnValue *fn)
+static void add_to_programs(SpnContext *ctx, SpnFunction *fn)
 {
+	SpnValue val;
 	size_t idx = spn_array_count(ctx->programs);
-	spn_array_set_intkey(ctx->programs, idx, fn);
+	val.type = SPN_TYPE_FUNC;
+	val.v.o = fn;
+	spn_array_set_intkey(ctx->programs, idx, &val);
 }
 
 /* the essence */
 
-int spn_ctx_loadstring(SpnContext *ctx, const char *str, SpnValue *result)
+SpnFunction *spn_ctx_loadstring(SpnContext *ctx, const char *str)
 {
 	SpnAST *ast;
-	int err;
+	SpnFunction *result;
 
 	ctx->errtype = SPN_ERROR_OK;
 
@@ -112,28 +115,28 @@ int spn_ctx_loadstring(SpnContext *ctx, const char *str, SpnValue *result)
 	ast = spn_parser_parse(ctx->parser, str);
 	if (ast == NULL) {
 		ctx->errtype = SPN_ERROR_SYNTAX;
-		return -1;
+		return NULL;
 	}
 
 	/* attempt compilation, handle error */
-	err = spn_compiler_compile(ctx->cmp, ast, result);
+	result = spn_compiler_compile(ctx->cmp, ast);
 	spn_ast_free(ast);
 
-	if (err != 0) {
+	if (result == NULL) {
 		ctx->errtype = SPN_ERROR_SEMANTIC;
-		return -2;
+		return NULL;
 	}
 
 	/* add compiled bytecode to program list */
 	add_to_programs(ctx, result);
-	spn_value_release(result); /* still alive, retained by array */
-	return 0;
+	spn_object_release(result); /* still alive, retained by array */
+	return result;
 }
 
-int spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname, SpnValue *result)
+SpnFunction *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname)
 {
 	char *src;
-	int err;
+	SpnFunction *result;
 
 	ctx->errtype = SPN_ERROR_OK;
 
@@ -141,19 +144,20 @@ int spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname, SpnValue *result)
 	if (src == NULL) {
 		ctx->errtype = SPN_ERROR_GENERIC;
 		ctx->errmsg = "I/O error: could not read source file";
-		return -1;
+		return NULL;
 	}
 
-	err = spn_ctx_loadstring(ctx, src, result);
+	result = spn_ctx_loadstring(ctx, src);
 	free(src);
 
-	return err;
+	return result;
 }
 
-int spn_ctx_loadobjfile(SpnContext *ctx, const char *fname, SpnValue *result)
+SpnFunction *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
 {
 	spn_uword *bc;
 	size_t filesize, nwords;
+	SpnFunction *result;
 
 	ctx->errtype = SPN_ERROR_OK;
 
@@ -161,24 +165,25 @@ int spn_ctx_loadobjfile(SpnContext *ctx, const char *fname, SpnValue *result)
 	if (bc == NULL) {
 		ctx->errtype = SPN_ERROR_GENERIC;
 		ctx->errmsg = "I/O error: could not read object file";
-		return -1;
+		return NULL;
 	}
 
 	/* the size of the object file is not the same
 	 * as the number of machine words in the bytecode
 	 */
 	nwords = filesize / sizeof(*bc);
-	*result = maketopprgfunc(SPN_TOPFN, bc, nwords);
+	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords);
 
 	add_to_programs(ctx, result);
-	spn_value_release(result); /* still alive, retained by array */
-	return 0;
+	spn_object_release(result); /* still alive, retained by array */
+	return result;
 }
 
-int spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t objsize, SpnValue *result)
+SpnFunction *spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t objsize)
 {
 	size_t nwords;
 	spn_uword *bc = spn_malloc(objsize);
+	SpnFunction *result;
 
 	memcpy(bc, objdata, objsize);
 	ctx->errtype = SPN_ERROR_OK;
@@ -187,60 +192,60 @@ int spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t objsize, Sp
 	 * as the number of machine words in the bytecode
 	 */
 	nwords = objsize / sizeof(*bc);
-	*result = maketopprgfunc(SPN_TOPFN, bc, nwords);
+	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords);
 
 	add_to_programs(ctx, result);
-	spn_value_release(result); /* still alive, retained by array */
-	return 0;
+	spn_object_release(result); /* still alive, retained by array */
+	return result;
 }
 
 int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret)
 {
-	SpnValue fn;
+	SpnFunction *fn = spn_ctx_loadstring(ctx, str);
 
-	if (spn_ctx_loadstring(ctx, str, &fn) != 0) {
+	if (fn == NULL) {
 		return -1;
 	}
 
-	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
+	return spn_ctx_callfunc(ctx, fn, ret, 0, NULL);
 }
 
 int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
-	SpnValue fn;
+	SpnFunction *fn = spn_ctx_loadsrcfile(ctx, fname);
 
-	if (spn_ctx_loadsrcfile(ctx, fname, &fn) != 0) {
+	if (fn == NULL) {
 		return -1;
 	}
 
-	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
+	return spn_ctx_callfunc(ctx, fn, ret, 0, NULL);
 }
 
 int spn_ctx_execobjfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
-	SpnValue fn;
+	SpnFunction *fn = spn_ctx_loadobjfile(ctx, fname);
 
-	if (spn_ctx_loadobjfile(ctx, fname, &fn) != 0) {
+	if (fn == NULL) {
 		return -1;
 	}
 
-	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
+	return spn_ctx_callfunc(ctx, fn, ret, 0, NULL);
 }
 
 int spn_ctx_execobjdata(SpnContext *ctx, const void *objdata, size_t objsize, SpnValue *ret)
 {
-	SpnValue fn;
+	SpnFunction *fn = spn_ctx_loadobjdata(ctx, objdata, objsize);
 
-	if (spn_ctx_loadobjdata(ctx, objdata, objsize, &fn) != 0) {
+	if (fn == NULL) {
 		return -1;
 	}
 
-	return spn_ctx_callfunc(ctx, &fn, ret, 0, NULL);
+	return spn_ctx_callfunc(ctx, fn, ret, 0, NULL);
 }
 
 /* abstraction (well, sort of) of the virtual machine API */
 
-int spn_ctx_callfunc(SpnContext *ctx, const SpnValue *func, SpnValue *ret, int argc, SpnValue argv[])
+int spn_ctx_callfunc(SpnContext *ctx, SpnFunction *func, SpnValue *ret, int argc, SpnValue argv[])
 {
 	int status;
 
@@ -259,10 +264,10 @@ void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
 	spn_vm_seterrmsg(ctx->vm, fmt, args);
 }
 
-int spn_ctx_compile_expr(SpnContext *ctx, const char *expr, SpnValue *result)
+SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr)
 {
 	SpnAST *ast;
-	int err;
+	SpnFunction *result;
 
 	ctx->errtype = SPN_ERROR_OK;
 
@@ -270,23 +275,23 @@ int spn_ctx_compile_expr(SpnContext *ctx, const char *expr, SpnValue *result)
 	ast = spn_parser_parse_expression(ctx->parser, expr);
 	if (ast == NULL) {
 		ctx->errtype = SPN_ERROR_SYNTAX;
-		return -1;
+		return NULL;
 	}
 
 	/* compile */
-	err = spn_compiler_compile(ctx->cmp, ast, result);
+	result = spn_compiler_compile(ctx->cmp, ast);
 	spn_ast_free(ast);
 
-	if (err != 0) {
+	if (result == 0) {
 		ctx->errtype = SPN_ERROR_SEMANTIC;
-		return -2;
+		return NULL;
 	}
 
 	/* add program to list of programs, balance reference count */
 	add_to_programs(ctx, result);
-	spn_value_release(result);
+	spn_object_release(result);
 
-	return 0;
+	return result;
 }
 
 const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
@@ -308,4 +313,3 @@ SpnArray *spn_ctx_getglobals(SpnContext *ctx)
 {
 	return spn_vm_getglobals(ctx->vm);
 }
-

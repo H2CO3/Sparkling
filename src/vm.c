@@ -74,13 +74,13 @@
  * `realloc()`ated, and then we have an invalid pointer once again
  */
 typedef struct TFrame {
-	size_t		 size;		/* no. of slots, including EXTRA_SLOTS	*/
-	int		 decl_argc;	/* declaration argument count		*/
-	int		 extra_argc;	/* number of extra args, if any (or 0)	*/
-	int		 real_argc;	/* number of call args			*/
-	spn_uword	*retaddr;	/* return address (points to bytecode)	*/
-	ptrdiff_t	 retidx;	/* pointer into the caller's frame	*/
-	SpnFunction	*callee;	/* the called function itself		*/
+	size_t       size;       /* no. of slots, including EXTRA_SLOTS */
+	int          decl_argc;  /* declaration argument count          */
+	int          extra_argc; /* number of extra args, if any (or 0) */
+	int          real_argc;  /* number of call args                 */
+	spn_uword   *retaddr;    /* return address (points to bytecode) */
+	ptrdiff_t    retidx;     /* pointer into the caller's frame     */
+	SpnFunction *callee;     /* the called function itself          */
 } TFrame;
 
 /* see http://stackoverflow.com/q/18310789/ */
@@ -90,15 +90,15 @@ typedef union TSlot {
 } TSlot;
 
 struct SpnVMachine {
-	TSlot		*stack;		/* base of the stack		*/
-	TSlot		*sp;		/* stack pointer		*/
-	size_t		 stackallsz;	/* stack alloc size in frames	*/
+	TSlot    *stack;      /* base of the stack            */
+	TSlot    *sp;         /* stack pointer                */
+	size_t    stackallsz; /* stack alloc size in frames   */
 
-	SpnArray	*glbsymtab;	/* global symbol table		*/
+	SpnArray *glbsymtab;  /* global symbol table          */
 
-	char		*errmsg;	/* last (runtime) error message	*/
-	int		 haserror;	/* whether an error occurred	*/
-	void		*ctx;		/* context info, use at will	*/
+	char     *errmsg;     /* last (runtime) error message */
+	int       haserror;   /* whether an error occurred    */
+	void     *ctx;        /* context info, use at will    */
 };
 
 /* this is the structure used by `push_and_copy_args()' */
@@ -119,7 +119,7 @@ struct args_copy_descriptor {
 
 static void push_and_copy_args(
 	SpnVMachine *vm,
-	const SpnValue *fn,
+	SpnFunction *fn,
 	const struct args_copy_descriptor *desc,
 	int argc
 );
@@ -275,7 +275,7 @@ static void clean_vm_if_needed(SpnVMachine *vm)
 
 int spn_vm_callfunc(
 	SpnVMachine *vm,
-	const SpnValue *fn,
+	SpnFunction *fn,
 	SpnValue *retval,
 	int argc,
 	SpnValue *argv
@@ -284,35 +284,26 @@ int spn_vm_callfunc(
 	struct args_copy_descriptor desc;
 	spn_uword *fnhdr;
 	spn_uword *entry;
-	SpnFunction *fnobj;
 
 	/* if this is the first call after the execution of a program
 	 * in which an error occurred, unwind the stack automagically
 	 */
 	clean_vm_if_needed(vm);
 
-	/* ensure that the callee is indeed a function */
-	if (!isfunc(fn)) {
-		spn_vm_seterrmsg(vm, "attempt to call non-function value", NULL);
-		return -1;
-	}
-
-	fnobj = funcvalue(fn);
-
 	/* native functions are easy to deal with */
-	if (fnobj->native) {
+	if (fn->native) {
 		int err;
 
 		/* push pseudo-frame to include function name in stack trace */
-		push_native_pseudoframe(vm, fnobj);
+		push_native_pseudoframe(vm, fn);
 
 		/* "return nothing" should mean "implicitly return nil" */
 		*retval = makenil();
 
-		err = fnobj->repr.fn(retval, argc, argv, vm->ctx);
+		err = fn->repr.fn(retval, argc, argv, vm->ctx);
 		if (err != 0) {
 			const void *args[2];
-			args[0] = fnobj->name;
+			args[0] = fn->name;
 			args[1] = &err;
 			spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
 		} else {
@@ -326,12 +317,12 @@ int spn_vm_callfunc(
 	 * First, check if the function is a top-level program.
 	 * If so, read the local symbol table (if necessary).
 	 */
-	if (fnobj->topprg) {
-		read_local_symtab(vm, fnobj);
+	if (fn->topprg) {
+		read_local_symtab(vm, fn);
 	}
 
 	/* compute entry point */
-	fnhdr = fnobj->repr.bc;
+	fnhdr = fn->repr.bc;
 	entry = fnhdr + SPN_FUNCHDR_LEN;
 
 	desc.caller_is_native = 1; /* because we are the calling function */
@@ -596,7 +587,7 @@ static SpnValue *nth_vararg(TSlot *sp, int idx)
 /* helper for calling Sparkling functions (pushes frame, copies arguments) */
 static void push_and_copy_args(
 	SpnVMachine *vm,
-	const SpnValue *fn,
+	SpnFunction *fn,
 	const struct args_copy_descriptor *desc,
 	int argc
 )
@@ -606,19 +597,17 @@ static void push_and_copy_args(
 	int decl_argc;
 	int extra_argc;
 	int nregs;
-	SpnFunction *fnobj;
 
 	/* this whole copying thingy only applies if we're calling
 	 * a Sparkling function. Native callees are handled separately.
 	 */
-	assert(isfunc(fn) && funcvalue(fn)->native == 0);
-	fnobj = funcvalue(fn);
+	assert(fn->native == 0);
 
 	/* see Remark (VI) in vm.h in order to get an
 	 * understanding of the layout of the
 	 * bytecode representing a function
 	 */
-	fnhdr = fnobj->repr.bc;
+	fnhdr = fn->repr.bc;
 	decl_argc = fnhdr[SPN_FUNCHDR_IDX_ARGC];
 	nregs = fnhdr[SPN_FUNCHDR_IDX_NREGS];
 
@@ -646,7 +635,7 @@ static void push_and_copy_args(
 		argc,
 		desc->caller_is_native ? NULL : desc->env.script_env.retaddr,
 		desc->caller_is_native ?   -1 : desc->env.script_env.retidx,
-		fnobj
+		fn
 	);
 
 	/* first, fill in arguments that fit into the
@@ -855,7 +844,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * copy over its arguments
 				 * (I <3 descriptive function names!)
 				 */
-				push_and_copy_args(vm, &func, &desc, argc);
+				push_and_copy_args(vm, fnobj, &desc, argc);
 
 				/* set instruction pointer to entry point
 				 * in order to kick off the function call
@@ -968,8 +957,8 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * (see Remark (III) in vm.h for an explanation)
 			 */
 			int res = opcode == SPN_INS_EQ
-				? spn_value_equal(b, c)
-				: spn_value_noteq(b, c);
+			        ? spn_value_equal(b, c)
+			        : spn_value_noteq(b, c);
 
 			/* clean and update destination register */
 			spn_value_release(a);
@@ -1709,7 +1698,7 @@ static int cmp2bool(int res, int op)
 	case SPN_INS_LE: return res <= 0;
 	case SPN_INS_GT: return res >  0;
 	case SPN_INS_GE: return res >= 0;
-	default:	 SHANT_BE_REACHED();
+	default: SHANT_BE_REACHED();
 	}
 
 	return -1;
@@ -1765,7 +1754,7 @@ static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 	case SPN_INS_XOR: return a ^ b;
 	case SPN_INS_SHL: return a << b;
 	case SPN_INS_SHR: return a >> b;
-	default:	  SHANT_BE_REACHED();
+	default: SHANT_BE_REACHED();
 	}
 
 	return -1;
@@ -1808,7 +1797,7 @@ static SpnValue sizeof_value(SpnValue *val)
 	switch (valtype(val)) {
 	case SPN_TTAG_STRING: return makeint(stringvalue(val)->len);
 	case SPN_TTAG_ARRAY:  return makeint(spn_array_count(arrayvalue(val)));
-	default:	      SHANT_BE_REACHED(); return makenil();
+	default: SHANT_BE_REACHED(); return makenil();
 	}
 }
 
@@ -1817,4 +1806,3 @@ static SpnValue typeof_value(SpnValue *val)
 	const char *type = spn_type_name(val->type);
 	return makestring_nocopy(type);
 }
-

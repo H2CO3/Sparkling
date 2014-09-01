@@ -61,15 +61,15 @@ typedef struct UpvalChain {
  * and `restore_scope()` functions accordingly).
  */
 struct SpnCompiler {
-	TBytecode		 bc;
-	char			*errmsg;
-	int			 tmpidx;	/* (I)		*/
-	int			 nregs;		/* (II)		*/
-	RoundTripStore		*symtab;	/* (III)	*/
-	RoundTripStore		*varstack;	/* (IV)		*/
-	struct jump_stmt_list	*jumplist;	/* (V)		*/
-	int			 is_in_loop;	/* (VI)		*/
-	UpvalChain		*upval_chain;	/* (VII)	*/
+	TBytecode              bc;
+	char                  *errmsg;
+	int                    tmpidx;      /* (I)   */
+	int                    nregs;       /* (II)  */
+	RoundTripStore        *symtab;      /* (III) */
+	RoundTripStore        *varstack;    /* (IV)  */
+	struct jump_stmt_list *jumplist;    /* (V)   */
+	int                    is_in_loop;  /* (VI)  */
+	UpvalChain            *upval_chain; /* (VII) */
 };
 
 /* Remarks:
@@ -111,28 +111,28 @@ struct SpnCompiler {
  * function bodies.
  */
 typedef struct ScopeInfo {
-	int			 tmpidx;
-	int			 nregs;
-	RoundTripStore		*varstack;
-	struct jump_stmt_list	*jumplist;
-	int			 is_in_loop;
+	int                    tmpidx;
+	int                    nregs;
+	RoundTripStore        *varstack;
+	struct jump_stmt_list *jumplist;
+	int                    is_in_loop;
 } ScopeInfo;
 
 static void save_scope(SpnCompiler *cmp, ScopeInfo *sci)
 {
-	sci->tmpidx = cmp->tmpidx;
-	sci->nregs = cmp->nregs;
-	sci->varstack = cmp->varstack;
-	sci->jumplist = cmp->jumplist;
+	sci->tmpidx     = cmp->tmpidx;
+	sci->nregs      = cmp->nregs;
+	sci->varstack   = cmp->varstack;
+	sci->jumplist   = cmp->jumplist;
 	sci->is_in_loop = cmp->is_in_loop;
 }
 
 static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
 {
-	cmp->tmpidx = sci->tmpidx;
-	cmp->nregs = sci->nregs;
-	cmp->varstack = sci->varstack;
-	cmp->jumplist = sci->jumplist;
+	cmp->tmpidx     = sci->tmpidx;
+	cmp->nregs      = sci->nregs;
+	cmp->varstack   = sci->varstack;
+	cmp->jumplist   = sci->jumplist;
 	cmp->is_in_loop = sci->is_in_loop;
 }
 
@@ -356,23 +356,21 @@ void spn_compiler_free(SpnCompiler *cmp)
 	free(cmp);
 }
 
-int spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast, SpnValue *result)
+SpnFunction *spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast)
 {
 	bytecode_init(&cmp->bc);
 
 	if (compile_program(cmp, ast)) {
-		/* success. transfer ownership of cmp->bc.insns to `result' */
-		*result = maketopprgfunc(SPN_TOPFN, cmp->bc.insns, cmp->bc.len);
-
 		/* should be at global scope when compilation is done */
 		assert(cmp->upval_chain == NULL);
 
-		return 0;
+		/* success. transfer ownership of cmp->bc.insns to the result */
+		return spn_func_new_topprg(SPN_TOPFN, cmp->bc.insns, cmp->bc.len);
 	}
 
 	/* error */
 	free(cmp->bc.insns);
-	return -1;
+	return NULL;
 }
 
 const char *spn_compiler_errmsg(SpnCompiler *cmp)
@@ -649,19 +647,19 @@ static int compile(SpnCompiler *cmp, SpnAST *ast)
 	}
 
 	switch (ast->node) {
-	case SPN_NODE_COMPOUND:	return compile_compound(cmp, ast);
-	case SPN_NODE_BLOCK:	return compile_block(cmp, ast);
-	case SPN_NODE_WHILE:	return compile_while(cmp, ast);
-	case SPN_NODE_DO:	return compile_do(cmp, ast);
-	case SPN_NODE_FOR:	return compile_for(cmp, ast);
-	case SPN_NODE_IF:	return compile_if(cmp, ast);
-	case SPN_NODE_BREAK:	return compile_break(cmp, ast);
-	case SPN_NODE_CONTINUE:	return compile_continue(cmp, ast);
-	case SPN_NODE_RETURN:	return compile_return(cmp, ast);
-	case SPN_NODE_EMPTY:	return 1; /* no compile_empty() for you ;-) */
-	case SPN_NODE_VARDECL:	return compile_vardecl(cmp, ast);
-	case SPN_NODE_CONST:	return compile_const(cmp, ast);
-	default:		return compile_expr_toplevel(cmp, ast, NULL);
+	case SPN_NODE_COMPOUND: return compile_compound(cmp, ast);
+	case SPN_NODE_BLOCK:    return compile_block(cmp, ast);
+	case SPN_NODE_WHILE:    return compile_while(cmp, ast);
+	case SPN_NODE_DO:       return compile_do(cmp, ast);
+	case SPN_NODE_FOR:      return compile_for(cmp, ast);
+	case SPN_NODE_IF:       return compile_if(cmp, ast);
+	case SPN_NODE_BREAK:    return compile_break(cmp, ast);
+	case SPN_NODE_CONTINUE: return compile_continue(cmp, ast);
+	case SPN_NODE_RETURN:   return compile_return(cmp, ast);
+	case SPN_NODE_EMPTY:    return 1; /* no compile_empty() for you ;-) */
+	case SPN_NODE_VARDECL:  return compile_vardecl(cmp, ast);
+	case SPN_NODE_CONST:    return compile_const(cmp, ast);
+	default:                return compile_expr_toplevel(cmp, ast, NULL);
 	}
 }
 
@@ -952,9 +950,9 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray 
 	bodylen = cmp->bc.len - (hdroff + SPN_FUNCHDR_LEN);
 
 	/* fill in now-available function header information */
-	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_BODYLEN]	= bodylen;
-	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_ARGC]	= argc;
-	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_NREGS]	= regcount;
+	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_BODYLEN] = bodylen;
+	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_ARGC]    = argc;
+	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_NREGS]   = regcount;
 	cmp->bc.insns[hdroff + SPN_FUNCHDR_IDX_SYMCNT]  = 0; /* unused anyway */
 
 	/* free local var stack, restore scope context data */
@@ -1493,24 +1491,24 @@ static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	enum spn_vm_ins opcode = -1;
 
 	switch (ast->node) {
-	case SPN_NODE_ADD:	opcode = SPN_INS_ADD;	 break;
-	case SPN_NODE_SUB:	opcode = SPN_INS_SUB;	 break;
-	case SPN_NODE_MUL:	opcode = SPN_INS_MUL;	 break;
-	case SPN_NODE_DIV:	opcode = SPN_INS_DIV;	 break;
-	case SPN_NODE_MOD:	opcode = SPN_INS_MOD;	 break;
-	case SPN_NODE_BITAND:	opcode = SPN_INS_AND;	 break;
-	case SPN_NODE_BITOR:	opcode = SPN_INS_OR;	 break;
-	case SPN_NODE_BITXOR:	opcode = SPN_INS_XOR;	 break;
-	case SPN_NODE_SHL:	opcode = SPN_INS_SHL;	 break;
-	case SPN_NODE_SHR:	opcode = SPN_INS_SHR;	 break;
-	case SPN_NODE_EQUAL:	opcode = SPN_INS_EQ;	 break;
-	case SPN_NODE_NOTEQ:	opcode = SPN_INS_NE;	 break;
-	case SPN_NODE_LESS:	opcode = SPN_INS_LT;	 break;
-	case SPN_NODE_LEQ:	opcode = SPN_INS_LE;	 break;
-	case SPN_NODE_GREATER:	opcode = SPN_INS_GT;	 break;
-	case SPN_NODE_GEQ:	opcode = SPN_INS_GE;	 break;
-	case SPN_NODE_CONCAT:	opcode = SPN_INS_CONCAT; break;
-	default:		SHANT_BE_REACHED();	 break;
+	case SPN_NODE_ADD:     opcode = SPN_INS_ADD;    break;
+	case SPN_NODE_SUB:     opcode = SPN_INS_SUB;    break;
+	case SPN_NODE_MUL:     opcode = SPN_INS_MUL;    break;
+	case SPN_NODE_DIV:     opcode = SPN_INS_DIV;    break;
+	case SPN_NODE_MOD:     opcode = SPN_INS_MOD;    break;
+	case SPN_NODE_BITAND:  opcode = SPN_INS_AND;    break;
+	case SPN_NODE_BITOR:   opcode = SPN_INS_OR;     break;
+	case SPN_NODE_BITXOR:  opcode = SPN_INS_XOR;    break;
+	case SPN_NODE_SHL:     opcode = SPN_INS_SHL;    break;
+	case SPN_NODE_SHR:     opcode = SPN_INS_SHR;    break;
+	case SPN_NODE_EQUAL:   opcode = SPN_INS_EQ;     break;
+	case SPN_NODE_NOTEQ:   opcode = SPN_INS_NE;     break;
+	case SPN_NODE_LESS:    opcode = SPN_INS_LT;     break;
+	case SPN_NODE_LEQ:     opcode = SPN_INS_LE;     break;
+	case SPN_NODE_GREATER: opcode = SPN_INS_GT;     break;
+	case SPN_NODE_GEQ:     opcode = SPN_INS_GE;     break;
+	case SPN_NODE_CONCAT:  opcode = SPN_INS_CONCAT; break;
+	default: SHANT_BE_REACHED();  break;
 	}
 
 	dst_left  = -1;
@@ -1648,10 +1646,10 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 static int compile_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	switch (ast->left->node) {
-	case SPN_NODE_IDENT:	return compile_assignment_var(cmp, ast, dst);
+	case SPN_NODE_IDENT:    return compile_assignment_var(cmp, ast, dst);
 
 	case SPN_NODE_ARRSUB:
-	case SPN_NODE_MEMBEROF:	return compile_assignment_array(cmp, ast, dst);
+	case SPN_NODE_MEMBEROF: return compile_assignment_array(cmp, ast, dst);
 
 	default:
 		compiler_error(
@@ -1786,25 +1784,25 @@ static int compile_compound_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	enum spn_vm_ins opcode;
 
 	switch (ast->node) {
-	case SPN_NODE_ASSIGN_ADD:	opcode = SPN_INS_ADD;	 break;
-	case SPN_NODE_ASSIGN_SUB:	opcode = SPN_INS_SUB;	 break;
-	case SPN_NODE_ASSIGN_MUL:	opcode = SPN_INS_MUL;	 break;
-	case SPN_NODE_ASSIGN_DIV:	opcode = SPN_INS_DIV;	 break;
-	case SPN_NODE_ASSIGN_MOD:	opcode = SPN_INS_MOD;	 break;
-	case SPN_NODE_ASSIGN_AND:	opcode = SPN_INS_AND;	 break;
-	case SPN_NODE_ASSIGN_OR:	opcode = SPN_INS_OR;	 break;
-	case SPN_NODE_ASSIGN_XOR:	opcode = SPN_INS_XOR;	 break;
-	case SPN_NODE_ASSIGN_SHL:	opcode = SPN_INS_SHL;	 break;
-	case SPN_NODE_ASSIGN_SHR:	opcode = SPN_INS_SHR;	 break;
-	case SPN_NODE_ASSIGN_CONCAT:	opcode = SPN_INS_CONCAT; break;
-	default:			SHANT_BE_REACHED();	 break;
+	case SPN_NODE_ASSIGN_ADD:    opcode = SPN_INS_ADD;    break;
+	case SPN_NODE_ASSIGN_SUB:    opcode = SPN_INS_SUB;    break;
+	case SPN_NODE_ASSIGN_MUL:    opcode = SPN_INS_MUL;    break;
+	case SPN_NODE_ASSIGN_DIV:    opcode = SPN_INS_DIV;    break;
+	case SPN_NODE_ASSIGN_MOD:    opcode = SPN_INS_MOD;    break;
+	case SPN_NODE_ASSIGN_AND:    opcode = SPN_INS_AND;    break;
+	case SPN_NODE_ASSIGN_OR:     opcode = SPN_INS_OR;     break;
+	case SPN_NODE_ASSIGN_XOR:    opcode = SPN_INS_XOR;    break;
+	case SPN_NODE_ASSIGN_SHL:    opcode = SPN_INS_SHL;    break;
+	case SPN_NODE_ASSIGN_SHR:    opcode = SPN_INS_SHR;    break;
+	case SPN_NODE_ASSIGN_CONCAT: opcode = SPN_INS_CONCAT; break;
+	default: SHANT_BE_REACHED(); break;
 	}
 
 	switch (ast->left->node) {
-	case SPN_NODE_IDENT:	return compile_cmpd_assgmt_var(cmp, ast, dst, opcode);
+	case SPN_NODE_IDENT:    return compile_cmpd_assgmt_var(cmp, ast, dst, opcode);
 
 	case SPN_NODE_ARRSUB:
-	case SPN_NODE_MEMBEROF:	return compile_cmpd_assgmt_arr(cmp, ast, dst, opcode);
+	case SPN_NODE_MEMBEROF: return compile_cmpd_assgmt_arr(cmp, ast, dst, opcode);
 
 	default:
 		compiler_error(
@@ -2039,8 +2037,8 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 	case SPN_TTAG_BOOL: {
 		enum spn_const_kind b = boolvalue(&ast->value)
-				      ? SPN_CONST_TRUE
-				      : SPN_CONST_FALSE;
+		                      ? SPN_CONST_TRUE
+		                      : SPN_CONST_FALSE;
 
 		spn_uword ins = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, b);
 		bytecode_append(&cmp->bc, &ins, 1);
@@ -2358,13 +2356,13 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	enum spn_vm_ins opcode = -1;
 
 	switch (ast->node) {
-	case SPN_NODE_SIZEOF:	opcode = SPN_INS_SIZEOF; break;
-	case SPN_NODE_TYPEOF:	opcode = SPN_INS_TYPEOF; break;
-	case SPN_NODE_LOGNOT:	opcode = SPN_INS_LOGNOT; break;
-	case SPN_NODE_BITNOT:	opcode = SPN_INS_BITNOT; break;
-	case SPN_NODE_NTHARG:	opcode = SPN_INS_NTHARG; break;
-	case SPN_NODE_UNMINUS:	opcode = SPN_INS_NEG;	 break;
-	default:		SHANT_BE_REACHED();
+	case SPN_NODE_SIZEOF:  opcode = SPN_INS_SIZEOF; break;
+	case SPN_NODE_TYPEOF:  opcode = SPN_INS_TYPEOF; break;
+	case SPN_NODE_LOGNOT:  opcode = SPN_INS_LOGNOT; break;
+	case SPN_NODE_BITNOT:  opcode = SPN_INS_BITNOT; break;
+	case SPN_NODE_NTHARG:  opcode = SPN_INS_NTHARG; break;
+	case SPN_NODE_UNMINUS: opcode = SPN_INS_NEG;    break;
+	default: SHANT_BE_REACHED(); break;
 	}
 
 	if (*dst < 0) {
@@ -2610,25 +2608,25 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	switch (ast->node) {
-	case SPN_NODE_CONCAT:		/* concat.	*/
-	case SPN_NODE_ADD:		/* arithmetic	*/
+	case SPN_NODE_CONCAT: /* concatenation */
+	case SPN_NODE_ADD:    /* arithmetic    */
 	case SPN_NODE_SUB:
 	case SPN_NODE_MUL:
 	case SPN_NODE_DIV:
 	case SPN_NODE_MOD:
-	case SPN_NODE_BITAND:		/* bitwise ops	*/
+	case SPN_NODE_BITAND: /* bitwise ops   */
 	case SPN_NODE_BITOR:
 	case SPN_NODE_BITXOR:
 	case SPN_NODE_SHL:
 	case SPN_NODE_SHR:
-	case SPN_NODE_EQUAL:		/* comparisons	*/
+	case SPN_NODE_EQUAL:  /* comparisons   */
 	case SPN_NODE_NOTEQ:
 	case SPN_NODE_LESS:
 	case SPN_NODE_LEQ:
 	case SPN_NODE_GREATER:
-	case SPN_NODE_GEQ:		return compile_simple_binop(cmp, ast, dst);
+	case SPN_NODE_GEQ:           return compile_simple_binop(cmp, ast, dst);
 
-	case SPN_NODE_ASSIGN:		return compile_assignment(cmp, ast, dst);
+	case SPN_NODE_ASSIGN:        return compile_assignment(cmp, ast, dst);
 
 	case SPN_NODE_ASSIGN_ADD:
 	case SPN_NODE_ASSIGN_SUB:
@@ -2640,56 +2638,56 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_ASSIGN_XOR:
 	case SPN_NODE_ASSIGN_SHL:
 	case SPN_NODE_ASSIGN_SHR:
-	case SPN_NODE_ASSIGN_CONCAT:	return compile_compound_assignment(cmp, ast, dst);
+	case SPN_NODE_ASSIGN_CONCAT: return compile_compound_assignment(cmp, ast, dst);
 
 	/* short-circuiting logical operators */
 	case SPN_NODE_LOGAND:
-	case SPN_NODE_LOGOR:		return compile_logical(cmp, ast, dst);
+	case SPN_NODE_LOGOR:         return compile_logical(cmp, ast, dst);
 
 	/* conditional ternary */
-	case SPN_NODE_CONDEXPR:		return compile_condexpr(cmp, ast, dst);
+	case SPN_NODE_CONDEXPR:      return compile_condexpr(cmp, ast, dst);
 
 	/* variables, functions */
-	case SPN_NODE_IDENT:		return compile_ident(cmp, ast, dst);
+	case SPN_NODE_IDENT:         return compile_ident(cmp, ast, dst);
 
 	/* immediate values */
-	case SPN_NODE_LITERAL:		return compile_literal(cmp, ast, dst);
+	case SPN_NODE_LITERAL:       return compile_literal(cmp, ast, dst);
 
 	/* call-time argument count */
-	case SPN_NODE_ARGC:		return compile_argc(cmp, ast, dst);
+	case SPN_NODE_ARGC:          return compile_argc(cmp, ast, dst);
 
 	/* function expression, lambda */
-	case SPN_NODE_FUNCEXPR:		return compile_funcexpr(cmp, ast, dst);
+	case SPN_NODE_FUNCEXPR:      return compile_funcexpr(cmp, ast, dst);
 
 	/* array literal */
-	case SPN_NODE_ARRAY_LITERAL:	return compile_array_literal(cmp, ast, dst);
+	case SPN_NODE_ARRAY_LITERAL: return compile_array_literal(cmp, ast, dst);
 
 	/* array indexing */
 	case SPN_NODE_ARRSUB:
-	case SPN_NODE_MEMBEROF:		return compile_arrsub(cmp, ast, dst);
+	case SPN_NODE_MEMBEROF:      return compile_arrsub(cmp, ast, dst);
 
 	/* function calls */
-	case SPN_NODE_FUNCCALL:		return compile_call(cmp, ast, dst);
+	case SPN_NODE_FUNCCALL:      return compile_call(cmp, ast, dst);
 
 	/* unary plus just returns its argument verbatim */
-	case SPN_NODE_UNPLUS:		return compile_expr(cmp, ast->left, dst);
+	case SPN_NODE_UNPLUS:        return compile_expr(cmp, ast->left, dst);
 
 	/* prefix unary operators without side effects */
 	case SPN_NODE_SIZEOF:
 	case SPN_NODE_TYPEOF:
 	case SPN_NODE_LOGNOT:
 	case SPN_NODE_BITNOT:
-	case SPN_NODE_NTHARG:		return compile_unary(cmp, ast, dst);
+	case SPN_NODE_NTHARG:        return compile_unary(cmp, ast, dst);
 
 	/* unary minus is special and it's handled separately,
 	 * because it is optimized when used with literals.
 	 */
-	case SPN_NODE_UNMINUS:		return compile_unminus(cmp, ast, dst);
+	case SPN_NODE_UNMINUS:       return compile_unminus(cmp, ast, dst);
 
 	case SPN_NODE_PREINCRMT:
 	case SPN_NODE_PREDECRMT:
 	case SPN_NODE_POSTINCRMT:
-	case SPN_NODE_POSTDECRMT:	return compile_incdec(cmp, ast, dst);
+	case SPN_NODE_POSTDECRMT:    return compile_incdec(cmp, ast, dst);
 
 	default: /* my apologies, again */
 		{

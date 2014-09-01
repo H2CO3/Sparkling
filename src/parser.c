@@ -216,9 +216,9 @@ static SpnAST *parse_program_nonempty(SpnParser *p)
 		}
 
 		tmp = spn_ast_new(SPN_NODE_COMPOUND, p->lineno);
-		tmp->left = sub;	/* this node	*/
-		tmp->right = right;	/* next node	*/
-		sub = tmp;		/* update head	*/
+		tmp->left = sub;    /* this node    */
+		tmp->right = right; /* next node    */
+		sub = tmp;          /* update head  */
 	}
 
 	/* here the same hack is performed that is used in parse_block()
@@ -253,9 +253,9 @@ static SpnAST *parse_stmt_list(SpnParser *p)
 		}
 
 		tmp = spn_ast_new(SPN_NODE_COMPOUND, p->lineno);
-		tmp->left = ast;	/* this node	*/
-		tmp->right = right;	/* next node	*/
-		ast = tmp;		/* update head	*/
+		tmp->left = ast;    /* this node    */
+		tmp->right = right; /* next node    */
+		ast = tmp;          /* update head  */
 	}
 
 	return ast;
@@ -264,16 +264,16 @@ static SpnAST *parse_stmt_list(SpnParser *p)
 static SpnAST *parse_stmt(SpnParser *p, int is_global)
 {
 	switch (p->curtok.tok) {
-	case SPN_TOK_IF:	return parse_if(p);
-	case SPN_TOK_WHILE:	return parse_while(p);
-	case SPN_TOK_DO:	return parse_do(p);
-	case SPN_TOK_FOR:	return parse_for(p);
-	case SPN_TOK_BREAK:	return parse_break(p);
-	case SPN_TOK_CONTINUE:	return parse_continue(p);
-	case SPN_TOK_RETURN:	return parse_return(p);
-	case SPN_TOK_SEMICOLON:	return parse_empty(p);
-	case SPN_TOK_LBRACE:	return parse_block(p);
-	case SPN_TOK_VAR:	return parse_vardecl(p);
+	case SPN_TOK_IF:        return parse_if(p);
+	case SPN_TOK_WHILE:     return parse_while(p);
+	case SPN_TOK_DO:        return parse_do(p);
+	case SPN_TOK_FOR:       return parse_for(p);
+	case SPN_TOK_BREAK:     return parse_break(p);
+	case SPN_TOK_CONTINUE:  return parse_continue(p);
+	case SPN_TOK_RETURN:    return parse_return(p);
+	case SPN_TOK_SEMICOLON: return parse_empty(p);
+	case SPN_TOK_LBRACE:    return parse_block(p);
+	case SPN_TOK_VAR:       return parse_vardecl(p);
 	case SPN_TOK_FUNCTION:
 		if (is_global) {
 			/* assume function statement at file scope */
@@ -999,9 +999,9 @@ static SpnAST *parse_decl_args(SpnParser *p)
 		}
 
 		tmp = spn_ast_new(SPN_NODE_DECLARGS, p->lineno);
-		tmp->name = name;	/* this is the actual name */
-		ast->left = tmp;	/* this builds the link list */
-		ast = tmp;		/* update head */
+		tmp->name = name;   /* this is the actual name   */
+		ast->left = tmp;    /* this builds the link list */
+		ast = tmp;          /* update head               */
 	}
 
 	return res;
@@ -1027,9 +1027,9 @@ static SpnAST *parse_call_args(SpnParser *p)
 			return NULL;
 		} else {
 			SpnAST *tmp = spn_ast_new(SPN_NODE_CALLARGS, p->lineno);
-			tmp->left = ast;	/* this node */
-			tmp->right = right;	/* next node */
-			ast = tmp;		/* update head */
+			tmp->left = ast;    /* this node */
+			tmp->right = right; /* next node */
+			ast = tmp;          /* update head */
 		}
 	}
 
@@ -1520,4 +1520,3 @@ static SpnAST *parse_empty(SpnParser *p)
 
 	return spn_ast_new(SPN_NODE_EMPTY, p->lineno);
 }
-
