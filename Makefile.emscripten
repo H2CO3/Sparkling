@@ -3,14 +3,16 @@ LD = $(CC)
 
 # optimizations *MUST* be the same for compile- and link time
 OPTIMIZE = -Os -flto
-DEFINES = -DUSE_READLINE=0 -DNDEBUG
+CORE_DEFINES = -DUSE_READLINE=0 -DNDEBUG
+JSAPI_DEFINES = -DUSE_READLINE=0 -DDEBUG
 WARNINGS = -Wall -Wextra -Wno-unused-parameter
-EXPORT = "['_jspn_compile', '_jspn_execute', '_jspn_errmsg', '_jspn_typeof', '_jspn_getbool', '_jspn_getint', '_jspn_getfloat', '_jspn_getstr', '_jspn_addnil', '_jspn_addbool', '_jspn_addnumber', '_jspn_addstr']"
+EXPORT = "['_jspn_freeAll','_jspn_compile','_jspn_call','_jspn_lastErrorMessage','_jspn_lastErrorType','_jspn_getGlobal','_jspn_setGlobal','_jspn_backtrace','_jspn_addNil','_jspn_addBool','_jspn_addNumber','_jspn_addString','_jspn_addArrayWithIndexBuffer','_jspn_addDictionaryWithIndexBuffer','_jspn_typeAtIndex','_jspn_getBool','_jspn_getNumber','_jspn_getString','_jspn_getUserInfo','_jspn_addNativeWrapper','_jspn_addValueFromArgv','_jspn_countOfArrayAtIndex','_jspn_getKeyAndValueIndicesOfArrayAtIndex','_jspn_addWrapperFunction','_jspn_getIntFromArray','_jspn_callJSFunc']"
 
-CFLAGS = -c -std=c89 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(DEFINES)
-LDFLAGS = $(OPTIMIZE) -dynamiclib --post-js jspn.js -s EXPORTED_FUNCTIONS=$(EXPORT)
+CORE_CFLAGS = -c -std=c89 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(CORE_DEFINES)
+JSAPI_CFLAGS = -c -std=c99 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(JSAPI_DEFINES) 
+LDFLAGS = $(OPTIMIZE) -dynamiclib -flto --post-js jsapi.js --js-library auxlib.js -s EXPORTED_FUNCTIONS=$(EXPORT)
 
-OBJECTS = $(patsubst src/%.c, bld/%.bc, $(wildcard src/*.c)) jspn.bc
+OBJECTS = $(patsubst src/%.c, bld/%.bc, $(wildcard src/*.c)) jsapi.bc
 PAGE = libspn.html
 LIB = libspn.js
 
@@ -20,10 +22,10 @@ $(PAGE): $(OBJECTS)
 	$(LD) $(LDFLAGS) -o $@ $^
 
 bld/%.bc: src/%.c
-	$(CC) $(CFLAGS) -o $@ $<
+	$(CC) $(CORE_CFLAGS) -o $@ $<
 
-jspn.bc: jspn.c
-	$(CC) $(CFLAGS) -Isrc -o $@ $<
+jsapi.bc: jsapi.c
+	$(CC) $(JSAPI_CFLAGS) -Isrc -o $@ $<
 
 clean:
 	rm -f $(OBJECTS) $(PAGE) $(LIB)
