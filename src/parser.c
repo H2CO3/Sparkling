@@ -1300,6 +1300,7 @@ static SpnAST *parse_for(SpnParser *p)
 			spn_parser_error(p, "expected ')' after for loop header", NULL);
 			spn_ast_free(init);
 			spn_ast_free(cond);
+			spn_ast_free(incr);
 			return NULL;
 		}
 	}
