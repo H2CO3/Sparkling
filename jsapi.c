@@ -185,19 +185,22 @@ extern const char *jspn_backtrace(void)
 
 	if (n == 0) {
 		free(bt);
-		return "";
+		return NULL;
 	}
 
 	for (size_t i = 0; i < n; i++) {
 		size_t oldlen = len;
 		size_t slen = strlen(bt[i]);
 		len += slen + 1; // +1 for newline
-		buf = spn_realloc(buf, len + 1); // +1 for terminating NUL
+		// I assume realloc()'ing in the Emscripten heap, which
+		// itself is heap-allocated anyway, should not fail...
+		buf = realloc(buf, len);
 		memcpy(buf + oldlen, bt[i], slen);
 		buf[oldlen + slen] = '\n';
 	}
 
-	buf[len] = 0;
+	// Last newline is overwritten with the terminating 0
+	buf[len - 1] = 0;
 	free(bt);
 
 	return buf;
@@ -309,11 +312,13 @@ extern int jspn_addNativeWrapper(int (*fnptr)(SpnValue *, int, SpnValue *, void 
 	// static memory through Module.allocate(ALLOC_STATIC)...)
 
 	size_t namelen1 = strlen(name) + 1;
-	char *name_copy = spn_malloc(namelen1);
+	char *name_copy = malloc(namelen1);
 	memcpy(name_copy, name, namelen1);
+
 	SpnValue fnval = makenativefunc(name_copy, fnptr);
 	int index = add_to_values(&fnval);
 	spn_value_release(&fnval);
+
 	return index;
 }
 

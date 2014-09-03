@@ -9,19 +9,19 @@
 (function() {
 	// Takes a JavaScript string, returns the index of
 	// the function representing the compiled program
-	var compile = Module.cwrap("jspn_compile", "number", ["string"]);
+	var compile = Module.cwrap('jspn_compile', 'number', ['string']);
 
 	// Takes a function index, an array index and an array length.
 	// Returns the index of the value which is the result of calling the
-	// function at the given index ith the specified array as arguments.
-	var call = Module.cwrap("jspn_call", "number", ["number", "number", "number"]);
+	// function at the given index in the specified array as arguments.
+	var call = Module.cwrap('jspn_call', 'number', ['number', 'number', 'number']);
 
 	// takes the name of a global value, returns its referencing index
-	var getGlobal = Module.cwrap("jspn_getGlobal", "number", ["string"]);
+	var getGlobal = Module.cwrap('jspn_getGlobal', 'number', ['string']);
 
 	// takes a name and a value index, sets the given value
 	// as a global with the specified name
-	var setGlobal = Module.cwrap("jspn_setGlobal", null, ["string", "number"]);
+	var setGlobal = Module.cwrap('jspn_setGlobal', null, ['string', 'number']);
 
 	// Given a JavaScript value, converts it to a Sparkling value
 	// and returns its referencing index
@@ -119,18 +119,6 @@
 		return addWrapperFunction(wrapIndex);
 	};
 
-	// Takes a pointer to first element of an array of SpnValue,
-	// which is the argument vector of a Sparkling function,
-	// and an index into that array (i. e., the i-th argument),
-	// then adds it to the global value array, returning its index.
-	// var addValueFromArgv = Module.cwrap('jspn_addValueFromArgv', 'number', ['number', 'number']);
-
-	// takes a C function pointer (as a JavaScript number)
-	// and a function name as a string,
-	// creates an SpnValue of function type from it,
-	// and returns its referencing index.
-	// var addNativeWrapper = Module.cwrap('jspn_addNativeWrapper', 'number', ['number', 'string']);
-
 	// Takes an index into the wrappedFunctions array.
 	// Returns the referencing index of an SpnValue<SpnFunction> that,
 	// when called, will call the aforementioned JavaScript function.
@@ -219,7 +207,7 @@
 				}
 
 				// holes in the "array" or not 0-based -> cannot be an array
-				if (key != i) {
+				if (key !== i) {
 					isArray = false;
 				}
 				break;
@@ -274,6 +262,8 @@
 	// Returns the integer value of the array's element at that index.
 	var getIntFromArray = Module.cwrap('jspn_getIntFromArray', 'number', ['number', 'number']);
 
+	var backtrace = Module.cwrap('jspn_backtrace', 'string', []);
+
 	Sparkling = {
 		// export these values as "private" symbols
 		// in order that auxlib.js be able to use them
@@ -282,6 +272,7 @@
 		_addJSValue: addJSValue,
 		_getIntFromArray: getIntFromArray,
 
+		// Public API
 		compile: function(src) {
 			var fnIndex = compile(src);
 			return fnIndex < 0 ? undefined : getFunction(fnIndex);
@@ -289,7 +280,11 @@
 
 		lastErrorMessage: Module.cwrap('jspn_lastErrorMessage', 'string', []),
 		lastErrorType: Module.cwrap('jspn_lastErrorType', 'string', []),
-		backtrace: Module.cwrap('jspn_backtrace', 'string', []),
+
+		backtrace: function() {
+			var bt = backtrace();
+			return bt ? bt.split("\n") : [];
+		},
 
 		getGlobal: function(name) {
 			return valueAtIndex(getGlobal(name));
@@ -303,8 +298,8 @@
 		// Frees all memory used by Sparkling values generated
 		// by Sparkling code. (This includes the return values
 		// of functions as well as the results of automatic
-		// conversion between JavaScript and Sparkling (in both
-		// directions).
+		// conversion between JavaScript and Sparkling in both
+		// directions.)
 		freeAll: Module.cwrap('jspn_freeAll', null, [])
 	}
 }());
