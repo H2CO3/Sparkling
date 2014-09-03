@@ -995,8 +995,11 @@ static char *make_format_string(
 
 			args.spec = *s++;
 
-			/* check argc if the caller wants us to do so */
-			if (argc >= 0 && argidx >= argc) {
+			/* check argc if the caller wants us to do so.
+			 * Note: the '%%' format specifier does not require
+			 * a corresponding argument; take this into account.
+			 */
+			if (argc >= 0 && argidx >= argc && args.spec != '%') {
 				format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
 				free(bld.buf);
 				return NULL;
@@ -1058,6 +1061,12 @@ static SpnValue string_to_val(SpnString *str)
 SpnValue spn_makestring(const char *s)
 {
 	SpnString *str = spn_string_new(s);
+	return string_to_val(str);
+}
+
+SpnValue spn_makestring_len(const char *s, size_t len)
+{
+	SpnString *str = spn_string_new_len(s, len);
 	return string_to_val(str);
 }
 

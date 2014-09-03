@@ -50,9 +50,9 @@
 #define makebool(b)             spn_makebool(b)
 #define makeint(i)              spn_makeint(i)
 #define makefloat(f)            spn_makefloat(f)
-#define makescriptfunc(n, b, e) spn_makescriptfunc(n, b, e)
-#define maketopprgfunc(n, b, w) spn_maketopprgfunc(n, b, w)
-#define makenativefunc(n, f)    spn_makenativefunc(n, f)
+#define makescriptfunc(n, b, e) spn_makescriptfunc((n), (b), (e))
+#define maketopprgfunc(n, b, w) spn_maketopprgfunc((n), (b), (w))
+#define makenativefunc(n, f)    spn_makenativefunc((n), (f))
 #define makeweakuserinfo(p)     spn_makeweakuserinfo(p)
 #define makestrguserinfo(o)     spn_makestrguserinfo(o)
 #define makeclosure(p)          spn_makeclosure(p)
@@ -63,8 +63,11 @@
 /* this invokes spn_string_new_nocopy(s, 0) */
 #define makestring_nocopy(s)    spn_makestring_nocopy(s)
 
+/* invokes spn_makestring_len((s), (n)) */
+#define makestring_len(s, n) spn_makestring_len((s), (n))
+
 /* and this invokes spn_string_new_nocopy_len(s, n, d) */
-#define makestring_nocopy_len(s, n, d) spn_makestring_nocopy_len(s, n, d)
+#define makestring_nocopy_len(s, n, d) spn_makestring_nocopy_len((s), (n), (d))
 
 #define makearray()    spn_makearray()
 

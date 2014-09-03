@@ -75,6 +75,7 @@ SPN_API SpnString *spn_string_format_obj(
 
 /* convenience value constructors and an accessor */
 SPN_API SpnValue spn_makestring(const char *s);
+SPN_API SpnValue spn_makestring_len(const char *s, size_t len);
 SPN_API SpnValue spn_makestring_nocopy(const char *s);
 SPN_API SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int dealloc);
 
