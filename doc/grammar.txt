@@ -77,7 +77,8 @@ loop-statement			= for-statement		|
 				  while-statement	|
 				  do-while-statement
 
-for-statement			= 'for' ( variable-declaration | expression ';' ) expression ';' expression block-statement
+for-statement			= 'for' ( for-header | '(' for-header ')' ) block-statement
+for-header              = ( variable-declaration | expression ';' ) expression ';' expression
 
 while-statement			= 'while' expression block-statement
 
