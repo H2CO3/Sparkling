@@ -1240,11 +1240,16 @@ static SpnAST *parse_do(SpnParser *p)
 static SpnAST *parse_for(SpnParser *p)
 {
 	SpnAST *init, *cond, *incr, *body, *h1, *h2, *h3, *ast;
+	int parens = 0;
 
 	/* skip `for' */
 	if (!spn_lex(p)) {
 		spn_parser_error(p, "expected initializer after `for'", NULL);
 		return NULL;
+	}
+
+	if (spn_accept(p, SPN_TOK_LPAREN)) {
+		parens = 1;
 	}
 
 	/* the initialization may be either an expression or a declaration */
@@ -1288,6 +1293,15 @@ static SpnAST *parse_for(SpnParser *p)
 		spn_ast_free(init);
 		spn_ast_free(cond);
 		return NULL;
+	}
+
+	if (parens) {
+		if (!spn_accept(p, SPN_TOK_RPAREN)) {
+			spn_parser_error(p, "expected ')' after for loop header", NULL);
+			spn_ast_free(init);
+			spn_ast_free(cond);
+			return NULL;
+		}
 	}
 
 	body = parse_block(p);
