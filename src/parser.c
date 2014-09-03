@@ -1295,14 +1295,12 @@ static SpnAST *parse_for(SpnParser *p)
 		return NULL;
 	}
 
-	if (parens) {
-		if (!spn_accept(p, SPN_TOK_RPAREN)) {
-			spn_parser_error(p, "expected ')' after for loop header", NULL);
-			spn_ast_free(init);
-			spn_ast_free(cond);
-			spn_ast_free(incr);
-			return NULL;
-		}
+	if (parens && !spn_accept(p, SPN_TOK_RPAREN)) {
+		spn_parser_error(p, "expected ')' after for loop header", NULL);
+		spn_ast_free(init);
+		spn_ast_free(cond);
+		spn_ast_free(incr);
+		return NULL;
 	}
 
 	body = parse_block(p);
