@@ -23,33 +23,45 @@
 static int jspn_callWrappedFunc(SpnValue *, int, SpnValue[], void *);
 static int jspn_valueToIndex(SpnValue *, int, SpnValue[], void *);
 
+static SpnContext *jspn_global_ctx = NULL;
+static SpnArray *jspn_global_vals = NULL;
+
 static SpnContext *get_global_context(void)
 {
-	static SpnContext *ctx = NULL;
-
-	if (ctx == NULL) {
-		ctx = spn_ctx_new();
+	if (jspn_global_ctx == NULL) {
+		jspn_global_ctx = spn_ctx_new();
 
 		static const SpnExtFunc lib[] = {
 			{ "jspn_callWrappedFunc", jspn_callWrappedFunc },
 			{ "jspn_valueToIndex",    jspn_valueToIndex    }
 		};
 
-		spn_ctx_addlib_cfuncs(ctx, NULL, lib, sizeof lib / sizeof lib[0]);
+		spn_ctx_addlib_cfuncs(jspn_global_ctx, NULL, lib, sizeof lib / sizeof lib[0]);
 	}
 
-	return ctx;
+	return jspn_global_ctx;
 }
 
 static SpnArray *get_global_values(void)
 {
-	static SpnArray *values = NULL;
-
-	if (values == NULL) {
-		values = spn_array_new();
+	if (jspn_global_vals == NULL) {
+		jspn_global_vals = spn_array_new();
 	}
 
-	return values;
+	return jspn_global_vals;
+}
+
+extern void jspn_reset(void)
+{
+	if (jspn_global_ctx != NULL) {
+		spn_ctx_free(jspn_global_ctx);
+		jspn_global_ctx = NULL;
+	}
+
+	if (jspn_global_vals != NULL) {
+		spn_object_release(jspn_global_vals);
+		jspn_global_vals = NULL;
+	}
 }
 
 #define ERROR_INDEX       (-1)
@@ -85,6 +97,17 @@ extern void jspn_freeAll(void)
 extern int jspn_compile(const char *src)
 {
 	SpnFunction *fn = spn_ctx_loadstring(get_global_context(), src);
+	if (fn == NULL) {
+		return ERROR_INDEX;
+	}
+
+	SpnValue fnval = { .type = SPN_TYPE_FUNC, .v.o = fn };
+	return add_to_values(&fnval);
+}
+
+extern int jspn_compileExpr(const char *src)
+{
+	SpnFunction *fn = spn_ctx_compile_expr(get_global_context(), src);
 	if (fn == NULL) {
 		return ERROR_INDEX;
 	}
@@ -293,13 +316,6 @@ extern const char *jspn_getString(int index)
 	SpnValue val = value_by_index(index);
 	assert(isstring(&val));
 	return stringvalue(&val)->cstr;
-}
-
-extern void *jspn_getUserInfo(int index)
-{
-	SpnValue val = value_by_index(index);
-	assert(isuserinfo(&val));
-	return val.type & SPN_FLAG_OBJECT ? val.v.o : val.v.p;
 }
 
 extern int jspn_addNativeWrapper(int (*fnptr)(SpnValue *, int, SpnValue *, void *), const char *name)

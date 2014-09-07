@@ -41,7 +41,7 @@ Mapping between Sparkling and JavaScript types:
 	string		->	  string
 	array		->	  Array or Object
 	function	->	  function
-	userinfo	->	  number
+	userinfo	->	  SparklingUserInfo object
 
 The mapping between the first four types is mostly self-explanatory. If `nil`
 is returned from Sparkling code, it will always be converted to `undefined`.
@@ -77,22 +77,19 @@ The performance note from above applies to functions as well: the conversion
 between functions, their arguments and return value is computationally
 expensive, so be careful.
 
-User info objects are returned to JavaScript as a number representing the
-underlying raw pointer. One caveat is that here information is lost (one
-can't tell from the pointer whether the original value was a weak or strong
-user info), and when the number is passed back to Sparkling, it is not
-automatically converted to a user info object. Consequently, the returned
-"pointer" (number) is only useful for e. g. inspecting during debugging, and
-if one wants to plug it back to Sparkling code, one needs an explicit wrapper
-function to perform the necessary number-to-pointer conversion, along with some
-additional bookkeeping mechanism that keeps track of the kind of the user info
-value. Should the need ever arise for better handling of user info objects,
-ping me and I will try to do something about it.
+User info objects are returned to JavaScript as an opaque object of prototype
+`SparklingUserInfo`. When passed back to Sparkling code, these objects are
+automatically converted back to the underlying user info object. Currently,
+it's only possible to pass user info objects from JavaScript to Sparkling if
+the original user info itself was returned from Sparkling code (so JavaScript
+code cannot create user info values).
 
 Other functions
 ---------------
 There are more public API functions in the `Sparkling` module:
 
+ - `compileExpr()` works similarly to `compile()`, but it treats the source
+   text as an expression, not as a top-level program nor a statement.
  - `backtrace()` returns an array of strings that contain the names of the
    functions on the call stack at the last runtime error.
  - `getGlobal(name)` returns the Sparkling global value with name `name`,
@@ -107,6 +104,9 @@ There are more public API functions in the `Sparkling` module:
    value still seems to be accessible, it may (and usually does) hold a
    now-invalid reference to something, thanks to the indexing system the API
    internally uses for converting between Sparkling and JavaScript values.
+ - `reset()` resets the interpreter: it cleans all globals and sets up a
+   completely new execution context. Invalidates indices in the same manner
+   `freeAll()` does.
 
 Usage example:
 --------------

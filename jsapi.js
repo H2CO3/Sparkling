@@ -11,6 +11,8 @@
 	// the function representing the compiled program
 	var compile = Module.cwrap('jspn_compile', 'number', ['string']);
 
+	var compileExpr = Module.cwrap('jspn_compileExpr', 'number', ['string']);
+
 	// Takes a function index, an array index and an array length.
 	// Returns the index of the value which is the result of calling the
 	// function at the given index in the specified array as arguments.
@@ -47,7 +49,13 @@
 	var addString = Module.cwrap('jspn_addString', 'number', ['string']);
 
 	var addObject = function(val) {
-		return val instanceof Array ? addArray(val) : addDictionary(val);
+		if (val instanceof Array) {
+			return addArray(val);
+		} else if (val instanceof SparklingUserInfo) {
+			return addUserInfo(val);
+		} else {
+			return addDictionary(val);
+		}
 	};
 
 	var addArray = function(val) {
@@ -87,6 +95,10 @@
 		result = addDictionaryWithIndexBuffer(indexBuffer, length);
 		Module._free(indexBuffer);
 		return result;
+	};
+
+	var addUserInfo = function(val) {
+		return val.index;
 	};
 
 	// Adds a native array that contains the object at the
@@ -167,8 +179,15 @@
 	var getNumber = Module.cwrap('jspn_getNumber', 'number', ['number']);
 	var getString = Module.cwrap('jspn_getString', 'string', ['number']);
 
-	// Just returns the raw pointer as a JavaScript number
-	var getUserInfo = Module.cwrap('jspn_getUserInfo', 'number', ['number']);
+	function SparklingUserInfo(index) {
+		this.index = index;
+		return this;
+	}
+
+	// Just returns a wrapper object
+	var getUserInfo = function(index) {
+		return new SparklingUserInfo(index);
+	};
 
 	var getArray = function(index) {
 		var length = countOfArrayAtIndex(index);
@@ -278,6 +297,11 @@
 			return fnIndex < 0 ? undefined : getFunction(fnIndex);
 		},
 
+		compileExpr: function(src) {
+			var fnIndex = compileExpr(src);
+			return fnIndex < 0 ? undefined : getFunction(fnIndex);
+		},
+
 		lastErrorMessage: Module.cwrap('jspn_lastErrorMessage', 'string', []),
 		lastErrorType: Module.cwrap('jspn_lastErrorType', 'string', []),
 
@@ -300,6 +324,8 @@
 		// of functions as well as the results of automatic
 		// conversion between JavaScript and Sparkling in both
 		// directions.)
-		freeAll: Module.cwrap('jspn_freeAll', null, [])
+		freeAll: Module.cwrap('jspn_freeAll', null, []),
+
+		reset: Module.cwrap('jspn_reset', null, [])
 	}
 }());
