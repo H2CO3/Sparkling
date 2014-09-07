@@ -211,6 +211,8 @@ SPN_API unsigned long spn_hash_value(const SpnValue *obj);
 
 /* prints the user-readable representation of a value to stdout */
 SPN_API void spn_value_print(const SpnValue *val);
+SPN_API void spn_debug_print(const SpnValue *val);
+SPN_API void spn_repl_print(const SpnValue *val);
 
 /* returns a string describing a particular type */
 SPN_API const char *spn_type_name(int type);

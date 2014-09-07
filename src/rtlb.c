@@ -144,6 +144,18 @@ static int rtlb_print(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_dbgprint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	int i;
+	for (i = 0; i < argc; i++) {
+		spn_debug_print(&argv[i]);
+	}
+
+	printf("\n");
+
+	return 0;
+}
+
 static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *fmt;
@@ -588,6 +600,7 @@ static int rtlb_readfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
 	{ "getline",  rtlb_getline  },
 	{ "print",    rtlb_print    },
+	{ "dbgprint", rtlb_dbgprint },
 	{ "printf",   rtlb_printf   },
 	{ "fopen",    rtlb_fopen    },
 	{ "fclose",   rtlb_fclose   },

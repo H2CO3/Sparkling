@@ -5,6 +5,12 @@ BUILD ?= debug
 # if it doesn't compile with readline enabled, then try turning it off.
 READLINE ?= 1
 
+# if the terminal supports ANSI color codes, then the Sparkling REPL
+# will attempt to print error messages and return values in color.
+# Turn this off if your terminal doesn't understand ANSI color codes
+# (khm, Windows, khm...)
+ANSI_COLORS ?= 1
+
 OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
 ARCH = $(shell uname -p | tr '[[:upper:]]' '[[:lower:]]')
 
@@ -44,6 +50,12 @@ ifneq ($(READLINE), 0)
 	LIBS += -lreadline
 else
 	DEFINES += -DUSE_READLINE=0
+endif
+
+ifneq ($(ANSI_COLORS), 0)
+	DEFINES += -DUSE_ANSI_COLORS=1
+else
+	DEFINES += -DUSE_ANSI_COLORS=0
 endif
 
 ifeq ($(BUILD), debug)

@@ -19,6 +19,7 @@
 #include "compiler.h"
 #include "vm.h"
 #include "private.h"
+#include "array.h"
 #include "func.h"
 
 
@@ -333,6 +334,48 @@ unsigned long spn_hash_value(const SpnValue *key)
 	return 0;
 }
 
+static void print_indent(int level)
+{
+	int i;
+	for (i = 0; i < level; i++) {
+		printf("    ");
+	}
+}
+
+static void print_array(SpnArray *array, int level)
+{
+	size_t n = spn_array_count(array);
+	SpnValue i_key, i_val;
+	SpnIterator *it = spn_iter_new(array);
+
+	printf("(\n");
+
+	while (spn_iter_next(it, &i_key, &i_val) < n) {
+		print_indent(level + 1);
+
+		if (isarray(&i_key)) {
+			print_array(arrayvalue(&i_key), level + 1);
+		} else {
+			spn_debug_print(&i_key);
+		}
+
+		printf(": ");
+
+		if (isarray(&i_val)) {
+			print_array(arrayvalue(&i_val), level + 1);
+		} else {
+			spn_debug_print(&i_val);
+		}
+
+		printf("\n");
+	}
+
+	print_indent(level);
+	printf(")");
+
+	spn_iter_free(it);
+}
+
 void spn_value_print(const SpnValue *val)
 {
 	switch (valtype(val)) {
@@ -359,7 +402,8 @@ void spn_value_print(const SpnValue *val)
 		break;
 	}
 	case SPN_TTAG_ARRAY: {
-		printf("<array %p>", objvalue(val));
+		SpnArray *array = objvalue(val);
+		print_array(array, 0);
 		break;
 	}
 	case SPN_TTAG_FUNC: {
@@ -382,6 +426,36 @@ void spn_value_print(const SpnValue *val)
 	}
 	default:
 		SHANT_BE_REACHED();
+		break;
+	}
+}
+
+void spn_debug_print(const SpnValue *val)
+{
+	switch (valtype(val)) {
+	case SPN_TTAG_STRING:
+		/* TODO: do proper escaping */
+		printf("\"");
+		spn_value_print(val);
+		printf("\"");
+		break;
+	case SPN_TTAG_ARRAY:
+		printf("<array %p>", objvalue(val));
+		break;
+	default:
+		spn_value_print(val);
+		break;
+	}
+}
+
+void spn_repl_print(const SpnValue *val)
+{
+	switch (valtype(val)) {
+	case SPN_TTAG_STRING:
+		spn_debug_print(val);
+		break;
+	default:
+		spn_value_print(val);
 		break;
 	}
 }

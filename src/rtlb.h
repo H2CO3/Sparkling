@@ -14,7 +14,7 @@
 #include "vm.h"
 
 /* Functions:
- * getline(), print(), printf()
+ * getline(), print(), dbgprint(), printf()
  * fopen(), fclose()
  * fprintf(), fgetline()
  * fread(), fwrite()
@@ -24,7 +24,7 @@
  *
  * Constants: stdin, stdout, stderr
  */
-#define SPN_LIBSIZE_IO 18
+#define SPN_LIBSIZE_IO 19
 SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
 
 /* Functions:

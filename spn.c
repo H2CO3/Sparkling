@@ -16,6 +16,16 @@
 #include <readline/history.h>
 #endif
 
+#if USE_ANSI_COLORS
+#define CLR_ERR "\x1b[1;31;40m"
+#define CLR_VAL "\x1b[1;32;40m"
+#define CLR_RST "\x1b[0;37;40m"
+#else
+#define CLR_ERR ""
+#define CLR_VAL ""
+#define CLR_RST ""
+#endif
+
 #include "spn.h"
 #include "array.h"
 #include "func.h"
@@ -254,7 +264,7 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 		}
 
 		if (args & FLAG_PRINTRET) {
-			spn_value_print(&val);
+			spn_repl_print(&val);
 			printf("\n");
 		}
 
@@ -311,7 +321,7 @@ static int enter_repl(enum cmd_args args)
 		status = spn_ctx_execstring(ctx, buf, &ret);
 		if (status != 0) {
 			if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
-				fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+				fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(ctx));
 				print_stacktrace_if_needed(ctx);
 			} else {
 				SpnFunction *fn;
@@ -333,15 +343,15 @@ static int enter_repl(enum cmd_args args)
 				 */
 				fn = spn_ctx_compile_expr(ctx, buf);
 				if (fn == NULL) {
-					fprintf(stderr, "%s\n", orig_errmsg);
+					fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", orig_errmsg);
 				} else {
 					if (spn_ctx_callfunc(ctx, fn, &ret, 0, NULL) != 0) {
-						fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+						fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(ctx));
 						print_stacktrace_if_needed(ctx);
 					} else {
-						printf("= ");
-						spn_value_print(&ret);
-						printf("\n");
+						printf("= " CLR_VAL);
+						spn_repl_print(&ret);
+						printf(CLR_RST "\n");
 						spn_value_release(&ret);
 					}
 				}
@@ -350,8 +360,9 @@ static int enter_repl(enum cmd_args args)
 			}
 		} else {
 			if (!isnil(&ret) || args & FLAG_PRINTNIL) {
-				spn_value_print(&ret);
-				printf("\n");
+				printf(CLR_VAL);
+				spn_repl_print(&ret);
+				printf(CLR_RST "\n");
 			}
 
 			spn_value_release(&ret);
@@ -1119,7 +1130,7 @@ static void dump_ast(SpnAST *ast, int indent)
 	if ((isnil(&ast->value) && ast->node == SPN_NODE_LITERAL)
 	 || !isnil(&ast->value)) {
 		printf(" value = ");
-		spn_value_print(&ast->value);
+		spn_debug_print(&ast->value);
 	}
 
 	if (ast->left != NULL || ast->right != NULL) {
