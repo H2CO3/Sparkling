@@ -27,5 +27,11 @@ mergeInto(LibraryManager.library, {
 
 		retVal = fn.apply(undefined, args);
 		return addJSValue(retVal);
+	},
+	jspn_jseval_helper: function jspn_jseval_helper(srcPtr) {
+		var addJSValue = Sparkling['_addJSValue'];
+		var src = Pointer_stringify(srcPtr);
+		var val = eval(src);
+		return addJSValue(val);
 	}
 });

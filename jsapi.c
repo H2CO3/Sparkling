@@ -22,6 +22,7 @@
 // forward-declare Sparkling library functions
 static int jspn_callWrappedFunc(SpnValue *, int, SpnValue[], void *);
 static int jspn_valueToIndex(SpnValue *, int, SpnValue[], void *);
+static int jspn_jseval(SpnValue *, int, SpnValue[], void *);
 
 static SpnContext *jspn_global_ctx = NULL;
 static SpnArray *jspn_global_vals = NULL;
@@ -33,7 +34,8 @@ static SpnContext *get_global_context(void)
 
 		static const SpnExtFunc lib[] = {
 			{ "jspn_callWrappedFunc", jspn_callWrappedFunc },
-			{ "jspn_valueToIndex",    jspn_valueToIndex    }
+			{ "jspn_valueToIndex",    jspn_valueToIndex    },
+			{ "jseval",               jspn_jseval          }
 		};
 
 		spn_ctx_addlib_cfuncs(jspn_global_ctx, NULL, lib, sizeof lib / sizeof lib[0]);
@@ -49,19 +51,6 @@ static SpnArray *get_global_values(void)
 	}
 
 	return jspn_global_vals;
-}
-
-extern void jspn_reset(void)
-{
-	if (jspn_global_ctx != NULL) {
-		spn_ctx_free(jspn_global_ctx);
-		jspn_global_ctx = NULL;
-	}
-
-	if (jspn_global_vals != NULL) {
-		spn_object_release(jspn_global_vals);
-		jspn_global_vals = NULL;
-	}
 }
 
 #define ERROR_INDEX       (-1)
@@ -80,6 +69,21 @@ static SpnValue value_by_index(int index)
 	SpnValue result;
 	spn_array_get_intkey(get_global_values(), index, &result);
 	return result;
+}
+
+extern void jspn_reset(void)
+{
+	if (jspn_global_ctx != NULL) {
+		spn_ctx_free(jspn_global_ctx);
+		jspn_global_ctx = NULL;
+	}
+
+	if (jspn_global_vals != NULL) {
+		spn_object_release(jspn_global_vals);
+		jspn_global_vals = NULL;
+	}
+
+	next_value_index = FIRST_VALUE_INDEX;
 }
 
 extern void jspn_freeAll(void)
@@ -318,26 +322,6 @@ extern const char *jspn_getString(int index)
 	return stringvalue(&val)->cstr;
 }
 
-extern int jspn_addNativeWrapper(int (*fnptr)(SpnValue *, int, SpnValue *, void *), const char *name)
-{
-	// for now, names are never deallocated because there's no
-	// easy way to determine when they are not needed anymore
-	// This 'leak' is not what is going to kill your server with
-	// 128 GB of RAM. If it does, feel free to submit a patch.
-	// (This would probably be more elegant using allocating some
-	// static memory through Module.allocate(ALLOC_STATIC)...)
-
-	size_t namelen1 = strlen(name) + 1;
-	char *name_copy = malloc(namelen1);
-	memcpy(name_copy, name, namelen1);
-
-	SpnValue fnval = makenativefunc(name_copy, fnptr);
-	int index = add_to_values(&fnval);
-	spn_value_release(&fnval);
-
-	return index;
-}
-
 // This is a terrible, ugly hack that makes
 // security enthusiasts cry and vomit.
 extern int jspn_addWrapperFunction(int funcIndex)
@@ -399,6 +383,38 @@ static int jspn_callWrappedFunc(SpnValue *ret, int argc, SpnValue argv[], void *
 	size_t count = spn_array_count(argIndices);
 	int retValIndex = jspn_callJSFunc(funcIndex, count, argIndices);
 	spn_array_get_intkey(get_global_values(), retValIndex, ret);
+	spn_value_retain(ret);
+
+	return 0;
+}
+
+// helper for jspn_jseval, implemented in JavaScript
+extern int jspn_jseval_helper(char *src);
+
+static int jspn_jseval(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
+{
+	SpnString *src;
+	int index;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		return -2;
+	}
+
+	src = stringvalue(&argv[0]);
+	index = jspn_jseval_helper(src->cstr);
+
+	if (index < FIRST_VALUE_INDEX) {
+		spn_ctx_runtime_error(ctx, "error in eval()", NULL);
+		return -3;
+	}
+
+	spn_array_get_intkey(get_global_values(), index, ret);
 	spn_value_retain(ret);
 
 	return 0;

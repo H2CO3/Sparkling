@@ -327,5 +327,5 @@
 		freeAll: Module.cwrap('jspn_freeAll', null, []),
 
 		reset: Module.cwrap('jspn_reset', null, [])
-	}
+	};
 }());
