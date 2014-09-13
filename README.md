@@ -57,7 +57,7 @@ Sparkling is influenced by other programming languages, namely:
 
 Why Sparkling?
 ==============
-- Small, embeddable: compiled size less than 100kB; tiny grammar, simple rules
+- Small, embeddable: compiled size around 150 kB; tiny grammar, simple rules
 - Portable: written in pure ANSI C89 - runs on Windows, Linux, OS X, iOS, ...
    it can also be used from within a C++ program (apart from the requirement
    that the library itself should be compiled as C and not as C++, the public

@@ -297,6 +297,7 @@ static int enter_repl(enum cmd_args args)
 
 #if USE_READLINE
 		sprintf(prompt, "spn:%d> ", session_no);
+		fflush(stdout);
 
 		if ((buf = readline(prompt)) == NULL) {
 			printf("\n");
@@ -309,6 +310,8 @@ static int enter_repl(enum cmd_args args)
 		}
 #else
 		printf("spn:%d> ", session_no);
+		fflush(stdout);
+
 		if (fgets(buf, sizeof buf, stdin) == NULL) {
 			printf("\n");
 			break;
