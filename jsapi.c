@@ -331,13 +331,8 @@ extern int jspn_addWrapperFunction(int funcIndex)
 	if (wrapperGenerator == NULL) {
 		wrapperGenerator = spn_ctx_loadstring(
 			get_global_context(),
-			"let funcIndex = #0;"
+			"let funcIndex = argv[0];"
 			"return function() {"
-			"	let n = argc;"
-			"	var argv = {};"
-			"	for var i = 0; i < n; i++ {"
-			"		argv[i] = jspn_valueToIndex(#i);"
-			"	}"
 			"	return jspn_callWrappedFunc(funcIndex, argv);"
 			"};"
 		);
