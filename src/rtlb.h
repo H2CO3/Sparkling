@@ -83,7 +83,7 @@ SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
  * difftime()
  * compile()
  * exprtofn()
- * loadfile()
+ * require()
  * call()
  * backtrace()
  */

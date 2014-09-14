@@ -2093,6 +2093,23 @@ static int compile_argc(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
+static int compile_argv(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	spn_uword ins;
+
+	if (*dst < 0) {
+		*dst = tmp_push(cmp);
+	}
+
+	assert(ast->node == SPN_NODE_ARGV);
+
+	/* emit "get argument vector" instruction */
+	ins = SPN_MKINS_A(SPN_INS_ARGV, *dst);
+	bytecode_append(&cmp->bc, &ins, 1);
+
+	return 1;
+}
+
 static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	int symidx;
@@ -2360,7 +2377,6 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_TYPEOF:  opcode = SPN_INS_TYPEOF; break;
 	case SPN_NODE_LOGNOT:  opcode = SPN_INS_LOGNOT; break;
 	case SPN_NODE_BITNOT:  opcode = SPN_INS_BITNOT; break;
-	case SPN_NODE_NTHARG:  opcode = SPN_INS_NTHARG; break;
 	case SPN_NODE_UNMINUS: opcode = SPN_INS_NEG;    break;
 	default: SHANT_BE_REACHED(); break;
 	}
@@ -2656,6 +2672,9 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* call-time argument count */
 	case SPN_NODE_ARGC:          return compile_argc(cmp, ast, dst);
 
+	/* argument vector */
+	case SPN_NODE_ARGV:          return compile_argv(cmp, ast, dst);
+
 	/* function expression, lambda */
 	case SPN_NODE_FUNCEXPR:      return compile_funcexpr(cmp, ast, dst);
 
@@ -2676,8 +2695,7 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_SIZEOF:
 	case SPN_NODE_TYPEOF:
 	case SPN_NODE_LOGNOT:
-	case SPN_NODE_BITNOT:
-	case SPN_NODE_NTHARG:        return compile_unary(cmp, ast, dst);
+	case SPN_NODE_BITNOT:        return compile_unary(cmp, ast, dst);
 
 	/* unary minus is special and it's handled separately,
 	 * because it is optimized when used with literals.
@@ -2699,4 +2717,3 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		}
 	}
 }
-

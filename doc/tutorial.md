@@ -15,6 +15,8 @@ There are two types of comments in Sparkling: one-line comments:
 
     // this is a one-line comment
 
+    # this is another type of one-line comment
+
 and block comments:
 
     /* block comments can
@@ -28,6 +30,7 @@ other tokens):
 
 - `and`
 - `argc`
+- `argv`
 - `break`
 - `const`
 - `continue`
@@ -223,12 +226,6 @@ assignments
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators
  * `&`, `|`, `^`: bitwise AND, OR and XOR
  * `<<`, `>>`: bitwise left and right shift
- * `#`: prefix operator, takes a non-negative integer expression. Yields the
-`n`th variadic argument of the function it is used within (where `n` is the
-value of its operand), starting from zero. If the value of the integer
-expression is greater than or equal to the number of variadic arguments, throws
-an exception. It also throws a runtime exception if it is supplied a negative,
-non-integral or non-number argument.
 
 ## Loops
 
@@ -238,6 +235,12 @@ inside parentheses. Loops work in the same manner as those in C.
 `for` loop:
 
     for var i = 0; i < 10; ++i { // the scope of i is the loop only
+        print(i);
+    }
+
+`for` loop with parentheses around the loop header:
+
+    for (var i = 0; i < 10; ++i) {
         print(i);
     }
 
@@ -325,8 +328,9 @@ To get the number of arguments with which a function has been called, use the
     3
     >
 
-To access the variadic (unnamed) arguments of a function, use the `#` operator,
-as described in the "expressions" section.
+To access the variadic (unnamed) arguments of a function, use the `argv` array,
+which contains all the call arguments of the function. Index `argv` with
+integers in the range `[0...argc)` to obtain the individual arguments.
 
 ## The standard library
 
@@ -391,15 +395,15 @@ In that case, you can use `spn_ctx_loadstring()` and `spn_ctx_loadsrcfile()`
 for parsing and compiling the source once. Once compiled, you can run the
 resulting code with the help of the `spn_ctx_callfunc()` function.
 
-    SpnValue main_func;
-    if (spn_ctx_loadstring(ctx, "print(42);", &main_func) != 0) {
+    SpnFunction *main_func = spn_ctx_loadstring(ctx, "print(42);")
+    if (main_func == NULL) {
         /* handle parser or syntax error */
     } else {
         /* `main_func' contains a function describing the main program */
         int i;
         for (i = 0; i < 1000000; i++) { /* run the program a lot of times */
             SpnValue retval;
-            if (spn_ctx_callfunc(ctx, &main_func, &retval, 0, NULL) == 0) {
+            if (spn_ctx_callfunc(ctx, main_func, &retval, 0, NULL) == 0) {
                 /* optionally use return value, then release it */
                 spn_value_release(&retval);
             } else {

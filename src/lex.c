@@ -187,7 +187,8 @@ static void skip_space(SpnParser *p)
 static int skip_comment(SpnParser *p)
 {
 	while (p->pos[0] == '/' && p->pos[1] == '*'
-	    || p->pos[0] == '/' && p->pos[1] == '/') {
+	    || p->pos[0] == '/' && p->pos[1] == '/'
+	    || p->pos[0] == '#') {
 
 		/* then-branch: block comments; else-branch: line comments */
 		if (p->pos[0] == '/' && p->pos[1] == '*') {
@@ -217,17 +218,17 @@ static int skip_comment(SpnParser *p)
 			/* skip comment end marker */
 			p->pos += 2;
 		} else {
-			/* skip line comment marker */
-			p->pos += 2;
-
-			/* advance until next newline or end-of-input */
+			/* actually, we don't need to skip the comment marker separtely,
+			 * since neither '/' nor '#' is a newline character or NUL.
+			 * Just advance the cursor until the next newline or end-of-input...
+			 */
 			while (p->pos[0] != '\0'
 			    && p->pos[0] != '\n'
 			    && p->pos[0] != '\r') {
 				p->pos++;
 			}
 
-			/* skip the bastard */
+			/* ...and skip the bastard! */
 			if (p->pos[0]) {
 				skip_space(p);
 			}
@@ -241,7 +242,8 @@ static int skip_space_and_comment(SpnParser *p)
 {
 	while (isspace(p->pos[0])
 	    || p->pos[0] == '/' && p->pos[1] == '*'
-	    || p->pos[0] == '/' && p->pos[1] == '/') {
+	    || p->pos[0] == '/' && p->pos[1] == '/'
+	    || p->pos[0] == '#') {
 		skip_space(p);
 
 		if (!skip_comment(p)) {
@@ -303,7 +305,6 @@ static int lex_op(SpnParser *p)
 		RESERVED_ENTRY("^=",    SPN_TOK_XOREQ),
 		RESERVED_ENTRY("^",     SPN_TOK_XOR),
 		RESERVED_ENTRY("~",     SPN_TOK_BITNOT),
-		RESERVED_ENTRY("#",     SPN_TOK_HASH),
 		RESERVED_ENTRY("(",     SPN_TOK_LPAREN),
 		RESERVED_ENTRY(")",     SPN_TOK_RPAREN),
 		RESERVED_ENTRY("[",     SPN_TOK_LBRACKET),
@@ -462,6 +463,7 @@ static int lex_ident(SpnParser *p)
 	static const TReserved kwds[] = {
 		RESERVED_ENTRY("and",       SPN_TOK_LOGAND),
 		RESERVED_ENTRY("argc",      SPN_TOK_ARGC),
+		RESERVED_ENTRY("argv",      SPN_TOK_ARGV),
 		RESERVED_ENTRY("break",     SPN_TOK_BREAK),
 		RESERVED_ENTRY("const",     SPN_TOK_CONST),
 		RESERVED_ENTRY("continue",  SPN_TOK_CONTINUE),

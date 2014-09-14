@@ -213,7 +213,7 @@ enum spn_vm_ins {
 	SPN_INS_NEWARR,   /* a = new array                        */
 	SPN_INS_ARRGET,   /* a = b[c]                             */
 	SPN_INS_ARRSET,   /* a[b] = c                             */
-	SPN_INS_NTHARG,   /* a = argv[b] (accesses varargs only!) */
+	SPN_INS_ARGV,     /* a = argv (contains all arguments)    */
 	SPN_INS_FUNCTION, /* function definition (VI)             */
 	SPN_INS_GLBVAL,   /* add a value to the global symtab     */
 	SPN_INS_CLOSURE,  /* create closure from free func (VII)  */

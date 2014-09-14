@@ -131,7 +131,6 @@ enum spn_ast_node {
 	SPN_NODE_TYPEOF,
 	SPN_NODE_LOGNOT,
 	SPN_NODE_BITNOT,
-	SPN_NODE_NTHARG,	/* n-th unnamed function argument */
 
 	/* postfix unary */
 	SPN_NODE_POSTINCRMT,
@@ -145,6 +144,7 @@ enum spn_ast_node {
 	SPN_NODE_LITERAL,
 	SPN_NODE_FUNCEXPR,	/* function expression, lambda */
 	SPN_NODE_ARGC,
+	SPN_NODE_ARGV,
 	SPN_NODE_ARRAY_LITERAL,	/* link list containing ARRAY_KVPAIR pairs */
 	SPN_NODE_ARRAY_KVPAIR,
 

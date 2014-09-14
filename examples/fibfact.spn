@@ -36,7 +36,7 @@ function fct_iter(n)
 	return r;
 }
 
-var n = toint(#1);
+var n = toint(argv[1]);
 
 print(fib_iter(n));
 print(fib_rec(n));

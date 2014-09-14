@@ -2923,7 +2923,7 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_aux_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx, int isfile)
+static int rtlb_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnFunction *fn;
 	const char *src;
@@ -2939,12 +2939,7 @@ static int rtlb_aux_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx, 
 	}
 
 	src = stringvalue(&argv[0])->cstr;
-
-	if (isfile) {
-		fn = spn_ctx_loadsrcfile(ctx, src);
-	} else {
-		fn = spn_ctx_loadstring(ctx, src);
-	}
+	fn = spn_ctx_loadstring(ctx, src);
 
 	if (fn == NULL) {	/* return parser/compiler error message	*/
 		const char *errmsg = spn_ctx_geterrmsg(ctx);
@@ -2959,14 +2954,31 @@ static int rtlb_aux_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx, 
 	return 0;
 }
 
-static int rtlb_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_require(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	return rtlb_aux_compile(ret, argc, argv, ctx, 0);
-}
+	const char *fname;
+	const void *args[1];
+	int err;
 
-static int rtlb_loadfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_compile(ret, argc, argv, ctx, 1);
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string (a filename)", NULL);
+		return -2;
+	}
+
+	fname = stringvalue(&argv[0])->cstr;
+
+	err = spn_ctx_execsrcfile(ctx, fname, ret);
+	if (err) {
+		args[0] = fname;
+		spn_ctx_runtime_error(ctx, "could not load file '%s'", args);
+	}
+
+	return err;
 }
 
 static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
@@ -3098,7 +3110,7 @@ const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
 	{ "difftime",   rtlb_difftime   },
 	{ "compile",    rtlb_compile    },
 	{ "exprtofn",   rtlb_exprtofn   },
-	{ "loadfile",   rtlb_loadfile   },
+	{ "require",    rtlb_require    },
 	{ "call",       rtlb_call       },
 	{ "backtrace",  rtlb_backtrace  }
 };

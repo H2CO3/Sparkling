@@ -360,12 +360,6 @@ negated value.
 §3.8.5. The `~` operator. It takes an integer operand and yields the its
 bitwise complement.
 
-§3.8.6. The `#` operator. It yields the N-th variadic (unnamed) argument of the
-enclosing function, where argument #0 is the first variadic argument.
-If the operand is more than or equal to the number of variadic arguments,
-an exception is raised. It is an error to pass a negative, floating-point or
-non-number operand to this operator.
-
 §3.8.7. The `sizeof` operator. The sizeof operator yields the conceptual size
 (length) of its argument. For strings, it is the number of bytes in the string,
 for arrays, it is the number of key-value pairs in the array. If called on any
@@ -446,4 +440,12 @@ and the Boolean literals `true` and `false`.
 `argc` is a special keyword that evaluates to an integer which is the number of
 arguments that the function in which the `argc` keyword is used was called
 with.
+
+§3.13. The `argv` keyword
+
+`argv` yields an array of which the n-th element is the n-th call-time argument
+of the function in which it is used. Array and argument indexing starts from 0.
+The `argv` array contains the declared, named arguments of the function,
+as well as any extra variadic arguments. If none of the arguments is `nil`,
+then the equality `sizeof argv == argc` holds.
 

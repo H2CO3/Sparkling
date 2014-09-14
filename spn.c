@@ -160,41 +160,10 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *argv[])
 {
 	SpnValue *vals;
-	SpnFunction *fn;
-	char *buf = spn_read_text_file(fname);
-	const char *src;
 	int err, i;
 
-	if (buf == NULL) {
-		fputs("I/O error: cannot read file\n", stderr);
-		return -1;
-	}
-
-	/* if starts with shebang, search for beginning of 2nd line */
-	if (buf[0] == '#' && buf[1] == '!') {
-		const char *pn = strchr(buf, '\n');
-		const char *pr = strchr(buf, '\r');
-
-		if (pn == NULL && pr == NULL) {
-			/* empty script */
-			free(buf);
-			return 0;
-		} else {
-			if (pn == NULL) {
-				src = pr + 1;
-			} else if (pr == NULL) {
-				src = pn + 1;
-			} else {
-				src = pn < pr ? pr + 1 : pn + 1;
-			}
-		}
-	} else {
-		src = buf;
-	}
-
 	/* compile */
-	fn = spn_ctx_loadstring(ctx, src);
-	free(buf);
+	SpnFunction *fn = spn_ctx_loadsrcfile(ctx, fname);
 
 	if (fn == NULL) {
 		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
@@ -207,12 +176,14 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 		vals[i] = makestring_nocopy(argv[i]);
 	}
 
+	/* throw away return value */
 	err = spn_ctx_callfunc(ctx, fn, NULL, argc, vals);
 
 	/* free arguments array */
 	for (i = 0; i < argc; i++) {
 		spn_value_release(&vals[i]);
 	}
+
 	free(vals);
 
 	if (err != 0) {
@@ -738,9 +709,9 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			printf("arrset\tr%d, r%d, r%d\t# r%d[r%d] = r%d\n", opa, opb, opc, opa, opb, opc);
 			break;
 		}
-		case SPN_INS_NTHARG: {
-			int opa = OPA(ins), opb = OPB(ins);
-			printf("getarg\tr%d, r%d\t# r%d = argv[r%d]\n", opa, opb, opa, opb);
+		case SPN_INS_ARGV: {
+			int opa = OPA(ins);
+			printf("ld\tr%d, argv\t# r%d = argv\n", opa, opa);
 			break;
 		}
 		case SPN_INS_FUNCTION: {
@@ -1099,7 +1070,6 @@ static void dump_ast(SpnAST *ast, int indent)
 		"typeof",
 		"logical-not",
 		"bitwise-not",
-		"nth-arg",
 
 		"postincrement",
 		"postdecrement",
@@ -1111,6 +1081,7 @@ static void dump_ast(SpnAST *ast, int indent)
 		"literal",
 		"function-expr",
 		"argc",
+		"argv",
 		"array-literal",
 		"key-value-pair",
 

@@ -417,11 +417,14 @@ library function `strftime()`.
 Returns the difference between the two timestamps.
 
     function compile(string source)
-    function loadfile(string filename)
 
-These functions parse and compile the supplied source code (`compile()`) or
-named file (`loadfile()`). On success, they return the compiled function. On
-error, they return an error message.
+This function parses and compiles the supplied source code. On success, it
+returns the compiled function. On error, it returns an error message.
+
+    function require(string filename)
+
+Loads, compiles and executes the given file. Returns the result of running the
+file. Throws a runtime error upon failure.
 
     any call(function fn, array argv [, int argc])
 

@@ -81,6 +81,7 @@ typedef struct TFrame {
 	spn_uword   *retaddr;    /* return address (points to bytecode) */
 	ptrdiff_t    retidx;     /* pointer into the caller's frame     */
 	SpnFunction *callee;     /* the called function itself          */
+	SpnArray    *argv;       /* lazily loaded argument vector       */
 } TFrame;
 
 /* see http://stackoverflow.com/q/18310789/ */
@@ -533,6 +534,7 @@ static void push_frame(
 	vm->sp[IDX_FRMHDR].h.retaddr = retaddr; /* if NULL, return to C-land */
 	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if negative, return to C-land */
 	vm->sp[IDX_FRMHDR].h.callee = callee;
+	vm->sp[IDX_FRMHDR].h.argv = NULL;
 }
 
 static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee)
@@ -556,6 +558,11 @@ static void pop_frame(SpnVMachine *vm)
 		spn_value_release(&vm->sp[i].v);
 	}
 
+	/* release argv, if any */
+	if (hdr->argv) {
+		spn_object_release(hdr->argv);
+	}
+
 	/* adjust stack pointer */
 	vm->sp -= nregs;
 }
@@ -571,7 +578,7 @@ static SpnValue *nth_call_arg(TSlot *sp, spn_uword *ip, int idx)
 
 /* get the `idx`th unnamed argument from a stack frame
  * XXX: this does **NOT** check for an out-of-bounds error in release
- * mode, that's why `argidx < hdr->extra_argc` is checked in SPN_INS_NTHARG.
+ * mode, that's why `argidx < hdr->extra_argc` is checked in SPN_INS_ARGV.
  */
 static SpnValue *nth_vararg(TSlot *sp, int idx)
 {
@@ -1369,44 +1376,40 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			spn_array_set(arrayvalue(a), b, c);
 			break;
 		}
-		case SPN_INS_NTHARG: {
-			/* this accesses unnamed arguments only, so regardless
-			 * of the number of formal parameters, #0 always yields
-			 * the first **unnamed** argument, which is *not*
-			 * necessarily the first argument!
-			 */
-			SpnValue *a = VALPTR(vm->sp, OPA(ins));
-			SpnValue *b = VALPTR(vm->sp, OPB(ins));
+		case SPN_INS_ARGV: {
 			TFrame *hdr = &vm->sp[IDX_FRMHDR].h;
-			long argidx;
+			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 
+			/* construct argument vector lazily, on-demand */
+			if (hdr->argv == NULL) {
+				int i;
+				int argidx = 0;
 
-			if (!isint(b)) {
-				runtime_error(vm, ip - 1, "non-integer argument to `#' operator", NULL);
-				return -1;
+				hdr->argv = spn_array_new();
+
+				/* copy declared arguments:
+				 * they always reside in the first decl_argc registers
+				 */
+				for (i = 0; i < hdr->decl_argc && i < hdr->real_argc; i++) {
+					SpnValue *argptr = VALPTR(vm->sp, i);
+					spn_array_set_intkey(hdr->argv, argidx++, argptr);
+				}
+
+				/* copy variadic arguments, if any */
+				for (i = 0; i < hdr->extra_argc; i++) {
+					SpnValue *argptr = nth_vararg(vm->sp, i);
+					spn_array_set_intkey(hdr->argv, argidx++, argptr);
+				}
 			}
 
-			argidx = intvalue(b);
-
-			if (argidx < 0) {
-				runtime_error(vm, ip - 1, "negative argument to `#' operator", NULL);
-				return -1;
-			}
-
-			if (argidx < hdr->extra_argc) {
-				/* if there are enough args, get one */
-				SpnValue *argp = nth_vararg(vm->sp, argidx);
-				spn_value_retain(argp);
-
-				spn_value_release(a);
-				*a = *argp;
-			} else {
-				/* if index is out of bounds, throw */
-				const void *args[1];
-				args[0] = &argidx;
-				runtime_error(vm, ip - 1, "argument `%d' of `#' operator is out-of bounds", args);
-				return -1;
-			}
+			/* it's safe to release the register before retaining argv,
+			 * because the SpnArray backing argv is always referred to
+			 * by the strong 'hdr->argv' pointer.
+			 */
+			spn_value_release(a);
+			a->type = SPN_TYPE_ARRAY;
+			a->v.o = hdr->argv;
+			spn_value_retain(a);
 
 			break;
 		}

@@ -12,6 +12,7 @@
     <property name="mimetypes">text/plain;text/x-sparkling</property>
     <property name="globs">*.spn</property>
     <property name="line-comment-start">//</property>
+    <property name="line-comment-start">#</property>
     <property name="block-comment-start">/*</property>
     <property name="block-comment-end">*/</property>
   </metadata>
@@ -21,6 +22,7 @@
     <style id="literal"         _name="Literal"                  map-to="def:special-constant" />
     <style id="keyword"         _name="Keyword"                  map-to="def:keyword" />
     <style id="string"          _name="String"                   map-to="def:string" />
+    <style id="comment"         _name="Comment"                  map-to="def:comment" />
   </styles>
 
   <definitions>
@@ -28,6 +30,11 @@
     <context id="escape" style-ref="escape">
       <match>\\[abfnrt]|(x[0-9a-fA-F]{2})</match>
     </context>
+
+		<context id="comment" style-ref="comment">
+			<start>\#</start>
+			<end>$</end>
+		</context>
 
     <context id="literals" style-ref="literal">
       <keyword>null</keyword>
@@ -55,6 +62,7 @@
       <keyword>typeof</keyword>
       <keyword>sizeof</keyword>
       <keyword>argc</keyword>
+      <keyword>argv</keyword>
     </context>
 
     <context id="sparkling" class="no-spell-check">
@@ -71,6 +79,7 @@
         <context ref="escape" />
         <context ref="literals" />
         <context ref="keywords" />
+        <context ref="comment" />
       </include>
     </context>
 

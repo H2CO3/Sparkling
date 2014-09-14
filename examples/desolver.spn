@@ -20,8 +20,8 @@ function solvede(a, b, y0, yprime) {
   return { "x": xv, "y": yv };
 }
 
-var a = tofloat(#1), b = tofloat(#2), y0 = tofloat(#3);
-var src = "var x = #0, y = #1; return " .. #4 .. ";";
+var a = tofloat(argv[1]), b = tofloat(argv[2]), y0 = tofloat(argv[3]);
+var src = "var x = argv[0], y = argv[1]; return " .. argv[4] .. ";";
 var yprime = compile(src);
 
 if typeof yprime != "function" {

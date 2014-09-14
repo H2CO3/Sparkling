@@ -9,6 +9,6 @@
  * treat each entry as the name of an environment variable
  */
 for var i = 1; i < argc; i++ {
-	printf("%s = %s\n", #i, getenv(#i));
+	printf("%s = %s\n", argv[i], getenv(argv[i]));
 }
 

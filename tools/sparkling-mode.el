@@ -1,4 +1,9 @@
+;;; package --- A major mode for the Sparkling scripting language
+;;; Commentary:
+;;; none
+
 ;; define major mode hook
+;;; Code:
 (defvar sparkling-mode-hook nil)
 
 ;; auto-insert curly brace pair
@@ -16,8 +21,7 @@
       (forward-line -1)
       (sparkling-indent-line)
       (forward-line 1)
-      (sparkling-indent-line)
-    )
+      (sparkling-indent-line))
   )
 )
 
@@ -36,13 +40,15 @@
 
 (defvar sparkling-font-lock-keywords
   (list
-   '("\\<\\(a\\(nd\\|rgc\\)\\|break\\|con\\(st\\|tinue\\)\\|do\\|else\\|f\\(or\\|unction\\)\\|global\\|if\\|not\\|or\\|return\\|sizeof\\|typeof\\|var\\|while\\)\\>" . font-lock-keyword-face)
+   '("\\<\\(a\\(nd\\|rg\\(c\\|v\\)\\)\\|break\\|con\\(st\\|tinue\\)\\|do\\|else\\|f\\(or\\|unction\\)\\|global\\|if\\|not\\|or\\|return\\|sizeof\\|typeof\\|var\\|while\\)\\>" . font-lock-keyword-face)
    '("\\('\\w*'\\)" . font-lock-variable-name-face)
    '("\\(\\\"\\(\\\\\"\\|[^\\\"]\\)*\\\"\\)" . font-lock-string-face)
 	 '("\\(nil\\|null\\|true\\|false\\)" . font-lock-constant-face)
    )
   "Syntax highlighting for Sparkling mode"
 )
+
+(set-face-foreground 'font-lock-string-face "Gold")
 
 ;; Indentation
 
@@ -69,11 +75,12 @@
 ;; Syntax table
 (defvar sparkling-mode-syntax-table
   (let ((sparkling-mode-syntax-table (make-syntax-table)))
-  ;; This is added so entity names with underscores can be more easily parsed
+	;; This is added so entity names with underscores can be more easily parsed
     (modify-syntax-entry ?_ "w" sparkling-mode-syntax-table)
 
-  ;; C-style comments
+	;; C-style comments
     (modify-syntax-entry ?/ ". 124b" sparkling-mode-syntax-table)
+    (modify-syntax-entry ?# "< b" sparkling-mode-syntax-table)
     (modify-syntax-entry ?* ". 23" sparkling-mode-syntax-table)
     (modify-syntax-entry ?\n "> b" sparkling-mode-syntax-table)
     sparkling-mode-syntax-table)
@@ -90,7 +97,7 @@
   (set (make-local-variable 'indent-line-function) 'sparkling-indent-line)
 )
 
-(defvar sparkling-indent-offset 2
+(defvar sparkling-indent-offset 4
   "*Indentation offset for `sparkling-mode'.")
 
 (set (make-local-variable 'font-lock-defaults) '(sparkling-font-lock-keywords))
@@ -102,4 +109,5 @@
 (run-hooks 'sparkling-mode-hook)
 
 (provide 'sparkling-mode)
+;;; sparkling-mode.el ends here
 

@@ -126,15 +126,17 @@ enum {
 };
 
 /* complete type definitions */
-#define SPN_TYPE_NIL              SPN_TTAG_NIL
-#define SPN_TYPE_BOOL             SPN_TTAG_BOOL
-#define SPN_TYPE_INT              SPN_TTAG_NUMBER
-#define SPN_TYPE_FLOAT           (SPN_TTAG_NUMBER   | SPN_FLAG_FLOAT)
-#define SPN_TYPE_FUNC            (SPN_TTAG_FUNC     | SPN_FLAG_OBJECT)
-#define SPN_TYPE_STRING          (SPN_TTAG_STRING   | SPN_FLAG_OBJECT)
-#define SPN_TYPE_ARRAY           (SPN_TTAG_ARRAY    | SPN_FLAG_OBJECT)
-#define SPN_TYPE_WEAKUSERINFO     SPN_TTAG_USERINFO
-#define SPN_TYPE_STRGUSERINFO    (SPN_TTAG_USERINFO | SPN_FLAG_OBJECT)
+enum {
+	SPN_TYPE_NIL                = SPN_TTAG_NIL,
+	SPN_TYPE_BOOL               = SPN_TTAG_BOOL,
+	SPN_TYPE_INT                = SPN_TTAG_NUMBER,
+	SPN_TYPE_FLOAT              = SPN_TTAG_NUMBER   | SPN_FLAG_FLOAT,
+	SPN_TYPE_FUNC               = SPN_TTAG_FUNC     | SPN_FLAG_OBJECT,
+	SPN_TYPE_STRING             = SPN_TTAG_STRING   | SPN_FLAG_OBJECT,
+	SPN_TYPE_ARRAY              = SPN_TTAG_ARRAY    | SPN_FLAG_OBJECT,
+	SPN_TYPE_WEAKUSERINFO       = SPN_TTAG_USERINFO,
+	SPN_TYPE_STRGUSERINFO       = SPN_TTAG_USERINFO | SPN_FLAG_OBJECT
+};
 
 /* type checking */
 #define spn_isobject(val)   ((((val)->type) & SPN_FLAG_OBJECT) != 0)

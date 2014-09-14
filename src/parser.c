@@ -656,8 +656,7 @@ static SpnAST *parse_prefix(SpnParser *p)
 		SPN_TOK_LOGNOT,
 		SPN_TOK_BITNOT,
 		SPN_TOK_SIZEOF,
-		SPN_TOK_TYPEOF,
-		SPN_TOK_HASH
+		SPN_TOK_TYPEOF
 	};
 
 	static const enum spn_ast_node nodes[] = {
@@ -668,8 +667,7 @@ static SpnAST *parse_prefix(SpnParser *p)
 		SPN_NODE_LOGNOT,
 		SPN_NODE_BITNOT,
 		SPN_NODE_SIZEOF,
-		SPN_NODE_TYPEOF,
-		SPN_NODE_NTHARG
+		SPN_NODE_TYPEOF
 	};
 
 	SpnAST *operand, *ast;
@@ -827,15 +825,21 @@ static SpnAST *parse_term(SpnParser *p)
 	case SPN_TOK_LBRACE:
 		return parse_array_literal(p);
 	case SPN_TOK_ARGC:
-		ast = spn_ast_new(SPN_NODE_ARGC, p->lineno);
+	case SPN_TOK_ARGV: {
+		enum spn_ast_node node;
+		if (p->curtok.tok == SPN_TOK_ARGC) {
+			node = SPN_NODE_ARGC;
+		} else {
+			node = SPN_NODE_ARGV;
+		}
 
 		spn_lex(p);
 		if (p->error) {
-			spn_ast_free(ast);
 			return NULL;
 		}
 
-		return ast;
+		return spn_ast_new(node, p->lineno);
+	}
 	case SPN_TOK_FUNCTION:
 		/* only allow function expressions in an expression */
 		return parse_function(p, 0);
@@ -851,37 +855,26 @@ static SpnAST *parse_term(SpnParser *p)
 
 		return ast;
 	case SPN_TOK_TRUE:
-		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value = makebool(1);
+	case SPN_TOK_FALSE: {
+		int bval = p->curtok.tok == SPN_TOK_TRUE ? 1 : 0;
 
 		spn_lex(p);
 		if (p->error) {
-			spn_ast_free(ast);
 			return NULL;
 		}
 
-		return ast;
-	case SPN_TOK_FALSE:
 		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value = makebool(0);
-
-		spn_lex(p);
-		if (p->error) {
-			spn_ast_free(ast);
-			return NULL;
-		}
-
+		ast->value = makebool(bval);
 		return ast;
+	}
 	case SPN_TOK_NIL:
+		spn_lex(p);
+		if (p->error) {
+			return NULL;
+		}
+
 		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
 		ast->value = makenil();
-
-		spn_lex(p);
-		if (p->error) {
-			spn_ast_free(ast);
-			return NULL;
-		}
-
 		return ast;
 	case SPN_TOK_INT:
 	case SPN_TOK_FLOAT:

@@ -183,8 +183,6 @@ VM:
 		the last node in the bytecode list that caused the failure
 
 Standard library:
-	- Register common constants (NSStringEncoding, UIControlEvent, etc.) for
-	  the Objective-C bindings
 	- Related: class definition statement (with proper subclasses, properties,
 	  methods, etc.)
 	- Related: "import" statement that loads code (frameworks) dynamically
