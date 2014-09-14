@@ -20,9 +20,9 @@
 
 
 typedef struct TBytecode {
-	spn_uword	*insns;
-	size_t		 len;
-	size_t		 allocsz;
+	spn_uword *insns;
+	size_t len;
+	size_t allocsz;
 } TBytecode;
 
 /* bidirectional hash table: maps indices to values and values to indices */

@@ -56,167 +56,168 @@ program				= ( statement | function-statement | const-statement )(*)
 
 argument-declaration-list	= ( IDENT ( ',' IDENT )(*) )(?)
 
-statement			= empty-statement		|
-				  if-statement			|
-			          loop-statement		|
-			          return-statement		|
-			          loop-control-flow-statement	|
-			          expression-statement		|
-			          block-statement		|
-			          variable-declaration
+statement = empty-statement              |
+            if-statement                 |
+            loop-statement               |
+            return-statement             |
+            loop-control-flow-statement  |
+            expression-statement         |
+            block-statement              |
+            variable-declaration
 
-function-statement		= 'function' IDENT '(' argument-declaration-list ')' block-statement
+function-statement  = 'function' IDENT '(' argument-declaration-list ')' block-statement
 
-const-statement			= ( 'const' | 'global' ) IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
+const-statement     = 'const' | 'global' IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
 
-empty-statement			= ';'
+empty-statement     = ';'
 
-if-statement			= 'if' expression block-statement ( 'else' block-statement | if-statement )(?)
+if-statement        = 'if' expression block-statement ( 'else' block-statement | if-statement )(?)
 
-loop-statement			= for-statement		|
-				  while-statement	|
-				  do-while-statement
+loop-statement      = for-statement      |
+                      while-statement    |
+                      do-while-statement
 
-for-statement			= 'for' ( for-header | '(' for-header ')' ) block-statement
-for-header              = ( variable-declaration | expression ';' ) expression ';' expression
+for-statement       = 'for' for-header | ( '(' for-header ')' ) block-statement
+for-header          = ( variable-declaration | expression ';' ) expression ';' expression
 
-while-statement			= 'while' expression block-statement
+while-statement     = 'while' expression block-statement
 
-do-while-statement		= 'do' block-statement 'while' expression ';'
+do-while-statement  = 'do' block-statement 'while' expression ';'
 
-return-statement		= 'return' [ expression ] ';'
+return-statement    = 'return' [ expression ] ';'
 
-block-statement			= '{' statement(*) '}'
+block-statement     = '{' statement (*) '}'
 
-loop-control-flow-statement	= 'break' | 'continue' ';'
+loop-control-flow-statement = 'break' | 'continue' ';'
 
-variable-declaration		= ( 'var' | 'let' ) IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
+variable-declaration  = 'var' | 'let' IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
 
-expression-statement		= expression ';'
+expression-statement  = expression ';'
 
-expression			= assignment-expr
+expression            = assignment-expr
 
-assignment-expr			= concat-expr [
-					(  '=' |
-					  '+=' |
-					  '-=' |
-					  '*=' |
-					  '/=' |
-					  '%=' |
-					  '|=' |
-					  '&=' |
-					  '^=' |
-					 '<<=' |
-					 '>>=' )
-				  assignment-expr ] /* right-assoc */
+assignment-expr       = concat-expr [
+                      (  '=' |
+                        '+=' |
+                        '-=' |
+                        '*=' |
+                        '/=' |
+                        '%=' |
+                        '|=' |
+                        '&=' |
+                        '^=' |
+                       '<<=' |
+                       '>>=' )
+                        assignment-expr ] /* right-assoc */
 
-concat-expr			= [cond-expr '..' ] cond-expr /* left-assoc */
+concat-expr           = [cond-expr '..' ] cond-expr /* left-assoc */
 
-cond-expr			= logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
+cond-expr             = logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
 
-logical-or-expr			= [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
+logical-or-expr       = [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
 
-logical-and-expr		= [ comparison-expr '&&' ] comparison-expr 
+logical-and-expr      = [ comparison-expr '&&' ] comparison-expr 
 
-comparison-expr			= [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
+comparison-expr       = [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
 
-bitwise-or-expr			= [ bitwise-xor-expr '|' ] bitwise-xor-expr
+bitwise-or-expr       = [ bitwise-xor-expr '|' ] bitwise-xor-expr
 
-bitwise-xor-expr		= [ bitwise-and-expr '^' ] bitwise-and-expr
+bitwise-xor-expr      = [ bitwise-and-expr '^' ] bitwise-and-expr
 
-bitwise-and-expr		= [ shift-expr '&' ] shift-expr
+bitwise-and-expr      = [ shift-expr '&' ] shift-expr
 
-shift-expr			= [ additive-expr '<<' | '>>' ] additive-expr
+shift-expr            = [ additive-expr '<<' | '>>' ] additive-expr
 
-additive-expr			= [ multplicative-expr '+' | '-' ] multiplicative-expr
+additive-expr         = [ multplicative-expr '+' | '-' ] multiplicative-expr
 
-multiplicative-expr		= [ prefix-expr '*' | '/' | '%' ] prefix-expr
+multiplicative-expr   = [ prefix-expr '*' | '/' | '%' ] prefix-expr
 
-prefix-expr			= (
-				      (	'+'		|
-					'-'		|
-					'++'		|
-					'--'		|
-					'!'		|
-					'~'		|
-					'#'		|
-					'sizeof'	|
-					'typeof'	)
-				  prefix-expr ) | postfix-expr /* right-assoc */
+prefix-expr           = (
+                      ( '+'       |
+                        '-'       |
+                        '++'      |
+                        '--'      |
+                        '!'       |
+                        '~'       |
+                        '#'       |
+                        'sizeof'  |
+                        'typeof'  )
+                      prefix-expr ) | postfix-expr /* right-assoc */
 
-postfix-expr			= term (
-					( '[' expression ']' )			|
-					( '(' [ argument-call-list ] ')' )	|
-					'++'					|
-					'--'					|
-					( '.' | '->' IDENT )
-				  )(*) /* left-assoc */
+postfix-expr = term
+        (
+          ( '[' expression ']' )              |
+          ( '(' [ argument-call-list ] ')' )  |
+          '++'                                |
+          '--'                                |
+          ( '.' | '->' IDENT )
+        )(*) /* left-assoc */
 
-term				= IDENT				|
-				  literal			|
-				  'argc'			|
-				  ( '(' expression ')' )	|
-				  function-expr			|
-				  array-expr
+term         = IDENT                   |
+               literal                 |
+               'argc'                  |
+               ( '(' expression ')' )  |
+               function-expr           |
+               array-expr
 
-function-expr			= 'function' [ IDENT ] '(' argument-declaration-list ')' block-statement
+function-expr  = 'function' [ IDENT ] '(' argument-declaration-list ')' block-statement
 
-array-expr			= '{' [ key-val ( ',' key-val )(*) ] '}'
+array-expr     = '{' [ key-val ( ',' key-val )(*) ] '}'
 
-key-val				= expression [ ':' expression ]
+key-val        = expression [ ':' expression ]
 
-argument-call-list		= ( expression ( ',' expression )(*) )(?)
+argument-call-list = ( expression ( ',' expression )(*) )(?)
 
-literal				= STRING	|
-				  INTEGER	|
-				  FLOAT		|
-				  'true'	|
-				  'false'	|
-				  'nil'		|
-				  'null'
+literal  =   STRING   |
+             INTEGER  |
+             FLOAT    |
+            'true'    |
+            'false'   |
+            'nil'     |
+            'null'
 
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and		else		let		sizeof
-argc		false		nil		true
-break		for		not		typeof
-const		function	null		var
-continue	global		or		while
-do		if		return
+and         else        let       sizeof
+argc        false       nil       true
+break       for         not       typeof
+const       function    null      var
+continue    global      or        while
+do          if          return
 
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
-tokens, respectively. Furthermore, 'null' is the same as 'nil', and 'global'
-is the same as 'const'.
+tokens, respectively. Furthermore, 'null' is the same as 'nil'; 'global' is
+the same as 'const'; and 'let' is the same as 'var'.
 
 Literal tokens:
 ~~~~~~~~~~~~~~~
 
-char-literal	= /'.{1,8}'/
+char-literal = /'.{1,8}'/
 
-simple-char	= /[^"\\]/
+simple-char  = /[^"\\]/
 
-escape		= /\\[\\/'"abfnrt0]/ | /\\x[0-9a-fA-F]{2}/
+escape       = /\\[\\/'"abfnrt0]/ | /\\x[0-9a-fA-F]{2}/
 
-STRING		= '"' ( simple-char | escape )(*) '"'
+STRING       = '"' ( simple-char | escape )(*) '"'
 
-decimal		= /0/ | /[1-9][0-9]*/
+decimal      = /[1-9][0-9]*/
 
-octal		= /0[0-7]+/
+octal        = /0[0-7]+/
 
-hex		= /0x[0-9a-fA-F]+/
+hex          = /0x[0-9a-fA-F]+/
 
-INTEGER		= decimal	|
-		  octal		|
-		  hex
+INTEGER      = decimal  |
+               octal    |
+               hex
 
-exponent	= /[eE][+-]?\d+/
+exponent     = /[eE][+-]?\d+/
 
-FLOAT		= [ decimal ] /\.\d+/ [ exponent ]
-		  | decimal   /\.\d*/ [ exponent ]
+FLOAT        = [ decimal ] /\.\d+/ [ exponent ]
+               | decimal   /\.\d*/ [ exponent ]
 
-IDENT		= /[a-zA-Z_][a-zA-Z0-9_]*/
+IDENT        = /[a-zA-Z_][a-zA-Z0-9_]*/
 
 Valid escape sequences:
 ~~~~~~~~~~~~~~~~~~~~~~~
