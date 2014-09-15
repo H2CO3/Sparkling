@@ -333,7 +333,12 @@ extern int jspn_addWrapperFunction(int funcIndex)
 			get_global_context(),
 			"let funcIndex = argv[0];"
 			"return function() {"
-			"	return jspn_callWrappedFunc(funcIndex, argv);"
+			"	let _argc = argc, _argv = argv;"
+			"	var args = {};"
+			"	for (var i = 0; i < _argc; ++i) {"
+			"		args[i] = jspn_valueToIndex(_argv[i]);"
+			"	}"
+			"	return jspn_callWrappedFunc(funcIndex, args);"
 			"};"
 		);
 		assert(wrapperGenerator != NULL);
