@@ -48,6 +48,7 @@
       <keyword>and</keyword>
       <keyword>or</keyword>
       <keyword>var</keyword>
+      <keyword>let</keyword>
       <keyword>const</keyword>
       <keyword>global</keyword>
       <keyword>break</keyword>

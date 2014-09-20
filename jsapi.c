@@ -125,7 +125,7 @@ extern int jspn_call(int func_index, int argv_index, size_t argc)
 	SpnValue func_val = value_by_index(func_index);
 	if (!isfunc(&func_val)) {
 		const void *args[] = { spn_type_name(func_val.type) };
-		spn_ctx_runtime_error(get_global_context(), "attempt to call value of non-function type %s",args);
+		spn_ctx_runtime_error(get_global_context(), "attempt to call value of non-function type %s", args);
 		return ERROR_INDEX;
 	}
 
