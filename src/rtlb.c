@@ -1192,40 +1192,6 @@ static int rtlb_sort(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_qsort(array, 0, spn_array_count(array) - 1, comparator, ctx);
 }
 
-static int rtlb_contains(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	size_t n;
-	SpnIterator *it;
-	SpnArray *arr;
-	SpnValue key, val;
-
-	if (argc != 2) {
-		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
-		return -1;
-	}
-
-	if (!isarray(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
-		return -2;
-	}
-
-	*ret = makebool(0);
-
-	arr = arrayvalue(&argv[0]);
-	n = spn_array_count(arr);
-	it = spn_iter_new(arr);
-
-	while (spn_iter_next(it, &key, &val) < n) {
-		if (spn_value_equal(&argv[1], &val)) {
-			*ret = makebool(1);
-			break;
-		}
-	}
-
-	spn_iter_free(it);
-	return 0;
-}
-
 static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t n, i, len = 0;
@@ -1580,13 +1546,13 @@ static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		break;
 	}
 	case 3: {
-		#define FLOATVAL(f) (isint(f) ? intvalue(f) : floatvalue(f))
+#define FLOATVAL(f) (isint(f) ? intvalue(f) : floatvalue(f))
 
 		double begin = FLOATVAL(&argv[0]);
 		double end   = FLOATVAL(&argv[1]);
 		double step  = FLOATVAL(&argv[2]);
 
-		#undef FLOATVAL
+#undef FLOATVAL
 
 		long i;
 		double x;
@@ -1608,21 +1574,780 @@ static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_push(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t n;
+	SpnArray *arr;
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting 2 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	n = spn_array_count(arr);
+	spn_array_set_intkey(arr, n, &argv[1]);
+
+	return 0;
+}
+
+static int rtlb_pop(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t n;
+	SpnArray *arr;
+	SpnValue nilval = makenil();
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
+		return -2;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	n = spn_array_count(arr);
+
+	/* return last element */
+	spn_array_get_intkey(arr, n - 1, ret);
+	spn_value_retain(ret);
+
+	/* remove it from array */
+	spn_array_set_intkey(arr, n - 1, &nilval);
+
+	return 0;
+}
+
+static int rtlb_swap(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *arr;
+	SpnValue tmp_a, tmp_b;
+	SpnValue *key_a, *key_b;
+
+	if (argc != 3) {
+		spn_ctx_runtime_error(ctx, "expecting 3 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	key_a = &argv[1];
+	key_b = &argv[2];
+
+	spn_array_get(arr, key_a, &tmp_a);
+	spn_array_get(arr, key_b, &tmp_b);
+
+	/* retain the original value of A and both keys, because
+	 * all of them may be released, causing premature deallocation:
+	 * - when "arr[key_a] = tmp_b" is executed, then both key_a
+	 *   and tmp_a may be released (if tmp_b is nil).
+	 * - when "arr[key_b] = tmp_a" is executed, then both key_b
+	 *   and tmp_b may be released (if tmp_a was nil).
+	 * - However, tmp_b is safe without an additional retain,
+	 *   since by the time it may be released, it has already
+	 *   been retained by the first setter.
+	 */
+	spn_value_retain(&tmp_a);
+	spn_value_retain(key_a);
+	spn_value_retain(key_b);
+
+	spn_array_set(arr, key_a, &tmp_b);
+	spn_array_set(arr, key_b, &tmp_a);
+
+	spn_value_release(&tmp_a);
+	spn_value_release(key_a);
+	spn_value_release(key_b);
+
+	return 0;
+}
+
+static int rtlb_reverse(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t i, n;
+	SpnArray *arr;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
+		return -2;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	n = spn_array_count(arr);
+
+	/* swap first element with last one and so on,
+	 * until we are halfway through the array
+	 */
+	for (i = 0; i < n / 2; i++) {
+		rtlb_aux_swap(arr, i, n - i - 1);
+	}
+
+	return 0;
+}
+
+/* if "any" is nonzero, this function will return true if the
+ * predicate returns true for any of the elements in the array.
+ * if, however, "any" is zero, then it will only return true
+ * if the predicate is true for all of the elements.
+ */
+static int rtlb_aux_anyall(SpnValue *ret, int argc, SpnValue *argv, void *ctx, int any)
+{
+	int status;
+	size_t n;
+	SpnArray *arr;
+	SpnIterator *it;
+	SpnFunction *predicate;
+	SpnValue keyval[2]; /* item 0: key, item 1: value */
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isfunc(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be a function", NULL);
+		return -3;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	predicate = funcvalue(&argv[1]);
+	status = 0;
+
+	*ret = any ? makebool(0) : makebool(1);
+
+	n = spn_array_count(arr);
+	it = spn_iter_new(arr);
+
+	while (spn_iter_next(it, &keyval[0], &keyval[1]) < n) {
+		SpnValue result;
+		if (spn_ctx_callfunc(ctx, predicate, &result, COUNT(keyval), keyval) != 0) {
+			status = -4;
+			break;
+		}
+
+		if (!isbool(&result)) {
+			spn_value_release(&result);
+			spn_ctx_runtime_error(ctx, "predicate must return a Boolean", NULL);
+			status = -5;
+			break;
+		}
+
+		if (any && boolvalue(&result)) {
+			*ret = makebool(1);
+			break;
+		} else if (!any && !boolvalue(&result)) {
+			*ret = makebool(0);
+			break;
+		}
+	}
+
+	spn_iter_free(it);
+	return status;
+}
+
+static int rtlb_any(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_anyall(ret, argc, argv, ctx, 1);
+}
+
+static int rtlb_all(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_anyall(ret, argc, argv, ctx, 0);
+}
+
+/* if "getvals" is nonzero, this function will return an array composed
+ * of the values of the (potentially associative) array passed as its argument.
+ * Else, it will return an array of all the keys of the original array.
+ */
+static int rtlb_aux_keyval(SpnValue *ret, int argc, SpnValue *argv, void *ctx, int getvals)
+{
+	size_t n, i;
+	SpnArray *arr, *result;
+	SpnIterator *it;
+	SpnValue key, val;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
+		return -2;
+	}
+
+	*ret = makearray();
+	arr = arrayvalue(&argv[0]);
+	result = arrayvalue(ret);
+
+	n = spn_array_count(arr);
+	it = spn_iter_new(arr);
+
+	while ((i = spn_iter_next(it, &key, &val)) < n) {
+		spn_array_set_intkey(result, i, getvals ? &val : &key);
+	}
+
+	spn_iter_free(it);
+	return 0;
+}
+
+static int rtlb_keys(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_keyval(ret, argc, argv, ctx, 0);
+}
+
+static int rtlb_values(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_keyval(ret, argc, argv, ctx, 1);
+}
+
+static int rtlb_combine(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t n, i;
+	SpnArray *keys, *vals, *result;
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0]) || !isarray(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "arguments must be arrays", NULL);
+		return -2;
+	}
+
+	*ret = makearray();
+	result = arrayvalue(ret);
+	keys = arrayvalue(&argv[0]);
+	vals = arrayvalue(&argv[1]);
+
+	n = spn_array_count(keys);
+
+	for (i = 0; i < n; i++) {
+		SpnValue key, val;
+		spn_array_get_intkey(keys, i, &key);
+		spn_array_get_intkey(vals, i, &val);
+		spn_array_set(result, &key, &val);
+	}
+
+	return 0;
+}
+
+static int rtlb_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t i, n;
+	SpnArray *arr;
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	n = spn_array_count(arr);
+
+	for (i = 0; i < n; i++) {
+		SpnValue tmp;
+		spn_array_get_intkey(arr, i, &tmp);
+		if (spn_value_equal(&tmp, &argv[1])) {
+			*ret = makeint(i);
+			return 0;
+		}
+	}
+
+	*ret = makeint(-1);
+	return 0;
+}
+
+static int rtlb_pfind(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t i, n;
+	SpnArray *arr;
+	SpnFunction *predicate;
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isfunc(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be a function", NULL);
+		return -3;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	predicate = funcvalue(&argv[1]);
+	n = spn_array_count(arr);
+
+	for (i = 0; i < n; i++) {
+		SpnValue tmp, pret;
+		spn_array_get_intkey(arr, i, &tmp);
+
+		if (spn_ctx_callfunc(ctx, predicate, &pret, 1, &tmp) != 0) {
+			return -4;
+		}
+
+		if (!isbool(&pret)) {
+			spn_value_release(&pret);
+			spn_ctx_runtime_error(ctx, "predicate must return a Boolean", NULL);
+			return -5;
+		}
+
+		if (boolvalue(&pret)) {
+			*ret = makeint(i);
+			return 0;
+		}
+	}
+
+	*ret = makeint(-1);
+	return 0;
+}
+
+/* return value:
+ * > 0 if a < b
+ * = 0 if a >= b
+ * < 0 if an error occurred
+ */
+static int rtlb_aux_bsearch_compare(SpnValue vals[2], SpnFunction *predicate, SpnContext *ctx)
+{
+	const void *args[2];
+
+	if (predicate) {
+		SpnValue pret;
+		if (spn_ctx_callfunc(ctx, predicate, &pret, 2, vals) != 0) {
+			return -1;
+		}
+
+		if (!isbool(&pret)) {
+			spn_value_release(&pret);
+			spn_ctx_runtime_error(ctx, "predicate must return a Boolean", NULL);
+			return -2;
+		}
+
+		return boolvalue(&pret);
+	}
+
+	/* if no predicate was supplied, use the "<" operator */
+	if (spn_values_comparable(&vals[0], &vals[1])) {
+		/* "spn_value_compare(a, b) < 0" <=> "a < b" */
+		return spn_value_compare(&vals[0], &vals[1]) < 0;
+	}
+
+	/* if the values are not orderable, we're in trouble */
+	args[0] = spn_type_name(vals[0].type);
+	args[1] = spn_type_name(vals[1].type);
+	spn_ctx_runtime_error(ctx, "cannot compare values of type %s and %s", args);
+	return -3;
+}
+
+static int rtlb_aux_bsearch(SpnValue *ret, SpnArray *arr, SpnValue *elem,
+	size_t lower, size_t upper, SpnFunction *predicate, SpnContext *ctx) {
+	int is_smaller, is_greater;
+	size_t middle;
+	SpnValue vals[2];
+
+	assert(lower <= upper);
+
+	if (lower == upper) {
+		*ret = makeint(-1);
+		return 0;
+	}
+
+	middle = lower + (upper - lower) / 2;
+
+	/* first, check if elem < middle */
+	vals[0] = *elem;
+	spn_array_get_intkey(arr, middle, &vals[1]);
+	is_smaller = rtlb_aux_bsearch_compare(vals, predicate, ctx);
+
+	/* check for errors */
+	if (is_smaller < 0) {
+		return -1;
+	}
+
+	/* key is smaller than middle element,
+	 * so we search the lower half of the array
+	 */
+	if (is_smaller > 0) {
+		return rtlb_aux_bsearch(ret, arr, elem, lower, middle, predicate, ctx);
+	}
+
+	/* key was not smaller than middle element,
+	 * so check if "elem > middle"
+	 */
+	vals[1] = *elem;
+	spn_array_get_intkey(arr, middle, &vals[0]);
+	is_greater = rtlb_aux_bsearch_compare(vals, predicate, ctx);
+
+	/* check for errors again */
+	if (is_greater < 0) {
+		return -1;
+	}
+
+	/* key is greater than middle element, continue
+	 * search with upper half of the array
+	 */
+	if (is_greater > 0) {
+		return rtlb_aux_bsearch(ret, arr, elem, middle + 1, upper, predicate, ctx);
+	}
+
+	/* otherwise, the key is neither smaller nor greater than
+	 * the middle element, so they are equal to each other
+	 */
+	*ret = makeint(middle);
+	return 0;
+}
+
+static int rtlb_bsearch(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *arr;
+	SpnFunction *predicate;
+	size_t n;
+
+	if (argc < 2 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 2 or 3 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (argc >= 3 && !isfunc(&argv[2])) {
+		spn_ctx_runtime_error(ctx, "third argument must be a function", NULL);
+		return -3;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	predicate = argc >= 3 ? funcvalue(&argv[2]) : NULL;
+	n = spn_array_count(arr);
+
+	return rtlb_aux_bsearch(ret, arr, &argv[1], 0, n, predicate, ctx);
+}
+
+static int rtlb_slice(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *arr, *result;
+	long i, idx, len;
+
+	if (argc != 3) {
+		spn_ctx_runtime_error(ctx, "expecting 3 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isint(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be an integer index", NULL);
+		return -3;
+	}
+
+	if (!isint(&argv[2])) {
+		spn_ctx_runtime_error(ctx, "third argument must be an integer length", NULL);
+		return -4;
+	}
+
+	idx = intvalue(&argv[1]);
+	len = intvalue(&argv[2]);
+
+	if (len < 0) {
+		const void *args[1];
+		args[0] = &len;
+		spn_ctx_runtime_error(ctx, "length must be non-negative (was %d)", args);
+		return -5;
+	}
+
+	*ret = makearray();
+	arr = arrayvalue(&argv[0]);
+	result = arrayvalue(ret);
+
+	for (i = 0; i < len; i++) {
+		SpnValue tmp;
+		spn_array_get_intkey(arr, idx + i, &tmp);
+		spn_array_set_intkey(result, i, &tmp);
+	}
+
+	return 0;
+}
+
+static int rtlb_insert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *arr;
+	long i, index, size;
+
+	if (argc != 3) {
+		spn_ctx_runtime_error(ctx, "expecting 3 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isint(&argv[2])) {
+		spn_ctx_runtime_error(ctx, "third argument must be an integer", NULL);
+		return -3;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	size = spn_array_count(arr);
+	index = intvalue(&argv[2]);
+
+	if (index < -size || index > size) {
+		const void *args[3];
+		args[0] = &index;
+		args[1] = args[2] = &size;
+		spn_ctx_runtime_error(ctx, "index %d out of bounds [-%d, %d]", args);
+		return -4;
+	}
+
+	if (index < 0) {
+		index += size;
+	}
+
+	/* shift array elements to the right by one */
+	for (i = size; i > index; i--) {
+		SpnValue tmp;
+		spn_array_get_intkey(arr, i - 1, &tmp);
+		spn_array_set_intkey(arr, i, &tmp);
+	}
+
+	/* set the 'index'th element */
+	spn_array_set_intkey(arr, index, &argv[1]);
+
+	return 0;
+}
+
+static int rtlb_inject(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *haystack, *needle;
+	long index, i, hsize, nsize;
+
+	if (argc < 2 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 2 or 3 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0]) || !isarray(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "haystack and needle must be arrays", NULL);
+		return -2;
+	}
+
+	if (argc >= 3 && !isint(&argv[2])) {
+		spn_ctx_runtime_error(ctx, "index must be an integer", NULL);
+		return -3;
+	}
+
+	haystack = arrayvalue(&argv[0]);
+	needle = arrayvalue(&argv[1]);
+	hsize = spn_array_count(haystack);
+	nsize = spn_array_count(needle);
+	index = argc >= 3 ? intvalue(&argv[2]) : hsize;
+
+	if (index < -hsize || index > hsize) {
+		const void *args[3];
+		args[0] = &index;
+		args[1] = args[2] = &hsize;
+		spn_ctx_runtime_error(ctx, "index %d out of bounds [-%d, %d]", args);
+		return -4;
+	}
+
+	if (index < 0) {
+		index += hsize;
+	}
+
+	/* make room for new elements: shift haystack's elements
+	 * in range [index, hsize) to the right by nsize positions,
+	 * moving backwards so that we don't overwrite any element
+	 * prematurely
+	 */
+	for (i = hsize - 1; i >= index; i--) {
+		SpnValue tmp;
+		spn_array_get_intkey(haystack, i, &tmp);
+		spn_array_set_intkey(haystack, i + nsize, &tmp);
+	}
+
+	/* insert elements of needle into the freshly created gap */
+	for (i = 0; i < nsize; i++) {
+		SpnValue tmp;
+		spn_array_get_intkey(needle, i, &tmp);
+		spn_array_set_intkey(haystack, index + i, &tmp);
+	}
+
+	return 0;
+}
+
+static int rtlb_erase(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *arr;
+	SpnValue nilval = makenil();
+	long index, length, n, i, upper;
+
+	if (argc < 2 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 2 or 3 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isint(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be an integer index", NULL);
+		return -3;
+	}
+
+	if (argc >= 3 && !isint(&argv[2])) {
+		spn_ctx_runtime_error(ctx, "third argument must be an integer length", NULL);
+		return -4;
+	}
+
+	arr = arrayvalue(&argv[0]);
+	n = spn_array_count(arr);
+	index = intvalue(&argv[1]);
+
+	if (index < -n || index > n) {
+		const void *args[3];
+		args[0] = &index;
+		args[1] = args[2] = &n;
+		spn_ctx_runtime_error(ctx, "index %d out of bounds [-%d, %d]", args);
+		return -5;
+	}
+
+	if (index < 0) {
+		index += n;
+	}
+
+	length = argc >= 3 ? intvalue(&argv[2]) : n - index;
+
+	if (length < 0) {
+		spn_ctx_runtime_error(ctx, "length must be non-negative", NULL);
+		return -6;
+	}
+
+	upper = index + length;
+
+	if (upper > n) {
+		const void *args[4];
+		args[0] = &upper;
+		args[1] = &index;
+		args[2] = &length;
+		args[3] = &n;
+		spn_ctx_runtime_error(ctx, "upper bound %d (%d + %d) exceeds array length %d", args);
+		return -7;
+	}
+
+	/* shift elements to the left */
+	for (i = index; i + length < n; i++) {
+		SpnValue tmp;
+		spn_array_get_intkey(arr, i + length, &tmp);
+		spn_array_set_intkey(arr, i, &tmp);
+	}
+
+	/* then erase excess elements */
+	for (i = n - length; i < n; i++) {
+		spn_array_set_intkey(arr, i, &nilval);
+	}
+
+	return 0;
+}
+
+static int rtlb_concat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *result;
+	int i;
+	int k = 0;
+
+	*ret = makearray();
+	result = arrayvalue(ret);
+
+	for (i = 0; i < argc; i++) {
+		SpnArray *arr;
+		int j, n;
+
+		if (!isarray(&argv[i])) {
+			const void *args[2];
+			int argidx = i + 1;
+			args[0] = &argidx;
+			args[1] = spn_type_name(argv[i].type);
+			spn_ctx_runtime_error(ctx, "arguments must be arrays (arg %i was %s)", args);
+			spn_value_release(ret);
+			return -1;
+		}
+
+		arr = arrayvalue(&argv[i]);
+		n = spn_array_count(arr);
+
+		for (j = 0; j < n; j++) {
+			SpnValue tmp;
+			spn_array_get_intkey(arr, j, &tmp);
+			spn_array_set_intkey(result, k++, &tmp);
+		}
+	}
+
+	return 0;
+}
+
 const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
-	{ "sort",      rtlb_sort       },
-	{ "linsearch",  NULL           },
-	{ "binsearch",  NULL           },
-	{ "contains",   rtlb_contains  },
-	{ "subarray",   NULL           },
+	{ "sort",       rtlb_sort      },
+	{ "find",       rtlb_find      },
+	{ "pfind",      rtlb_pfind     },
+	{ "bsearch",    rtlb_bsearch   },
+	{ "any",        rtlb_any       },
+	{ "all",        rtlb_all       },
+	{ "slice",      rtlb_slice     },
+	{ "keys",       rtlb_keys      },
+	{ "values",     rtlb_values    },
+	{ "combine",    rtlb_combine   },
 	{ "join",       rtlb_join      },
 	{ "foreach",    rtlb_foreach   },
 	{ "reduce",     rtlb_reduce    },
 	{ "filter",     rtlb_filter    },
 	{ "map",        rtlb_map       },
-	{ "insert",     NULL           },
-	{ "insertarr",  NULL           },
-	{ "delrange",   NULL           },
-	{ "clear",      NULL           },
+	{ "insert",     rtlb_insert    },
+	{ "inject",     rtlb_inject    },
+	{ "erase",      rtlb_erase     },
+	{ "concat",     rtlb_concat    },
+	{ "push",       rtlb_push      },
+	{ "pop",        rtlb_pop       },
+	{ "swap",       rtlb_swap      },
+	{ "reverse",    rtlb_reverse   },
 	{ "range",      rtlb_range     }
 };
 

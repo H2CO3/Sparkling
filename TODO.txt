@@ -6,7 +6,7 @@ Code:
 	- More testing										***Urgent***
 
 	- grep for "TODO", "FIXME" and "XXX" in the source files
-	- Implement a way to pass down variadic arguments! ("..." operator?)			***Urgent***
+	- Implement a way to pass down variadic arguments! ("..." operator?)			done
 	- REFACTOR (especially in vm.c), and try very hard not to exceed the
 		80-character line length limit.
 	- Implement standard library								mostly done

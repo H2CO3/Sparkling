@@ -22,22 +22,25 @@ A complete list of functions can be found in the `rtlb.h` header file.
 1. I/O library (spn_libio)
 --------------------------
 
-    usrdat stdin
-    usrdat stdout
-    usrdat stderr
+    userinfo stdin
+    userinfo stdout
+    userinfo stderr
 
 Globals of type "userinfo", representing the standard input, output and error
 stream, respectively.
 
     string getline(void)
+
 Reads a new line from the standard input and returns it as a string.
 The maximal size of a line is dictated by the C library macro `LINE_MAX`.
 If not present, Sparkling defines this macro to 4096.
 
     nil print(...)
+
 Prints a human-readable (debug) description of its arguments. Returns `nil`.
 
     nil printf(string format, ...)
+
 Writes a formatted stream to the standard input. It has similar semantics to
 that of `printf()` in the C standard library. Valid conversion specifiers are:
 
@@ -198,30 +201,70 @@ If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 3. Array handling (spn_libarray)
 --------------------------------
 
+Certain functions in the array library require that their argument be
+**sortable** – that is, it must only contain consecutive integer keys in the
+range `[0, sizeof array)`.
+
     nil sort(array arr [, function comparator])
 
 `sort()` sorts the elements of `arr` in ascending order, using the comparator
 if present, or using the built-in `<` operator if no comparator is specified.
 The comparator function takes two: two elements of the array to be compared.
 It must return `true` if its first argument compares less than the second one,
-and `false` otherwise. The array must contain consecutive integer keys only.
+and `false` otherwise. The array must be sortable.
 
-    int linearsrch(array arr, any element)
+    int find(array arr, any element)
 
-These functions return the index at which `element` is found in the array,
-or -1 if is is not in the array. `binarysrch()` can only be used on sorted
-arrays. The array must fulfill all the criteria that a sortable array has
-(see above).
+Returns the index at which `element` is found in the array, or -1 if the
+element can't be found in the array. The array must be sortable.
 
-    bool contains(array arr, any element)
+    int pfind(array arr, function predicate)
 
-returns true if `element` is in `arr`, else returns false.
+Returns the index of the first element for which `predicate` returns `true`.
+If no such element can be found, returns `-1`. The array must be sortable.
+
+    int bsearch(array arr, any element [, function comparator])
+
+`bsearch()` can only be used on sorted arrays. The array must be sortable.
+Returns the index of `element` or -1 if the element is not contained in the
+array. If a `comparator` function is specified, then it will be used to
+determine ordering: it is passed two distinct elements of the array, and it
+must return true if its first argument is "less than" (ordered before) its
+second argument and false otherwise. If no comparator function is given, then
+the "less than" (`<`) operator will be used.
+
+    bool any(array arr, function predicate)
+    bool all(array arr, function predicate)
+
+These functions investigate if any or all of the elements of `arr` match the
+given `predicate`. The predicate must return a Boolean. If the first argument
+of `any` is an empty array, then `false` is returned. If the first argument
+of `all` is an empty array, then `true` is returned. `arr` must meet the
+requirements of a sortable array.
+
+    array slice(array arr, number start, number length)
+
+Returns a subarray of `arr` by copying its elements in the range
+`[start, start + length)`. If `arr` is not sortable, then the returned array
+may be shorter than `length`.
+
+    array keys(array arr)
+    array values(array arr)
+
+These functions return each key and value of `arr`, respectively, in a new
+array. The returned array is guaranteed to be sortable. The order in which
+these functions retrieve the keys or values is unspecified.
+
+    array combine(array keys, array values)
+
+Returns an array of which the keys are the elements of `keys`, and the
+corresponding values are the elements of `values`, in order. Both arguments
+must meet the criteria of sortable arrays.
 
     string join(array arr, string sep)
 
-All elements in the array must be strings, the array must have integer indices
-only, ranging from `0` to `sizeof arr`. The return value is the concatenation
-of the elements interleaved by `sep`.
+All elements in the array must be strings, the array must be sortable.
+Returns the concatenation of the elements of `arr`, interleaved with `sep`.
 
     nil foreach(array arr, function callback)
 
@@ -244,22 +287,21 @@ the result of the last call to `callback()`. Here's a possible implementation:
 
     function reduce(arr, identity, callback) {
         var x = identity;
-        for var i = 0; i < sizeof arr; i++ {
+        for (var i = 0; i < sizeof arr; i++) {
             x = callback(x, arr[i]);
         }
         return x;
     }
 
 Since the order of keys may matter, this function uses successive integers to
-index into the array. Hence it is typically to be used with dense arrays with
-integral indices only. **Warning:** Just like in the case of `foreach()`, you
-may not mutate the array that is being reduced.
+index into the array. Hence it is typically to be used with sortable arrays.
+**Warning:** Just like in the case of `foreach()`, you may not mutate the array
+while it is being `reduce()`d.
 
     array filter(array arr, bool predicate(any key, any val))
 
 Returns the elements (key-value pairs) in `arr` for which `predicate()` returns
-true. The
-implementation could look something like the following pseudo-code:
+true. The implementation may look something like this:
 
     function filter(arr, predicate) {
         var res = {};
@@ -292,6 +334,58 @@ equivalent with the following pseudo-code:
     }
 
 Again, you must not modify `arr` while it is being `map()`ped over.
+
+    nil insert(array arr, any elem, int index)
+
+Inserts `elem` at position `index` into `arr`, shifting all elements in the
+range `[index, sizeof arr)` to the right by one. `arr` must be sortable.
+If `index` is negative, then indexing counts backwards from the last element
+(-1 means `sizeof arr - 1`, -2 means `sizeof arr - 2`, etc.) Consequently,
+`index` shall be in the closed interval `[-sizeof arr, sizeof arr]`.
+
+    nil inject(array haystack, array needle [, int index])
+
+Inserts each element of `needle` between the elements of `haystack`, starting
+at index `index`. Shifts the elements of `haystack` in the range
+`[index, sizeof haystack)` to the right by `sizeof needle` places. In order the
+insertion to have a sensible effect, both `haystack` and `needle` must meet
+the criteria of a sortable array. If `index` is not specified, it is assumed
+to be `sizeof haystack`. If `index` is negative, it's treated similarly as in
+the case of `insert`. Again, `index` should be in the closed range
+`[-sizeof haystack, sizeof haystack]`.
+
+    nil erase(array arr, int begin [, int count])
+
+Removes the elements of `arr` in the range `[begin, end)` and shifts the
+elements in the range `[end, sizeof arr)` to the left so that the array remains
+contiguous. If `count` is specified, then `end` is `begin + count`, otherwise
+`end` is `sizeof arr`. If `begin` is negative, then indexing will count
+backwards from `sizeof arr`, similarly to `insert()`. `arr` must be sortable.
+
+    array concat(...)
+
+Receives zero or more arrays. Returns a new array containing all elements of
+each of the arguments in order. When passed no arguments, returns an empty
+array. All arguments must be sortable.
+
+    nil push(array arr, any elem)
+
+Performs the operation `arr[sizeof arr] = elem`. In order this operation to
+have the effect of "pushing" `elem` onto a stack, `arr` must be a sortable
+array.
+
+    any pop(array arr)
+
+Removes the last element of `arr` and returns it. "Last" means the element at
+index `sizeof arr - 1`. For a true "pop" effect, `arr` must be sortable.
+
+    nil swap(array arr, any k1, any k2)
+
+Swaps the elements of `arr` at indices `k1` and `k2`.
+
+    nil reverse(array arr)
+
+Reverses the order of elements in `arr`. `arr` must be a sortable array.
 
     array range(int n)
     array range(int begin, int end)

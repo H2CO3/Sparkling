@@ -39,13 +39,18 @@ SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
 
 /* Functions:
  * sort() (uses custom comparison function if given, `<' operator otherwise),
- * linsearch(), binsearch(), contains()
- * subarray(), join()
+ * find(), pfind(), bsearch()
+ * any(), all()
+ * slice()
+ * keys(), values(), combine()
+ * join()
  * foreach(), reduce(), filter(), map() (returns an array of mapped elements)
- * insert(), insertarr(), delrange(), clear()
+ * insert(), inject(), erase(), concat()
+ * push(), pop()
+ * swap(), reverse()
  * range()
  */
-#define SPN_LIBSIZE_ARRAY 15
+#define SPN_LIBSIZE_ARRAY 24
 SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
 
 /* Real functions:

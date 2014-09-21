@@ -788,15 +788,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 				#undef MAX_AUTO_ARGC
 
-				/* clear and set return value register
-				 * (it's released only now because it may be
-				 * the same as one of the arguments:
-				 * foo = bar(foo) won't do any good if foo is
-				 * released before it's passed to the function
-				 */
-				spn_value_release(&vm->stack[retidx].v);
-				vm->stack[retidx].v = tmpret;
-
 				/* check if the native function returned
 				 * an error. If so, abort execution.
 				 * Also check if the callee generated a
@@ -812,6 +803,24 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 				/* should not return success after an error */
 				assert(vm->haserror == 0);
+
+				/* clear and set return value register
+				 * (it's released only now because it may be
+				 * the same as one of the arguments:
+				 * foo = bar(foo) won't do any good if foo is
+				 * released before it's passed to the function.)
+				 *
+				 * In addition, this is only done _after_ error checking,
+				 * since an error in a native function may mean that it has
+				 * clobbered the return value by filling it with an object
+				 * then deallocating that object. In this case, we don't
+				 * want to copy the deallocated value back to the Sparkling
+				 * stack, since a 'pop()' (most probably called from
+				 * 'clean_vm_if_needed()' before the next function call)
+				 * would then attempt to double-free it.
+				 */
+				spn_value_release(&vm->stack[retidx].v);
+				vm->stack[retidx].v = tmpret;
 
 				/* pop pseudo-frame */
 				pop_frame(vm);
