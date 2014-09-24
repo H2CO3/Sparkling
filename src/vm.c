@@ -96,6 +96,7 @@ struct SpnVMachine {
 	size_t    stackallsz; /* stack alloc size in frames   */
 
 	SpnArray *glbsymtab;  /* global symbol table          */
+	SpnArray *classes;    /* class descriptors            */
 
 	char     *errmsg;     /* last (runtime) error message */
 	int       haserror;   /* whether an error occurred    */
@@ -168,7 +169,7 @@ static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op);
 static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp);
 
 /* type information, reflection */
-static SpnValue sizeof_value(SpnValue *val);
+static SpnArray *classof_value(SpnVMachine *vm, spn_uword *ip, SpnValue *pself);
 static SpnValue typeof_value(SpnValue *val);
 
 /* generating a runtime error (message) */
@@ -183,8 +184,9 @@ SpnVMachine *spn_vm_new(void)
 	vm->stack = NULL;
 	vm->sp = NULL;
 
-	/* initialize the global and local symbol tables */
+	/* initialize the global symbol table and class descriptors */
 	vm->glbsymtab = spn_array_new();
+	vm->classes   = spn_array_new();
 
 	/* set up error reporting and context info */
 	vm->errmsg = NULL;
@@ -200,8 +202,9 @@ void spn_vm_free(SpnVMachine *vm)
 	free_frames(vm);
 	free(vm->stack);
 
-	/* free the global symbol table */
+	/* free the global symbol table and all class descirptors */
 	spn_object_release(vm->glbsymtab);
+	spn_object_release(vm->classes);
 
 	/* free the error message buffer */
 	free(vm->errmsg);
@@ -250,6 +253,12 @@ SpnArray *spn_vm_getglobals(SpnVMachine *vm)
 	return vm->glbsymtab;
 }
 
+/* get the class descriptor table of the VM */
+SpnArray *spn_vm_getclasses(SpnVMachine *vm)
+{
+	return vm->classes;
+}
+
 static void free_frames(SpnVMachine *vm)
 {
 	if (vm->stack != NULL) {
@@ -295,19 +304,25 @@ int spn_vm_callfunc(
 	if (fn->native) {
 		int err;
 
+		/* "return nothing" should mean "implicitly return nil" */
+		SpnValue tmpret = makenil();
+
 		/* push pseudo-frame to include function name in stack trace */
 		push_native_pseudoframe(vm, fn);
 
-		/* "return nothing" should mean "implicitly return nil" */
-		*retval = makenil();
-
-		err = fn->repr.fn(retval, argc, argv, vm->ctx);
+		err = fn->repr.fn(&tmpret, argc, argv, vm->ctx);
 		if (err != 0) {
 			const void *args[2];
 			args[0] = fn->name;
 			args[1] = &err;
 			spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
 		} else {
+			if (retval != NULL) {
+				*retval = tmpret;
+			} else {
+				spn_value_release(&tmpret);
+			}
+
 			pop_frame(vm);
 		}
 
@@ -797,7 +812,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					const void *args[2];
 					args[0] = fnobj->name;
 					args[1] = &err;
-					spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
+					spn_vm_seterrmsg(vm, "error in function '%s' (code: %i)", args);
 					return err;
 				}
 
@@ -946,13 +961,12 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					ip - 2,
 					"register does not contain Boolean value in conditional jump "
 					"(are you trying to use non-Booleans with logical operators "
-					"or in the condition of an `if`, `while` or `for` statement?)",
+					"or in the condition of an 'if', 'while' or 'for' statement?)",
 					NULL
 				);
 				return -1;
 			}
 
-			/* see the TODO concerning `&& within ||' in TODO.txt */
 			if (opcode == SPN_INS_JZE && boolvalue(reg) == 0    /* JZE jumps only if zero */
 			 || opcode == SPN_INS_JNZ && boolvalue(reg) != 0) { /* JNZ jumps only if nonzero */
 				ip += offset;
@@ -1154,29 +1168,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_SIZEOF: {
-			SpnValue *a = VALPTR(vm->sp, OPA(ins));
-			SpnValue *b = VALPTR(vm->sp, OPB(ins));
-			SpnValue res;
-
-			if (!isarray(b) && !isstring(b)) {
-				const void *args[1];
-				args[0] = spn_type_name(b->type);
-				runtime_error(
-					vm,
-					ip - 1,
-					"sizeof applied to a %s value",
-					args
-				);
-				return -1;
-			}
-
-			res = sizeof_value(b);
-			spn_value_release(a);
-			*a = res;
-
-			break;
-		}
 		case SPN_INS_TYPEOF: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
@@ -1299,10 +1290,47 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_LDARGC: {
+		case SPN_INS_ARGC: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			spn_value_release(a);
 			*a = makeint(vm->sp[IDX_FRMHDR].h.real_argc);
+			break;
+		}
+		case SPN_INS_ARGV: {
+			TFrame *hdr = &vm->sp[IDX_FRMHDR].h;
+			SpnValue *a = VALPTR(vm->sp, OPA(ins));
+
+			/* construct argument vector lazily, on-demand */
+			if (hdr->argv == NULL) {
+				int i;
+				int argidx = 0;
+
+				hdr->argv = spn_array_new();
+
+				/* copy declared arguments:
+				 * they always reside in the first decl_argc registers
+				 */
+				for (i = 0; i < hdr->decl_argc && i < hdr->real_argc; i++) {
+					SpnValue *argptr = VALPTR(vm->sp, i);
+					spn_array_set_intkey(hdr->argv, argidx++, argptr);
+				}
+
+				/* copy variadic arguments, if any */
+				for (i = 0; i < hdr->extra_argc; i++) {
+					SpnValue *argptr = nth_vararg(vm->sp, i);
+					spn_array_set_intkey(hdr->argv, argidx++, argptr);
+				}
+			}
+
+			/* it's safe to release the register before retaining argv,
+			 * because the SpnArray backing argv is always referred to
+			 * by the strong 'hdr->argv' pointer.
+			 */
+			spn_value_release(a);
+			a->type = SPN_TYPE_ARRAY;
+			a->v.o = hdr->argv;
+			spn_value_retain(a);
+
 			break;
 		}
 		case SPN_INS_NEWARR: {
@@ -1360,7 +1388,9 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				spn_value_release(a);
 				*a = makeint(ch);
 			} else {
-				runtime_error(vm, ip - 1, "first operand of [] operator must be an array or a string", NULL);
+				const void *args[1];
+				args[0] = spn_type_name(b->type);
+				runtime_error(vm, ip - 1, "cannot subscript value of type %s", args);
 				return -1;
 			}
 
@@ -1382,44 +1412,15 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				return -1;
 			}
 
-			spn_array_set(arrayvalue(a), b, c);
-			break;
-		}
-		case SPN_INS_ARGV: {
-			TFrame *hdr = &vm->sp[IDX_FRMHDR].h;
-			SpnValue *a = VALPTR(vm->sp, OPA(ins));
-
-			/* construct argument vector lazily, on-demand */
-			if (hdr->argv == NULL) {
-				int i;
-				int argidx = 0;
-
-				hdr->argv = spn_array_new();
-
-				/* copy declared arguments:
-				 * they always reside in the first decl_argc registers
-				 */
-				for (i = 0; i < hdr->decl_argc && i < hdr->real_argc; i++) {
-					SpnValue *argptr = VALPTR(vm->sp, i);
-					spn_array_set_intkey(hdr->argv, argidx++, argptr);
-				}
-
-				/* copy variadic arguments, if any */
-				for (i = 0; i < hdr->extra_argc; i++) {
-					SpnValue *argptr = nth_vararg(vm->sp, i);
-					spn_array_set_intkey(hdr->argv, argidx++, argptr);
-				}
+			/* a nil key cannot be found by e. g. "keys()",
+			 * so it could cause inconsistency -> disallowed
+			 */
+			if (isnil(b)) {
+				runtime_error(vm, ip - 1, "array index cannot be nil", NULL);
+				return -1;
 			}
 
-			/* it's safe to release the register before retaining argv,
-			 * because the SpnArray backing argv is always referred to
-			 * by the strong 'hdr->argv' pointer.
-			 */
-			spn_value_release(a);
-			a->type = SPN_TYPE_ARRAY;
-			a->v.o = hdr->argv;
-			spn_value_retain(a);
-
+			spn_array_set(arrayvalue(a), b, c);
 			break;
 		}
 		case SPN_INS_FUNCTION: {
@@ -1564,6 +1565,133 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			spn_array_get_intkey(current_fn->upvalues, upval_index, reg);
 			spn_value_retain(reg);
 
+			break;
+		}
+		case SPN_INS_METHOD: {
+			SpnValue *a = VALPTR(vm->sp, OPA(ins)); /* result         */
+			SpnValue *b = VALPTR(vm->sp, OPB(ins)); /* object, 'self' */
+			SpnValue *c = VALPTR(vm->sp, OPC(ins)); /* method name    */
+
+			SpnValue method;
+			SpnArray *classdesc = classof_value(vm, ip, b);
+
+			if (classdesc == NULL) {
+				/* error message already set by 'classof_value()' */
+				return -1;
+			}
+
+			assert(isstring(c));
+
+			spn_array_get(classdesc, c, &method);
+			if (!isfunc(&method)) {
+				const void *args[2];
+				args[0] = stringvalue(c)->cstr;
+				args[1] = spn_type_name(method.type);
+				runtime_error(vm, ip - 1, "method '%s' must be a function; got %s", args);
+				return -1;
+			}
+
+			/* move result in place, use "retain before release" idiom */
+			spn_value_retain(&method);
+			spn_value_release(a);
+			*a = method;
+
+			break;
+		}
+		case SPN_INS_PROPGET: {
+			#define G_ARGC 2
+			SpnValue g_argv[G_ARGC];
+			SpnValue *a, *b, *c;
+
+			SpnFunction *getter;
+			SpnValue getter_val;
+			SpnValue tmpret = makenil();
+			SpnArray *classdesc;
+
+			/* copy self and property name from stack */
+			g_argv[0] = VALPTR(vm->sp, OPB(ins))[0];
+			g_argv[1] = VALPTR(vm->sp, OPC(ins))[0];
+
+			b = &g_argv[0]; /* object, 'self' */
+			c = &g_argv[1]; /* property name  */
+
+			classdesc = classof_value(vm, ip, b);
+			if (classdesc == NULL) {
+				/* error message already set by 'classof_value()' */
+				return -1;
+			}
+
+			assert(isstring(c));
+
+			spn_array_get_intkey(classdesc, SPN_METHODIDX_GETTER, &getter_val);
+			if (!isfunc(&getter_val)) {
+				const void *args[1];
+				args[0] = spn_type_name(getter_val.type);
+				runtime_error(vm, ip - 1, "getter must be a function; got %s", args);
+				return -1;
+			}
+
+			getter = funcvalue(&getter_val);
+
+			if (spn_vm_callfunc(vm, getter, &tmpret, G_ARGC, g_argv) != 0) {
+				return -1;
+			}
+
+			/* 'spn_vm_callfunc()' may 'realloc()' the stack, so we
+			 * need to wait till this point to grab a pointer to the
+			 * slot of the return value register.
+			 */
+			a = VALPTR(vm->sp, OPA(ins));
+			spn_value_release(a);
+			*a = tmpret;
+
+			#undef G_ARGC
+			break;
+		}
+		case SPN_INS_PROPSET: {
+			#define S_ARGC 3
+			SpnValue s_argv[S_ARGC];
+			SpnValue *a, *b, *c;
+
+			SpnValue setter_val;
+			SpnFunction *setter;
+			SpnArray *classdesc;
+
+			/* The operands are copied, because 'spn_vm_callfunc()' may
+			 * 'realloc()' the stack, invalidating all slot pointers...
+			 */
+			s_argv[0] = VALPTR(vm->sp, OPA(ins))[0];
+			s_argv[1] = VALPTR(vm->sp, OPB(ins))[0];
+			s_argv[2] = VALPTR(vm->sp, OPC(ins))[0];
+
+			/* ...and these are just safe convenience names. */
+			a = &s_argv[0]; /* object, 'self' */
+			b = &s_argv[1]; /* property name  */
+			c = &s_argv[2]; /* new value      */
+
+			classdesc = classof_value(vm, ip, a);
+			if (classdesc == NULL) {
+				/* error message already set by 'classof_value()' */
+				return -1;
+			}
+
+			assert(isstring(b));
+
+			spn_array_get_intkey(classdesc, SPN_METHODIDX_SETTER, &setter_val);
+			if (!isfunc(&setter_val)) {
+				const void *args[1];
+				args[0] = spn_type_name(setter_val.type);
+				runtime_error(vm, ip - 1, "setter must be a function; got %s", args);
+				return -1;
+			}
+
+			setter = funcvalue(&setter_val);
+
+			if (spn_vm_callfunc(vm, setter, NULL, S_ARGC, s_argv) != 0) {
+				return -1;
+			}
+
+			#undef S_ARGC
 			break;
 		}
 		default: /* I am sorry for the indentation here. */
@@ -1804,12 +1932,31 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 	return 0;
 }
 
-static SpnValue sizeof_value(SpnValue *val)
+static SpnArray *classof_value(SpnVMachine *vm, spn_uword *ip, SpnValue *pself)
 {
-	switch (valtype(val)) {
-	case SPN_TTAG_STRING: return makeint(stringvalue(val)->len);
-	case SPN_TTAG_ARRAY:  return makeint(spn_array_count(arrayvalue(val)));
-	default: SHANT_BE_REACHED(); return makenil();
+	SpnValue classval;
+	spn_get_class_of_value(vm->classes, pself, &classval);
+
+	if (!isarray(&classval)) {
+		const void *args[1];
+		args[0] = spn_type_name(classval.type);
+		runtime_error(vm, ip - 1, "class must be an array; got %s", args);
+		return NULL;
+	}
+
+	return arrayvalue(&classval);
+}
+
+void spn_get_class_of_value(SpnArray *classes, const SpnValue *pself, SpnValue *clsval)
+{
+	if (isarray(pself) || isuserinfo(pself)) {
+		spn_array_get(classes, pself, clsval);
+
+		if (isnil(clsval)) {
+			spn_array_get_intkey(classes, valtype(pself), clsval);
+		}
+	} else {
+		spn_array_get_intkey(classes, valtype(pself), clsval);
 	}
 }
 

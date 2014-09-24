@@ -173,6 +173,7 @@ SpnAST *spn_parser_parse_expression(SpnParser *p, const char *src)
 
 	/* it is an error if we are not at the end of the source */
 	spn_ast_free(expr);
+	spn_value_release(&p->curtok.val);
 	spn_parser_error(p, "garbage after input", NULL);
 	return NULL;
 }
@@ -655,7 +656,6 @@ static SpnAST *parse_prefix(SpnParser *p)
 		SPN_TOK_MINUS,
 		SPN_TOK_LOGNOT,
 		SPN_TOK_BITNOT,
-		SPN_TOK_SIZEOF,
 		SPN_TOK_TYPEOF
 	};
 
@@ -666,7 +666,6 @@ static SpnAST *parse_prefix(SpnParser *p)
 		SPN_NODE_UNMINUS,
 		SPN_NODE_LOGNOT,
 		SPN_NODE_BITNOT,
-		SPN_NODE_SIZEOF,
 		SPN_NODE_TYPEOF
 	};
 
@@ -696,7 +695,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 		SPN_TOK_LBRACKET,
 		SPN_TOK_LPAREN,
 		SPN_TOK_DOT,
-		SPN_TOK_ARROW
+		SPN_TOK_DBLCOLON
 	};
 
 	static const enum spn_ast_node nodes[] = {
@@ -705,10 +704,10 @@ static SpnAST *parse_postfix(SpnParser *p)
 		SPN_NODE_ARRSUB,
 		SPN_NODE_FUNCCALL,
 		SPN_NODE_MEMBEROF,
-		SPN_NODE_MEMBEROF
+		SPN_NODE_ARRSUB
 	};
 
-	SpnAST *tmp, *expr, *ast;
+	SpnAST *ast;
 	int idx;
 
 	ast = parse_term(p);
@@ -718,16 +717,17 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 	/* iteration instead of left recursion - we want to terminate */
 	while ((idx = spn_accept_multi(p, toks, COUNT(toks))) >= 0) {
-		SpnAST *ident;
-		tmp = spn_ast_new(nodes[idx], p->lineno);
+		SpnAST *tmp = spn_ast_new(nodes[idx], p->lineno);
 
-		switch (nodes[idx]) {
-		case SPN_NODE_POSTINCRMT:
-		case SPN_NODE_POSTDECRMT:
+		switch (toks[idx]) {
+		case SPN_TOK_INCR:
+		case SPN_TOK_DECR:
+			/* Postincrement, postdecrement */
 			tmp->left = ast;
 			break;
-		case SPN_NODE_ARRSUB:
-			expr = parse_expr(p);
+		case SPN_TOK_LBRACKET: {
+			/* Array indexing */
+			SpnAST *expr = parse_expr(p);
 			if (expr == NULL) { /* error  */
 				spn_ast_free(ast);
 				spn_ast_free(tmp);
@@ -747,9 +747,13 @@ static SpnAST *parse_postfix(SpnParser *p)
 			}
 
 			break;
-		case SPN_NODE_MEMBEROF:
+		}
+		case SPN_TOK_DOT: {
+			/* Property accessor */
+			SpnAST *ident;
+
 			if (p->curtok.tok != SPN_TOK_IDENT) { /* error: expected identifier as member */
-				spn_parser_error(p, "expected identifier after . or -> operator", NULL);
+				spn_parser_error(p, "expected identifier after '.' operator", NULL);
 				spn_ast_free(ast);
 				spn_ast_free(tmp);
 				return NULL;
@@ -767,7 +771,9 @@ static SpnAST *parse_postfix(SpnParser *p)
 			tmp->right = ident;
 
 			break;
-		case SPN_NODE_FUNCCALL:
+		}
+		case SPN_TOK_LPAREN:
+			/* Function call */
 			tmp->left = ast;
 
 			if (p->curtok.tok != SPN_TOK_RPAREN) {
@@ -791,6 +797,30 @@ static SpnAST *parse_postfix(SpnParser *p)
 			}
 
 			break;
+		case SPN_TOK_DBLCOLON: {
+			/* Raw member access (array indexing with string) */
+			SpnAST *index;
+
+			tmp->left = ast;
+
+			if (p->curtok.tok != SPN_TOK_IDENT) {
+				spn_parser_error(p, "expected identifier after '::' operator", NULL);
+				spn_ast_free(tmp); /* frees 'ast' too */
+				return NULL;
+			}
+
+			/* construct subscripting string literal */
+			index = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
+			index->value = p->curtok.val;
+
+			/* consume identifier */
+			spn_lex(p);
+
+			/* set array subscript */
+			tmp->right = index;
+
+			break;
+		}
 		default:
 			SHANT_BE_REACHED();
 		}

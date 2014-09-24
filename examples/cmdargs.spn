@@ -1,3 +1,5 @@
+#!/usr/local/bin/spn
+
 /* 
  * cmdargs.spn
  * using command-line arguments
@@ -8,7 +10,6 @@
 /* loop through command line arguments,
  * treat each entry as the name of an environment variable
  */
-for var i = 1; i < argc; i++ {
+for (var i = 1; i < argc; i++) {
 	printf("%s = %s\n", argv[i], getenv(argv[i]));
 }
-

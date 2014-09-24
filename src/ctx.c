@@ -313,3 +313,8 @@ SpnArray *spn_ctx_getglobals(SpnContext *ctx)
 {
 	return spn_vm_getglobals(ctx->vm);
 }
+
+SpnArray *spn_ctx_getclasses(SpnContext *ctx)
+{
+	return spn_vm_getclasses(ctx->vm);
+}

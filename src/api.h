@@ -112,11 +112,11 @@ SPN_API void spn_object_release(void *o);
 enum {
 	SPN_TTAG_NIL,
 	SPN_TTAG_BOOL,
-	SPN_TTAG_NUMBER,	/* floating-point if `FLOAT' flag is iset	*/
+	SPN_TTAG_NUMBER,	 /* floating-point if `FLOAT' flag is set */
 	SPN_TTAG_STRING,
 	SPN_TTAG_ARRAY,
 	SPN_TTAG_FUNC,
-	SPN_TTAG_USERINFO	/* strong pointer when `OBJECT' flag is set	*/
+	SPN_TTAG_USERINFO /* strong pointer when `OBJECT' flag is set	 */
 };
 
 /* additional type information flags */

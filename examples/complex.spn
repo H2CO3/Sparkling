@@ -1,30 +1,73 @@
+#!/usr/local/bin/spn
+
 /* Complex number demo for Sparkling
+ * Also happens to demonstrate how to create and use classes
  *
  * Created by H2CO3 on 30/12/2013
  */
 
 
-function cfmt(z)
-{
-	return fmtstr("(%.3f %+.3fi)", z.re, z.im);
-}
+// Constructor for complex numbers
+let Cplx = (function () {
+	var class = {};
 
-function pfmt(z)
-{
-	return fmtstr("%.3f * (cos %.3f + i sin %.3f)", z.r, z.theta, z.theta);
-}
+	let Cplx = function Cplx(z) {
+		let self = combine(z.keys, z.values);
+		self.class = class;
+		return self;
+	};
 
-var z1 = { "re": 1, "im": -1 };
-var z2 = { "re": 2, "im":  3 };
-var z3 = { "r": 2, "theta": M_PI / 3 };
+	class::cfmt = function cfmt(self) {
+		return "(%.3f %+.3fi)".format(self["re"], self["im"]);
+	};
 
-printf("%s + %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_add(z1, z2)));
-printf("%s - %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_sub(z1, z2)));
-printf("%s * %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_mul(z1, z2)));
-printf("%s / %s = %s\n", cfmt(z1), cfmt(z2), cfmt(cplx_div(z1, z2)));
+	class::pfmt = function pfmt(self) {
+		let r = self["r"];
+		let theta = self["theta"];
+		return "%.3f * (cos %.3f + i sin %.3f)".format(r, theta, theta);
+	};
 
-printf("conj %s = %s\n", cfmt(z1), cfmt(cplx_conj(z1)));
+	class::add = function (self, z) {
+		return Cplx(cplx_add(self, z));
+	};
 
-printf("%s in trigonometric form: %s\n", cfmt(z2), pfmt(can2pol(z2)));
-printf("%s in canonical form: %s\n", pfmt(z3), cfmt(pol2can(z3)));
+	class::sub = function (self, z) {
+		return Cplx(cplx_sub(self, z));
+	};
 
+	class::mul = function (self, z) {
+		return Cplx(cplx_mul(self, z));
+	};
+
+	class::div = function (self, z) {
+		return Cplx(cplx_div(self, z));
+	};
+
+	class::conj = function (self) {
+		return Cplx(cplx_conj(self));
+	};
+
+	class::toCartesian = function (self) {
+		return Cplx(pol2can(self));
+	};
+
+	class::toPolar = function (self) {
+		return Cplx(can2pol(self));
+	};
+
+	return Cplx;
+}());
+
+var z1 = Cplx({ "re": 1, "im": -1 });
+var z2 = Cplx({ "re": 2, "im":  3 });
+var z3 = Cplx({ "r": 2, "theta": M_PI / 3 });
+
+printf("%s + %s = %s\n", z1.cfmt(), z2.cfmt(), z1.add(z2).cfmt());
+printf("%s - %s = %s\n", z1.cfmt(), z2.cfmt(), z1.sub(z2).cfmt());
+printf("%s * %s = %s\n", z1.cfmt(), z2.cfmt(), z1.mul(z2).cfmt());
+printf("%s / %s = %s\n", z1.cfmt(), z2.cfmt(), z1.div(z2).cfmt());
+
+printf("conj %s = %s\n", z1.cfmt(), z1.conj().cfmt());
+
+printf("%s in trigonometric form: %s\n", z2.cfmt(), z2.toPolar().pfmt());
+printf("%s in canonical form: %s\n", z3.pfmt(), z3.toCartesian().cfmt());

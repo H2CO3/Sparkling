@@ -1,0 +1,42 @@
+#!/usr/local/bin/spn
+
+# demonstrating the functional capabilities of Sparkling using
+# higher-order functions, closures, partial application, etc.
+
+# This is just for demo purposes. Blows up when 'f' is passed
+# nil arguments (because then 'argv' will not be sortable...)
+let flip = function (f) {
+	return function() {
+		return call(f, argv.reverse());
+	};
+};
+
+let lessThan = function (a, b) {
+	return a < b;
+};
+
+let greaterThan = flip(lessThan);
+let a = 13, b = 37;
+
+printf("%d < %d -> %B\n", a, b, lessThan(a, b));
+printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
+
+# takes a function 'f' and returns a new function which calls 'f'
+# with the rest of the arguments of 'curry()' and its own arguments.
+# (again, assuming that no nil parameters will be passed to 'f'.)
+let curry = function (f) {
+	let fargc = argc - 1;
+	let rest = argv.slice(1, fargc);
+	return function () {
+		return call(f, rest.concat(argv));
+	};
+};
+
+let adder = function () {
+	return argv.reduce(0, function(a, b) { return a + b; });
+};
+
+let addsix = curry(adder, 1, 2, 3);
+
+print("(1 + 2 + 3) + (4 + 5 + 6 + 7) = ", addsix(4, 5, 6, 7));
+

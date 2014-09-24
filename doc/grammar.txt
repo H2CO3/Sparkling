@@ -139,7 +139,6 @@ prefix-expr           = (
                         '--'      |
                         '!'       |
                         '~'       |
-                        'sizeof'  |
                         'typeof'  )
                       prefix-expr ) | postfix-expr /* right-assoc */
 
@@ -149,7 +148,8 @@ postfix-expr = term
           ( '(' [ argument-call-list ] ')' )  |
           '++'                                |
           '--'                                |
-          ( '.' | '->' IDENT )
+          ( '.' IDENT )                       |
+          ( '::' IDENT )
         )(*) /* left-assoc */
 
 term         = IDENT                   |
@@ -170,6 +170,7 @@ argument-call-list = ( expression ( ',' expression )(*) )(?)
 
 literal  =   STRING   |
              INTEGER  |
+             CHAR     |
              FLOAT    |
             'true'    |
             'false'   |
@@ -179,12 +180,12 @@ literal  =   STRING   |
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and         else        let       sizeof
-argc        false       nil       true
-break       for         not       typeof
-const       function    null      var
-continue    global      or        while
-do          if          return
+and         else        if        return
+argc        false       let       true
+break       for         nil       typeof
+const       function    not       var
+continue    global      null      while
+do                      return
 
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
@@ -194,13 +195,15 @@ the same as 'const'; and 'let' is the same as 'var'.
 Literal tokens:
 ~~~~~~~~~~~~~~~
 
-char-literal = /'.{1,8}'/
+string-char  = /[^"\\]/
 
-simple-char  = /[^"\\]/
+chrlit-char  = /[^'\\]/
 
 escape       = /\\[\\/'"abfnrt0]/ | /\\x[0-9a-fA-F]{2}/
 
-STRING       = '"' ( simple-char | escape )(*) '"'
+STRING       = '"' ( string-char | escape )(*) '"'
+
+CHAR         = '\'' ( chrlit-char | escape ){1, 8} '\''/
 
 decimal      = /[1-9][0-9]*/
 

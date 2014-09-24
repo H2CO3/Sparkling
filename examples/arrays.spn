@@ -1,0 +1,40 @@
+#!/usr/local/bin/spn
+
+/*
+ * arrays.spn
+ * iterating over the key-value pairs of an associative array
+ *
+ * created by Árpád Goretity on 30/09/2013
+ */
+
+
+let arr1 = {
+	0	:	"Value for index zero",
+	1337	:	"Some other value at index leet",
+	"bar"	:	function(x, y) {
+				printf("lambda function; x = %d, y = %d\n", x, y);
+			},
+	"quirk"	:	3.14159265358979323846
+};
+
+// iterating over all key-value pairs
+arr1.foreach(function(value, key) {
+	print(key, " -> ", value);
+});
+
+
+// Mapping a function over an array
+let arr2 = range(10);
+let mapped = arr2.map(function(value, key) {
+	return value * value;
+});
+
+print("mapped: ", mapped);
+
+// flattening an array using 'reduce()'
+let arr3 = { 1, 3, 5, 7, 9 };
+let sum = arr3.reduce(0, function(a, b) {
+	return a + b;
+});
+
+print("sum = ", sum);

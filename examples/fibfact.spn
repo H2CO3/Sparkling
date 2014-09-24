@@ -1,3 +1,5 @@
+#!/usr/local/bin/spn
+
 /* 
  * fibfact.spn
  * recursive and iterative Fibonacci and factorial functions
@@ -5,15 +7,13 @@
  * created by Árpád Goretity on 30/09/2013
  */
 
-function fib_rec(n)
-{
+function fib_rec(n) {
 	return n < 2 ? 1 : fib_rec(n - 1) + fib_rec(n - 2);
 }
 
-function fib_iter(n)
-{
+function fib_iter(n) {
 	var f1 = 1, f2 = 1;
-	for var i = 0; i < n; i++ {
+	for (var i = 0; i < n; i++) {
 		f2 += f1;
 		f1 = f2 - f1; // f1 = previous value of f2
 	}
@@ -21,26 +21,23 @@ function fib_iter(n)
 	return f1;
 }
 
-function fct_rec(n)
-{
+function fct_rec(n) {
 	return n < 2 ? 1 : n * fct_rec(n - 1);
 }
 
-function fct_iter(n)
-{
+function fct_iter(n) {
 	var r = 1;
-	for var i = 2; i <= n; i++ {
+	for (var i = 2; i <= n; i++) {
 		r *= i;
 	}
 	
 	return r;
 }
 
-var n = toint(argv[1]);
+let n = toint(argv[1]);
 
 print(fib_iter(n));
 print(fib_rec(n));
 
 print(fct_iter(n));
 print(fct_rec(n));
-

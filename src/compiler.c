@@ -1588,6 +1588,7 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	spn_uword ins;
 	SpnAST *lhs = ast->left;
 	SpnAST *rhs = ast->right;
+	enum spn_vm_ins opcode;
 	int nvars;
 
 	/* array and subscript indices: just like in `compile_arrsub()` */
@@ -1616,13 +1617,20 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	} else {
 		/* memberof */
 		SpnValue nameval;
+		assert(lhs->node == SPN_NODE_MEMBEROF);
 		nameval.type = SPN_TYPE_STRING;
 		nameval.v.o = lhs->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 
-	/* emit "store to array" instruction */
-	ins = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst);
+	/* emit "store to array" or "set property" instruction */
+	if (lhs->node == SPN_NODE_ARRSUB) {
+		opcode = SPN_INS_ARRSET;
+	} else {
+		opcode = SPN_INS_PROPSET;
+	}
+
+	ins = SPN_MKINS_ABC(opcode, arridx, subidx, *dst);
 	bytecode_append(&cmp->bc, &ins, 1);
 
 	/* XXX: is this correct? since we need neither the value of the
@@ -1721,6 +1729,7 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	SpnAST *rhs = ast->right;
 
 	int nvars, arridx = -1, subidx = -1, rhsidx = -1;
+	enum spn_vm_ins getter_opcode, setter_opcode;
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
@@ -1745,19 +1754,29 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	} else {
 		/* memberof */
 		SpnValue nameval;
+		assert(lhs->node == SPN_NODE_MEMBEROF);
 		nameval.type = SPN_TYPE_STRING;
 		nameval.v.o = lhs->right->name;
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 
+	/* select appropriate array/property getter and setter opcodes */
+	if (lhs->node == SPN_NODE_ARRSUB) {
+		getter_opcode = SPN_INS_ARRGET;
+		setter_opcode = SPN_INS_ARRSET;
+	} else {
+		getter_opcode = SPN_INS_PROPGET;
+		setter_opcode = SPN_INS_PROPSET;
+	}
+
 	/* load LHS into destination register */
-	ins[0] = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
+	ins[0] = SPN_MKINS_ABC(getter_opcode, *dst, arridx, subidx);
 
 	/* evaluate "LHS = LHS <op> RHS" */
 	ins[1] = SPN_MKINS_ABC(opcode, *dst, *dst, rhsidx);
 
 	/* store value of updated destination register into array */
-	ins[2] = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst);
+	ins[2] = SPN_MKINS_ABC(setter_opcode, arridx, subidx, *dst);
 
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
 
@@ -2087,7 +2106,7 @@ static int compile_argc(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	assert(ast->node == SPN_NODE_ARGC);
 
 	/* emit "get argument count" instruction */
-	ins = SPN_MKINS_A(SPN_INS_LDARGC, *dst);
+	ins = SPN_MKINS_A(SPN_INS_ARGC, *dst);
 	bytecode_append(&cmp->bc, &ins, 1);
 
 	return 1;
@@ -2227,10 +2246,11 @@ static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_arrsub_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
+	int is_method_call, int *reg_array, int *reg_subsc)
 {
 	spn_uword ins;
-	int nvars;
+	enum spn_vm_ins opcode;
 
 	/* array index: register index of the array expression
 	 * subscript index: register index of the subscripting expression
@@ -2256,47 +2276,115 @@ static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 
-	/* the usual "pop as many times as we pushed" optimization */
-	nvars = rts_count(cmp->varstack);
+	if (is_method_call) {
+		/* In order to call a method, we need to keep the 'self' or
+		 * 'this' argument, and potentially the method name as well.
+		 */
+		assert(reg_array != NULL);
+		assert(reg_subsc != NULL);
 
-	if (arridx >= nvars) {
-		tmp_pop(cmp);
-	}
+		*reg_array = arridx;
+		*reg_subsc = subidx;
+	} else {
+		/* the usual "pop as many times as we pushed" optimization */
+		int nvars = rts_count(cmp->varstack);
 
-	if (subidx >= nvars) {
-		tmp_pop(cmp);
+		assert(reg_array == NULL);
+		assert(reg_subsc == NULL);
+
+		if (arridx >= nvars) {
+			tmp_pop(cmp);
+		}
+
+		if (subidx >= nvars) {
+			tmp_pop(cmp);
+		}
 	}
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	/* emit "load from array" instruction */
-	ins = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
+	if (is_method_call) {
+		/* when compiling a method call, the function is not actually
+		 * in the object itself; rather, it's a member of its class.
+		 */
+		assert(ast->node == SPN_NODE_MEMBEROF);
+		opcode = SPN_INS_METHOD;
+	} else if (ast->node == SPN_NODE_MEMBEROF) {
+		/* not a method call but still a property access */
+		opcode = SPN_INS_PROPGET;
+	} else {
+		/* plain array subscripting, just emit a normal "load from array" */
+		assert(ast->node == SPN_NODE_ARRSUB);
+		opcode = SPN_INS_ARRGET;
+	}
+
+	ins = SPN_MKINS_ABC(opcode, *dst, arridx, subidx);
 	bytecode_append(&cmp->bc, &ins, 1);
 
 	return 1;
+}
+
+static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	/* Compile array subscript expression.
+	 * Keep the result only, throw away array
+	 * expression and subscripting expression.
+	 */
+	return compile_arrsub_ex(cmp, ast, dst, 0, NULL, NULL);
+}
+
+static int compile_arrsub_method_call(SpnCompiler *cmp, SpnAST *ast,
+	int *dst, int *reg_array, int *reg_subsc)
+{
+	/* Compile memberof expression. Keep the register index of
+	 * the array (which will become 'self'/'this') and that of the
+	 * method name as well, along with the result of the indexing.
+	 */
+	assert(ast->node == SPN_NODE_MEMBEROF);
+	return compile_arrsub_ex(cmp, ast, dst, 1, reg_array, reg_subsc);
 }
 
 /* XXX: when passed to this function, `*argc` should be initialized to zero!
  * On return, it will contain the number of call arguments. `*idc` will
  * point to an array of register indices where the call arguments are stored.
  */
-static int compile_callargs(SpnCompiler *cmp, SpnAST *ast, spn_uword **idc, int *argc)
+static int compile_callargs(SpnCompiler *cmp, SpnAST *ast,
+	spn_uword **idc, int *argc, int is_method_call, int self_reg)
 {
 	if (ast == NULL) {
 		/* last argument in the list (first in the code)
 		 * calloc is necessary since we use `|=` to set the indices,
 		 * and that doesn't work well with uninitialized integers.
 		 */
+		if (is_method_call) {
+			++*argc;
+		}
+
 		*idc = calloc(ROUNDUP(*argc, SPN_WORD_OCTETS), sizeof(**idc));
 		if (*argc > 0 && *idc == NULL) {
 			/* calloc(0) may return NULL, hence the extra check */
 			abort();
 		}
 
-		/* reset counter to 0 (innermost argument is the first one) */
-		*argc = 0;
+		/* reset counter to 0 (or 1 in the case of a method call),
+		 * since the innermost argument is the first one, after
+		 * 'self', if it exists. */
+		if (is_method_call) {
+			/* 'self' is always argument #0 if present. So we can safely
+			 * omit the computation of the offsets for bit operations here.
+			 *
+			 * int zero_wordidx = 0 / SPN_WORD_OCTETS;
+			 * int zero_shift = 8 * (0 % SPN_WORD_OCTETS);
+			 * (*idc)[zero_wordidx] |= (spn_uword)(self_reg) << zero_shift;
+			 */
+			assert(self_reg < 256);
+			(*idc)[0] |= (spn_uword)(self_reg);
+			*argc = 1;
+		} else {
+			*argc = 0;
+		}
 	} else {
 		int dst = -1;
 		int wordidx, shift;
@@ -2306,7 +2394,8 @@ static int compile_callargs(SpnCompiler *cmp, SpnAST *ast, spn_uword **idc, int 
 		/* signal that there's one more argument */
 		++*argc;
 
-		if (compile_callargs(cmp, ast->left, idc, argc) == 0) {
+		if (compile_callargs(cmp, ast->left, idc, argc,
+		    is_method_call, self_reg) == 0) {
 			return 0;
 		}
 
@@ -2334,22 +2423,40 @@ static int compile_call(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_uword *idc = NULL;
 	/* 0-initializing `argc` is needed by `compile_callargs()` */
-	int argc = 0, fnreg = -1;
+	int argc = 0, fnreg = -1, self_reg = -1, method_name_reg = -1;
 	spn_uword ins;
 
+	int is_method_call = 0;
+
+	/* make room for return value */
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	/* load function */
-	if (compile_expr(cmp, ast->left, &fnreg) == 0) {
-		return 0;
+	/* load function, check if it is a method */
+	if (ast->left->node == SPN_NODE_MEMBEROF) {
+		is_method_call = 1;
+		if (compile_arrsub_method_call(cmp, ast->left,
+		   &fnreg, &self_reg, &method_name_reg) == 0) {
+			return 0;
+		}
+	} else {
+		if (compile_expr(cmp, ast->left, &fnreg) == 0) {
+			return 0;
+		}
 	}
+
+	/* Tell 'compile_callargs()' to...:
+	 * 1. ...reserve one extra entry for 'self' in 'idc'; and
+	 * 2. ...start argument register indices from 1, and put
+	 *       the regisiter index of 'self' in position 0.
+	 */
 
 	/* call arguments are in reverse order in the AST, so we can use
 	 * recursion to count and evaluate them
 	 */
-	if (compile_callargs(cmp, ast->right, &idc, &argc) == 0) {
+	if (compile_callargs(cmp, ast->right, &idc, &argc,
+	    is_method_call, self_reg) == 0) {
 		return 0;
 	}
 
@@ -2373,7 +2480,6 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	enum spn_vm_ins opcode = -1;
 
 	switch (ast->node) {
-	case SPN_NODE_SIZEOF:  opcode = SPN_INS_SIZEOF; break;
 	case SPN_NODE_TYPEOF:  opcode = SPN_INS_TYPEOF; break;
 	case SPN_NODE_LOGNOT:  opcode = SPN_INS_LOGNOT; break;
 	case SPN_NODE_BITNOT:  opcode = SPN_INS_BITNOT; break;
@@ -2519,17 +2625,32 @@ static int compile_incdec_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
-	int arridx = -1, subidx = -1;
-	enum spn_vm_ins opcode =
-		ast->node == SPN_NODE_PREINCRMT
-	     || ast->node == SPN_NODE_POSTINCRMT
-			? SPN_INS_INC
-			: SPN_INS_DEC;
+	SpnAST *lhs = ast->left;
 
+	int arridx = -1, subidx = -1;
 	int nvars;
 
-	SpnAST *lhs = ast->left;
-	assert(lhs->node == SPN_NODE_ARRSUB || lhs->node == SPN_NODE_MEMBEROF);
+	enum spn_vm_ins arith_opcode;
+	enum spn_vm_ins getter_opcode, setter_opcode;
+
+	if (ast->node == SPN_NODE_PREINCRMT
+	 || ast->node == SPN_NODE_POSTINCRMT) {
+		arith_opcode = SPN_INS_INC;
+	} else {
+		arith_opcode = SPN_INS_DEC;
+	}
+
+	assert(lhs->node == SPN_NODE_ARRSUB
+	    || lhs->node == SPN_NODE_MEMBEROF);
+
+	/* select appropriate array/property accessor opcodes */
+	if (lhs->node == SPN_NODE_ARRSUB) {
+		getter_opcode = SPN_INS_ARRGET;
+		setter_opcode = SPN_INS_ARRSET;
+	} else {
+		getter_opcode = SPN_INS_PROPGET;
+		setter_opcode = SPN_INS_PROPSET;
+	}
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
@@ -2541,11 +2662,11 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	/* compile subscript expression */
-	if (lhs->node == SPN_NODE_ARRSUB) { /* operator[] */
+	if (lhs->node == SPN_NODE_ARRSUB) { /* operators [] or :: */
 		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
 			return 0;
 		}
-	} else { /* member-of, "." or "->" */
+	} else { /* member-of, "." */
 		SpnValue nameval;
 		nameval.type = SPN_TYPE_STRING;
 		nameval.v.o = lhs->right->name;
@@ -2557,9 +2678,9 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_PREDECRMT: {
 		/* these yield the already incremented/decremented value */
 		spn_uword insns[3];
-		insns[0] = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
-		insns[1] = SPN_MKINS_A(opcode, *dst);
-		insns[2] = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, *dst);
+		insns[0] = SPN_MKINS_ABC(getter_opcode, *dst, arridx, subidx);
+		insns[1] = SPN_MKINS_A(arith_opcode, *dst);
+		insns[2] = SPN_MKINS_ABC(setter_opcode, arridx, subidx, *dst);
 
 		bytecode_append(&cmp->bc, insns, COUNT(insns));
 		break;
@@ -2573,10 +2694,10 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		int tmpidx = tmp_push(cmp);
 
 		spn_uword insns[4];
-		insns[0] = SPN_MKINS_ABC(SPN_INS_ARRGET, *dst, arridx, subidx);
+		insns[0] = SPN_MKINS_ABC(getter_opcode, *dst, arridx, subidx);
 		insns[1] = SPN_MKINS_AB(SPN_INS_MOV, tmpidx, *dst);
-		insns[2] = SPN_MKINS_A(opcode, tmpidx);
-		insns[3] = SPN_MKINS_ABC(SPN_INS_ARRSET, arridx, subidx, tmpidx);
+		insns[2] = SPN_MKINS_A(arith_opcode, tmpidx);
+		insns[3] = SPN_MKINS_ABC(setter_opcode, arridx, subidx, tmpidx);
 
 		bytecode_append(&cmp->bc, insns, COUNT(insns));
 		tmp_pop(cmp);
@@ -2692,7 +2813,6 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_UNPLUS:        return compile_expr(cmp, ast->left, dst);
 
 	/* prefix unary operators without side effects */
-	case SPN_NODE_SIZEOF:
 	case SPN_NODE_TYPEOF:
 	case SPN_NODE_LOGNOT:
 	case SPN_NODE_BITNOT:        return compile_unary(cmp, ast, dst);

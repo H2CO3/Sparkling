@@ -40,4 +40,3 @@ SPN_API int spn_accept_multi(SpnParser *p, const enum spn_lex_token toks[], size
 #endif /* __cplusplus */
 
 #endif /* SPN_LEX_H */
-

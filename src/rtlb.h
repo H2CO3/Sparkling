@@ -13,7 +13,10 @@
 
 #include "vm.h"
 
-/* Functions:
+/* I/O library
+ * ===========
+ * Free functions:
+ * ---------------
  * getline(), print(), dbgprint(), printf()
  * fopen(), fclose()
  * fprintf(), fgetline()
@@ -22,39 +25,60 @@
  * remove(), rename(), tmpnam(), tmpfile()
  * readfile()
  *
- * Constants: stdin, stdout, stderr
+ * Constants:
+ * ----------
+ * stdin, stdout, stderr
  */
-#define SPN_LIBSIZE_IO 19
-SPN_API const SpnExtFunc spn_libio[SPN_LIBSIZE_IO];
 
-/* Functions:
+/* String library
+ * ==============
+ * Methods:
+ * --------
  * indexof(), substr(), substrto(), substrfrom()
  * split(), repeat()
  * tolower(), toupper()
  * fmtstr()
- * tonumber(), toint(), tofloat()
+ *
+ * Properties:
+ * -----------
+ * .class  [r]
+ * .length [r]
  */
-#define SPN_LIBSIZE_STRING 12
-SPN_API const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING];
 
-/* Functions:
+/* Array library
+ * =============
+ * Methods:
+ * --------
  * sort() (uses custom comparison function if given, `<' operator otherwise),
  * find(), pfind(), bsearch()
  * any(), all()
  * slice()
- * keys(), values(), combine()
  * join()
- * foreach(), reduce(), filter(), map() (returns an array of mapped elements)
+ * foreach(), reduce(), filter(), map()
  * insert(), inject(), erase(), concat()
+ * merge(), convol()
  * push(), pop()
  * swap(), reverse()
- * range()
+ *
+ * Free functions:
+ * ---------------
+ * combine()
+ *
+ * Properties:
+ * -----------
+ * .class  [rw]
+ * .length [r]
+ * .keys   [r]
+ * .values [r]
  */
-#define SPN_LIBSIZE_ARRAY 24
-SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
 
-/* Real functions:
- * abs(), min(), max()
+/* Maths library
+ * =============
+ * Free functions:
+ * ---------------
+ *
+ * Real:
+ * abs(), min(), max(), range()
  * floor(), ceil(), round(), sgn()
  * hypot(), sqrt(), cbrt(), pow(), exp(), exp2(), exp10(), log(), log2(), log10()
  * sin(), cos(), tan(), sinh(), cosh(), tanh()
@@ -64,23 +88,24 @@ SPN_API const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY];
  * isfin(), isinf(), isnan(), isfloat(), isint()
  * fact(), binom()
  *
- * Complex functions:
+ * Complex:
  * cplx_add(), cplx_sub(), cplx_mul(), cplx_div()
  * cplx_conj(), cplx_abs()
  * cplx_sin(), cplx_cos(), cplx_tan()
  * can2pol(), pol2can()
  *
- * Constants: M_E, M_LOG2E, M_LOG10E, M_LN2, M_LN10, M_PI, M_PI_2, M_PI_4,
- * M_1_PI, M_2_PI, M_2_SQRTPI, M_SQRT2, M_SQRT1_2
+ * Constants:
+ * ----------
+ * M_E, M_PI, M_SQRT2, M_PHI, M_INF, M_NAN
  */
-#define SPN_LIBSIZE_MATH 49
-SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
 
-/* Functions:
+/* System/Utility library
+ * ======================
+ * Free functions:
+ * ---------------
  * getenv()
  * system()
  * assert()
- * exit()
  * time()
  * utctime()
  * localtime()
@@ -88,17 +113,28 @@ SPN_API const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH];
  * difftime()
  * compile()
  * exprtofn()
- * require()
+ * toint()
+ * tofloat()
+ * tonumber()
  * call()
+ * require()
  * backtrace()
+ *
+ * Properties:
+ * -----------
+ * .class [rw] -- on values of type user info
+ *
+ * Constants:
+ * ----------
+ * getter (special ID of the getter method of a class)
+ * setter (special ID of the setter method of a class)
+ * Array: the default class for arrays
+ * String: the default class for strings
  */
-#define SPN_LIBSIZE_SYS 14
-SPN_API const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS];
 
 /* A convenience function that loads the entire standard library.
  * Please call this at most *once* on each virtual machine instance.
- * Along with the standard library functions, this also registers some useful
- * globals such as math constants, standard streams, etc.
+ * This registers all free functions, methods, properties and constants.
  */
 SPN_API void spn_load_stdlib(SpnVMachine *vm);
 

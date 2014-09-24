@@ -1,3 +1,5 @@
+#!/usr/local/bin/spn
+
 /* 
  * sqrt.spn
  * Computing square root using the Babylonian method
@@ -6,11 +8,10 @@
  */
 
 /* Babylonian method, a. k. a. Newton-Raphson */
-function bab_sqrt(x)
-{
+function bab_sqrt(x) {
 	var y, n = 0, eps = 1.0e-8;
 	
-	for y = x / 2.0; abs(y - x / y) > eps; y = (y + x / y) / 2 {
+	for (y = x / 2.0; abs(y - x / y) > eps; y = (y + x / y) / 2) {
 		n++;
 	}
 	
@@ -21,8 +22,7 @@ function bab_sqrt(x)
 
 
 var test = { 0, 1, 2, 3, 4, 9, 16, 25, 100, 123456789 };
-for var i = 0; i < sizeof test; i++ {
-	var x = test[i];
+for (var i = 0; i < test.length; i++) {
+	let x = test[i];
 	printf("babylonian: %f; C stdlib: %f\n", bab_sqrt(x), sqrt(x));
 }
-

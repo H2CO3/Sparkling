@@ -55,8 +55,8 @@ SPN_API int spn_vm_callfunc(
 	SpnValue *argv
 );
 
-/* these functions copy neither the names of the values nor the library name,
- * so make sure that the strings are valid thorughout the entire runtime.
+/* These functions copy both the names of the values and the library name,
+ * so 'libname' and 'fns[i].name' can be safely destroyed after the call.
  */
 SPN_API void  spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc  fns[],  size_t n);
 SPN_API void  spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValue vals[], size_t n);
@@ -83,6 +83,50 @@ SPN_API const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
  * is only valid as long as the virtual machine `vm' is itself alive as well.
  */
 SPN_API SpnArray *spn_vm_getglobals(SpnVMachine *vm);
+
+/* Returns the class descriptor table of the VM.
+ * You can use the returned array to add, modify or remove the class
+ * of a certain object. A class descriptor must be an array (SpnArray value).
+ *
+ * The returned global class array must be either indexed using one of the
+ * SPN_TTAG_* enums (as integers), or by an array or a user info object.
+ * The philosophy behind this decision is that all object of the same class
+ * have the same type, conceptually. Primitive types (numbers, strings, etc.)
+ * have their own, limited set of possible values. Custom objects, however,
+ * are best realized using either arrays, or maybe even user info objects,
+ * so not all array or user info instances have to belong to the same "type".
+ *
+ * Class descriptors must only be indexed with identifiers (strings that meet
+ * the requirements of an identifier, e. g. no special characters or spaces)
+ * or using the special integer values in the 'spn_method_index' enum.
+ * Each value in a class descriptor must be a function (SpnFunction value).
+ *
+ * Similarly to 'spn_vm_getglobals()', the returned pointer is non-owning
+ * (you must not use it after the VM is freed nor should you release it).
+ */
+
+SPN_API SpnArray *spn_vm_getclasses(SpnVMachine *vm);
+
+/* This function implements the unified class-lookup mechanism:
+ * if 'pself' is an array or a user info, then first attempt
+ * to look up its class by _instance_, and only if that fails,
+ * return the class descriptor corresponding to its type.
+ * If, however, 'pself' is a primitive type, i. e. it is
+ * neither an array nor a user info object, then always try
+ * retrieving its class solely based on its type.
+ * Upon return, 'clsval' will contain the class array of 'pself'.
+ * Warning: 'clsval' is non-owning (this function internally
+ * issues a call to 'spn_array_get()', so the ownership of the
+ * class descriptor array is not modified in any way).
+ */
+SPN_API void spn_get_class_of_value(SpnArray *classes, const SpnValue *pself, SpnValue *clsval);
+
+/* special values used to index into a class descriptor */
+enum spn_method_index {
+	SPN_METHODIDX_GETTER,     /* property getter of the class  */
+	SPN_METHODIDX_SETTER      /* property setter of the class  */
+};
+
 
 /* layout of a Sparkling bytecode file:
  *
@@ -203,21 +247,23 @@ enum spn_vm_ins {
 	SPN_INS_SHR,      /* a = b >> c                           */
 	SPN_INS_BITNOT,   /* a = ~b                               */
 	SPN_INS_LOGNOT,   /* a = !b                               */
-	SPN_INS_SIZEOF,   /* a = sizeof(b)                        */
 	SPN_INS_TYPEOF,   /* a = typeof(b)                        */
 	SPN_INS_CONCAT,   /* a = b .. c                           */
 	SPN_INS_LDCONST,  /* a = <constant> (IV)                  */
 	SPN_INS_LDSYM,    /* a = local symtab[b] (V)              */
 	SPN_INS_MOV,      /* a = b                                */
-	SPN_INS_LDARGC,   /* a = argc (# of call-time arguments)  */
+	SPN_INS_ARGC,     /* a = argc (# of call-time arguments)  */
+	SPN_INS_ARGV,     /* a = argv (contains all arguments)    */
 	SPN_INS_NEWARR,   /* a = new array                        */
 	SPN_INS_ARRGET,   /* a = b[c]                             */
 	SPN_INS_ARRSET,   /* a[b] = c                             */
-	SPN_INS_ARGV,     /* a = argv (contains all arguments)    */
 	SPN_INS_FUNCTION, /* function definition (VI)             */
 	SPN_INS_GLBVAL,   /* add a value to the global symtab     */
 	SPN_INS_CLOSURE,  /* create closure from free func (VII)  */
-	SPN_INS_LDUPVAL   /* a = upvalues[b];                     */
+	SPN_INS_LDUPVAL,  /* a = upvalues[b];                     */
+	SPN_INS_METHOD,   /* a = classes[b][c] (VIII)             */
+	SPN_INS_PROPGET,  /* a = classes[b].getter(b, c) (IX)     */
+	SPN_INS_PROPSET   /* classes[a].setter(a, b, c) (X)       */
 };
 
 /* Remarks:
@@ -294,6 +340,16 @@ enum spn_vm_ins {
  * register, creates a closure function object from it, sets its upvalues,
  * then replaces the contents of the register (the original function object)
  * with the newly created closure.
+ *
+ * (VIII): SPN_INS_METHOD looks up a method by name 'c' in the class
+ * descriptor of object 'b'. The object may be an array (most commonly),
+ * a string, or even a (usually strong) user info value.
+ *
+ * (IX): SPN_INS_PROPGET calls the property getter method of object 'b',
+ * passing in the index/name 'c'.
+ *
+ * (X): SPN_INS_PROPSET calls the property setter method of object 'a',
+ * passing in the index/name 'b' and its new value 'c'.
  */
 
 #endif /* SPN_VM_H */

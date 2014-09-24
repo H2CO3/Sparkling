@@ -620,13 +620,11 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 		}
 		case SPN_INS_BITNOT:
 		case SPN_INS_LOGNOT:
-		case SPN_INS_SIZEOF:
 		case SPN_INS_TYPEOF: {
 			/* and once again... this array trick is convenient! */
 			static const char *const opnames[] = {
 				"bitnot",
 				"lognot",
-				"sizeof",
 				"typeof"
 			};
 
@@ -689,7 +687,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			printf("mov\tr%d, r%d\n", opa, opb);
 			break;
 		}
-		case SPN_INS_LDARGC: {
+		case SPN_INS_ARGC: {
 			int opa = OPA(ins);
 			printf("ld\tr%d, argc\n", opa);
 			break;
@@ -701,12 +699,14 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 		}
 		case SPN_INS_ARRGET: {
 			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
-			printf("arrget\tr%d, r%d, r%d\t# r%d = r%d[r%d]\n", opa, opb, opc, opa, opb, opc);
+			printf("arrget\tr%d, r%d, r%d\t# r%d = r%d[r%d]\n",
+				opa, opb, opc, opa, opb, opc);
 			break;
 		}
 		case SPN_INS_ARRSET: {
 			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
-			printf("arrset\tr%d, r%d, r%d\t# r%d[r%d] = r%d\n", opa, opb, opc, opa, opb, opc);
+			printf("arrset\tr%d, r%d, r%d\t# r%d[r%d] = r%d\n",
+				opa, opb, opc, opa, opb, opc);
 			break;
 		}
 		case SPN_INS_ARGV: {
@@ -815,6 +815,24 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			int regidx = OPA(ins);
 			int upvalidx = OPB(ins);
 			printf("ldupval\tr%d, upval[%d]\n", regidx, upvalidx);
+			break;
+		}
+		case SPN_INS_METHOD: {
+			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
+			printf("method\tr%d, r%d, r%d\t# r%d = classes[r%d][r%d]\n",
+				opa, opb, opc, opa, opb, opc);
+			break;
+		}
+		case SPN_INS_PROPGET: {
+			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
+			printf("getprop\tr%d, r%d, r%d\t# r%d = getter(r%d, r%d)\n",
+				opa, opb, opc, opa, opb, opc);
+			break;
+		}
+		case SPN_INS_PROPSET: {
+			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
+			printf("setprop\t%d, r%d, r%d\t# setter(r%d, r%d, r%d)\n",
+				opa, opb, opc, opa, opb, opc);
 			break;
 		}
 		default:
@@ -1066,7 +1084,6 @@ static void dump_ast(SpnAST *ast, int indent)
 		"unary-minus",
 		"preincrement",
 		"predecrement",
-		"sizeof",
 		"typeof",
 		"logical-not",
 		"bitwise-not",
@@ -1147,7 +1164,7 @@ static int dump_ast_of_files(int argc, char *argv[])
 		free(src);
 
 		if (ast == NULL) {
-			fputs(parser->errmsg, stderr);
+			fprintf(stderr, "%s\n", parser->errmsg);
 			status = EXIT_FAILURE;
 			break;
 		}

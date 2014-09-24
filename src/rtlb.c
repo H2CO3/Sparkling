@@ -33,57 +33,56 @@
 #define M_E        2.71828182845904523536028747135266250
 #endif
 
-#ifndef M_LOG2E
-#define M_LOG2E    1.44269504088896340735992468100189214
-#endif
-
-#ifndef M_LOG10E
-#define M_LOG10E   0.434294481903251827651128918916605082
-#endif
-
-#ifndef M_LN2
-#define M_LN2      0.693147180559945309417232121458176568
-#endif
-
-#ifndef M_LN10
-#define M_LN10     2.30258509299404568401799145468436421
-#endif
-
 #ifndef M_PI
 #define M_PI       3.14159265358979323846264338327950288
-#endif
-
-#ifndef M_PI_2
-#define M_PI_2     1.57079632679489661923132169163975144
-#endif
-
-#ifndef M_PI_4
-#define M_PI_4     0.785398163397448309615660845819875721
-#endif
-
-#ifndef M_1_PI
-#define M_1_PI     0.318309886183790671537767526745028724
-#endif
-
-#ifndef M_2_PI
-#define M_2_PI     0.636619772367581343075535053490057448
-#endif
-
-#ifndef M_2_SQRTPI
-#define M_2_SQRTPI 1.12837916709551257389615890312154517
 #endif
 
 #ifndef M_SQRT2
 #define M_SQRT2    1.41421356237309504880168872420969808
 #endif
 
-#ifndef M_SQRT1_2
-#define	M_SQRT1_2  0.707106781186547524400844362104849039
-#endif
-
 #ifndef M_PHI
 #define M_PHI      1.61803398874989484820458683436563811
 #endif
+
+/* Returns the class descriptor for a type tag
+ * 'typetag' is one of the SPN_TTAG_* enum members.
+ */
+static SpnArray *get_class_for_typetag(SpnVMachine *vm, int typetag)
+{
+	SpnArray *classes = spn_vm_getclasses(vm);
+
+	SpnValue classval;
+	spn_array_get_intkey(classes, typetag, &classval);
+
+	assert(isarray(&classval));
+	return arrayvalue(&classval);
+}
+
+/* Adds methods to the class of a type. */
+static void load_methods(SpnVMachine *vm, int typetag, const SpnExtFunc fns[], size_t n)
+{
+	SpnArray *classdesc = get_class_for_typetag(vm, typetag);
+
+	size_t i;
+	for (i = 0; i < n; i++) {
+		SpnValue method = makenativefunc(fns[i].name, fns[i].fn);
+		spn_array_set_strkey(classdesc, fns[i].name, &method);
+		spn_value_release(&method);
+	}
+}
+
+/* Adds an accessor method to the class of a type.
+ * 'kind' is one of the SPN_METHODIDX_* enum members.
+ */
+static void load_accessor(SpnVMachine *vm, int typetag, int kind,
+	const char *name, int (*fptr)(SpnValue *, int, SpnValue *, void *))
+{
+	SpnArray *classdesc = get_class_for_typetag(vm, typetag);
+	SpnValue method = makenativefunc(name, fptr);
+	spn_array_set_intkey(classdesc, kind, &method);
+	spn_value_release(&method);
+}
 
 /***************
  * I/O library *
@@ -597,34 +596,52 @@ static int rtlb_readfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return status;
 }
 
-const SpnExtFunc spn_libio[SPN_LIBSIZE_IO] = {
-	{ "getline",  rtlb_getline  },
-	{ "print",    rtlb_print    },
-	{ "dbgprint", rtlb_dbgprint },
-	{ "printf",   rtlb_printf   },
-	{ "fopen",    rtlb_fopen    },
-	{ "fclose",   rtlb_fclose   },
-	{ "fprintf",  rtlb_fprintf  },
-	{ "fgetline", rtlb_fgetline },
-	{ "fread",    rtlb_fread    },
-	{ "fwrite",   rtlb_fwrite   },
-	{ "fflush",   rtlb_fflush   },
-	{ "ftell",    rtlb_ftell    },
-	{ "fseek",    rtlb_fseek    },
-	{ "feof",     rtlb_feof     },
-	{ "remove",   rtlb_remove   },
-	{ "rename",   rtlb_rename   },
-	{ "tmpnam",   rtlb_tmpnam   },
-	{ "tmpfile",  rtlb_tmpfile  },
-	{ "readfile", rtlb_readfile }
-};
+static void loadlib_io(SpnVMachine *vm)
+{
+	/* Free functions */
+	static const SpnExtFunc F[] = {
+		{ "getline",  rtlb_getline  },
+		{ "print",    rtlb_print    },
+		{ "dbgprint", rtlb_dbgprint },
+		{ "printf",   rtlb_printf   },
+		{ "fopen",    rtlb_fopen    },
+		{ "fclose",   rtlb_fclose   },
+		{ "fprintf",  rtlb_fprintf  },
+		{ "fgetline", rtlb_fgetline },
+		{ "fread",    rtlb_fread    },
+		{ "fwrite",   rtlb_fwrite   },
+		{ "fflush",   rtlb_fflush   },
+		{ "ftell",    rtlb_ftell    },
+		{ "fseek",    rtlb_fseek    },
+		{ "feof",     rtlb_feof     },
+		{ "remove",   rtlb_remove   },
+		{ "rename",   rtlb_rename   },
+		{ "tmpnam",   rtlb_tmpnam   },
+		{ "tmpfile",  rtlb_tmpfile  },
+		{ "readfile", rtlb_readfile }
+	};
 
+	/* Constants */
+	SpnExtValue C[3];
+
+	C[0].name = "stdin";
+	C[0].value = makeweakuserinfo(stdin);
+
+	C[1].name = "stdout";
+	C[1].value = makeweakuserinfo(stdout);
+
+	C[2].name = "stderr";
+	C[2].value = makeweakuserinfo(stderr);
+
+	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
+	spn_vm_addlib_values(vm, NULL, C, COUNT(C));
+}
 
 /******************
  * String library *
  ******************/
 
-static int rtlb_indexof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_str_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *haystack, *needle;
 	const char *pos;
@@ -806,6 +823,11 @@ static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	haystack = stringvalue(&argv[0]);
 	needle = stringvalue(&argv[1]);
 
+	if (needle->len == 0) {
+		spn_ctx_runtime_error(ctx, "cannot split on empty string", NULL);
+		return -3;
+	}
+
 	arr = spn_array_new();
 
 	ret->type = SPN_TYPE_ARRAY;
@@ -925,7 +947,7 @@ static int rtlb_toupper(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_trcase(ret, argc, argv, 1, ctx);
 }
 
-static int rtlb_fmtstr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_format(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *fmt;
 	SpnString *res;
@@ -958,102 +980,65 @@ static int rtlb_fmtstr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_string_getter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	SpnString *str;
-	long base;
+	SpnString *pself, *pkey;
 
-	if (argc < 1 || argc > 2) {
-		spn_ctx_runtime_error(ctx, "one or two arguments are required", NULL);
-		return -1;
-	}
+	assert(argc == 2); /* string instance and property name */
 
-	if (!isstring(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
-		return -2;
-	}
+	assert(isstring(&argv[0]));
+	assert(isstring(&argv[1]));
 
-	if (argc == 2 && !isint(&argv[1])) {
-		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
-		return -3;
-	}
+	pself = stringvalue(&argv[0]);
+	pkey  = stringvalue(&argv[1]);
 
-	str = stringvalue(&argv[0]);
-	base = argc == 2 ? intvalue(&argv[1]) : 0;
-
-	if (base == 1 || base < 0 || base > 36) {
-		spn_ctx_runtime_error(ctx, "second argument must be zero or between [2...36]", NULL);
-		return -4;
-	}
-
-	*ret = makeint(strtol(str->cstr, NULL, base));
-
-	return 0;
-}
-
-static int rtlb_tofloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	SpnString *str;
-
-	if (argc != 1) {
-		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
-		return -1;
-	}
-
-	if (!isstring(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
-		return -2;
-	}
-
-	str = stringvalue(&argv[0]);
-
-	*ret = makefloat(strtod(str->cstr, NULL));
-
-	return 0;
-}
-
-static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	SpnString *str;
-
-	if (argc != 1) {
-		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
-		return -1;
-	}
-
-	if (!isstring(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
-		return -2;
-	}
-
-	str = stringvalue(&argv[0]);
-
-	if (strpbrk(str->cstr, ".eE") != NULL) {
-		return rtlb_tofloat(ret, argc, argv, ctx);
+	if (strcmp(pkey->cstr, "class") == 0) {
+		SpnArray *classes = spn_ctx_getclasses(ctx);
+		spn_get_class_of_value(classes, &argv[0], ret);
+		spn_value_retain(ret);
+	} else if (strcmp(pkey->cstr, "length") == 0) {
+		*ret = makeint(pself->len);
 	} else {
-		return rtlb_toint(ret, argc, argv, ctx);
+		/* bail out on unknown keys */
+		const void *args[1];
+		args[0] = pkey->cstr;
+		spn_ctx_runtime_error(ctx, "can't get unknown property '%s'", args);
+		return -1;
 	}
+
+	return 0;
 }
 
-const SpnExtFunc spn_libstring[SPN_LIBSIZE_STRING] = {
-	{ "indexof",    rtlb_indexof    },
-	{ "substr",     rtlb_substr     },
-	{ "substrto",   rtlb_substrto   },
-	{ "substrfrom", rtlb_substrfrom },
-	{ "split",      rtlb_split      },
-	{ "repeat",     rtlb_repeat     },
-	{ "tolower",    rtlb_tolower    },
-	{ "toupper",    rtlb_toupper    },
-	{ "fmtstr",     rtlb_fmtstr     },
-	{ "tonumber",   rtlb_tonumber   },
-	{ "toint",      rtlb_toint      },
-	{ "tofloat",    rtlb_tofloat    },
-};
+static void loadlib_string(SpnVMachine *vm)
+{
+	/* Methods */
+	static const SpnExtFunc M[] = {
+		{ "find",       rtlb_str_find   },
+		{ "substr",     rtlb_substr     },
+		{ "substrto",   rtlb_substrto   },
+		{ "substrfrom", rtlb_substrfrom },
+		{ "split",      rtlb_split      },
+		{ "repeat",     rtlb_repeat     },
+		{ "tolower",    rtlb_tolower    },
+		{ "toupper",    rtlb_toupper    },
+		{ "format",     rtlb_format     }
+	};
 
+	load_methods(vm, SPN_TTAG_STRING, M, COUNT(M));
+
+	/* Properties */
+	load_accessor(
+		vm,
+		SPN_TTAG_STRING,
+		SPN_METHODIDX_GETTER,
+		"String::getter",
+		rtlb_string_getter
+	);
+}
 
 /*****************
  * Array library *
- *****************/ /* TODO: implement */
+ *****************/
 
 /* The following functions realize an optimized in-place quicksort.
  * Most of this has been transliterated from Wikipedia's
@@ -1273,8 +1258,8 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 /* argv[0] is the array to enumerate
  * argv[1] is the callback function
- * args[0] is the key passed to the callback
- * args[1] is the value passed to the callback
+ * args[0] is the value passed to the callback
+ * args[1] is the key passed to the callback
  * cbret is the return value of the callback function
  */
 static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
@@ -1283,7 +1268,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	int status = 0;
 	SpnArray *arr;
 	SpnIterator *it;
-	SpnValue args[2]; /* key and value */
+	SpnValue args[2]; /* value and key */
 	SpnFunction *predicate;
 
 	if (argc != 2) {
@@ -1306,7 +1291,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	it = spn_iter_new(arr);
 	n = spn_array_count(arr);
 
-	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+	while (spn_iter_next(it, &args[1], &args[0]) < n) {
 		int err;
 		SpnValue cbret;
 
@@ -1389,6 +1374,7 @@ static int rtlb_reduce(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return status;
 }
 
+/* args[0] is the value passed to the predicate, args[1] is the key */
 static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t n;
@@ -1418,7 +1404,7 @@ static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	n = spn_array_count(orig);
 	filt = spn_array_new();
 
-	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+	while (spn_iter_next(it, &args[1], &args[0]) < n) {
 		SpnValue cond;
 
 		if (spn_ctx_callfunc(ctx, predicate, &cond, COUNT(args), args) != 0) {
@@ -1429,7 +1415,7 @@ static int rtlb_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 		if (isbool(&cond)) {
 			if (boolvalue(&cond)) {
-				spn_array_set(filt, &args[0], &args[1]);
+				spn_array_set(filt, &args[1], &args[0]);
 			}
 		} else {
 			spn_value_release(&cond);
@@ -1475,7 +1461,7 @@ static int rtlb_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	n = spn_array_count(orig);
 	mapped = spn_array_new();
 
-	while (spn_iter_next(it, &args[0], &args[1]) < n) {
+	while (spn_iter_next(it, &args[1], &args[0]) < n) {
 		SpnValue result;
 		if (spn_ctx_callfunc(ctx, predicate, &result, COUNT(args), args) != 0) {
 			spn_object_release(mapped);
@@ -1483,94 +1469,13 @@ static int rtlb_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			return -4;
 		}
 
-		spn_array_set(mapped, &args[0], &result);
+		spn_array_set(mapped, &args[1], &result);
 		spn_value_release(&result);
 	}
 
 	ret->type = SPN_TYPE_ARRAY;
 	ret->v.o = mapped;
 	spn_iter_free(it);
-	return 0;
-}
-
-static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	int i;
-	SpnArray *range;
-
-	if (argc < 1 || argc > 3) {
-		spn_ctx_runtime_error(ctx, "expecting 1, 2 or 3 arguments", NULL);
-		return -1;
-	}
-
-	for (i = 0; i < argc; i++) {
-		if (!isnum(&argv[i])) {
-			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
-			return -2;
-		}
-	}
-
-	range = spn_array_new();
-
-	switch (argc) {
-	case 1: {
-		long i, n;
-
-		if (!isint(&argv[0])) {
-			spn_ctx_runtime_error(ctx, "argument must be an integer", NULL);
-			return -3;
-		}
-
-		for (i = 0, n = intvalue(&argv[0]); i < n; i++) {
-			SpnValue v = makeint(i);
-			spn_array_set_intkey(range, i, &v);
-		}
-
-		break;
-	}
-	case 2: {
-		long i, begin, end;
-
-		if (!isint(&argv[0]) || !isint(&argv[1])) {
-			spn_ctx_runtime_error(ctx, "arguments must be integers", NULL);
-			return -3;
-		}
-
-		begin = intvalue(&argv[0]);
-		end = intvalue(&argv[1]);
-		for (i = 0; i < end - begin; i++) {
-			SpnValue v = makeint(i + begin);
-			spn_array_set_intkey(range, i, &v);
-		}
-
-		break;
-	}
-	case 3: {
-#define FLOATVAL(f) (isint(f) ? intvalue(f) : floatvalue(f))
-
-		double begin = FLOATVAL(&argv[0]);
-		double end   = FLOATVAL(&argv[1]);
-		double step  = FLOATVAL(&argv[2]);
-
-#undef FLOATVAL
-
-		long i;
-		double x;
-
-		for (i = 0, x = begin; x <= end; x = begin + step * ++i) {
-			SpnValue v = makefloat(x);
-			spn_array_set_intkey(range, i, &v);
-		}
-
-		break;
-	}
-	default:
-		SHANT_BE_REACHED();
-	}
-
-	ret->type = SPN_TYPE_ARRAY;
-	ret->v.o = range;
-
 	return 0;
 }
 
@@ -1675,7 +1580,7 @@ static int rtlb_swap(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_reverse(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t i, n;
-	SpnArray *arr;
+	SpnArray *arr, *result;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
@@ -1690,11 +1595,14 @@ static int rtlb_reverse(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	arr = arrayvalue(&argv[0]);
 	n = spn_array_count(arr);
 
-	/* swap first element with last one and so on,
-	 * until we are halfway through the array
-	 */
-	for (i = 0; i < n / 2; i++) {
-		rtlb_aux_swap(arr, i, n - i - 1);
+	*ret = makearray();
+	result = arrayvalue(ret);
+
+	/* copy elements of 'arr' into 'result' in reverse order */
+	for (i = 0; i < n; i++) {
+		SpnValue tmp;
+		spn_array_get_intkey(arr, i, &tmp);
+		spn_array_set_intkey(result, n - i - 1, &tmp);
 	}
 
 	return 0;
@@ -1712,7 +1620,7 @@ static int rtlb_aux_anyall(SpnValue *ret, int argc, SpnValue *argv, void *ctx, i
 	SpnArray *arr;
 	SpnIterator *it;
 	SpnFunction *predicate;
-	SpnValue keyval[2]; /* item 0: key, item 1: value */
+	SpnValue keyval[2]; /* item 0: value, item 0: value */
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
@@ -1738,7 +1646,7 @@ static int rtlb_aux_anyall(SpnValue *ret, int argc, SpnValue *argv, void *ctx, i
 	n = spn_array_count(arr);
 	it = spn_iter_new(arr);
 
-	while (spn_iter_next(it, &keyval[0], &keyval[1]) < n) {
+	while (spn_iter_next(it, &keyval[1], &keyval[0]) < n) {
 		SpnValue result;
 		if (spn_ctx_callfunc(ctx, predicate, &result, COUNT(keyval), keyval) != 0) {
 			status = -4;
@@ -1775,52 +1683,6 @@ static int rtlb_all(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_anyall(ret, argc, argv, ctx, 0);
 }
 
-/* if "getvals" is nonzero, this function will return an array composed
- * of the values of the (potentially associative) array passed as its argument.
- * Else, it will return an array of all the keys of the original array.
- */
-static int rtlb_aux_keyval(SpnValue *ret, int argc, SpnValue *argv, void *ctx, int getvals)
-{
-	size_t n, i;
-	SpnArray *arr, *result;
-	SpnIterator *it;
-	SpnValue key, val;
-
-	if (argc != 1) {
-		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
-		return -1;
-	}
-
-	if (!isarray(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be an array", NULL);
-		return -2;
-	}
-
-	*ret = makearray();
-	arr = arrayvalue(&argv[0]);
-	result = arrayvalue(ret);
-
-	n = spn_array_count(arr);
-	it = spn_iter_new(arr);
-
-	while ((i = spn_iter_next(it, &key, &val)) < n) {
-		spn_array_set_intkey(result, i, getvals ? &val : &key);
-	}
-
-	spn_iter_free(it);
-	return 0;
-}
-
-static int rtlb_keys(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_keyval(ret, argc, argv, ctx, 0);
-}
-
-static int rtlb_values(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_keyval(ret, argc, argv, ctx, 1);
-}
-
 static int rtlb_combine(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t n, i;
@@ -1853,7 +1715,7 @@ static int rtlb_combine(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_arr_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t i, n;
 	SpnArray *arr;
@@ -2324,33 +2186,252 @@ static int rtlb_concat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-const SpnExtFunc spn_libarray[SPN_LIBSIZE_ARRAY] = {
-	{ "sort",       rtlb_sort      },
-	{ "find",       rtlb_find      },
-	{ "pfind",      rtlb_pfind     },
-	{ "bsearch",    rtlb_bsearch   },
-	{ "any",        rtlb_any       },
-	{ "all",        rtlb_all       },
-	{ "slice",      rtlb_slice     },
-	{ "keys",       rtlb_keys      },
-	{ "values",     rtlb_values    },
-	{ "combine",    rtlb_combine   },
-	{ "join",       rtlb_join      },
-	{ "foreach",    rtlb_foreach   },
-	{ "reduce",     rtlb_reduce    },
-	{ "filter",     rtlb_filter    },
-	{ "map",        rtlb_map       },
-	{ "insert",     rtlb_insert    },
-	{ "inject",     rtlb_inject    },
-	{ "erase",      rtlb_erase     },
-	{ "concat",     rtlb_concat    },
-	{ "push",       rtlb_push      },
-	{ "pop",        rtlb_pop       },
-	{ "swap",       rtlb_swap      },
-	{ "reverse",    rtlb_reverse   },
-	{ "range",      rtlb_range     }
-};
+static void rtlb_aux_merge_array(SpnArray *first, SpnArray *second, int noreplace)
+{
+	size_t i;
+	size_t n = spn_array_count(second);
+	SpnIterator *it = spn_iter_new(second);
+	SpnValue key, val;
 
+	while ((i = spn_iter_next(it, &key, &val)) < n) {
+		if (noreplace) {
+			SpnValue tmp;
+			spn_array_get(first, &key, &tmp);
+
+			if (!isnil(&tmp)) {
+				continue;
+			}
+		}
+
+		spn_array_set(first, &key, &val);
+	}
+
+	spn_iter_free(it);
+}
+
+/* if 'inplace' is nonzero, then the keys and values of the
+ * second array will be inserted into the first array. Else
+ * a new array will be created and returned.
+ */
+static int rtlb_aux_merge_or_convol(SpnValue *ret, int argc, SpnValue *argv,
+	void *ctx, int inplace)
+{
+	SpnArray *first, *second;
+	int noreplace = 0;
+
+	if (argc < 2 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 2 or 3 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isarray(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be an array", NULL);
+		return -3;
+	}
+
+	if (argc >= 3 && !isbool(&argv[2])) {
+		spn_ctx_runtime_error(ctx, "third argument must be a boolean", NULL);
+		return -4;
+	}
+
+	first  = arrayvalue(&argv[0]);
+	second = arrayvalue(&argv[1]);
+
+	if (argc >= 3) {
+		noreplace = boolvalue(&argv[2]);
+	}
+
+	if (inplace) {
+		rtlb_aux_merge_array(first, second, noreplace);
+	} else {
+		SpnArray *result = spn_array_new();
+
+		rtlb_aux_merge_array(result, first, 0);
+		rtlb_aux_merge_array(result, second, noreplace);
+
+		ret->type = SPN_TYPE_ARRAY;
+		ret->v.o = result;
+	}
+
+	return 0;
+}
+
+static int rtlb_merge(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_merge_or_convol(ret, argc, argv, ctx, 1);
+}
+
+static int rtlb_convol(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_merge_or_convol(ret, argc, argv, ctx, 0);
+}
+
+/* if "getvals" is nonzero, this function will return an array composed
+ * of the values of the (potentially associative) array passed as its argument.
+ * Else, it will return an array of all the keys of the original array.
+ */
+static SpnValue rtlb_aux_keyval(SpnArray *arr, int getvals)
+{
+	size_t n, i;
+	SpnValue key, val, ret;
+	SpnArray *result;
+	SpnIterator *it;
+
+	ret = makearray();
+	result = arrayvalue(&ret);
+
+	n = spn_array_count(arr);
+	it = spn_iter_new(arr);
+
+	while ((i = spn_iter_next(it, &key, &val)) < n) {
+		spn_array_set_intkey(result, i, getvals ? &val : &key);
+	}
+
+	spn_iter_free(it);
+
+	return ret;
+}
+
+/* XXX: if a new property is added here, then most probably
+ * it should be added to 'rtlb_array_setter()' as well...
+ */
+static int rtlb_array_getter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *pself;
+	SpnString *pkey;
+
+	assert(argc == 2); /* array instance and property name */
+
+	assert(isarray(&argv[0]));  /* self */
+	assert(isstring(&argv[1])); /* key  */
+
+	pself = arrayvalue(&argv[0]);
+	pkey  = stringvalue(&argv[1]);
+
+	/* if this was longer, I would actually bother
+	 * writing separate accessor functions for each
+	 * key and putting them into a map, but nope.
+	 */
+	if (strcmp(pkey->cstr, "class") == 0) {
+		SpnArray *classes = spn_ctx_getclasses(ctx);
+		spn_get_class_of_value(classes, &argv[0], ret);
+		spn_value_retain(ret);
+	} else if (strcmp(pkey->cstr, "length") == 0) {
+		size_t length = spn_array_count(pself);
+		*ret = makeint(length);
+	} else if (strcmp(pkey->cstr, "keys") == 0) {
+		*ret = rtlb_aux_keyval(pself, 0);
+	} else if (strcmp(pkey->cstr, "values") == 0) {
+		*ret = rtlb_aux_keyval(pself, 1);
+	} else {
+		/* Fall back to raw array indexing for unrecognized keys */
+		spn_array_get(pself, &argv[1], ret);
+		spn_value_retain(ret);
+	}
+
+	return 0;
+}
+
+/* XXX: if a new property is added here, then most probably
+ * it should be added to 'rtlb_array_getter()' as well...
+ */
+static int rtlb_array_setter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnArray *pself;
+	SpnString *pkey;
+
+	assert(argc == 3); /* array instance, property name, new value */
+
+	assert(isarray(&argv[0]));
+	assert(isstring(&argv[1]));
+
+	pself = arrayvalue(&argv[0]);
+	pkey  = stringvalue(&argv[1]);
+
+	if (strcmp(pkey->cstr, "class") == 0) {
+		SpnArray *classes = spn_ctx_getclasses(ctx);
+
+		if (!isarray(&argv[2])) {
+			const void *args[1];
+			args[0] = spn_type_name(argv[2].type);
+			spn_ctx_runtime_error(ctx, "class must be an array; got %s", args);
+			return -1;
+		}
+
+		spn_array_set(classes, &argv[0], &argv[2]);
+	} else if (strcmp(pkey->cstr, "length") == 0
+	        || strcmp(pkey->cstr, "keys")   == 0
+	        || strcmp(pkey->cstr, "values") == 0) {
+		const void *args[1];
+		args[0] = pkey->cstr;
+		spn_ctx_runtime_error(ctx, "cannot set read-only property '%s'", args);
+		return -2;
+	} else {
+		/* Fall back to raw array indexing for unknown keys */
+		spn_array_set(pself, &argv[1], &argv[2]);
+	}
+
+	return 0;
+}
+
+static void loadlib_array(SpnVMachine *vm)
+{
+	/* Free functions */
+	static const SpnExtFunc F[] = {
+		{ "combine",    rtlb_combine   }
+	};
+
+	/* Methods */
+	static const SpnExtFunc M[] = {
+		{ "sort",       rtlb_sort      },
+		{ "find",       rtlb_arr_find  },
+		{ "pfind",      rtlb_pfind     },
+		{ "bsearch",    rtlb_bsearch   },
+		{ "any",        rtlb_any       },
+		{ "all",        rtlb_all       },
+		{ "slice",      rtlb_slice     },
+		{ "join",       rtlb_join      },
+		{ "foreach",    rtlb_foreach   },
+		{ "reduce",     rtlb_reduce    },
+		{ "filter",     rtlb_filter    },
+		{ "map",        rtlb_map       },
+		{ "insert",     rtlb_insert    },
+		{ "inject",     rtlb_inject    },
+		{ "erase",      rtlb_erase     },
+		{ "concat",     rtlb_concat    },
+		{ "merge",      rtlb_merge     },
+		{ "convol",     rtlb_convol    },
+		{ "push",       rtlb_push      },
+		{ "pop",        rtlb_pop       },
+		{ "swap",       rtlb_swap      },
+		{ "reverse",    rtlb_reverse   }
+	};
+
+	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
+	load_methods(vm, SPN_TTAG_ARRAY, M, COUNT(M));
+
+	/* Properties */
+	load_accessor(
+		vm,
+		SPN_TTAG_ARRAY,
+		SPN_METHODIDX_GETTER,
+		"Array::getter",
+		rtlb_array_getter
+	);
+
+	load_accessor(
+		vm,
+		SPN_TTAG_ARRAY,
+		SPN_METHODIDX_SETTER,
+		"Array::setter",
+		rtlb_array_setter
+	);
+}
 
 /*****************
  * Maths library *
@@ -2914,6 +2995,87 @@ static int rtlb_max(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	int i;
+	SpnArray *range;
+
+	if (argc < 1 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 1, 2 or 3 arguments", NULL);
+		return -1;
+	}
+
+	for (i = 0; i < argc; i++) {
+		if (!isnum(&argv[i])) {
+			spn_ctx_runtime_error(ctx, "arguments must be numbers", NULL);
+			return -2;
+		}
+	}
+
+	range = spn_array_new();
+
+	switch (argc) {
+	case 1: {
+		long i, n;
+
+		if (!isint(&argv[0])) {
+			spn_ctx_runtime_error(ctx, "argument must be an integer", NULL);
+			return -3;
+		}
+
+		for (i = 0, n = intvalue(&argv[0]); i < n; i++) {
+			SpnValue v = makeint(i);
+			spn_array_set_intkey(range, i, &v);
+		}
+
+		break;
+	}
+	case 2: {
+		long i, begin, end;
+
+		if (!isint(&argv[0]) || !isint(&argv[1])) {
+			spn_ctx_runtime_error(ctx, "arguments must be integers", NULL);
+			return -3;
+		}
+
+		begin = intvalue(&argv[0]);
+		end = intvalue(&argv[1]);
+		for (i = 0; i < end - begin; i++) {
+			SpnValue v = makeint(i + begin);
+			spn_array_set_intkey(range, i, &v);
+		}
+
+		break;
+	}
+	case 3: {
+#define FLOATVAL(f) (isint(f) ? intvalue(f) : floatvalue(f))
+
+		double begin = FLOATVAL(&argv[0]);
+		double end   = FLOATVAL(&argv[1]);
+		double step  = FLOATVAL(&argv[2]);
+
+#undef FLOATVAL
+
+		long i;
+		double x;
+
+		for (i = 0, x = begin; x <= end; x = begin + step * ++i) {
+			SpnValue v = makefloat(x);
+			spn_array_set_intkey(range, i, &v);
+		}
+
+		break;
+	}
+	default:
+		SHANT_BE_REACHED();
+	}
+
+	ret->type = SPN_TYPE_ARRAY;
+	ret->v.o = range;
+
+	return 0;
+}
+
 static int rtlb_isfloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	if (argc != 1) {
@@ -3307,62 +3469,91 @@ static int rtlb_pol2can(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-const SpnExtFunc spn_libmath[SPN_LIBSIZE_MATH] = {
-	{ "abs",       rtlb_abs         },
-	{ "min",       rtlb_min         },
-	{ "max",       rtlb_max         },
-	{ "floor",     rtlb_floor       },
-	{ "ceil",      rtlb_ceil        },
-	{ "round",     rtlb_round       },
-	{ "sgn",       rtlb_sgn         },
-	{ "hypot",     rtlb_hypot       },
-	{ "sqrt",      rtlb_sqrt        },
-	{ "cbrt",      rtlb_cbrt        },
-	{ "pow",       rtlb_pow         },
-	{ "exp",       rtlb_exp         },
-	{ "exp2",      rtlb_exp2        },
-	{ "exp10",     rtlb_exp10       },
-	{ "log",       rtlb_log         },
-	{ "log2",      rtlb_log2        },
-	{ "log10",     rtlb_log10       },
-	{ "sin",       rtlb_sin         },
-	{ "cos",       rtlb_cos         },
-	{ "tan",       rtlb_tan         },
-	{ "sinh",      rtlb_sinh        },
-	{ "cosh",      rtlb_cosh        },
-	{ "tanh",      rtlb_tanh        },
-	{ "asin",      rtlb_asin        },
-	{ "acos",      rtlb_acos        },
-	{ "atan",      rtlb_atan        },
-	{ "atan2",     rtlb_atan2       },
-	{ "deg2rad",   rtlb_deg2rad     },
-	{ "rad2deg",   rtlb_rad2deg     },
-	{ "random",    rtlb_random      },
-	{ "seed",      rtlb_seed        },
-	{ "isfin",     rtlb_isfin       },
-	{ "isinf",     rtlb_isinf       },
-	{ "isnan",     rtlb_isnan       },
-	{ "isfloat",   rtlb_isfloat     },
-	{ "isint",     rtlb_isint       },
-	{ "fact",      rtlb_fact        },
-	{ "binom",     rtlb_binom       },
-	{ "cplx_add",  rtlb_cplx_add	}, /* TODO: add square root, power and logarithm */
-	{ "cplx_sub",  rtlb_cplx_sub	},
-	{ "cplx_mul",  rtlb_cplx_mul	},
-	{ "cplx_div",  rtlb_cplx_div	},
-	{ "cplx_sin",  rtlb_cplx_sin	}, /* TODO: add inverse and hyperbolic functions */
-	{ "cplx_cos",  rtlb_cplx_cos	},
-	{ "cplx_tan",  rtlb_cplx_tan    },
-	{ "cplx_conj", rtlb_cplx_conj   },
-	{ "cplx_abs",  rtlb_cplx_abs    },
-	{ "can2pol",   rtlb_can2pol     },
-	{ "pol2can",   rtlb_pol2can     },
-};
+static void loadlib_math(SpnVMachine *vm)
+{
+	/* Free functions */
+	static const SpnExtFunc F[] = {
+		{ "abs",       rtlb_abs         },
+		{ "min",       rtlb_min         },
+		{ "max",       rtlb_max         },
+		{ "range",     rtlb_range       },
+		{ "floor",     rtlb_floor       },
+		{ "ceil",      rtlb_ceil        },
+		{ "round",     rtlb_round       },
+		{ "sgn",       rtlb_sgn         },
+		{ "hypot",     rtlb_hypot       },
+		{ "sqrt",      rtlb_sqrt        },
+		{ "cbrt",      rtlb_cbrt        },
+		{ "pow",       rtlb_pow         },
+		{ "exp",       rtlb_exp         },
+		{ "exp2",      rtlb_exp2        },
+		{ "exp10",     rtlb_exp10       },
+		{ "log",       rtlb_log         },
+		{ "log2",      rtlb_log2        },
+		{ "log10",     rtlb_log10       },
+		{ "sin",       rtlb_sin         },
+		{ "cos",       rtlb_cos         },
+		{ "tan",       rtlb_tan         },
+		{ "sinh",      rtlb_sinh        },
+		{ "cosh",      rtlb_cosh        },
+		{ "tanh",      rtlb_tanh        },
+		{ "asin",      rtlb_asin        },
+		{ "acos",      rtlb_acos        },
+		{ "atan",      rtlb_atan        },
+		{ "atan2",     rtlb_atan2       },
+		{ "deg2rad",   rtlb_deg2rad     },
+		{ "rad2deg",   rtlb_rad2deg     },
+		{ "random",    rtlb_random      },
+		{ "seed",      rtlb_seed        },
+		{ "isfin",     rtlb_isfin       },
+		{ "isinf",     rtlb_isinf       },
+		{ "isnan",     rtlb_isnan       },
+		{ "isfloat",   rtlb_isfloat     },
+		{ "isint",     rtlb_isint       },
+		{ "fact",      rtlb_fact        },
+		{ "binom",     rtlb_binom       },
+		{ "cplx_add",  rtlb_cplx_add    }, /* TODO: add square root, power and logarithm */
+		{ "cplx_sub",  rtlb_cplx_sub    },
+		{ "cplx_mul",  rtlb_cplx_mul    },
+		{ "cplx_div",  rtlb_cplx_div    },
+		{ "cplx_sin",  rtlb_cplx_sin    }, /* TODO: add inverse and hyperbolic functions */
+		{ "cplx_cos",  rtlb_cplx_cos    },
+		{ "cplx_tan",  rtlb_cplx_tan    },
+		{ "cplx_conj", rtlb_cplx_conj   },
+		{ "cplx_abs",  rtlb_cplx_abs    },
+		{ "can2pol",   rtlb_can2pol     },
+		{ "pol2can",   rtlb_pol2can     }
+	};
+
+	/* Constants */
+	SpnExtValue C[6];
+
+	C[0].name = "M_E";
+	C[0].value = makefloat(M_E);
+
+	C[1].name = "M_PI";
+	C[1].value = makefloat(M_PI);
+
+	C[2].name = "M_SQRT2";
+	C[2].value = makefloat(M_SQRT2);
+
+	C[3].name = "M_PHI";
+	C[3].value = makefloat(M_PHI);
+
+	C[4].name = "M_INF";
+	C[4].value = makefloat(1.0 / 0.0);
+
+	C[5].name = "M_NAN";
+	C[5].value = makefloat(0.0 / 0.0);
+
+	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
+	spn_vm_addlib_values(vm, NULL, C, COUNT(C));
+}
 
 
-/***************************
- * OS/Shell access library *
- ***************************/
+/*************************************
+ * OS/Shell access/Utilities library *
+ *************************************/
 
 static int rtlb_getenv(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
@@ -3439,29 +3630,6 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	return 0;
-}
-
-static int rtlb_exit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	/* assume successful termination if no exit code is given */
-	int code = 0;
-
-	if (argc > 1) {
-		spn_ctx_runtime_error(ctx, "0 or 1 argument is required", NULL);
-		return -1;
-	}
-
-	if (argc > 0) {
-		if (!isint(&argv[0])) {
-			spn_ctx_runtime_error(ctx, "argument must be an integer exit code", NULL);
-			return -2;
-		}
-
-		code = intvalue(&argv[0]);
-	}
-
-	exit(code);
 	return 0;
 }
 
@@ -3734,6 +3902,83 @@ static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnString *str;
+	long base;
+
+	if (argc < 1 || argc > 2) {
+		spn_ctx_runtime_error(ctx, "one or two arguments are required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
+		return -2;
+	}
+
+	if (argc == 2 && !isint(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
+		return -3;
+	}
+
+	str = stringvalue(&argv[0]);
+	base = argc == 2 ? intvalue(&argv[1]) : 0;
+
+	if (base == 1 || base < 0 || base > 36) {
+		spn_ctx_runtime_error(ctx, "second argument must be zero or between [2...36]", NULL);
+		return -4;
+	}
+
+	*ret = makeint(strtol(str->cstr, NULL, base));
+
+	return 0;
+}
+
+static int rtlb_tofloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnString *str;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		return -2;
+	}
+
+	str = stringvalue(&argv[0]);
+
+	*ret = makefloat(strtod(str->cstr, NULL));
+
+	return 0;
+}
+
+static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnString *str;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		return -2;
+	}
+
+	str = stringvalue(&argv[0]);
+
+	if (strpbrk(str->cstr, ".eE") != NULL) {
+		return rtlb_tofloat(ret, argc, argv, ctx);
+	} else {
+		return rtlb_toint(ret, argc, argv, ctx);
+	}
+}
+
 static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 #define MAX_AUTO_ARGC 16
@@ -3823,104 +4068,152 @@ static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-const SpnExtFunc spn_libsys[SPN_LIBSIZE_SYS] = {
-	{ "getenv",     rtlb_getenv     },
-	{ "system",     rtlb_system     },
-	{ "assert",     rtlb_assert     },
-	{ "exit",       rtlb_exit       },
-	{ "time",       rtlb_time       },
-	{ "utctime",    rtlb_utctime    },
-	{ "localtime",  rtlb_localtime  },
-	{ "fmtdate",    rtlb_fmtdate    },
-	{ "difftime",   rtlb_difftime   },
-	{ "compile",    rtlb_compile    },
-	{ "exprtofn",   rtlb_exprtofn   },
-	{ "require",    rtlb_require    },
-	{ "call",       rtlb_call       },
-	{ "backtrace",  rtlb_backtrace  }
-};
-
-
-static void load_stdlib_functions(SpnVMachine *vm)
+static int rtlb_userinfo_getter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	spn_vm_addlib_cfuncs(vm, NULL, spn_libio, SPN_LIBSIZE_IO);
-	spn_vm_addlib_cfuncs(vm, NULL, spn_libstring, SPN_LIBSIZE_STRING);
-	spn_vm_addlib_cfuncs(vm, NULL, spn_libarray, SPN_LIBSIZE_ARRAY);
-	spn_vm_addlib_cfuncs(vm, NULL, spn_libmath, SPN_LIBSIZE_MATH);
-	spn_vm_addlib_cfuncs(vm, NULL, spn_libsys, SPN_LIBSIZE_SYS);
+	SpnString *pkey;
+
+	assert(argc == 2); /* 'self' and property name */
+
+	assert(isuserinfo(&argv[0])); /* self */
+	assert(isstring(&argv[1]));   /* key  */
+
+	pkey = stringvalue(&argv[1]);
+
+	if (strcmp(pkey->cstr, "class") == 0) {
+		SpnArray *classes = spn_ctx_getclasses(ctx);
+		spn_get_class_of_value(classes, &argv[0], ret);
+		spn_value_retain(ret);
+	} else {
+		/* bail out by default */
+		const void *args[1];
+		args[0] = pkey->cstr;
+		spn_ctx_runtime_error(ctx, "can't get unknown property '%s'", args);
+		return -1;
+	}
+
+	return 0;
 }
 
-#define SPN_N_STD_CONSTANTS 19
-
-static void load_stdlib_constants(SpnVMachine *vm)
+static int rtlb_userinfo_setter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	SpnExtValue values[SPN_N_STD_CONSTANTS];
+	SpnString *pkey;
 
-	/* standard I/O streams */
-	values[0].name = "stdin";
-	values[0].value = makeweakuserinfo(stdin);
+	assert(argc == 3); /* 'self', property name, new value */
 
-	values[1].name = "stdout";
-	values[1].value = makeweakuserinfo(stdout);
+	assert(isuserinfo(&argv[0]));
+	assert(isstring(&argv[1]));
 
-	values[2].name = "stderr";
-	values[2].value = makeweakuserinfo(stderr);
+	pkey = stringvalue(&argv[1]);
 
-	/* mathematical constants */
-	values[3].name = "M_E";
-	values[3].value = makefloat(M_E);
+	if (strcmp(pkey->cstr, "class") == 0) {
+		SpnArray *classes = spn_ctx_getclasses(ctx);
 
-	values[4].name = "M_LOG2E";
-	values[4].value = makefloat(M_LOG2E);
+		if (!isarray(&argv[2])) {
+			const void *args[1];
+			args[0] = spn_type_name(argv[2].type);
+			spn_ctx_runtime_error(ctx, "class must be an array; got %s", args);
+			return -1;
+		}
 
-	values[5].name = "M_LOG10E";
-	values[5].value = makefloat(M_LOG10E);
+		spn_array_set(classes, &argv[0], &argv[2]);
+	} else {
+		/* bail out by default */
+		const void *args[1];
+		args[0] = pkey->cstr;
+		spn_ctx_runtime_error(ctx, "can't set unknown property '%s'", args);
+		return -1;
+	}
 
-	values[6].name = "M_LN2";
-	values[6].value = makefloat(M_LN2);
+	return 0;
+}
 
-	values[7].name = "M_LN10";
-	values[7].value = makefloat(M_LN10);
+static void loadlib_sysutil(SpnVMachine *vm)
+{
+	/* Free functions */
+	static const SpnExtFunc F[] = {
+		{ "getenv",     rtlb_getenv     },
+		{ "system",     rtlb_system     },
+		{ "assert",     rtlb_assert     },
+		{ "time",       rtlb_time       },
+		{ "utctime",    rtlb_utctime    },
+		{ "localtime",  rtlb_localtime  },
+		{ "fmtdate",    rtlb_fmtdate    },
+		{ "difftime",   rtlb_difftime   },
+		{ "compile",    rtlb_compile    },
+		{ "exprtofn",   rtlb_exprtofn   },
+		{ "toint",      rtlb_toint      },
+		{ "tofloat",    rtlb_tofloat    },
+		{ "tonumber",   rtlb_tonumber   },
+		{ "call",       rtlb_call       },
+		{ "require",    rtlb_require    },
+		{ "backtrace",  rtlb_backtrace  }
+	};
 
-	values[8].name = "M_PI";
-	values[8].value = makefloat(M_PI);
+	/* Constants */
+	SpnExtValue C[4];
 
-	values[9].name = "M_PI_2";
-	values[9].value = makefloat(M_PI_2);
+	C[0].name = "getter";
+	C[0].value = makeint(SPN_METHODIDX_GETTER);
 
-	values[10].name = "M_PI_4";
-	values[10].value = makefloat(M_PI_4);
+	C[1].name = "setter";
+	C[1].value = makeint(SPN_METHODIDX_SETTER);
 
-	values[11].name = "M_1_PI";
-	values[11].value = makefloat(M_1_PI);
+	C[2].name = "Array";
+	spn_array_get_intkey(spn_vm_getclasses(vm), SPN_TTAG_ARRAY, &C[2].value);
 
-	values[12].name = "M_2_PI";
-	values[12].value = makefloat(M_2_PI);
+	C[3].name = "String";
+	spn_array_get_intkey(spn_vm_getclasses(vm), SPN_TTAG_STRING, &C[3].value);
 
-	values[13].name = "M_2_SQRTPI";
-	values[13].value = makefloat(M_2_SQRTPI);
+	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
+	spn_vm_addlib_values(vm, NULL, C, COUNT(C));
 
-	values[14].name = "M_SQRT2";
-	values[14].value = makefloat(M_SQRT2);
+	/* Properties */
+	load_accessor(
+		vm,
+		SPN_TTAG_USERINFO,
+		SPN_METHODIDX_GETTER,
+		"UserInfo::getter",
+		rtlb_userinfo_getter
+	);
 
-	values[15].name = "M_SQRT1_2";
-	values[15].value = makefloat(M_SQRT1_2);
+	load_accessor(
+		vm,
+		SPN_TTAG_USERINFO,
+		SPN_METHODIDX_SETTER,
+		"UserInfo::setter",
+		rtlb_userinfo_setter
+	);
+}
 
-	values[16].name = "M_PHI";
-	values[16].value = makefloat(M_PHI);
 
-	/* NaN and infinity */
-	values[17].name = "M_NAN";
-	values[17].value = makefloat(0.0 / 0.0);
+/* By default, only strings, arrays and user infos are considered
+ * "object-like", while nil, booleans and numbers are not.
+ * (Frankly, why would you ever call a method on a boolean?)
+ */
+static void init_stdlib_classes(SpnVMachine *vm)
+{
+	SpnArray *classes = spn_vm_getclasses(vm);
 
-	values[18].name = "M_INF";
-	values[18].value = makefloat(1.0 / 0.0);
+	SpnValue stringclass  = makearray(),
+	         arrayclass   = makearray(),
+	         uinfoclass   = makearray();
 
-	spn_vm_addlib_values(vm, NULL, values, SPN_N_STD_CONSTANTS);
+	spn_array_set_intkey(classes, SPN_TTAG_STRING,   &stringclass);
+	spn_array_set_intkey(classes, SPN_TTAG_ARRAY,    &arrayclass);
+	spn_array_set_intkey(classes, SPN_TTAG_USERINFO, &uinfoclass);
+
+	spn_value_release(&stringclass);
+	spn_value_release(&arrayclass);
+	spn_value_release(&uinfoclass);
 }
 
 void spn_load_stdlib(SpnVMachine *vm)
 {
-	load_stdlib_functions(vm);
-	load_stdlib_constants(vm);
+	init_stdlib_classes(vm);
+
+	loadlib_io(vm);
+	loadlib_string(vm);
+	loadlib_array(vm);
+	loadlib_math(vm);
+	loadlib_sysutil(vm);
 }

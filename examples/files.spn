@@ -1,3 +1,5 @@
+#!/usr/local/bin/spn
+
 /* 
  * files.spn
  * File management using the standard library
@@ -13,4 +15,3 @@ f = fopen("stuff.txt", "rb");
 var l = fgetline(f);
 print(l);
 fclose(f);
-

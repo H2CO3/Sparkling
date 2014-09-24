@@ -1,3 +1,5 @@
+#!/usr/local/bin/spn
+
 //
 // desolver.spn
 // a numeric solver for
@@ -5,13 +7,13 @@
 //
 
 function solvede(a, b, y0, yprime) {
-  var N = 10000;
-  var dx = (b - a) * 1.0 / N;
+  let N = 10000;
+  let dx = (b - a) * 1.0 / N;
   var xv = {}, yv = {};
   var s = y0;
 
-  for var i = 0; i < N; i++ {
-    var x = a + i * dx;
+  for (var i = 0; i <= N; i++) {
+    let x = a + i * dx;
     xv[i] = x;
     yv[i] = s;
     s += dx * yprime(x, s);
@@ -20,18 +22,22 @@ function solvede(a, b, y0, yprime) {
   return { "x": xv, "y": yv };
 }
 
-var a = tofloat(argv[1]), b = tofloat(argv[2]), y0 = tofloat(argv[3]);
-var src = "var x = argv[0], y = argv[1]; return " .. argv[4] .. ";";
-var yprime = compile(src);
+let a  = tofloat(argv[1]),
+    b  = tofloat(argv[2]),
+    y0 = tofloat(argv[3]);
+
+// XXX: DO NOT do this at home!
+let src = "var x = argv[0], y = argv[1]; return " .. argv[4] .. ";";
+let yprime = compile(src);
 
 if typeof yprime != "function" {
   fprintf(stderr, "%s", yprime);
   exit(-1);
 }
 
-var sol = solvede(a, b, y0, yprime);
+let sol = solvede(a, b, y0, yprime);
 
 printf("x\ty\n");
-for var i = 0; i < sizeof sol.x; i++ {
+for (var i = 0; i < sol.x.length; i++) {
   printf("%f\t%f\n", sol.x[i], sol.y[i]);
 }

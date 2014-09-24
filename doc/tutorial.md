@@ -47,7 +47,6 @@ other tokens):
 - `null`
 - `or`
 - `return`
-- `sizeof`
 - `true`
 - `typeof`
 - `var`
@@ -92,6 +91,8 @@ constant to `nil` will result in a runtime error).
                }
     };
 
+Constants are globally available once declared.
+
 ## Numbers
 
 You can write integers or floats in the same manner as in C:
@@ -115,10 +116,9 @@ character code). Indexing starts from zero.
     > print("hello"[1]);
     101
 
+To get the number of bytes in a string, use the `length` property:
 
-To get the number of bytes in a string, use the `sizeof` operator:
-
-    > print(sizeof "hello");
+    > var str = "hello"; print(str.length);
     5
 
 Character literals are enclosed between apostrophes: `'a'`
@@ -162,11 +162,13 @@ It is also possible to modify an element in the array by assigning to it:
 
 You can remove an element from an array by setting it to `nil`.
 
-To get the number of elements in an array, use `sizeof` (the same way you would
-do it with strings):
+To get the number of elements in an array, use the `length` property –
+similarly to strings.
 
-    > print(sizeof { "foo" });
-    1
+    var arr = { "foo", "bar", "baz" };
+    print(arr.length);
+
+Prints `3`.
 
 It is also possible to create arrays with non-integer indices (in fact, array
 keys/indices can have any type). The order of elements in an array (e. g. when
@@ -185,25 +187,35 @@ Here, `"foo"` will have the key 0, `"baz"` corresponds to `"bar"`, `"quirk"` to
 2, and 1337 to `"lol"`.
 
 Array members corresponding to a string key can be accessed using the
-convenience dot notation:
+convenience duble-colon notation:
 
-    an_array.some_member
+    an_array::some_member
 
 is the same as
 
     an_array["some_member"]
 
-By the way, this is the idiomatic way of implementing and using modules or
+By the way, this is one idiomatic way of implementing and using modules or
 libraries in Sparkling: one assigns functions as members to a global array
 and accesses them using the dot notation.
 
-There's an arrow notation as well, for those who come from C or C++ and
-prefer to emphasize the pointer semantics of arrays. This notation is also
-completely equivalent with the dot notation:
+Use the `keys` and `values` properies of an array to retrieve an array of
+all keys and all values, respectively. The following code snippet:
 
-    print(an_array->some_member);
-    an_array->some_member = "bar";
+    var a = { "foo": "bar", "baz": "quirk" };
+    print(a.keys);
+    print(a.values);
 
+outputs this:
+
+	(
+		0: "baz"
+		1: "foo"
+	)
+	(
+		0: "quirk"
+		1: "bar"
+	)
 
 ## Expressions:
 
@@ -220,7 +232,7 @@ This is a short list of the most important operators:
  * `+=`, `-=`, `*=`, `/=`, `..=`, `&=`, `|=`, `^=`, `<<=`, `>>=` - compound
 assignments
  * `?:` - conditional operator
- * `sizeof`, `typeof` - size and type information
+ * `typeof` - type information
  * `.`, `->`: shorthand for array access (indexes with a string)
  * `&&`, `||`: logical AND and OR
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators
@@ -287,14 +299,18 @@ Trying to use an expression of any other type will cause a runtime error.
 You can create named and anonymous functions with the `function` keyword:
 
     /* functions created by a function statement are globally accessible */
-    function square(x)
-    {
+    function square(x) {
         return x * x;
     }
 
     /* in contrast, lambda functions (function expressions) have local scope */
     var fn = function(x) {
         return x + 1;
+    };
+
+    /* lambda function with name */
+    var foo = function bar(x) {
+        return x >= 0 ? x : -x;
     };
 
 Function statements are only allowed at file scope. Lambda functions are
@@ -331,6 +347,36 @@ To get the number of arguments with which a function has been called, use the
 To access the variadic (unnamed) arguments of a function, use the `argv` array,
 which contains all the call arguments of the function. Index `argv` with
 integers in the range `[0...argc)` to obtain the individual arguments.
+
+## Objects, methods and properties
+
+A different, more advanced approach to libraries is creating classes, methods
+and properties. Arrays and user info objects can have a custom class.
+(It's also possible to extend the class of built-in arrays and strings by
+assigning methods to their class.)
+
+    var myObj = {};
+    myObj.class = {
+        // invoked for property access: let foo = myObj.baz;
+        getter: function(self, key) {
+            return "This getter always returns the same text.";
+        },
+        // invoked for property mutation: myObj.baz = foo;
+        setter: function(self, key, val) {
+            printf("self[%s] = %d\n", key, val);
+            self[key] = val;
+        },
+        "someMethod": function(self, arg) {
+            print(self["foo"] + self["bar"] + arg);
+        }
+    };
+
+    > myObj.foo = 13;
+    self[foo] = 13
+    > myObj.bar = 37;
+    self[bar] = 37
+    > myObj.someMethod(10);
+    60
 
 ## The standard library
 

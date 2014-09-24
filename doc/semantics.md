@@ -23,7 +23,7 @@ possible value is `nil`, and a lexical synonym for the value `nil` is `null`.
 
 §1.4.2. The boolean type is the result of a logical operation (as in elementary
 logic and Boolean algebra) or that of a comparison. It only has two possible
-values: true and false.
+values: `true` and `false`.
 
 §1.4.3. The number data type is used to represent scalar values. Numbers are
 signed, i. e. they can represent positive and negative numbers as well as zero.
@@ -38,12 +38,12 @@ or binary data. They also have a size, which is an integer number, the number
 of bytes in the string.
 
 §1.4.6. The array type is a compound and mutable type. It is an unordered
-collection of key-value pairs. Keys (indices) and values can be of any type.
-Keys and values can be set and retrieved at any time. Arrays have a size, which
-is the number of key-value pairs in the collection.
+collection of key-value pairs. Keys (indices) and values can be of any type
+except `nil`. Keys and values can be set and retrieved at any time. Arrays
+have a size, which is the number of key-value pairs in the collection.
 
-§1.4.7. The user info type represents any custom value. They are to be accessed
-and manipulated using dedicated functions only. User info objects are used
+§1.4.7. The user info type represents a custom value. User info values are
+to be accessed and manipulated using dedicated functions only. They are used
 typically in conjunction with the native C extension API.
 
 §1.5. Values are obtained by evaluating expressions. An expression is said to
@@ -125,7 +125,7 @@ The type of a function is function.
 
 The function statement is syntactically equivalent to a `const-statement` that
 initializes a global constant with a named lambda function expression. Both
-the name of the global constant and the name of the lamda expression is the
+the name of the global constant and the name of the lamda expression are the
 same as the name of the function defined using the function statement.
 
 §2.1.2. Formal parameters act as variables local to the function. As such, all
@@ -274,12 +274,15 @@ evaluates and yields its third operand, and the second one stays unevaluated.
 §3.4. Logical operators.
 Logical operators have short-circuiting behavior: if the result of the
 expression can be decided after evaluating the first operand, then the second
-operand is not evaluated. I. e., both of the expressions
-	false && <subexpr>
-and
-	true || <subexpr>
-will refuse to evaluate `<subexpr>`.
+operand is not evaluated. I. e., **neither** of the expressions below will
+evaulate `<subexpr>`:
 
+	false && <subexpr>
+
+and
+
+	true || <subexpr>
+	
 Logical operators must be supplied with two boolean expressions. The logical
 AND operator yields true if both of its operands evaluate to true. Otherwise,
 it yields false. The logical OR operator yields true if at least one of its
@@ -360,11 +363,6 @@ negated value.
 §3.8.5. The `~` operator. It takes an integer operand and yields the its
 bitwise complement.
 
-§3.8.7. The `sizeof` operator. The sizeof operator yields the conceptual size
-(length) of its argument. For strings, it is the number of bytes in the string,
-for arrays, it is the number of key-value pairs in the array. If called on any
-other type of value, `sizeof' throws a runtime error.
-
 §3.8.8. The `typeof` operator. Yields a string representation of the type of
 its operand. Thus, one of the strings "nil", "bool", "number", "function",
 "string", "array" or "userinfo" will be returned.
@@ -394,22 +392,53 @@ expression or it is out of bounds, this operator raises a runtime error.
 **Since strings are not mutable, an error is also thrown when a subscript
 expression with a string on its LHS is assigned to.**
 
-§3.9.4. The `()` operator. The `()` operator may have zero or more additional
-operands between the two parentheses (along with the left-hand side), which
-will become the arguments of the function. The LHS must be a function. The `()`
-operator calls the function, binding the call-time arguments to its formal
-parameters, maintaining their order. The expressions passed as arguments are
-evaluated from left to right. The operator yields the return value of the
-function. Function arguments are passed by value. Arrays follow pointer
-semantics: assigning a new array to a function argument won't change the value
-visible to the calling context, but assigning to an **element** of an array does
-change its value as seen by both the calling context and the called function.
+§3.9.4. The `::` operator. This operator expects an array as its first operand
+and an identifier on the right-hand-side. The string representatio of the
+identifier is used to index into the array, i. e. `arr::member` is equivalent
+to `arr["member"]`.
 
-§3.9.5. The memberof operator has two different, semantically equivalent forms:
-`<array> . member` and `<array> -> member`. It works the same as the postfix []
-operator, except that the operand on the right-hand side must be an identifier,
-(name), and that name itself, as a string key, will be used to retrieve or set
-the array member.
+§3.9.5. The `()` operator. The `()` operator may have zero or more additional,
+comma-separated operands between the two parentheses (along with the left-hand
+side), which will become the arguments of the function. The LHS must be a
+function. The `()` operator calls the function, binding the call-time arguments
+to its formal parameters, keeping their order. Any excess arguments (i. e.
+those which do not correspond to a formal parameter) remain accessible through
+the `argv` array. If the function declares more formal parameters than it is
+called with, the unbound parameters will be implicitly initialized to `nil`.
+The expressions passed as arguments are evaluated from left to right. The
+operator yields the return value of the function. Function arguments are passed
+by value. Arrays follow pointer semantics: assigning a new array to a function
+argument won't change the value visible to the calling context, but assigning
+to an **element** of an array does change its value as seen by both the calling
+context and the called function.
+
+§3.9.6. The `.` ("member-of") operator. This operator requires a value on its
+LHS that has a class, and an identifier on its RHS. When on the left-hand-side
+of an assignment, the operator calls the setter method of the class of its LHS,
+passing the identifier (key) and the RHS (the new value) as arguments and
+yields the RHS, discarding the return value of the setter.
+Otherwise, it calls the getter method of the LHS and yields its return value.
+If the method (setter or getter) to be called is not defined in the class
+of the LHS, or if the LHS has no class, this operator raises a runtime error.
+
+A key which is recognized and/or used by an object or class is called a
+**property**.
+
+§3.9.7. The `.()` ("method call") operator. This special combination of the
+"member-of" and function call operators, in the form
+
+    <expr>.methodname(args, ...)
+
+invokes the method `methodname` in the class of `<expr>`. If `<expr>` has no
+class, or if the specified method cannot be found in its class, then a runtime
+error is generated. The argument binding works almost in the same manner as
+with the ordinary `()` operator, except that `<expr>` itself will be passed
+as the first argument of the method, followed by `args`. In short, the above
+method invocation is equivalent with
+
+    <expr>.class(<expr>, args, ...)
+
+except that `<expr>` is only evaluated once.
 
 §3.10. Function expressions (`function-expression`).
 Function expressions create named or unnamed functions (lambda) on the fly.
@@ -448,4 +477,27 @@ of the function in which it is used. Array and argument indexing starts from 0.
 The `argv` array contains the declared, named arguments of the function,
 as well as any extra variadic arguments. If none of the arguments is `nil`,
 then the equality `sizeof argv == argc` holds.
+
+§4. Classes
+-----------
+
+A class is a collection of methods (an optional getter, an optional setter and
+any user-defined functions) associated with a certain type and/or object.
+These are accessed by the means of the member-of and method call operators,
+as described in Section 3.
+
+Strings, arrays and user info objects have a class. The class of a value may
+be accessed through its `class` property. Strings and arrays have "built-in"
+methods (i. e. methods defined by the standard library). The class of all of
+these types may be extended or altered by assigning functions to their members.
+In addition, individual arrays and user info objects (instances) may also be
+associated with a class so as to extend their behavior with custom,
+user-defined functionality. This can be achieved by assiging a new class
+to their `class` property.
+
+§4.1. Special pre-defined properties. The documentation of most predefined
+methods and properties can be found in the documentation of the standard
+library. The property `length` is worth mentioning separately. This read-only
+property only exists on strings and arrays, and yields their length in bytes
+and key-value pairs, respectively.
 

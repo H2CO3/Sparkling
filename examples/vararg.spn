@@ -26,13 +26,13 @@ function arrayMax(arr) {
 
 print(arrayMax({ 3, 9, 2, 3, 1, 5, 4 })); // 9
 
-// Beware: argc is not always sizeof argv!
+// Beware: argc is not always argv.length!
 // e. g. if you want to pass an explicit `nil`
 // argument to your function, you need to specify `argc`:
 var args = { 1, 2, nil, 4 };
 
 // this does not do what you might think it does
-call(print, args); // 1, 2, nil (sizeof args == 3)
+call(print, args); // 1, 2, nil (args.length == 3)
 
 // however, this does do what it looks like it does
 call(print, args, 4); // 1, 2, nil, 4
