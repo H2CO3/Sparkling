@@ -142,8 +142,8 @@ enum {
 #define spn_isobject(val)   ((((val)->type) & SPN_FLAG_OBJECT) != 0)
 #define spn_typetag(t)      ((t) & SPN_MASK_TTAG)
 #define spn_typeflag(t)     ((t) & SPN_MASK_FLAG)
-#define spn_valtype(val)    spn_typetag((val)->type)
-#define spn_valflag(val)    spn_typeflag((val)->type)
+#define spn_valtype(val)    (spn_typetag((val)->type))
+#define spn_valflag(val)    (spn_typeflag((val)->type))
 
 #define spn_isnil(val)          (spn_valtype(val) == SPN_TTAG_NIL)
 #define spn_isbool(val)         (spn_valtype(val) == SPN_TTAG_BOOL)
@@ -153,6 +153,7 @@ enum {
 #define spn_isfunc(val)         (spn_valtype(val) == SPN_TTAG_FUNC)
 #define spn_isuserinfo(val)     (spn_valtype(val) == SPN_TTAG_USERINFO)
 
+#define spn_notnil(val)         (spn_valtype(val) != SPN_TTAG_NIL)
 #define spn_isint(val)          (spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) == 0))
 #define spn_isfloat(val)        (spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) != 0))
 #define spn_isweakuserinfo(val) (spn_isuserinfo(val) && !spn_isobject(val))

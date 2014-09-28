@@ -19,7 +19,7 @@
 #include "str.h"
 
 
-#if UINT_MAX <= 0xffff
+#if UINT_MAX <= 0xffffu
 #define SPN_LOW_MEMORY_PLATFORM 1
 #else
 #define SPN_LOW_MEMORY_PLATFORM 0
@@ -51,15 +51,13 @@
  */
 static unsigned long nthsize(int idx)
 {
-	static const unsigned long szprims[HASH_NSIZES] = {
-		0,          7,          17,         29,
-		67,         131,        257,        509,
-		1031,       2053,       4099,       8209,
-#if !SPN_LOW_MEMORY_PLATFORM
-		16381,      32771,      65539,      131063,
-		262139,     524287,     1048583,    2097169,
-		4194301,    8388617,    16777213,   33554467
-#endif
+	static const unsigned long szprims[] = {
+		0,          7,          13,         31,
+		61,         127,        251,        509,
+		1021,       2039,       4093,       8191,
+		16381,      32749,      65521,      131071,
+		262139,     524287,     1048573,    2097143,
+		4194301,    8388593,    16777213,   33554393
 	};
 
 	return szprims[idx];
@@ -311,7 +309,7 @@ size_t spn_iter_next(SpnIterator *it, SpnValue *key, SpnValue *val)
 	/* search the array part first: cursor in [0...arraysize) (*) */
 	if (it->inarray) {
 		for (i = it->cursor; i < arr->arrallsz; i++) {
-			if (!isnil(&arr->arr[i])) {
+			if (notnil(&arr->arr[i])) {
 				/* set up key */
 				*key = makeint(i);
 				/* set up value */
@@ -480,12 +478,12 @@ static void insert_and_update_count_array(SpnArray *arr, unsigned long idx, cons
 	expand_array_if_needed(arr, idx);
 
 	/* then check if a previously nonexistent object is inserted... */
-	if (isnil(&arr->arr[idx]) && !isnil(val)) {
+	if (isnil(&arr->arr[idx]) && notnil(val)) {
 		arr->arrcnt++;
 	}
 
 	/* ...or conversely, a previously existent object is deleted */
-	if (!isnil(&arr->arr[idx]) && isnil(val)) {
+	if (notnil(&arr->arr[idx]) && isnil(val)) {
 		arr->arrcnt--;
 	}
 
@@ -581,7 +579,7 @@ static void insert_and_update_count_hash(SpnArray *arr, const SpnValue *key, con
 		 * check if the load factor is greater than 1/2, and if so,
 		 * double the size to minimize collisions
 		 */
-		if (!isnil(val)) {
+		if (notnil(val)) {
 			/* check load factor */
 			if (arr->hashcnt > nthsize(arr->hashszidx) / 2) {
 				expand_hash(arr);

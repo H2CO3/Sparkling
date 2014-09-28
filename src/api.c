@@ -191,7 +191,14 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 		}
 
 		if (isobject(lhs)) {
-			return spn_object_equal(objvalue(lhs), objvalue(rhs));
+			SpnObject *lo = objvalue(lhs);
+			SpnObject *ro = objvalue(rhs);
+
+			if (lo->isa != ro->isa) {
+				return 0;
+			}
+
+			return spn_object_equal(lo, ro);
 		} else {
 			return ptrvalue(lhs) == ptrvalue(rhs);
 		}
@@ -266,30 +273,18 @@ int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs)
 	return 0;
 }
 
-/* The hash function is a variant of the SDBM hash */
+/* The hash function is the SMDB hash */
 unsigned long spn_hash_bytes(const void *data, size_t n)
 {
-	unsigned long h = 0;
+	unsigned long hash = 0;
 	const unsigned char *p = data;
-	size_t i = (n + 7) / 8;
 
-	if (n == 0) {
-		return 0;
+	while (n--) {
+		hash *= 65599;
+		hash += *p++;
 	}
 
-	switch (n & 7) {
-	case 0: do { h =  7159 * h + *p++;
-	case 7:      h = 13577 * h + *p++;
-	case 6:      h = 23893 * h + *p++;
-	case 5:      h = 38791 * h + *p++;
-	case 4:      h = 47819 * h + *p++;
-	case 3:      h = 56543 * h + *p++;
-	case 2:      h = 65587 * h + *p++;
-	case 1:      h = 77681 * h + *p++;
-		} while (--i);
-	}
-
-	return h;
+	return hash;
 }
 
 unsigned long spn_hash_value(const SpnValue *key)

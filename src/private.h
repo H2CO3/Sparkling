@@ -31,6 +31,7 @@
 #define valtype(val)    spn_valtype(val)
 #define valflag(val)    spn_valflag(val)
 
+#define notnil(val)         spn_notnil(val)
 #define isint(val)          spn_isint(val)
 #define isfloat(val)        spn_isfloat(val)
 #define isweakuserinfo(val) spn_isweakuserinfo(val)

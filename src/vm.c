@@ -1251,7 +1251,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue sym;
 
 			spn_array_get_intkey(symtab, symidx, &sym);
-			assert(isnil(&sym) == 0); /* must not be nil */
+			assert(notnil(&sym)); /* must not be nil */
 
 			/* if the symbol is an unresolved reference
 			 * to a global, then attempt to resolve it
@@ -1466,7 +1466,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * Raise a runtime error if the name is taken.
 			 */
 			spn_array_get_strkey(vm->glbsymtab, symname, &auxval);
-			if (!isnil(&auxval)) {
+			if (notnil(&auxval)) {
 				const void *args[1];
 				args[0] = symname;
 				runtime_error(

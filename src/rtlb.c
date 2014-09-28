@@ -1307,7 +1307,7 @@ static int rtlb_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			if (boolvalue(&cbret) == 0) {
 				break;
 			}
-		} else if (!isnil(&cbret)) {
+		} else if (notnil(&cbret)) {
 			spn_value_release(&cbret);
 			status = -3;
 			spn_ctx_runtime_error(ctx, "callback function must return boolean or nil", NULL);
@@ -2198,7 +2198,7 @@ static void rtlb_aux_merge_array(SpnArray *first, SpnArray *second, int noreplac
 			SpnValue tmp;
 			spn_array_get(first, &key, &tmp);
 
-			if (!isnil(&tmp)) {
+			if (notnil(&tmp)) {
 				continue;
 			}
 		}

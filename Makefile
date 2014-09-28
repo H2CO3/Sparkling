@@ -82,7 +82,7 @@ $(LIB): $(OBJECTS)
 $(DYNLIB): $(OBJECTS)
 	$(LD) -o $@ $^ $(DYNLDFLAGS)
 
-$(REPL): spn.o $(OBJECTS)
+$(REPL): spn.o dump.o $(OBJECTS)
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 install: all
@@ -101,8 +101,11 @@ spn.o: spn.c
 	printf "#define REPL_VERSION \"%s\"\n" $(shell git rev-parse --short HEAD) > spn.h
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
+dump.o: dump.c
+	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
+
 clean:
-	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store *~ src/*~
+	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h dump.o gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store *~ src/*~
 
 .PHONY: all install clean
 

@@ -594,7 +594,7 @@ static void rts_delete_top(RoundTripStore *rts, int newsize)
 		SpnValue val, idx = makeint(i);
 
 		spn_array_get(rts->fwd, &idx, &val);
-		assert(!isnil(&val));
+		assert(notnil(&val));
 
 		spn_array_remove(rts->fwd, &idx);
 		spn_array_remove(rts->inv, &val);
