@@ -17,9 +17,9 @@
 #endif
 
 #if USE_ANSI_COLORS
-#define CLR_ERR "\x1b[1;31;40m"
-#define CLR_VAL "\x1b[1;32;40m"
-#define CLR_RST "\x1b[0;37;40m"
+#define CLR_ERR "\x1b[1;31m"
+#define CLR_VAL "\x1b[1;32m"
+#define CLR_RST "\x1b[0m"
 #else
 #define CLR_ERR ""
 #define CLR_VAL ""

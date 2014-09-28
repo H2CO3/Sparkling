@@ -1645,6 +1645,8 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			spn_value_release(a);
 			*a = tmpret;
 
+			(void)(c); /* unused in release build */
+
 			#undef G_ARGC
 			break;
 		}
@@ -1690,6 +1692,9 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (spn_vm_callfunc(vm, setter, NULL, S_ARGC, s_argv) != 0) {
 				return -1;
 			}
+
+			(void)(b); /* unused in release build */
+			(void)(c); /* unused */
 
 			#undef S_ARGC
 			break;
