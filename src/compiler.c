@@ -15,6 +15,7 @@
 #include "compiler.h"
 #include "vm.h"
 #include "array.h"
+#include "hashmap.h"
 #include "private.h"
 #include "func.h"
 
@@ -27,9 +28,9 @@ typedef struct TBytecode {
 
 /* bidirectional hash table: maps indices to values and values to indices */
 typedef struct RoundTripStore {
-	SpnArray *fwd;	/* forward mapping		*/
-	SpnArray *inv;	/* inverse mapping		*/
-	int maxsize;	/* maximal size during lifetime	*/
+	SpnArray *fwd;	    /* forward (index -> value) mapping */
+	SpnHashMap *inv;	/* inverse (value -> index) mapping */
+	int maxsize;	    /* maximal size during lifetime     */
 } RoundTripStore;
 
 /* linked list for storing offsets and types
@@ -47,7 +48,7 @@ static void free_jumplist(struct jump_stmt_list *hdr);
 /* used for looking up upvalues (bound variables) of closures */
 typedef struct UpvalChain {
 	/* strong pointer: maps variable names to upvalue indices */
-	SpnArray *name_to_index;
+	SpnHashMap *name_to_index;
 	/* weak pointer: maps upvalue indices to upvalue descriptors */
 	SpnArray *index_to_desc;
 	/* weak pointer: points to the enclosing function's variable stack */
@@ -386,7 +387,7 @@ static void upval_chain_push(SpnCompiler *cmp, SpnArray *upvalues)
 {
 	UpvalChain *node = spn_malloc(sizeof(*node));
 
-	node->name_to_index = spn_array_new();
+	node->name_to_index = spn_hashmap_new();
 	node->index_to_desc = upvalues;
 	node->enclosing_varstack = cmp->varstack;
 	node->next = cmp->upval_chain;
@@ -427,7 +428,7 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 	assert(isstring(name));
 
 	/* first, search in the closure of the current function */
-	spn_array_get(node->name_to_index, name, &upval_idx_val);
+	spn_hashmap_get(node->name_to_index, name, &upval_idx_val);
 
 	/* if it's found, return its index */
 	if (isint(&upval_idx_val)) {
@@ -446,7 +447,7 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 		SpnValue upval_desc_val = makeint(upval_desc);
 
 		/* add to current closure */
-		int upval_idx = spn_array_count(node->name_to_index);
+		int upval_idx = spn_hashmap_count(node->name_to_index);
 		SpnValue new_idx_val = makeint(upval_idx);
 
 		/* the two upvalue arrays should contain the same
@@ -454,8 +455,8 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 		 */
 		assert(spn_array_count(node->index_to_desc) == upval_idx);
 
-		spn_array_set(node->name_to_index, name, &new_idx_val);
-		spn_array_set_intkey(node->index_to_desc, upval_idx, &upval_desc_val);
+		spn_hashmap_set(node->name_to_index, name, &new_idx_val);
+		spn_array_push(node->index_to_desc, &upval_desc_val);
 
 		return upval_idx;
 	}
@@ -471,7 +472,7 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 	/* But if is found, add it to the current closure and return it.
 	 * (This is the step which makes the closures "flat".)
 	 */
-	flat_upvalidx = spn_array_count(node->name_to_index);
+	flat_upvalidx = spn_hashmap_count(node->name_to_index);
 	flat_upvalidx_val = makeint(flat_upvalidx);
 
 	assert(spn_array_count(node->index_to_desc) == flat_upvalidx);
@@ -479,8 +480,8 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 	flat_upvaldesc = SPN_MKINS_A(SPN_UPVAL_OUTER, enclosing_upvalidx);
 	flat_upvaldesc_val = makeint(flat_upvaldesc);
 
-	spn_array_set(node->name_to_index, name, &flat_upvalidx_val);
-	spn_array_set_intkey(node->index_to_desc, flat_upvalidx, &flat_upvaldesc_val);
+	spn_hashmap_set(node->name_to_index, name, &flat_upvalidx_val);
+	spn_array_push(node->index_to_desc, &flat_upvaldesc_val);
 
 	return flat_upvalidx;
 }
@@ -536,7 +537,7 @@ static void append_cstring(TBytecode *bc, const char *str, size_t len)
 static void rts_init(RoundTripStore *rts)
 {
 	rts->fwd = spn_array_new();
-	rts->inv = spn_array_new();
+	rts->inv = spn_hashmap_new();
 	rts->maxsize = 0;
 }
 
@@ -547,8 +548,8 @@ static int rts_add(RoundTripStore *rts, SpnValue *val)
 
 	/* insert element into last place */
 	SpnValue idxval = makeint(idx);
-	spn_array_set(rts->fwd, &idxval, val);
-	spn_array_set(rts->inv, val, &idxval);
+	spn_array_push(rts->fwd, val);
+	spn_hashmap_set(rts->inv, val, &idxval);
 
 	/* keep track of maximal size of the RTS */
 	newsize = rts_count(rts);
@@ -561,13 +562,13 @@ static int rts_add(RoundTripStore *rts, SpnValue *val)
 
 static void rts_getval(RoundTripStore *rts, int idx, SpnValue *val)
 {
-	spn_array_get_intkey(rts->fwd, idx, val);
+	spn_array_get(rts->fwd, idx, val);
 }
 
 static int rts_getidx(RoundTripStore *rts, SpnValue *val)
 {
 	SpnValue res;
-	spn_array_get(rts->inv, val, &res);
+	spn_hashmap_get(rts->inv, val, &res);
 	return isnum(&res) ? intvalue(&res) : -1;
 }
 
@@ -576,7 +577,7 @@ static int rts_count(RoundTripStore *rts)
 	size_t n = spn_array_count(rts->fwd);
 
 	/* petit sanity check */
-	assert(n == spn_array_count(rts->inv));
+	assert(n == spn_hashmap_count(rts->inv));
 
 	return n;
 }
@@ -590,14 +591,17 @@ static void rts_delete_top(RoundTripStore *rts, int newsize)
 	/* because nothing else would make sense */
 	assert(newsize <= oldsize);
 
-	for (i = newsize; i < oldsize; i++) {
-		SpnValue val, idx = makeint(i);
+	/* we have to go backwards so that spn_array_get() doesn't
+	 * get confused by the gradually shrinking array...
+	 */
+	for (i = oldsize; i > newsize; i--) {
+		SpnValue val;
 
-		spn_array_get(rts->fwd, &idx, &val);
+		spn_array_get(rts->fwd, i - 1, &val);
 		assert(notnil(&val));
 
-		spn_array_remove(rts->fwd, &idx);
-		spn_array_remove(rts->inv, &val);
+		spn_array_pop(rts->fwd);
+		spn_hashmap_delete(rts->inv, &val);
 	}
 
 	assert(rts_count(rts) == newsize);
@@ -1591,7 +1595,7 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	enum spn_vm_ins opcode;
 	int nvars;
 
-	/* array and subscript indices: just like in `compile_arrsub()` */
+	/* array and subscript indices: just like in `compile_subscript()` */
 	int arridx = -1, subidx = -1;
 
 	/* compile right-hand side directly into the destination register,
@@ -1609,7 +1613,7 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	/* compile subscript */
-	if (lhs->node == SPN_NODE_ARRSUB) {
+	if (lhs->node == SPN_NODE_SUBSCRIPT) {
 		/* indexing with brackets */
 		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
 			return 0;
@@ -1623,9 +1627,9 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		compile_string_literal(cmp, &nameval, &subidx);
 	}
 
-	/* emit "store to array" or "set property" instruction */
-	if (lhs->node == SPN_NODE_ARRSUB) {
-		opcode = SPN_INS_ARRSET;
+	/* emit "indexed setter" or "property setter" instruction */
+	if (lhs->node == SPN_NODE_SUBSCRIPT) {
+		opcode = SPN_INS_IDX_SET;
 	} else {
 		opcode = SPN_INS_PROPSET;
 	}
@@ -1656,7 +1660,7 @@ static int compile_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	switch (ast->left->node) {
 	case SPN_NODE_IDENT:    return compile_assignment_var(cmp, ast, dst);
 
-	case SPN_NODE_ARRSUB:
+	case SPN_NODE_SUBSCRIPT:
 	case SPN_NODE_MEMBEROF: return compile_assignment_array(cmp, ast, dst);
 
 	default:
@@ -1746,7 +1750,7 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	}
 
 	/* compile subscript */
-	if (lhs->node == SPN_NODE_ARRSUB) {
+	if (lhs->node == SPN_NODE_SUBSCRIPT) {
 		/* indexing with brackets */
 		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
 			return 0;
@@ -1761,9 +1765,9 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	}
 
 	/* select appropriate array/property getter and setter opcodes */
-	if (lhs->node == SPN_NODE_ARRSUB) {
-		getter_opcode = SPN_INS_ARRGET;
-		setter_opcode = SPN_INS_ARRSET;
+	if (lhs->node == SPN_NODE_SUBSCRIPT) {
+		getter_opcode = SPN_INS_IDX_GET;
+		setter_opcode = SPN_INS_IDX_SET;
 	} else {
 		getter_opcode = SPN_INS_PROPGET;
 		setter_opcode = SPN_INS_PROPSET;
@@ -1820,7 +1824,7 @@ static int compile_compound_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	switch (ast->left->node) {
 	case SPN_NODE_IDENT:    return compile_cmpd_assgmt_var(cmp, ast, dst, opcode);
 
-	case SPN_NODE_ARRSUB:
+	case SPN_NODE_SUBSCRIPT:
 	case SPN_NODE_MEMBEROF: return compile_cmpd_assgmt_arr(cmp, ast, dst, opcode);
 
 	default:
@@ -2095,23 +2099,6 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_argc(SpnCompiler *cmp, SpnAST *ast, int *dst)
-{
-	spn_uword ins;
-
-	if (*dst < 0) {
-		*dst = tmp_push(cmp);
-	}
-
-	assert(ast->node == SPN_NODE_ARGC);
-
-	/* emit "get argument count" instruction */
-	ins = SPN_MKINS_A(SPN_INS_ARGC, *dst);
-	bytecode_append(&cmp->bc, &ins, 1);
-
-	return 1;
-}
-
 static int compile_argv(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_uword ins;
@@ -2168,7 +2155,7 @@ static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		for (i = 0; i < upval_count; i++) {
 			SpnValue upval_desc;
 
-			spn_array_get_intkey(upvalues, i, &upval_desc);
+			spn_array_get(upvalues, i, &upval_desc);
 			assert(isint(&upval_desc));
 
 			ins = intvalue(&upval_desc);
@@ -2184,10 +2171,41 @@ static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	spn_uword ins;
+	int validx;
+
+	if (*dst < 0) {
+		*dst = tmp_push(cmp);
+	}
+
+	/* obtain temporary index for values */
+	validx = tmp_push(cmp);
+
+	/* create array instance */
+	ins = SPN_MKINS_A(SPN_INS_NEWARR, *dst);
+	bytecode_append(&cmp->bc, &ins, 1);
+
+	while (ast && ast->left) {
+		if (compile_expr(cmp, ast->left, &validx) == 0) {
+			return 0;
+		}
+
+		/* emit 'push' instruction */
+		ins = SPN_MKINS_AB(SPN_INS_ARR_PUSH, *dst, validx);
+		bytecode_append(&cmp->bc, &ins, 1);
+
+		ast = ast->right;
+	}
+
+	/* clean up temporary value register */
+	tmp_pop(cmp);
+
+	return 1;
+}
+
+static int compile_hashmap_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
+{
+	spn_uword ins;
 	int keyidx, validx;
-	long array_idx = 0; /* this should be a `long`, since it's
-			     * copied into the bytecode verbatim
-			     */
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
@@ -2197,33 +2215,25 @@ static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	keyidx = tmp_push(cmp);
 	validx = tmp_push(cmp);
 
-	/* first, create the array */
-	ins = SPN_MKINS_A(SPN_INS_NEWARR, *dst);
+	/* first, create the hashmap */
+	ins = SPN_MKINS_A(SPN_INS_NEWHASH, *dst);
 	bytecode_append(&cmp->bc, &ins, 1);
 
 	/* ast->right is the next pointer;
-	 * ast->left is the key-value pair;
-	 * ast->left->left is the key or NULL,
-	 * ast->left->right is the value (or NULL in case of an emtpy array)
+	 * ast->left is the key-value pair or NULL in case of an empty hashmap;
+	 * ast->left->left is the key;
+	 * ast->left->right is the value.
 	 */
-	while (ast && ast->left && ast->left->right) {
+	while (ast && ast->left) {
 		SpnAST *key = ast->left->left;
 		SpnAST *val = ast->left->right;
 
-		/* Compile the key. If it is NULL, then it is
-		 * asssumed to be an incrementing integer index.
-		 */
-		if (key != NULL) {
-			if (compile_expr(cmp, key, &keyidx) == 0) {
-				return 0;
-			}
-		} else {
-			spn_uword index_data[ROUNDUP(sizeof(array_idx), sizeof(spn_uword))] = { 0 };
-			memcpy(index_data, &array_idx, sizeof(array_idx));
-			ins = SPN_MKINS_AB(SPN_INS_LDCONST, keyidx, SPN_CONST_INT);
+		assert(key != NULL);
+		assert(val != NULL);
 
-			bytecode_append(&cmp->bc, &ins, 1);
-			bytecode_append(&cmp->bc, index_data, COUNT(index_data));
+		/* compile the key */
+		if (compile_expr(cmp, key, &keyidx) == 0) {
+			return 0;
 		}
 
 		/* compile the value */
@@ -2231,22 +2241,21 @@ static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 			return 0;
 		}
 
-		/* emit instruction for array setter */
-		ins = SPN_MKINS_ABC(SPN_INS_ARRSET, *dst, keyidx, validx);
+		/* emit instruction for indexing setter */
+		ins = SPN_MKINS_ABC(SPN_INS_IDX_SET, *dst, keyidx, validx);
 		bytecode_append(&cmp->bc, &ins, 1);
 
-		array_idx++;
 		ast = ast->right;
 	}
 
-	/* clean up temporary registers */
+	/* clean up temporary registers of key and value */
 	tmp_pop(cmp);
 	tmp_pop(cmp);
 
 	return 1;
 }
 
-static int compile_arrsub_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
+static int compile_subscript_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
 	int is_method_call, int *reg_array, int *reg_subsc)
 {
 	spn_uword ins;
@@ -2257,13 +2266,17 @@ static int compile_arrsub_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
 	 */
 	int arridx = -1, subidx = -1;
 
+	if (*dst < 0) {
+		*dst = tmp_push(cmp);
+	}
+
 	/* compile array expression */
 	if (compile_expr(cmp, ast->left, &arridx) == 0) {
 		return 0;
 	}
 
 	/* compile subscripting expression */
-	if (ast->node == SPN_NODE_ARRSUB) {
+	if (ast->node == SPN_NODE_SUBSCRIPT) {
 		/* normal subscripting with brackets */
 		if (compile_expr(cmp, ast->right, &subidx) == 0) {
 			return 0;
@@ -2301,10 +2314,6 @@ static int compile_arrsub_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
 		}
 	}
 
-	if (*dst < 0) {
-		*dst = tmp_push(cmp);
-	}
-
 	if (is_method_call) {
 		/* when compiling a method call, the function is not actually
 		 * in the object itself; rather, it's a member of its class.
@@ -2316,8 +2325,8 @@ static int compile_arrsub_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
 		opcode = SPN_INS_PROPGET;
 	} else {
 		/* plain array subscripting, just emit a normal "load from array" */
-		assert(ast->node == SPN_NODE_ARRSUB);
-		opcode = SPN_INS_ARRGET;
+		assert(ast->node == SPN_NODE_SUBSCRIPT);
+		opcode = SPN_INS_IDX_GET;
 	}
 
 	ins = SPN_MKINS_ABC(opcode, *dst, arridx, subidx);
@@ -2326,16 +2335,16 @@ static int compile_arrsub_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
 	return 1;
 }
 
-static int compile_arrsub(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_subscript(SpnCompiler *cmp, SpnAST *ast, int *dst)
 {
 	/* Compile array subscript expression.
 	 * Keep the result only, throw away array
 	 * expression and subscripting expression.
 	 */
-	return compile_arrsub_ex(cmp, ast, dst, 0, NULL, NULL);
+	return compile_subscript_ex(cmp, ast, dst, 0, NULL, NULL);
 }
 
-static int compile_arrsub_method_call(SpnCompiler *cmp, SpnAST *ast,
+static int compile_subscript_method_call(SpnCompiler *cmp, SpnAST *ast,
 	int *dst, int *reg_array, int *reg_subsc)
 {
 	/* Compile memberof expression. Keep the register index of
@@ -2343,7 +2352,7 @@ static int compile_arrsub_method_call(SpnCompiler *cmp, SpnAST *ast,
 	 * method name as well, along with the result of the indexing.
 	 */
 	assert(ast->node == SPN_NODE_MEMBEROF);
-	return compile_arrsub_ex(cmp, ast, dst, 1, reg_array, reg_subsc);
+	return compile_subscript_ex(cmp, ast, dst, 1, reg_array, reg_subsc);
 }
 
 /* XXX: when passed to this function, `*argc` should be initialized to zero!
@@ -2365,7 +2374,7 @@ static int compile_callargs(SpnCompiler *cmp, SpnAST *ast,
 		*idc = calloc(ROUNDUP(*argc, SPN_WORD_OCTETS), sizeof(**idc));
 		if (*argc > 0 && *idc == NULL) {
 			/* calloc(0) may return NULL, hence the extra check */
-			abort();
+			spn_die("calloc() failed");
 		}
 
 		/* reset counter to 0 (or 1 in the case of a method call),
@@ -2436,7 +2445,7 @@ static int compile_call(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* load function, check if it is a method */
 	if (ast->left->node == SPN_NODE_MEMBEROF) {
 		is_method_call = 1;
-		if (compile_arrsub_method_call(cmp, ast->left,
+		if (compile_subscript_method_call(cmp, ast->left,
 		   &fnreg, &self_reg, &method_name_reg) == 0) {
 			return 0;
 		}
@@ -2640,13 +2649,13 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		arith_opcode = SPN_INS_DEC;
 	}
 
-	assert(lhs->node == SPN_NODE_ARRSUB
+	assert(lhs->node == SPN_NODE_SUBSCRIPT
 	    || lhs->node == SPN_NODE_MEMBEROF);
 
 	/* select appropriate array/property accessor opcodes */
-	if (lhs->node == SPN_NODE_ARRSUB) {
-		getter_opcode = SPN_INS_ARRGET;
-		setter_opcode = SPN_INS_ARRSET;
+	if (lhs->node == SPN_NODE_SUBSCRIPT) {
+		getter_opcode = SPN_INS_IDX_GET;
+		setter_opcode = SPN_INS_IDX_SET;
 	} else {
 		getter_opcode = SPN_INS_PROPGET;
 		setter_opcode = SPN_INS_PROPSET;
@@ -2662,7 +2671,7 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	/* compile subscript expression */
-	if (lhs->node == SPN_NODE_ARRSUB) { /* operators [] or :: */
+	if (lhs->node == SPN_NODE_SUBSCRIPT) { /* operator [] */
 		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
 			return 0;
 		}
@@ -2727,7 +2736,7 @@ static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	case SPN_NODE_IDENT:
 		return compile_incdec_var(cmp, ast, dst);
 
-	case SPN_NODE_ARRSUB:
+	case SPN_NODE_SUBSCRIPT:
 	case SPN_NODE_MEMBEROF:
 		return compile_incdec_arr(cmp, ast, dst);
 
@@ -2790,9 +2799,6 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* immediate values */
 	case SPN_NODE_LITERAL:       return compile_literal(cmp, ast, dst);
 
-	/* call-time argument count */
-	case SPN_NODE_ARGC:          return compile_argc(cmp, ast, dst);
-
 	/* argument vector */
 	case SPN_NODE_ARGV:          return compile_argv(cmp, ast, dst);
 
@@ -2802,9 +2808,12 @@ static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	/* array literal */
 	case SPN_NODE_ARRAY_LITERAL: return compile_array_literal(cmp, ast, dst);
 
+	/* hashmap literal */
+	case SPN_NODE_HASHMAP_LITERAL: return compile_hashmap_literal(cmp, ast, dst);
+
 	/* array indexing */
-	case SPN_NODE_ARRSUB:
-	case SPN_NODE_MEMBEROF:      return compile_arrsub(cmp, ast, dst);
+	case SPN_NODE_SUBSCRIPT:
+	case SPN_NODE_MEMBEROF:      return compile_subscript(cmp, ast, dst);
 
 	/* function calls */
 	case SPN_NODE_FUNCCALL:      return compile_call(cmp, ast, dst);

@@ -91,16 +91,20 @@ typedef union TSlot {
 } TSlot;
 
 struct SpnVMachine {
-	TSlot    *stack;      /* base of the stack            */
-	TSlot    *sp;         /* stack pointer                */
-	size_t    stackallsz; /* stack alloc size in frames   */
+	TSlot      *stack;      /* base of the stack            */
+	TSlot      *sp;         /* stack pointer                */
+	size_t      stackallsz; /* stack alloc size in frames   */
 
-	SpnArray *glbsymtab;  /* global symbol table          */
-	SpnArray *classes;    /* class descriptors            */
+	SpnHashMap *glbsymtab;  /* global symbol table          */
+	SpnHashMap *classes;    /* class descriptors            */
 
-	char     *errmsg;     /* last (runtime) error message */
-	int       haserror;   /* whether an error occurred    */
-	void     *ctx;        /* context info, use at will    */
+	SpnValue    supername;  /* the string "super"           */
+	SpnValue    getname;    /* the string "get"             */
+	SpnValue    setname;    /* the string "set"             */
+
+	char       *errmsg;     /* last (runtime) error message */
+	int         haserror;   /* whether an error occurred    */
+	void       *ctx;        /* context info, use at will    */
 };
 
 /* this is the structure used by `push_and_copy_args()' */
@@ -154,7 +158,7 @@ static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee);
 /* reads/creates the local symbol table of `program` if necessary,
  * then stores it back into the function object.
  */
-static void read_local_symtab(SpnVMachine *vm, SpnFunction *program);
+static void read_local_symtab(SpnFunction *program);
 
 /* accessing function arguments */
 static SpnValue *nth_call_arg(TSlot *sp, spn_uword *ip, int idx);
@@ -168,8 +172,20 @@ static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op);
 /* ...and a weak dynamic linker */
 static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp);
 
+/* array, hashmap, string indexing validation */
+static int indexing_array_check(SpnVMachine *vm, spn_uword *ip, SpnValue *varr, SpnValue *vidx);
+static int indexing_string_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vstr, SpnValue *vidx);
+static int indexing_hashmap_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vidx);
+
+/* return value:
+ * non-zero if the property is a special built-in and it was processed successfully,
+ * 0 otherwise.
+ */
+static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nameval);
+
+static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, SpnValue *name);
+
 /* type information, reflection */
-static SpnArray *classof_value(SpnVMachine *vm, spn_uword *ip, SpnValue *pself);
 static SpnValue typeof_value(SpnValue *val);
 
 /* generating a runtime error (message) */
@@ -185,8 +201,12 @@ SpnVMachine *spn_vm_new(void)
 	vm->sp = NULL;
 
 	/* initialize the global symbol table and class descriptors */
-	vm->glbsymtab = spn_array_new();
-	vm->classes   = spn_array_new();
+	vm->glbsymtab = spn_hashmap_new();
+	vm->classes   = spn_hashmap_new();
+
+	vm->supername = makestring_nocopy("super");
+	vm->getname   = makestring_nocopy("get");
+	vm->setname   = makestring_nocopy("set");
 
 	/* set up error reporting and context info */
 	vm->errmsg = NULL;
@@ -205,6 +225,11 @@ void spn_vm_free(SpnVMachine *vm)
 	/* free the global symbol table and all class descirptors */
 	spn_object_release(vm->glbsymtab);
 	spn_object_release(vm->classes);
+
+	/* free special string indices */
+	spn_value_release(&vm->supername);
+	spn_value_release(&vm->getname);
+	spn_value_release(&vm->setname);
 
 	/* free the error message buffer */
 	free(vm->errmsg);
@@ -248,13 +273,13 @@ const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 	return buf;
 }
 
-SpnArray *spn_vm_getglobals(SpnVMachine *vm)
+SpnHashMap *spn_vm_getglobals(SpnVMachine *vm)
 {
 	return vm->glbsymtab;
 }
 
 /* get the class descriptor table of the VM */
-SpnArray *spn_vm_getclasses(SpnVMachine *vm)
+SpnHashMap *spn_vm_getclasses(SpnVMachine *vm)
 {
 	return vm->classes;
 }
@@ -305,7 +330,7 @@ int spn_vm_callfunc(
 		int err;
 
 		/* "return nothing" should mean "implicitly return nil" */
-		SpnValue tmpret = makenil();
+		SpnValue tmpret = spn_nilval;
 
 		/* push pseudo-frame to include function name in stack trace */
 		push_native_pseudoframe(vm, fn);
@@ -315,7 +340,7 @@ int spn_vm_callfunc(
 			const void *args[2];
 			args[0] = fn->name;
 			args[1] = &err;
-			spn_vm_seterrmsg(vm, "error in function `%s' (code: %i)", args);
+			spn_vm_seterrmsg(vm, "error in function '%s' (code: %i)", args);
 		} else {
 			if (retval != NULL) {
 				*retval = tmpret;
@@ -334,7 +359,7 @@ int spn_vm_callfunc(
 	 * If so, read the local symbol table (if necessary).
 	 */
 	if (fn->topprg) {
-		read_local_symtab(vm, fn);
+		read_local_symtab(fn);
 	}
 
 	/* compute entry point */
@@ -353,57 +378,73 @@ int spn_vm_callfunc(
 
 void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc fns[], size_t n)
 {
-	SpnArray *storage;
+	SpnHashMap *storage;
 	size_t i;
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
 		SpnValue libval;
-		spn_array_get_strkey(vm->glbsymtab, libname, &libval);
+		spn_hashmap_get_strkey(vm->glbsymtab, libname, &libval);
+
+		if (notnil(&libval) && !ishashmap(&libval)) {
+			spn_die(
+				"global '%s' already exists but is not a hashmap (%s)",
+				libname,
+				spn_type_name(valtype(&libval))
+			);
+		}
 
 		/* if library does not exist it must be created */
 		if (isnil(&libval)) {
-			libval = makearray();
-			spn_array_set_strkey(vm->glbsymtab, libname, &libval);
+			libval = makehashmap();
+			spn_hashmap_set_strkey(vm->glbsymtab, libname, &libval);
 			spn_value_release(&libval); /* still alive, was retained */
 		}
 
-		storage = arrayvalue(&libval);
+		storage = hashmapvalue(&libval);
 	} else {
 		storage = vm->glbsymtab;
 	}
 
 	for (i = 0; i < n; i++) {
 		SpnValue val = makenativefunc(fns[i].name, fns[i].fn);
-		spn_array_set_strkey(storage, fns[i].name, &val);
+		spn_hashmap_set_strkey(storage, fns[i].name, &val);
 		spn_value_release(&val);
 	}
 }
 
 void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValue vals[], size_t n)
 {
-	SpnArray *storage;
+	SpnHashMap *storage;
 	size_t i;
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
 		SpnValue libval;
-		spn_array_get_strkey(vm->glbsymtab, libname, &libval);
+		spn_hashmap_get_strkey(vm->glbsymtab, libname, &libval);
+
+		if (notnil(&libval) && !ishashmap(&libval)) {
+			spn_die(
+				"global '%s' already exists but is not a hashmap (%s)",
+				libname,
+				spn_type_name(valtype(&libval))
+			);
+		}
 
 		/* if library does not exist it must be created */
 		if (isnil(&libval)) {
-			libval = makearray();
-			spn_array_set_strkey(vm->glbsymtab, libname, &libval);
+			libval = makehashmap();
+			spn_hashmap_set_strkey(vm->glbsymtab, libname, &libval);
 			spn_value_release(&libval); /* still alive, was retained */
 		}
 
-		storage = arrayvalue(&libval);
+		storage = hashmapvalue(&libval);
 	} else {
 		storage = vm->glbsymtab;
 	}
 
 	for (i = 0; i < n; i++) {
-		spn_array_set_strkey(storage, vals[i].name, &vals[i].value);
+		spn_hashmap_set_strkey(storage, vals[i].name, &vals[i].value);
 	}
 }
 
@@ -538,7 +579,7 @@ static void push_frame(
 
 	/* initialize registers to nil */
 	for (i = -real_nregs; i < -EXTRA_SLOTS; i++) {
-		vm->sp[i].v = makenil();
+		vm->sp[i].v = spn_nilval;
 	}
 
 	/* initialize activation record header */
@@ -711,12 +752,6 @@ static void push_and_copy_args(
 	}
 }
 
-
-/* This function uses switch dispatch instead of token-threaded dispatch
- * for the sake of conformance to standard C. (in GNU C, I could have used
- * the `goto labels_array[*ip++];` extension, though.)
- */
-
 static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 {
 	while (1) {
@@ -753,11 +788,13 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			/* check if value is really a function */
 			if (!isfunc(&func)) {
+				const void *args[1];
+				args[0] = spn_type_name(func.type);
 				runtime_error(
 					vm,
 					ip - 1,
-					"attempt to call non-function value",
-					NULL
+					"attempt to call value of type %s",
+					args
 				);
 				return -1;
 			}
@@ -766,7 +803,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (fnobj->native) {	/* native function */
 				int i, err;
-				SpnValue tmpret = makenil();
+				SpnValue tmpret = spn_nilval;
 				SpnValue *argv;
 
 				#define MAX_AUTO_ARGC 16
@@ -861,7 +898,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * then parse its local symbol table
 				 */
 				if (fnobj->topprg) {
-					read_local_symtab(vm, fnobj);
+					read_local_symtab(fnobj);
 				}
 
 				/* set up environment for push_and_copy_args */
@@ -1211,13 +1248,13 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			switch (type) {
 			case SPN_CONST_NIL:
-				*dst = makenil();
+				*dst = spn_nilval;
 				break;
 			case SPN_CONST_TRUE:
-				*dst = makebool(1);
+				*dst = spn_trueval;
 				break;
 			case SPN_CONST_FALSE:
-				*dst = makebool(0);
+				*dst = spn_falseval;
 				break;
 			case SPN_CONST_INT: {
 				long num;
@@ -1250,7 +1287,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnArray *symtab = frmhdr->callee->symtab;
 			SpnValue sym;
 
-			spn_array_get_intkey(symtab, symidx, &sym);
+			spn_array_get(symtab, symidx, &sym);
 			assert(notnil(&sym)); /* must not be nil */
 
 			/* if the symbol is an unresolved reference
@@ -1263,7 +1300,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					return -1;
 				}
 
-				spn_array_set_intkey(symtab, symidx, &sym);
+				spn_array_set(symtab, symidx, &sym);
 			}
 
 			/* set the new - now surely resolved - value */
@@ -1290,12 +1327,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_ARGC: {
-			SpnValue *a = VALPTR(vm->sp, OPA(ins));
-			spn_value_release(a);
-			*a = makeint(vm->sp[IDX_FRMHDR].h.real_argc);
-			break;
-		}
 		case SPN_INS_ARGV: {
 			TFrame *hdr = &vm->sp[IDX_FRMHDR].h;
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
@@ -1303,8 +1334,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* construct argument vector lazily, on-demand */
 			if (hdr->argv == NULL) {
 				int i;
-				int argidx = 0;
-
 				hdr->argv = spn_array_new();
 
 				/* copy declared arguments:
@@ -1312,13 +1341,13 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 */
 				for (i = 0; i < hdr->decl_argc && i < hdr->real_argc; i++) {
 					SpnValue *argptr = VALPTR(vm->sp, i);
-					spn_array_set_intkey(hdr->argv, argidx++, argptr);
+					spn_array_push(hdr->argv, argptr);
 				}
 
 				/* copy variadic arguments, if any */
 				for (i = 0; i < hdr->extra_argc; i++) {
 					SpnValue *argptr = nth_vararg(vm->sp, i);
-					spn_array_set_intkey(hdr->argv, argidx++, argptr);
+					spn_array_push(hdr->argv, argptr);
 				}
 			}
 
@@ -1339,51 +1368,45 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			*dst = makearray();
 			break;
 		}
-		case SPN_INS_ARRGET: {
+		case SPN_INS_NEWHASH: {
+			SpnValue *dst = VALPTR(vm->sp, OPA(ins));
+			spn_value_release(dst);
+			*dst = makehashmap();
+			break;
+		}
+		case SPN_INS_IDX_GET: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 
-			if (isarray(b)) {
+			if (ishashmap(b)) {
 				SpnValue val;
-				spn_array_get(arrayvalue(b), c, &val);
+				spn_hashmap_get(hashmapvalue(b), c, &val);
+				spn_value_retain(&val);
+				spn_value_release(a);
+				*a = val;
+			} else if (isarray(b)) {
+				SpnValue val;
+				if (indexing_array_check(vm, ip - 1, b, c) != 0) {
+					return -1;
+				}
+
+				spn_array_get(arrayvalue(b), intvalue(c), &val);
 				spn_value_retain(&val);
 				spn_value_release(a);
 				*a = val;
 			} else if (isstring(b)) {
-				SpnString *str = stringvalue(b);
-				long len = str->len;
-				long idx;
 				unsigned char ch;
+				long index;
+				SpnString *str;
 
-				if (!isint(c)) {
-					runtime_error(vm, ip - 1, "indexing string with non-integer value", NULL);
+				if (indexing_string_check(vm, ip - 1, b, c) != 0) {
 					return -1;
 				}
 
-				idx = intvalue(c);
-
-				/* negative indices count from the end of the string */
-				if (idx < 0) {
-					idx = len + idx;
-				}
-
-				if (idx < 0 || idx >= len) {
-					const void *args[2];
-					args[0] = &idx;
-					args[1] = &len;
-					runtime_error(
-						vm,
-						ip - 1,
-						"character at normalized index %d is "
-						"out of bounds for string of length %d",
-						args
-					);
-					return -1;
-				}
-
-				/* copy character before string is potentially deallocated */
-				ch = str->cstr[idx];
+				str = stringvalue(b);
+				index = intvalue(c);
+				ch = str->cstr[index];
 
 				spn_value_release(a);
 				*a = makeint(ch);
@@ -1396,31 +1419,40 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_ARRSET: {
+		case SPN_INS_IDX_SET: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 
-			if (!isarray(a)) {
-				runtime_error(vm, ip - 1, "assignment to member of non-array value", NULL);
+			if (ishashmap(a)) {
+				if (indexing_hashmap_check(vm, ip - 1, b) != 0) {
+					return -1;
+				}
+
+				spn_hashmap_set(hashmapvalue(a), b, c);
+			} else if (isarray(a)) {
+				if (indexing_array_check(vm, ip - 1, a, b) != 0) {
+					return -1;
+				}
+
+				spn_array_set(arrayvalue(a), intvalue(b), c);
+			} else {
+				const void *args[1];
+				args[0] = spn_type_name(a->type);
+				runtime_error(vm, ip - 1, "cannot index value of type %s", args);
 				return -1;
 			}
 
-			/* NaN != NaN, so it can't be used as an array key */
-			if (isfloat(b) && floatvalue(b) != floatvalue(b)) {
-				runtime_error(vm, ip - 1, "array index cannot be NaN", NULL);
-				return -1;
-			}
+			break;
+		}
+		case SPN_INS_ARR_PUSH: {
+			SpnValue *a = VALPTR(vm->sp, OPA(ins));
+			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 
-			/* a nil key cannot be found by e. g. "keys()",
-			 * so it could cause inconsistency -> disallowed
-			 */
-			if (isnil(b)) {
-				runtime_error(vm, ip - 1, "array index cannot be nil", NULL);
-				return -1;
-			}
+			assert(isarray(a));
 
-			spn_array_set(arrayvalue(a), b, c);
+			spn_array_push(arrayvalue(a), b);
+
 			break;
 		}
 		case SPN_INS_FUNCTION: {
@@ -1465,21 +1497,21 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* attempt adding value to global symtab.
 			 * Raise a runtime error if the name is taken.
 			 */
-			spn_array_get_strkey(vm->glbsymtab, symname, &auxval);
+			spn_hashmap_get_strkey(vm->glbsymtab, symname, &auxval);
 			if (notnil(&auxval)) {
 				const void *args[1];
 				args[0] = symname;
 				runtime_error(
 					vm,
 					ip - nwords - 1,
-					"re-definition of global `%s'",
+					"re-definition of global '%s'",
 					args
 				);
 
 				return -1;
 			}
 
-			spn_array_set_strkey(vm->glbsymtab, symname, src);
+			spn_hashmap_set_strkey(vm->glbsymtab, symname, src);
 			break;
 		}
 		case SPN_INS_CLOSURE: {
@@ -1527,15 +1559,15 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				case SPN_UPVAL_LOCAL: {
 					/* upvalue is local variable of enclosing function */
 					SpnValue *upval = VALPTR(vm->sp, upval_index);
-					spn_array_set_intkey(closure->upvalues, i, upval);
+					spn_array_push(closure->upvalues, upval);
 					break;
 				}
 				case SPN_UPVAL_OUTER: {
 					/* upvalue is in the closure of enclosing function */
 					SpnValue upval;
 					assert(enclosing_fn->upvalues);
-					spn_array_get_intkey(enclosing_fn->upvalues, upval_index, &upval);
-					spn_array_set_intkey(closure->upvalues, i, &upval);
+					spn_array_get(enclosing_fn->upvalues, upval_index, &upval);
+					spn_array_push(closure->upvalues, &upval);
 					break;
 				}
 				default:
@@ -1562,7 +1594,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			spn_value_release(reg);
 
 			/* store upvalue into register and retain it */
-			spn_array_get_intkey(current_fn->upvalues, upval_index, reg);
+			spn_array_get(current_fn->upvalues, upval_index, reg);
 			spn_value_retain(reg);
 
 			break;
@@ -1571,133 +1603,134 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *a = VALPTR(vm->sp, OPA(ins)); /* result         */
 			SpnValue *b = VALPTR(vm->sp, OPB(ins)); /* object, 'self' */
 			SpnValue *c = VALPTR(vm->sp, OPC(ins)); /* method name    */
+			SpnValue tmp;
+			const void *args[1]; /* for error reporting */
 
-			SpnValue method;
-			SpnArray *classdesc = classof_value(vm, ip, b);
-
-			if (classdesc == NULL) {
-				/* error message already set by 'classof_value()' */
-				return -1;
+			/* lookup_member returns true if 'pself' is a hashtable or
+			 * if it has a class. In this case, 'result' will contain
+			 * the value for 'name'. (it may not be a function, in
+			 * which case, INS_CALL will throw an error anyway.
+			 */
+			if (lookup_member(vm, &tmp, b, c)) {
+				spn_value_retain(&tmp);
+				spn_value_release(a);
+				*a = tmp;
+				break;
 			}
 
-			assert(isstring(c));
-
-			spn_array_get(classdesc, c, &method);
-			if (!isfunc(&method)) {
-				const void *args[2];
-				args[0] = stringvalue(c)->cstr;
-				args[1] = spn_type_name(method.type);
-				runtime_error(vm, ip - 1, "method '%s' must be a function; got %s", args);
-				return -1;
-			}
-
-			/* move result in place, use "retain before release" idiom */
-			spn_value_retain(&method);
-			spn_value_release(a);
-			*a = method;
-
-			break;
+			args[0] = spn_type_name(b->type);
+			runtime_error(vm, ip - 1, "object of type %s has no class", args);
+			return -1;
 		}
 		case SPN_INS_PROPGET: {
-			#define G_ARGC 2
-			SpnValue g_argv[G_ARGC];
-			SpnValue *a, *b, *c;
+			SpnValue *result = VALPTR(vm->sp, OPA(ins));
+			SpnValue *pself  = VALPTR(vm->sp, OPB(ins));
+			SpnValue *prname = VALPTR(vm->sp, OPC(ins));
 
-			SpnFunction *getter;
-			SpnValue getter_val;
-			SpnValue tmpret = makenil();
-			SpnArray *classdesc;
+			SpnValue accval, gval, tmp; /* accessors; getter; and temporary */
+			const void *args[2]; /* for error reporting */
 
-			/* copy self and property name from stack */
-			g_argv[0] = VALPTR(vm->sp, OPB(ins))[0];
-			g_argv[1] = VALPTR(vm->sp, OPC(ins))[0];
+			assert(isstring(prname));
 
-			b = &g_argv[0]; /* object, 'self' */
-			c = &g_argv[1]; /* property name  */
-
-			classdesc = classof_value(vm, ip, b);
-			if (classdesc == NULL) {
-				/* error message already set by 'classof_value()' */
-				return -1;
+			/* if this is a special property, treat it as such */
+			if (get_builtin_property(result, pself, prname)) {
+				break;
 			}
 
-			assert(isstring(c));
+			if (lookup_member(vm, &accval, pself, prname)) {
+				if (ishashmap(&accval)) {
+					SpnHashMap *accessors = hashmapvalue(&accval);
+					spn_hashmap_get(accessors, &vm->getname, &gval);
 
-			spn_array_get_intkey(classdesc, SPN_METHODIDX_GETTER, &getter_val);
-			if (!isfunc(&getter_val)) {
-				const void *args[1];
-				args[0] = spn_type_name(getter_val.type);
-				runtime_error(vm, ip - 1, "getter must be a function; got %s", args);
-				return -1;
+					if (isfunc(&gval)) {
+						/* copy the arguments because calling the getter may
+						 * reallocate the stack, invalidating all pointers
+						 */
+						SpnFunction *getter = funcvalue(&gval);
+						SpnValue gargv[2], grv;
+						gargv[0] = *pself;
+						gargv[1] = *prname;
+
+						if (spn_vm_callfunc(vm, getter, &grv, COUNT(gargv), gargv) != 0) {
+							return -1;
+						}
+
+						result = VALPTR(vm->sp, OPA(ins));
+						spn_value_release(result);
+						*result = grv;
+
+						break; /* break out if getter was called! */
+					}
+				}
 			}
 
-			getter = funcvalue(&getter_val);
-
-			if (spn_vm_callfunc(vm, getter, &tmpret, G_ARGC, g_argv) != 0) {
-				return -1;
-			}
-
-			/* 'spn_vm_callfunc()' may 'realloc()' the stack, so we
-			 * need to wait till this point to grab a pointer to the
-			 * slot of the return value register.
+			/* else if self is a hashmap, fall back to raw indexing getter.
+			 * We can use the original pointers here, since if control
+			 * flow reached this point, that means that no getter has
+			 * been found, consequently no function could be called.
 			 */
-			a = VALPTR(vm->sp, OPA(ins));
-			spn_value_release(a);
-			*a = tmpret;
+			if (ishashmap(pself) && lookup_member(vm, &tmp, pself, prname)) {
+				spn_value_retain(&tmp);
+				spn_value_release(result);
+				*result = tmp;
+				break;
+			}
 
-			(void)(c); /* unused in release build */
-
-			#undef G_ARGC
-			break;
+			/* at this point, the value had neither a class nor an
+			 * appropriate getter function, and it's not a hashmap
+			 */
+			args[0] = spn_type_name(pself->type);
+			args[1] = stringvalue(prname)->cstr;
+			runtime_error(vm, ip - 1, "value of type %s has no getter for property '%s'", args);
+			return -1;
 		}
 		case SPN_INS_PROPSET: {
-			#define S_ARGC 3
-			SpnValue s_argv[S_ARGC];
-			SpnValue *a, *b, *c;
+			SpnValue *pself  = VALPTR(vm->sp, OPA(ins)); /* object, 'self' */
+			SpnValue *prname = VALPTR(vm->sp, OPB(ins)); /* property name  */
+			SpnValue *newval = VALPTR(vm->sp, OPC(ins)); /* new value      */
 
-			SpnValue setter_val;
-			SpnFunction *setter;
-			SpnArray *classdesc;
+			SpnValue accval, sval; /* hashmap of accessors; and setter */
+			const void *args[2]; /* for error reporting */
 
-			/* The operands are copied, because 'spn_vm_callfunc()' may
-			 * 'realloc()' the stack, invalidating all slot pointers...
-			 */
-			s_argv[0] = VALPTR(vm->sp, OPA(ins))[0];
-			s_argv[1] = VALPTR(vm->sp, OPB(ins))[0];
-			s_argv[2] = VALPTR(vm->sp, OPC(ins))[0];
+			assert(isstring(prname));
 
-			/* ...and these are just safe convenience names. */
-			a = &s_argv[0]; /* object, 'self' */
-			b = &s_argv[1]; /* property name  */
-			c = &s_argv[2]; /* new value      */
+			if (lookup_member(vm, &accval, pself, prname)) {
+				if (ishashmap(&accval)) {
+					SpnHashMap *accessors = hashmapvalue(&accval);
+					spn_hashmap_get(accessors, &vm->setname, &sval);
 
-			classdesc = classof_value(vm, ip, a);
-			if (classdesc == NULL) {
-				/* error message already set by 'classof_value()' */
-				return -1;
+					if (isfunc(&sval)) {
+						SpnFunction *setter = funcvalue(&sval);
+						SpnValue sargv[3];
+						/* again, copy arguments */
+						sargv[0] = *pself;
+						sargv[1] = *newval; /* reverse order! value first, */
+						sargv[2] = *prname; /* and only then comes the key */
+
+						/* call setter, ignore its return value */
+						if (spn_vm_callfunc(vm, setter, NULL, COUNT(sargv), sargv) != 0) {
+							return -1;
+						}
+
+						break; /* nothing to do if setter was called successfully */
+					}
+				}
 			}
 
-			assert(isstring(b));
-
-			spn_array_get_intkey(classdesc, SPN_METHODIDX_SETTER, &setter_val);
-			if (!isfunc(&setter_val)) {
-				const void *args[1];
-				args[0] = spn_type_name(setter_val.type);
-				runtime_error(vm, ip - 1, "setter must be a function; got %s", args);
-				return -1;
+			/* if there's no setter, try raw hashmap indexing */
+			if (ishashmap(pself)) {
+				/* we don't need to use indexing_hashmap_check,
+				 * since the key is always a string (so not NaN or 'nil')
+				 */
+				spn_hashmap_set(hashmapvalue(pself), prname, newval);
+				break;
 			}
 
-			setter = funcvalue(&setter_val);
-
-			if (spn_vm_callfunc(vm, setter, NULL, S_ARGC, s_argv) != 0) {
-				return -1;
-			}
-
-			(void)(b); /* unused in release build */
-			(void)(c); /* unused */
-
-			#undef S_ARGC
-			break;
+			/* if 'self' is not a hashmap, though, there's no more hope */
+			args[0] = spn_type_name(pself->type);
+			args[1] = stringvalue(prname)->cstr;
+			runtime_error(vm, ip - 1, "value of type %s has no setter for property '%s'", args);
+			return -1;
 		}
 		default: /* I am sorry for the indentation here. */
 			{
@@ -1711,7 +1744,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 	}
 }
 
-static void read_local_symtab(SpnVMachine *vm, SpnFunction *program)
+static void read_local_symtab(SpnFunction *program)
 {
 	spn_uword *bc = program->repr.bc;
 
@@ -1761,7 +1794,7 @@ static void read_local_symtab(SpnVMachine *vm, SpnFunction *program)
 #endif
 
 			strval = makestring_nocopy_len(cstr, len, 0);
-			spn_array_set_intkey(program->symtab, i, &strval);
+			spn_array_push(program->symtab, &strval);
 			spn_value_release(&strval);
 
 			stp += nwords;
@@ -1790,7 +1823,7 @@ static void read_local_symtab(SpnVMachine *vm, SpnFunction *program)
 
 			/* we don't know the type of the symbol yet */
 			symval = make_symstub(symname);
-			spn_array_set_intkey(program->symtab, i, &symval);
+			spn_array_push(program->symtab, &symval);
 			spn_value_release(&symval);
 
 			stp += nwords;
@@ -1820,7 +1853,7 @@ static void read_local_symtab(SpnVMachine *vm, SpnFunction *program)
 			 * member of the SpnValue while reading the symtab.
 			 */
 
-			spn_array_set_intkey(program->symtab, i, &fnval);
+			spn_array_push(program->symtab, &fnval);
 			spn_value_release(&fnval);
 
 			/* skip function name */
@@ -1913,7 +1946,7 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 	assert(is_symstub(symp));
 
 	symstub = symstubvalue(symp);
-	spn_array_get_strkey(vm->glbsymtab, symstub->name, &res);
+	spn_hashmap_get_strkey(vm->glbsymtab, symstub->name, &res);
 
 	if (isnil(&res)) {
 		const void *args[1];
@@ -1921,7 +1954,7 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 		runtime_error(
 			vm,
 			ip,
-			"global `%s' does not exist or it is nil",
+			"global '%s' does not exist or it is nil",
 			args
 		);
 		return -1;
@@ -1937,32 +1970,215 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 	return 0;
 }
 
-static SpnArray *classof_value(SpnVMachine *vm, spn_uword *ip, SpnValue *pself)
+/* indexing getters and setters */
+static int indexing_array_check(SpnVMachine *vm, spn_uword *ip, SpnValue *varr, SpnValue *vidx)
 {
-	SpnValue classval;
-	spn_get_class_of_value(vm->classes, pself, &classval);
+	SpnArray *arr;
+	long index, length;
 
-	if (!isarray(&classval)) {
+	assert(isarray(varr));
+
+	if (!isint(vidx)) {
 		const void *args[1];
-		args[0] = spn_type_name(classval.type);
-		runtime_error(vm, ip - 1, "class must be an array; got %s", args);
-		return NULL;
+		args[0] = spn_type_name(vidx->type);
+		runtime_error(vm, ip, "indexing array with non-integer value of type %s", args);
+		return -1;
 	}
 
-	return arrayvalue(&classval);
+	arr = arrayvalue(varr);
+	index = intvalue(vidx);
+	length = spn_array_count(arr);
+
+	if (index < 0 || index >= length) {
+		const void *args[2];
+		args[0] = &index;
+		args[1] = &length;
+		runtime_error(vm, ip, "index %d is out of bounds for array of size %d", args);
+		return -1;
+	}
+
+	return 0;
 }
 
-void spn_get_class_of_value(SpnArray *classes, const SpnValue *pself, SpnValue *clsval)
+static int indexing_string_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vstr, SpnValue *vidx)
 {
-	if (isarray(pself) || isuserinfo(pself)) {
-		spn_array_get(classes, pself, clsval);
+	SpnString *str;
+	long index, length;
 
-		if (isnil(clsval)) {
-			spn_array_get_intkey(classes, valtype(pself), clsval);
-		}
-	} else {
-		spn_array_get_intkey(classes, valtype(pself), clsval);
+	assert(isstring(vstr));
+
+	if (!isint(vidx)) {
+		const void *args[1];
+		args[0] = spn_type_name(vidx->type);
+		runtime_error(vm, ip, "indexing string with non-integer value of type %s", args);
+		return -1;
 	}
+
+	str = stringvalue(vstr);
+	index = intvalue(vidx);
+	length = str->len;
+
+	if (index < 0 || index >= length) {
+		const void *args[2];
+		args[0] = &index;
+		args[1] = &length;
+		runtime_error(vm, ip, "index %d is out of bounds for string of size %d", args);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int indexing_hashmap_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vidx)
+{
+	/* NaN != NaN, so it can't be used as a key in a hashmap */
+	if (isfloat(vidx) && floatvalue(vidx) != floatvalue(vidx)) {
+		runtime_error(vm, ip, "hashmap index cannot be NaN", NULL);
+		return -1;
+	}
+
+	/* a nil key cannot be found by e. g. "keys()",
+	 * so it could cause inconsistency -> disallowed
+	 */
+	if (isnil(vidx)) {
+		runtime_error(vm, ip, "hashmap index cannot be nil", NULL);
+		return -1;
+	}
+
+	return 0;
+}
+
+/* XXX: this function *MUST NOT* use 'spn_vm_callfunc()' or
+ * reallocate the call stack in any way, since it is passed
+ * pointers pointing straight within the active stack frame!
+ *
+ * XXX: So, if we ever implement destructors, the calls to the
+ * 'spn_value_release()' function will potentially call the
+ * destructor of whatever originally was in 'dstreg', and
+ * that can invalidate the stack, so this will no longer work.
+ */
+static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nameval)
+{
+	const char *name = stringvalue(nameval)->cstr;
+
+	switch (valtype(pself)) {
+	case SPN_TTAG_STRING: {
+		if (strcmp(name, "length") == 0) {
+			size_t length = stringvalue(pself)->len;
+			spn_value_release(dstreg);
+			*dstreg = makeint(length);
+			return 1;
+		}
+
+		break;
+	}
+	case SPN_TTAG_ARRAY: {
+		if (strcmp(name, "length") == 0) {
+			SpnArray *arr = arrayvalue(pself);
+			size_t length = spn_array_count(arr);
+			spn_value_release(dstreg);
+			*dstreg = makeint(length);
+			return 1;
+		}
+
+		break;
+	}
+	case SPN_TTAG_HASHMAP: {
+		if (strcmp(name, "length") == 0) {
+			SpnHashMap *hm = hashmapvalue(pself);
+			size_t length = spn_hashmap_count(hm);
+			spn_value_release(dstreg);
+			*dstreg = makeint(length);
+			return 1;
+		}
+
+		break;
+	}
+	default:
+		break;
+	}
+
+	return 0;
+}
+
+/* this returns 1 if it was able to find the method.
+ * 'root' is passed by-value so that it can safely
+ * be overwritten while searching the object chain.
+ */
+static int lookup_member_chained(SpnVMachine *vm, SpnValue *result, SpnValue root, SpnValue *name)
+{
+	assert(ishashmap(&root));
+
+	do {
+		SpnValue tmp;
+		SpnHashMap *roothm = hashmapvalue(&root);
+		spn_hashmap_get(roothm, name, &tmp);
+
+		/* found something non-nil? return it! */
+		if (notnil(&tmp)) {
+			*result = tmp;
+			return 1;
+		}
+
+		/* else, try super object/class */
+		spn_hashmap_get(roothm, &vm->supername, &root);
+	} while (ishashmap(&root));
+
+	/* not found anywhere in the chain */
+	return 0;
+}
+
+static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, SpnValue *name)
+{
+	SpnValue root; /* member lookup starts here */
+	int typetag = valtype(pself);
+	SpnValue tagval = makeint(typetag);
+
+	assert(isstring(name));
+
+	switch (typetag) {
+	case SPN_TTAG_HASHMAP:
+		/* hashmap methods are looked up in the hashmap object itself */
+		root = *pself;
+		break;
+	case SPN_TTAG_USERINFO:
+		/* user info values have a per-instance class lookup mechanism */
+		spn_hashmap_get(vm->classes, pself, &root);
+		break;
+	default:
+		/* and other values share a per-type class descriptor */
+		spn_hashmap_get(vm->classes, &tagval, &root);
+		break;
+	}
+
+	/* user info instance or primitive type has no class */
+	if (!ishashmap(&root)) {
+		return 0;
+	}
+
+	/* search chain of objects/classes for the method */
+	if (lookup_member_chained(vm, result, root, name)) {
+		return 1;
+	}
+
+	/* method wasn't found in whole object/class chain; as a last resort,
+	 * and only if it is a hashmap, try looking it up in the hashmap class
+	 */
+	if (ishashmap(pself)) {
+		spn_hashmap_get(vm->classes, &tagval, &root);
+
+		/* if hashmaps have a class (this is normally the case), _and_ the
+		 * class or any of the superclasses thereof contains the method,
+		 * then return it. Else just fall through and return nil.
+		 */
+		if (ishashmap(&root) && lookup_member_chained(vm, result, root, name)) {
+			return 1;
+		}
+	}
+
+	/* method was not found at all, return nil */
+	*result = spn_nilval;
+	return 1;
 }
 
 static SpnValue typeof_value(SpnValue *val)

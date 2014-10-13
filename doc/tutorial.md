@@ -29,7 +29,6 @@ This is a list of all reserved words (keywords and names corresponding to
 other tokens):
 
 - `and`
-- `argc`
 - `argv`
 - `break`
 - `const`
@@ -142,80 +141,175 @@ that can be used in string and character literals:
 
 ## Arrays
 
-To define an array you can compose array literals:
+To create an array you can write array literals:
 
-    var empty = {};
-    var primes = { 2, 3, 5 };
+    var empty = [];
+    var primes = [ 2, 3, 5 ];
 
 You can create an array contaning different types of values. Array indexing
 starts with zero.
 
-    > print({ 1, 2, 3, "hello" }[3]);
+    > print([ 1, 2, 3, "hello" ][3]);
     hello
 
 It is also possible to modify an element in the array by assigning to it:
 
-    > var empty = {};
-    > empty["foo"] = "bar";
-    > print(empty["foo"]);
+    > var a = ["baz"];
+    > empty[0] = "bar";
+    > print(empty[0]);
     bar
-
-You can remove an element from an array by setting it to `nil`.
 
 To get the number of elements in an array, use the `length` property –
 similarly to strings.
 
-    var arr = { "foo", "bar", "baz" };
+    var arr = [ "foo", "bar", "baz" ];
     print(arr.length);
 
 Prints `3`.
 
-It is also possible to create arrays with non-integer indices (in fact, array
-keys/indices can have any type). The order of elements in an array (e. g. when
-enumerated using an iterator) is unspecified.
+To add an element to the array, use `push()`:
 
-To create an associative array, use associative array literals. Keys and values
-are separated by a colon:
+	> var a = [];
+	> a.push(1);
+	> a.push(2);
+	> a
+	= [
+	    1
+	    2
+	]
+
+To remove the last element of a non-empty array, call `pop()`.
+
+You can remove an element from the middle of an array by calling its `erase`
+method with the appropriate index:
+
+    > var a = [ "foo", "bar", "baz" ];
+    > a.erase(1);
+    > print(a);
+    [
+        "foo"
+        "baz"
+    ]
+
+## Hashmaps
+
+Hashmaps are associative containers (key-value pairs). Keys can be of any
+type except `nil` and the `NaN` floating-point value. Values can be of any
+type and value.
+
+To create a hashmap, use hashmap literals. Keys and values are separated by a
+colon:
 
     var words = { "cheese": "fromage", "apple": "pomme" };
 
-It is even possible to intermix the two types:
+It is even possible to intermix multiple types:
 
-    var mixed = { "foo", "bar": "baz", "quirk", "lol": 1337 };
+    var mixed = { 0: "foo", "bar": "baz", 2: "quirk", "lol": 1337 };
 
 Here, `"foo"` will have the key 0, `"baz"` corresponds to `"bar"`, `"quirk"` to
 2, and 1337 to `"lol"`.
 
-Array members corresponding to a string key can be accessed using the
-convenience duble-colon notation:
-
-    an_array::some_member
-
-is the same as
-
-    an_array["some_member"]
-
 By the way, this is one idiomatic way of implementing and using modules or
-libraries in Sparkling: one assigns functions as members to a global array
-and accesses them using the dot notation.
+libraries in Sparkling: one assigns functions as members to a global hashmap
+and accesses them using the bracket notation.
 
-Use the `keys` and `values` properies of an array to retrieve an array of
+Use the `keys` and `values` methods of hashmaps to retrieve an array of
 all keys and all values, respectively. The following code snippet:
 
     var a = { "foo": "bar", "baz": "quirk" };
-    print(a.keys);
-    print(a.values);
+    print(a.keys());
+    print(a.values());
 
-outputs this:
+may output this:
 
-	(
-		0: "baz"
-		1: "foo"
-	)
-	(
-		0: "quirk"
-		1: "bar"
-	)
+	[
+		"baz"
+		"foo"
+	]
+	[
+		"quirk"
+		"bar"
+	]
+
+## Objects, methods, properties
+
+Sparkling contains syntactic (and somewhat semantic) sugar for treating certain
+values as objects. Some of the built-in types as well as user-defined values
+can be used in an object-oriented manner. More specificallly:
+
+ - Strings, arrays and functions have built-in properties and a "class
+   descriptor" which contains functions. These functions can be used as
+   methods and/or property accessors on the aforementioned values when
+   called with the `obj.method()` or `obj.property` syntax.
+
+ - Hashmaps also have this kind of class descriptor, but they are treated
+   differently. When a method or a property accessor is called on a hashmap,
+   it's first searched for in the hashmap itself (recursively, through the
+   `"super"` chain). And only if it is not found there, will the lookup
+   mechanism revert to searching in the default class descriptor of hashmaps.
+
+ - User info values can be added to the global class descriptor using
+   the C API, on a per-instance basis. There's no default class for them.
+
+Classes and objects can inherit from one another. If a method or property
+cannot be found on a particular object, then its ancestors are searched
+recursively, by means of the `"super"` key:
+
+	var superObj = {
+		"foo": function(self, n) {
+			print("n = ", n);
+		}
+	};
+
+	var other = {
+		"super": superObj,
+		"bar": function(self, k) {
+			print("k = ", k);
+		}
+	};
+
+	> other.bar(42);
+	k = 42
+	> other.foo(1337);
+	n = 1337
+
+Property accessors follow a special structure. A snippet of code is worth a
+thousand words:
+
+    var anObject = {
+        "awesumProperty": {
+            "get": function(self /*, name */) {
+                return self["backingMember"];
+            },
+            "set": function(self, newValue /*, name */) {
+                self["backingMember"] = newValue;
+            }
+        }
+    };
+
+With this setup, the expression
+
+    anObject.awesumProperty
+
+will call the getter (and yield its return value), whereas the assignment
+
+    anObject.awesumProperty = 1337;
+
+will call the setter with the value `1337`. NB: the property setter syntax
+ignores the return value of the setter and always yields the right-hand-side
+of the assignment. (Given the usual semantics of the assignment statement,
+you shouldn't expect anything else anyway.)
+
+**It is strongly recommended that your getter methods do not modify state or
+otherwise perform side effects.** People expect getters to be pure functions.
+
+If a getter or setter method – in the structure described above – is not
+found on an object (nor anywhere in its ancestor chain), **and** if the
+object is a hashmap itself, then raw hashmap indexing (with the property
+name as a string key) will take place instead. (Beware: this means that
+you have to implement both accessor functions for read-only properties as
+well, else the accessor structure will be overwritten upon an accidental
+assignment.)
 
 ## Expressions:
 
@@ -232,8 +326,8 @@ This is a short list of the most important operators:
  * `+=`, `-=`, `*=`, `/=`, `..=`, `&=`, `|=`, `^=`, `<<=`, `>>=` - compound
 assignments
  * `?:` - conditional operator
- * `typeof` - type information
- * `.`, `->`: shorthand for array access (indexes with a string)
+ * `typeof` - type information, yields a type string
+ * `.`: property access (calls getter or setter)
  * `&&`, `||`: logical AND and OR
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators
  * `&`, `|`, `^`: bitwise AND, OR and XOR
@@ -332,10 +426,10 @@ To invoke a function, use the `()` operator:
     > print(square(10));
     100
 
-To get the number of arguments with which a function has been called, use the
-`argc` keyword:
+To get the number of arguments with which a function has been called, use
+`argv.length`:
 
-    > function bar() { print(argc); }
+    > function bar() { print(argv.length); }
     > bar();
     0
     > bar("foo");
@@ -345,38 +439,7 @@ To get the number of arguments with which a function has been called, use the
     >
 
 To access the variadic (unnamed) arguments of a function, use the `argv` array,
-which contains all the call arguments of the function. Index `argv` with
-integers in the range `[0...argc)` to obtain the individual arguments.
-
-## Objects, methods and properties
-
-A different, more advanced approach to libraries is creating classes, methods
-and properties. Arrays and user info objects can have a custom class.
-(It's also possible to extend the class of built-in arrays and strings by
-assigning methods to their class.)
-
-    var myObj = {};
-    myObj.class = {
-        // invoked for property access: let foo = myObj.baz;
-        getter: function(self, key) {
-            return "This getter always returns the same text.";
-        },
-        // invoked for property mutation: myObj.baz = foo;
-        setter: function(self, key, val) {
-            printf("self[%s] = %d\n", key, val);
-            self[key] = val;
-        },
-        "someMethod": function(self, arg) {
-            print(self["foo"] + self["bar"] + arg);
-        }
-    };
-
-    > myObj.foo = 13;
-    self[foo] = 13
-    > myObj.bar = 37;
-    self[bar] = 37
-    > myObj.someMethod(10);
-    60
+which contains all the call arguments of the function.
 
 ## The standard library
 

@@ -134,18 +134,19 @@ enum spn_ast_node {
 	/* postfix unary */
 	SPN_NODE_POSTINCRMT,
 	SPN_NODE_POSTDECRMT,
-	SPN_NODE_ARRSUB,
-	SPN_NODE_MEMBEROF,	/* syntactic sugar for simulating OO */
+	SPN_NODE_SUBSCRIPT,
+	SPN_NODE_MEMBEROF, /* syntactic sugar for simulating OO */
 	SPN_NODE_FUNCCALL,
 
 	/* terms */
 	SPN_NODE_IDENT,
-	SPN_NODE_LITERAL,
-	SPN_NODE_FUNCEXPR,	/* function expression, lambda */
-	SPN_NODE_ARGC,
+	SPN_NODE_LITERAL, /* scalar literal: number, string, boolean, nil */
+	SPN_NODE_FUNCEXPR, /* function expression, lambda */
 	SPN_NODE_ARGV,
-	SPN_NODE_ARRAY_LITERAL,	/* link list containing ARRAY_KVPAIR pairs */
-	SPN_NODE_ARRAY_KVPAIR,
+	SPN_NODE_ARRAY_LITERAL, /* link list of ARRAY_VALUEs */
+	SPN_NODE_ARRAY_VALUE,
+	SPN_NODE_HASHMAP_LITERAL, /* link list containing HASHMAP_KVPAIR pairs */
+	SPN_NODE_HASHMAP_KVPAIR,
 
 	/* miscellaneous */
 	SPN_NODE_DECLARGS,  /* argument names in a function definition    */
@@ -170,7 +171,7 @@ typedef struct SpnAST {
 } SpnAST;
 
 /* lineno is the line number where the parser is currently */
-SPN_API SpnAST	*spn_ast_new(enum spn_ast_node node, int lineno);
-SPN_API void	 spn_ast_free(SpnAST *ast);
+SPN_API SpnAST *spn_ast_new(enum spn_ast_node node, int lineno);
+SPN_API void spn_ast_free(SpnAST *ast);
 
 #endif /* SPN_AST_H */

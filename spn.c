@@ -301,14 +301,13 @@ static int enter_repl(enum cmd_args args)
 {
 	SpnContext *ctx = spn_ctx_new();
 	int session_no = 1;
-	FILE *history_file;
+	FILE *history_file = NULL;
 
 #if USE_READLINE
 	/* try reading the history file */
 	read_history_if_exists();
-#endif
-
 	history_file = open_history_file("a");
+#endif
 
 	while (1) {
 		SpnValue ret;
@@ -563,8 +562,7 @@ int main(int argc, char *argv[])
 	enum cmd_args args;
 
 	if (argc < 1) {
-		fprintf(stderr, "internal error: argc < 1\n\n");
-		exit(EXIT_FAILURE);
+		spn_die("internal error: argc < 1\n\n");
 	}
 
 	args = process_args(argc, argv, &pos);
@@ -603,8 +601,8 @@ int main(int argc, char *argv[])
 		status = dump_ast_of_files(argc - pos, &argv[pos]);
 		break;
 	default:
-		fprintf(stderr, "generic error: internal inconsistency\n\n");
-		status = EXIT_FAILURE;
+		spn_die("generic error: internal inconsistency\n\n");
+		break;
 	}
 
 	return status;

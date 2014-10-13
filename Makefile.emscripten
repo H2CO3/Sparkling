@@ -5,8 +5,8 @@ LD = $(CC)
 OPTIMIZE = -O2 -flto
 CORE_DEFINES = -DUSE_READLINE=0 -DNDEBUG
 JSAPI_DEFINES = -DUSE_READLINE=0 -DDEBUG
-WARNINGS = -Wall -Wextra -Wno-unused-parameter
-EXPORT = "['_jspn_freeAll','_jspn_compile','_jspn_compileExpr','_jspn_call','_jspn_lastErrorMessage','_jspn_lastErrorType','_jspn_getGlobal','_jspn_setGlobal','_jspn_backtrace','_jspn_reset','_jspn_addNil','_jspn_addBool','_jspn_addNumber','_jspn_addString','_jspn_addArrayWithIndexBuffer','_jspn_addDictionaryWithIndexBuffer','_jspn_typeAtIndex','_jspn_getBool','_jspn_getNumber','_jspn_getString','_jspn_addValueFromArgv','_jspn_countOfArrayAtIndex','_jspn_getKeyAndValueIndicesOfArrayAtIndex','_jspn_addWrapperFunction','_jspn_getIntFromArray']"
+WARNINGS = -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-logical-op-parentheses
+EXPORT = "['_jspn_freeAll','_jspn_compile','_jspn_compileExpr','_jspn_call','_jspn_lastErrorMessage','_jspn_lastErrorType','_jspn_getGlobal','_jspn_setGlobal','_jspn_backtrace','_jspn_reset','_jspn_addNil','_jspn_addBool','_jspn_addNumber','_jspn_addString','_jspn_addArrayWithIndexBuffer','_jspn_addDictionaryWithIndexBuffer','_jspn_typeAtIndex','_jspn_getBool','_jspn_getNumber','_jspn_getString','_jspn_addValueFromArgv','_jspn_countOfArrayAtIndex','_jspn_countOfHashMapAtIndex','_jspn_getValueIndicesOfArrayAtIndex','_jspn_getKeyAndValueIndicesOfHashMapAtIndex','_jspn_addWrapperFunction','_jspn_getIntFromArray']"
 
 CORE_CFLAGS = -c -std=c89 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(CORE_DEFINES)
 JSAPI_CFLAGS = -c -std=c99 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(JSAPI_DEFINES) 

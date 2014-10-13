@@ -16,7 +16,6 @@
 #include <stdarg.h>
 
 #include "str.h"
-#include "array.h"
 #include "private.h"
 
 

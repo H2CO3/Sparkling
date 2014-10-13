@@ -281,7 +281,6 @@ static int lex_op(SpnParser *p)
 		RESERVED_ENTRY("!=",    SPN_TOK_NOTEQ),
 		RESERVED_ENTRY("!",     SPN_TOK_LOGNOT),
 		RESERVED_ENTRY("?",     SPN_TOK_QMARK),
-		RESERVED_ENTRY("::",    SPN_TOK_DBLCOLON),
 		RESERVED_ENTRY(":",     SPN_TOK_COLON),
 		RESERVED_ENTRY("..=",   SPN_TOK_DOTDOTEQ),
 		RESERVED_ENTRY("..",    SPN_TOK_DOTDOT),
@@ -462,7 +461,6 @@ static int lex_ident(SpnParser *p)
 	 */
 	static const TReserved kwds[] = {
 		RESERVED_ENTRY("and",       SPN_TOK_LOGAND),
-		RESERVED_ENTRY("argc",      SPN_TOK_ARGC),
 		RESERVED_ENTRY("argv",      SPN_TOK_ARGV),
 		RESERVED_ENTRY("break",     SPN_TOK_BREAK),
 		RESERVED_ENTRY("const",     SPN_TOK_CONST),
@@ -637,7 +635,7 @@ int spn_lex(SpnParser *p)
 	 * whether or not the token is indeed an identifier. So we must
 	 * set it if we don't want to invoke undefined behavior.
 	 */
-	p->curtok.val = makenil();
+	p->curtok.val = spn_nilval;
 	p->curtok.val.v.o = NULL;
 
 	/* this needs to come before the check for `is_special()',

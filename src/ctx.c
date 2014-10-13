@@ -96,10 +96,9 @@ void spn_ctx_setuserinfo(SpnContext *ctx, void *info)
 static void add_to_programs(SpnContext *ctx, SpnFunction *fn)
 {
 	SpnValue val;
-	size_t idx = spn_array_count(ctx->programs);
 	val.type = SPN_TYPE_FUNC;
 	val.v.o = fn;
-	spn_array_set_intkey(ctx->programs, idx, &val);
+	spn_array_push(ctx->programs, &val);
 }
 
 /* the essence */
@@ -309,12 +308,12 @@ void spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtVal
 	spn_vm_addlib_values(ctx->vm, libname, vals, n);
 }
 
-SpnArray *spn_ctx_getglobals(SpnContext *ctx)
+SpnHashMap *spn_ctx_getglobals(SpnContext *ctx)
 {
 	return spn_vm_getglobals(ctx->vm);
 }
 
-SpnArray *spn_ctx_getclasses(SpnContext *ctx)
+SpnHashMap *spn_ctx_getclasses(SpnContext *ctx)
 {
 	return spn_vm_getclasses(ctx->vm);
 }

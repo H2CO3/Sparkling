@@ -12,6 +12,7 @@
 #define SPN_PRIVATE_H
 
 #include <assert.h>
+#include <stdarg.h>
 
 #include "api.h"
 
@@ -22,6 +23,7 @@
 #define isnum(val)      spn_isnumber(val)
 #define isstring(val)   spn_isstring(val)
 #define isarray(val)    spn_isarray(val)
+#define ishashmap(val)  spn_ishashmap(val)
 #define isfunc(val)     spn_isfunc(val)
 #define isuserinfo(val) spn_isuserinfo(val)
 
@@ -45,9 +47,9 @@
 
 #define stringvalue(val)    spn_stringvalue(val)
 #define arrayvalue(val)     spn_arrayvalue(val)
+#define hashmapvalue(val)   spn_hashmapvalue(val)
 #define funcvalue(val)      spn_funcvalue(val)
 
-#define makenil()               spn_makenil()
 #define makebool(b)             spn_makebool(b)
 #define makeint(i)              spn_makeint(i)
 #define makefloat(f)            spn_makefloat(f)
@@ -71,6 +73,7 @@
 #define makestring_nocopy_len(s, n, d) spn_makestring_nocopy_len((s), (n), (d))
 
 #define makearray()    spn_makearray()
+#define makehashmap()  spn_makehashmap()
 
 /* the following stuff is primarily (not exlusively) for use in the VM */
 
@@ -102,6 +105,18 @@ SPN_API int nth_arg_idx(spn_uword *ip, int idx);
 /* "safe" allocator functions */
 SPN_API void *spn_malloc(size_t n);
 SPN_API void *spn_realloc(void *p, size_t n);
+
+/* fatal failure: prints formatted error message and 'abort()'s */
+#ifdef __GNUC__
+__attribute__((__noreturn__, __format__(__printf__, 1, 2)))
+#endif /* __GNUC__ */
+SPN_API void spn_die(const char *fmt, ...);
+
+/* guess what this one does */
+#ifdef __GNUC__
+__attribute__((__noreturn__, __format__(__printf__, 1, 0)))
+#endif /* __GNUC__ */
+SPN_API void spn_diev(const char *fmt, va_list args);
 
 /* this is a helper class for the virtual machine,
  * used for representing a pending (unresolved) symbol

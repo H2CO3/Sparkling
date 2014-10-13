@@ -94,8 +94,8 @@ closes the file object associated with `file`.
     nil fprintf(userinfo file, string format, ...)
     string fgetline(userinfo file)
 
-These work the same as `printf()` and `getline()`, but they operate on the
-specified file instead of `stdout`.
+These work in the same manner as `printf()` and `getline()`, but they operate
+on the specified file instead of `stdout`.
 
     string fread(userinfo file, int length)
 
@@ -107,10 +107,9 @@ on success, `nil` on failure.
 writes the characters in the string `buf` into the file `file`. Returns true
 on success, false on error.
 
-    nil fflush([userinfo file])
+    nil fflush(userinfo file)
 
-flushes the buffer of `file`, which must be a file opened for writing. If
-this function receives no arguments, then it flushes all open output streams.
+flushes the buffer of `file`, which must be a file opened for writing.
 
     int ftell(userinfo file)
 
@@ -136,11 +135,9 @@ Deletes the file with the name `fname`. Returns true on success, false on error.
 renames file `old` so that it will have the name `new`.
 Returns true on success, false on failure.
 
-    string tmpnam(void)
     userinfo tmpfile(void)
 
-These functions return the name of a temporary file, or an alrady open handle
-to it, respectively.
+This function returns a temporary file handle.
 
     string readfile(string filename)
 
@@ -153,11 +150,11 @@ The functions in the string library are implemented as methods on strings.
 This means that their first argument is always the string being operated on.
 Consequently, a function "declared" in this manner:
 
-    method(string foo, type_1 arg_1, type2 arg2, ...)
+    method(string str, type_1 arg_1, type2 arg2, ...)
 
 is to be called on a string as a method like this:
 
-    str.method(arg_1, arg_2, ...)
+    atr.method(arg_1, arg_2, ...)
 
 where `str` is a string object, so the first parameter will always be
 bound to the string itself.
@@ -210,12 +207,8 @@ in the string.
 3. Array handling
 -----------------
 
-Certain functions in the array library require that their argument be
-**sortable** – that is, it must only contain consecutive integer keys in the
-range `[0, array.length)`.
-
 Similarly to the functions of the string library, most array functions are
-implemented as methods on array objects:
+implemented as methods on array objects.
 
     nil sort(array arr [, function comparator])
 
@@ -223,27 +216,27 @@ implemented as methods on array objects:
 if present, or using the built-in `<` operator if no comparator is specified.
 The comparator function takes two arguments: two elements of the array to be
 compared. It must return `true` if its first argument compares less than the
-second one, and `false` otherwise. The array must be sortable.
+second one, and `false` otherwise.
 
     int find(array arr, any element)
 
 Returns the index at which `element` is found in the array, or -1 if the
-element can't be found in the array. The array must be sortable.
+element can't be found in the array.
 
     int pfind(array arr, function predicate)
 
 Returns the index of the first element for which `predicate` returns `true`.
-If no such element can be found, returns `-1`. The array must be sortable.
+If no such element can be found, returns `-1`.
 
     int bsearch(array arr, any element [, function comparator])
 
-`bsearch()` can only be used on sorted arrays. The array must be sortable.
 Returns the index of `element` or -1 if the element is not contained in the
 array. If a `comparator` function is specified, then it will be used to
 determine ordering: it is passed two distinct elements of the array, and it
 must return true if its first argument is "less than" (ordered before) its
 second argument and false otherwise. If no comparator function is given, then
-the "less than" (`<`) operator will be used.
+the "less than" (`<`) operator will be used. The array must be sorted in
+ascending order for this function to work correctly.
 
     bool any(array arr, function predicate)
     bool all(array arr, function predicate)
@@ -251,31 +244,28 @@ the "less than" (`<`) operator will be used.
 These functions investigate if any or all of the elements of `arr` match the
 given `predicate`. The predicate must return a Boolean. If the first argument
 of `any` is an empty array, then `false` is returned. If the first argument
-of `all` is an empty array, then `true` is returned. `arr` must meet the
-requirements of a sortable array. `predicate` is called with an item in `arr`
-as its first parameter and the corresponding key as the second one.
+of `all` is an empty array, then `true` is returned. `predicate` is called
+with an item in `arr` as its first parameter and the corresponding key as the
+second one.
 
     array slice(array arr, number start, number length)
 
 Returns a subarray of `arr` by copying its elements in the range
-`[start, start + length)`. If `arr` is not sortable, then the returned array
-may be shorter than `length`.
+`[start, start + length)`.
 
     string join(array arr, string sep)
 
-All elements in the array must be strings, the array must be sortable.
+All elements in the array must be strings.
 Returns the concatenation of the elements of `arr`, interleaved with `sep`.
 
     nil foreach(array arr, function callback)
 
 Iterates through the elements of the array `arr`, calling `callback` with each
-key-value pair in the array (like `callback(arr[key], key)`).
+value in the array (like `callback(arr[index], index)`).
 The callback function must return `nil` or a Boolean. If it returns `false`,
 then the enumeration is aborted and the `foreach()` function returns.
 
 **Warning:** it is illegal to modify an array while it is being enumerated.
-(If multiple `SpnIterator`s are used with the same array, the array must not
-be modified while any of the iterators is used.)
 
     any reduce(array arr, any identity, any callback(any first, any second))
 
@@ -293,31 +283,27 @@ the result of the last call to `callback()`. Here's a possible implementation:
         return x;
     }
 
-Since the order of keys may matter, this function uses successive integers to
-index into the array. Hence it is typically to be used with sortable arrays.
-**Warning:** Just like in the case of `foreach()`, you may not mutate the
+**Warning:** Just like in the case of `foreach()`, you must not mutate the
 array while it is being `reduce()`d.
 
-    array filter(array arr, bool predicate(any key, any val))
+    array filter(array arr, bool predicate(any value, integer index))
 
-Returns the elements (key-value pairs) in `arr` for which `predicate()` returns
+Returns the elements in `arr` for which `predicate()` returns
 true. The implementation may look something like this:
 
     function filter(arr, predicate) {
-        var res = {};
-        foreach(arr, function(val, key) {
-            if predicate(val, key) {
-                res[key] = val;
+        var res = [];
+        foreach(arr, function(val, index) {
+            if predicate(val, index) {
+                res.push(val);
             }
         });
         return res;
     }
 
-Again, neither the order in which the predicate is called on the pairs of the
-old array nor the order of key-value pairs in the new array is specified. You
-must not mutate the array being `filter()`ed.
+You must not mutate the array while it is being `filter()`ed.
 
-    array map(array arr, any callback(any key, any val))
+    array map(array arr, any callback(any val, integer index))
 
 Calls `callback()` with each key-value pair of `arr` (in an unspecified order).
 Returns a new array that contains the same keys as `arr`, and of which the
@@ -326,9 +312,9 @@ appropriate key-value pair. In short, the effect of this function is roughly
 equivalent with the following pseudo-code:
 
     function map(arr, callback) {
-        var res = {};
-        foreach(arr, function(val, key) {
-            res[key] = callback(val, key);
+        var res = [];
+        foreach(arr, function(val, index) {
+            res.push(callback(val, index));
         });
         return res;
     }
@@ -338,76 +324,51 @@ Again, you must not modify `arr` while it is being `map()`ped over.
     nil insert(array arr, any elem, int index)
 
 Inserts `elem` at position `index` into `arr`, shifting all elements in the
-range `[index, arr.length)` to the right by one. `arr` must be sortable.
-If `index` is negative, then indexing counts backwards from the last element
-(-1 means `arr.length - 1`, -2 means `arr.length - 2`, etc.) Consequently,
-`index` shall be in the closed interval `[-arr.length, arr.length]`.
+range `[index, arr.length)` to the right by one. `index` shall be in the
+interval `[0, arr.length)`.
 
-    nil inject(array haystack, array needle [, int index])
+    nil inject(array self, array needle [, int index])
 
-Inserts each element of `needle` between the elements of `haystack`, starting
-at index `index`. Shifts the elements of `haystack` in the range
-`[index, haystack.length)` to the right by `needle.length` places. In order the
-insertion to have a sensible effect, both `haystack` and `needle` must meet
-the criteria of a sortable array. If `index` is not specified, it is assumed
-to be `haystack.length`. If `index` is negative, it's treated similarly as in
-the case of `insert`. Again, `index` should be in the closed range
-`[-haystack.length, haystack.length]`.
+Inserts each element of `needle` between the elements of `self`, starting
+at index `index`. Shifts the elements of `self` in the range
+`[index, self.length)` to the right by `needle.length` places.
+If `index` is not specified, it is assumed to be `self.length`.
+Again, `index` should be in the range `[0, self.length]`.
 
-    nil erase(array arr, int begin [, int count])
+    nil erase(array arr, int index)
 
-Removes the elements of `arr` in the range `[begin, end)` and shifts the
-elements in the range `[end, arr.length)` to the left so that the array remains
-contiguous. If `count` is specified, then `end` is `begin + count`, otherwise
-`end` is `arr.length`. If `begin` is negative, then indexing will count
-backwards from `arr.length`, similarly to `insert()`. `arr` must be sortable.
+Removes the element of `arr` at index `index` and shifts the rest of the
+elements to the left by one, so that the array remains contiguous.
+The size of `arr` will be decremented by one.
+`index` must be in the range `[0, arr.length)`.
 
     array concat(...)
 
 Receives zero or more arrays. Returns a new array containing all elements of
-each of the arguments in order. When passed no arguments, returns an empty
-array. All arguments must be sortable.
-
-    nil merge(array self, array other [, bool guard])
-
-Enumerates all keys and values of `other`, and puts them into `self`. If
-`guard` is absent or `false`, then any keys of `other` that already exist
-in `self` will be overwritten. If `guard` is `true`, then existent keys
-and values they will not be replaced.
-
-    array convol(array self, array other [, bool guard])
-
-Similar to `merge`, but instead of modifying `self` in-place, it first copies
-it and merges the keys and values of `other` into the copy. Returns the new
-array. The purpose of `guard` is the same as in the case of `merge()`.
+each of the arguments in order. When given no arguments, returns an empty array.
 
     nil push(array arr, any elem)
 
-Performs the operation `arr[arr.length] = elem`. In order this operation to
-have the effect of "pushing" `elem` onto a stack, `arr` must be a sortable
-array.
+Performs the operation `arr.insert(elem, arr.length)`.
 
     any pop(array arr)
 
 Removes the last element of `arr` and returns it. "Last" means the element at
-index `arr.length - 1`. For a true "pop" effect, `arr` must be sortable.
+index `arr.length - 1`.
 
-    nil swap(array arr, any k1, any k2)
+    any last(array arr)
 
-Swaps the elements of `arr` at indices `k1` and `k2`.
+Returns the last element of `arr` (that is, `arr[arr.length - 1]`).
+Throws a runtime error if `arr` is empty.
+
+    nil swap(array arr, int idx1, int idx2)
+
+Swaps the elements of `arr` at indices `idx1` and `idx2`. Both indices must
+be within the range `[0, arr.length)`.
 
     array reverse(array arr)
 
 Returns an array of which the values are those of `arr`, in reverse order.
-`arr` must be a sortable array.
-
-Free functions in the array library:
-
-    array combine(array keys, array values)
-
-Returns an array of which the keys are the elements of `keys`, and the
-corresponding values are the elements of `values`, in order. Both arguments
-must meet the criteria of sortable arrays.
 
 The following properties are available on arays:
 
@@ -415,16 +376,35 @@ The following properties are available on arays:
 
 Evaluates to the number of keys (and values) in the array.
 
-    array keys
+4. Hashmaps
+-----------
 
-Yields a sortable array of which the values are the keys of the original one.
+Just like functions in the array library, most of the hashmap functions are
+also implemented as methods.
 
-    array values
+    array keys(hashmap self)
+    array values(hashmap self)
 
-Similar to `keys`, but this property yields an array of the values of the
-original array.
+returns an array of the keys and values, respectively, of the given hashmap.
 
-4. Real, integer and complex mathematical functions
+    foreach(hashmap self, function callback)
+    hashmap map(hashmap self, function transform)
+    hashmap filter(hashmap self, function predicate)
+
+These methods are similar to their corresponding pairs in the array library,
+except that these operate on hashmaps. As such, they don't guarantee
+the order of keys and values, and instead of integral indices, the second
+parameter that is passed to the callback functions is the appropriate key.
+
+    hashmap combine(array keys, array values)
+
+Returns a hashmap of which the keys are the elements of `keys`, and the
+corresponding values are the elements of `values`, in order.
+
+Hashmaps also have a `length` property which yields the number of (non-`nil`)
+values in a particular hashmap.
+
+5. Real, integer and complex mathematical functions
 ---------------------------------------------------
 
 Function names are self-explanatory. A. k. a., "nobody ain't no time for
@@ -488,7 +468,7 @@ libraries) are also available:
     number M_NAN: "Not a Number" value
     number M_INF: positive infinity
 
-5. Accessing the shell, the OS and the Sparkling engine
+6. Accessing the shell, the OS and the Sparkling engine
 -------------------------------------------------------
 
     string getenv(string name)
@@ -508,11 +488,11 @@ error message to the standard error stream.
 
 Returns the current Unix timestamp in seconds.
 
-    array utctime(int timestamp)
-    array localtime(int timestamp)
+    hashmap utctime(int timestamp)
+    hashmap localtime(int timestamp)
 
-Returns an array representing the timestamp, interpreted with respect to UTC
-or the local zone time. The keys in the array are strings:
+Returns a hashmap representing the timestamp, interpreted with respect to UTC
+or the local zone time. The keys are strings:
 
  - "sec", "min", "hour" contain the number of seconds, minutes and hours as
  integers.
@@ -537,7 +517,7 @@ Returns the difference between the two timestamps.
     function compile(string source)
 
 This function parses and compiles the supplied source code. On success, it
-returns the compiled function. On error, it returns an error message.
+returns the compiled function. On error, it returns an error string.
 
     function exprtofn(string source)
 
@@ -554,24 +534,19 @@ These convert the target string to an integer or a floating-point number.
 searching for a radix point `.` and/or an exponent (`e` or `E`) in it.
 If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 
-    any call(function fn, array argv [, int argc])
+    any call(function fn, array argv)
 
 Calls the function `fn` with the elements of the `argv` array as arguments,
-returning the return value of `fn` itself. Throws an error if `fn` is not
-a function, `argv` is not an array or `argc` is not an integer.
+returning the return value of `fn` itself. Throws an error if `argv` is not an
+array. This function is implemented as a method on function objects.
+
+The arguments of the called function `fn` will be the values in `argv`
+in sequence.
 
     function require(string filename)
 
 Loads, compiles and executes the given file. Returns the result of running the
 file. Throws a runtime error upon failure.
-
-If the `argc` argument is not present, then it is assigned `argv.length`.
-
-The arguments of the called function `fn` will be the values in `argv`
-that correspond to the integer keys `[0...argc)`. Thus, supplying `argc`
-is only necessary when `argv` is sparse and/or it contains non-integral
-keys, because then the arguments passed to the function would be different
-from the elements of the array without an explicit argument count.
 
     array backtrace()
 
@@ -581,21 +556,19 @@ where it is called.
 
 The following global symbolic constants are available:
 
-    array Array
+    hashmap Array
 
-An array representing the default class of array objects.
+The default class for array objects.
 
-    array String
+    hashmap String
 
-An array representing the class of string objects.
+The default class for string objects.
 
-    int getter
+    hashmap HashMap
 
-An integer index value, which, when used to index into a class descriptor
-array, corresponds to the getter method of the class.
+The default class for hashmap objects.
 
-    int setter
+    hashmap Function
 
-An integer index value, which, when used to index into a class descriptor
-array, corresponds to the setter method of the class.
+The default class for function objects.
 

@@ -20,6 +20,7 @@
 #include "vm.h"
 #include "private.h"
 #include "array.h"
+#include "hashmap.h"
 #include "func.h"
 
 
@@ -84,12 +85,6 @@ void spn_object_release(void *o)
  * Value API
  */
 
-SpnValue spn_makenil(void)
-{
-	SpnValue ret = { SPN_TYPE_NIL, { 0 } };
-	return ret;
-}
-
 SpnValue spn_makebool(int b)
 {
 	SpnValue ret;
@@ -130,11 +125,17 @@ SpnValue spn_makestrguserinfo(void *o)
 	return ret;
 }
 
+const SpnValue spn_nilval   = { SPN_TYPE_NIL,  { 0 } };
+const SpnValue spn_falseval = { SPN_TYPE_BOOL, { 0 } };
+const SpnValue spn_trueval  = { SPN_TYPE_BOOL, { 1 } };
+
+
 void spn_value_retain(const SpnValue *val)
 {
 	if (isobject(val)) {
 		assert(isstring(val) || isarray(val)
-		    || isfunc(val)   || isuserinfo(val));
+		   || ishashmap(val) || isfunc(val)
+		   || isuserinfo(val));
 
 		spn_object_retain(objvalue(val));
 	}
@@ -144,7 +145,8 @@ void spn_value_release(const SpnValue *val)
 {
 	if (isobject(val)) {
 		assert(isstring(val) || isarray(val)
-		    || isfunc(val)   || isuserinfo(val));
+		   || ishashmap(val) || isfunc(val)
+		   || isuserinfo(val));
 
 		spn_object_release(objvalue(val));
 	}
@@ -175,30 +177,25 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 	}
 
 	switch (valtype(lhs)) {
-	case SPN_TTAG_NIL:    { return 1; /* nil can only be nil */	   }
+	case SPN_TTAG_NIL:    { return 1; /* nil can only be nil */ }
 	case SPN_TTAG_BOOL:   { return boolvalue(lhs) == boolvalue(rhs); }
-	case SPN_TTAG_NUMBER: { return numeric_equal(lhs, rhs);	   }
+	case SPN_TTAG_NUMBER: { return numeric_equal(lhs, rhs); }
 
 	case SPN_TTAG_STRING:
 	case SPN_TTAG_ARRAY:
-	case SPN_TTAG_FUNC:	{
+	case SPN_TTAG_HASHMAP:
+	case SPN_TTAG_FUNC: {
 		return spn_object_equal(objvalue(lhs), objvalue(rhs));
 	}
 
-	case SPN_TTAG_USERINFO:	{
+	case SPN_TTAG_USERINFO: {
+		/* an object can not equal a non-object */
 		if (isobject(lhs) != isobject(rhs)) {
 			return 0;
 		}
 
 		if (isobject(lhs)) {
-			SpnObject *lo = objvalue(lhs);
-			SpnObject *ro = objvalue(rhs);
-
-			if (lo->isa != ro->isa) {
-				return 0;
-			}
-
-			return spn_object_equal(lo, ro);
+			return spn_object_equal(objvalue(lhs), objvalue(rhs));
 		} else {
 			return ptrvalue(lhs) == ptrvalue(rhs);
 		}
@@ -262,12 +259,12 @@ int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs)
 	}
 
 	if (isobject(lhs) && isobject(rhs)) {
-		SpnObject *ol = objvalue(lhs), *or = objvalue(rhs);
-		if (ol->isa != or->isa) {
+		SpnObject *obl = objvalue(lhs), *obr = objvalue(rhs);
+		if (obl->isa != obr->isa) {
 			return 0;
 		}
 
-		return ol->isa->compare != NULL;
+		return obl->isa->compare != NULL;
 	}
 
 	return 0;
@@ -290,14 +287,15 @@ unsigned long spn_hash_bytes(const void *data, size_t n)
 unsigned long spn_hash_value(const SpnValue *key)
 {
 	switch (valtype(key)) {
-	case SPN_TTAG_NIL:	{ return 0;				}
-	case SPN_TTAG_BOOL:	{ return boolvalue(key); /* 0 or 1 */	}
+	case SPN_TTAG_NIL:	{ return 0; }
+	case SPN_TTAG_BOOL:	{ return boolvalue(key); /* 0 or 1 */ }
 	case SPN_TTAG_NUMBER: {
 		if (isfloat(key)) {
 			double f = floatvalue(key);
+			long i = f; /* truncate */
 
-			if (f == (long)(f)) {
-				return (unsigned long)(f);
+			if (f == i) {
+				return i; /* it's really an integer */
 			} else {
 				return spn_hash_bytes(&f, sizeof f);
 			}
@@ -308,6 +306,7 @@ unsigned long spn_hash_value(const SpnValue *key)
 	}
 	case SPN_TTAG_STRING:
 	case SPN_TTAG_ARRAY:
+	case SPN_TTAG_HASHMAP:
 	case SPN_TTAG_FUNC: {
 		SpnObject *obj = objvalue(key);
 		unsigned long (*hashfn)(void *) = obj->isa->hashfn;
@@ -329,6 +328,9 @@ unsigned long spn_hash_value(const SpnValue *key)
 	return 0;
 }
 
+static void print_array(SpnArray *array, int level);
+static void print_hashmap(SpnHashMap *hm, int level);
+
 static void print_indent(int level)
 {
 	int i;
@@ -337,38 +339,56 @@ static void print_indent(int level)
 	}
 }
 
+static void inner_aux_print(const SpnValue *val, int level)
+{
+	if (isarray(val)) {
+		print_array(arrayvalue(val), level);
+	} else if (ishashmap(val)) {
+		print_hashmap(hashmapvalue(val), level);
+	} else {
+		spn_debug_print(val);
+	}
+}
+
 static void print_array(SpnArray *array, int level)
 {
+	size_t i;
 	size_t n = spn_array_count(array);
-	SpnValue i_key, i_val;
-	SpnIterator *it = spn_iter_new(array);
 
-	printf("(\n");
+	printf("[\n");
 
-	while (spn_iter_next(it, &i_key, &i_val) < n) {
+	for (i = 0; i < n; i++) {
+		SpnValue val;
 		print_indent(level + 1);
 
-		if (isarray(&i_key)) {
-			print_array(arrayvalue(&i_key), level + 1);
-		} else {
-			spn_debug_print(&i_key);
-		}
-
-		printf(": ");
-
-		if (isarray(&i_val)) {
-			print_array(arrayvalue(&i_val), level + 1);
-		} else {
-			spn_debug_print(&i_val);
-		}
+		spn_array_get(array, i, &val);
+		inner_aux_print(&val, level + 1);
 
 		printf("\n");
 	}
 
 	print_indent(level);
-	printf(")");
+	printf("]");
+}
 
-	spn_iter_free(it);
+static void print_hashmap(SpnHashMap *hm, int level)
+{
+	SpnValue key, val;
+	size_t i = 0;
+
+	printf("{\n");
+
+	while ((i = spn_hashmap_next(hm, i, &key, &val)) != 0) {
+		print_indent(level + 1);
+
+		inner_aux_print(&key, level + 1);
+		printf(": ");
+		inner_aux_print(&val, level + 1);
+		printf("\n");
+	}
+
+	print_indent(level);
+	printf("}");
 }
 
 void spn_value_print(const SpnValue *val)
@@ -399,6 +419,11 @@ void spn_value_print(const SpnValue *val)
 	case SPN_TTAG_ARRAY: {
 		SpnArray *array = objvalue(val);
 		print_array(array, 0);
+		break;
+	}
+	case SPN_TTAG_HASHMAP: {
+		SpnHashMap *hashmap = objvalue(val);
+		print_hashmap(hashmap, 0);
 		break;
 	}
 	case SPN_TTAG_FUNC: {
@@ -437,6 +462,9 @@ void spn_debug_print(const SpnValue *val)
 	case SPN_TTAG_ARRAY:
 		printf("<array %p>", objvalue(val));
 		break;
+	case SPN_TTAG_HASHMAP:
+		printf("<hashmap %p>", objvalue(val));
+		break;
 	default:
 		spn_value_print(val);
 		break;
@@ -464,6 +492,7 @@ const char *spn_type_name(int type)
 		"number",
 		"string",
 		"array",
+		"hashmap",
 		"function",
 		"userinfo"
 	};

@@ -16,7 +16,7 @@ called values. All values have a type.
 §1.4. A type is an abstract property of a value that describes the behavior of
 its contents. A type is defined by the set of possible values and operations.
 A type in Sparkling is one of nil, boolean, number (either integer or
-floating-point), function, string, array or user info.
+floating-point), function, string, array, hashmap or user info.
 
 §1.4.1. The nil type denotes the lack of any other valid value. Its only
 possible value is `nil`, and a lexical synonym for the value `nil` is `null`.
@@ -37,12 +37,19 @@ A top-level Sparkling program is also a function.
 or binary data. They also have a size, which is an integer number, the number
 of bytes in the string.
 
-§1.4.6. The array type is a compound and mutable type. It is an unordered
-collection of key-value pairs. Keys (indices) and values can be of any type
-except `nil`. Keys and values can be set and retrieved at any time. Arrays
-have a size, which is the number of key-value pairs in the collection.
+§1.4.6. The array type is a compound and mutable type. An array is an ordered,
+indexed collection of values. Indices are integral number in the range
+`[0, array.length)`, where `array.length` is the number of values in the array.
+The elements of an array can contain any value whatsoever, even values of
+different types within the same array.
 
-§1.4.7. The user info type represents a custom value. User info values are
+§1.4.7. The hashmap type is a compound and mutable type. It is an unordered
+collection of key-value pairs. Keys (indices) can be any value except `nil` and
+`NaN`. Values can be of any type, even different types within the same hashmap.
+Hashmaps have a size, which is the number of key-value pairs in the collection.
+This size can be retrieved using the `length` property.
+
+§1.4.8. The user info type represents a custom value. User info values are
 to be accessed and manipulated using dedicated functions only. They are used
 typically in conjunction with the native C extension API.
 
@@ -100,13 +107,13 @@ Example:
 
 Example:
 
-    var a = {};
+    var a = [];
     var i;
 
     for i = 0; i < 2; i++ {
-        a[i] = function() {
+        a.push(function() {
             print(i);
-        };
+        });
     }
 
     a[0]();   // prints '0'
@@ -251,7 +258,7 @@ associativity and precedence is NOT the same as order of evaluation.
 on an assignment operator, the left-hand side and the right-hand side, then
 store the result of the operation into the left-hand-side, then yield the
 result. The left-hand side of an assignment operator must always be a variable
-or a member of an array.
+or a member of an array or a hashmap.
 
 §3.1.1. Simple assignment. The simple assignment operator `=` assigns the value
 of the right-hand side to the left-hand side and yields their value.
@@ -282,7 +289,7 @@ evaulate `<subexpr>`:
 and
 
 	true || <subexpr>
-	
+
 Logical operators must be supplied with two boolean expressions. The logical
 AND operator yields true if both of its operands evaluate to true. Otherwise,
 it yields false. The logical OR operator yields true if at least one of its
@@ -351,11 +358,11 @@ It is an error to use this operator with a non-number operand.
 
 §3.8.3. The prefix `++` operator. It increments its numeric operand by one,
 and yields the already incremented value. Its operand must be a variable or an
-array member. The operand must be of type number.
+array or hashmap member. The operand must be of type number.
 
 §3.8.4. The prefix `--` operator. It decrements its numeric operand by one,
 and yields the already decremented value. Its operand must be a variable or an
-array member. The operand must be of type number.
+array or hashmap member. The operand must be of type number.
 
 §3.8.4. The `!` operator. It takes a boolean operand and yields its
 negated value.
@@ -365,37 +372,32 @@ bitwise complement.
 
 §3.8.8. The `typeof` operator. Yields a string representation of the type of
 its operand. Thus, one of the strings "nil", "bool", "number", "function",
-"string", "array" or "userinfo" will be returned.
+"string", "array", "hashmap" or "userinfo" will be returned.
 
 §3.9. Postfix operators
 
 §3.9.1. The postfix `++` operator. It increments its numeric operand by one,
 and yields the non-incremented (original) value. Its operand must be a variable
-or an array member. The operand must be of type number.
+or an array or hashmap member. The operand must be of type number.
 
 §3.9.2. The postfix `--` operator. It decrements its numeric operand by one,
 and yields the non-decremented (original) value. Its operand must be a variable
-or an array member. The operand must be of type number.
+or an array or hashmap member. The operand must be of type number.
 
 §3.9.3. The `[]` operator. This operator requires a subscript expression in
-addition to its (left-hand side) operand. The LHS must be an array or a string.
-If the left operand is an array, then the result of the operation is a reference
-to the value in the array that corresponds to the key specified by the subscript
-expression. If the left-hand-side operand is a string, then the RHS must be an
-integer in the range `[-N...N)`, where `N` is the length of the string.
-Then, the result of the operation is an integer - the character code of the
-character at the specified index in the string if the index is non-negative.
-If the index is negative, then the operator counts backwards (returns the
-`idx`th character from the right, where -1 is the index of the last character).
-If the LHS is not an array or a string, the string subscript is not an integer
-expression or it is out of bounds, this operator raises a runtime error.
-**Since strings are not mutable, an error is also thrown when a subscript
-expression with a string on its LHS is assigned to.**
-
-§3.9.4. The `::` operator. This operator expects an array as its first operand
-and an identifier on the right-hand-side. The string representatio of the
-identifier is used to index into the array, i. e. `arr::member` is equivalent
-to `arr["member"]`.
+addition to its (left-hand side) operand. The LHS must be an array, a hashmap
+or a string. If the left operand is an array or a hashmap, then the result of
+the operation is a reference to the value in the array that corresponds to the
+key specified by the subscript expression. In the case of an array, the
+subscripting expression must be an integer in the interval `[0, array.length)`.
+If the left-hand-side operand is a string, then the RHS must be an integer in
+the range `[0...string.length)`, and the result of the operation is an integer,
+the character code of the character at the specified index in the string.
+If the LHS is not an array, a hashmap or a string, the subscript of the array
+or a string is not an integer expression or it is out of bounds, or the index
+of a hashmap is `nil` or `NaN`, this operator raises a runtime error.
+Since strings are not mutable, an error is also thrown when a subscript
+expression with a string on its LHS is assigned to.
 
 §3.9.5. The `()` operator. The `()` operator may have zero or more additional,
 comma-separated operands between the two parentheses (along with the left-hand
@@ -407,22 +409,46 @@ the `argv` array. If the function declares more formal parameters than it is
 called with, the unbound parameters will be implicitly initialized to `nil`.
 The expressions passed as arguments are evaluated from left to right. The
 operator yields the return value of the function. Function arguments are passed
-by value. Arrays follow pointer semantics: assigning a new array to a function
-argument won't change the value visible to the calling context, but assigning
-to an **element** of an array does change its value as seen by both the calling
-context and the called function.
+by value. Arrays and hashmaps follow pointer semantics: assigning a new array
+or hashmap to a function argument won't change the value visible to the calling
+context, but assigning to an **element** of an array or a hashmap does change
+its value as seen by both the calling context and the called function.
 
 §3.9.6. The `.` ("member-of") operator. This operator requires a value on its
 LHS that has a class, and an identifier on its RHS. When on the left-hand-side
-of an assignment, the operator calls the setter method of the class of its LHS,
-passing the identifier (key) and the RHS (the new value) as arguments and
-yields the RHS, discarding the return value of the setter.
-Otherwise, it calls the getter method of the LHS and yields its return value.
+of an assignment, the operator calls the setter method of the property in its
+LHS, passing the RHS (the new value) and the identifier (property name) as
+arguments, and it yields the RHS, discarding the return value of the setter.
+Otherwise, it calls the appropriate getter method on the LHS, passing in the
+property name and yielding the return value of the getter.
 If the method (setter or getter) to be called is not defined in the class
-of the LHS, or if the LHS has no class, this operator raises a runtime error.
+of the LHS for the proeprty name, or if the LHS has no class, and the LHS is
+not a hashmap, this operator raises a runtime error. Otherwise, if the LHS is
+a hashmap, then the member-of operator falls back to raw hashmap indexing
+(i. e. it yields or sets the value corresponding to the property name as
+a string key).
 
-A key which is recognized and/or used by an object or class is called a
-**property**.
+The definition of a getter and setter function for a property `P` shall be
+laid out in the following specific structure:
+
+    self = {
+        "P": {
+            "get": function(self, name) {
+                return <result of property>;
+            },
+            "set": function(self, newValue, name) {
+                // manipulate 'self' according to newValue
+                // return value is ignored
+            }
+        }
+    }
+
+where `self` is the object or the class of the object on which property
+accessing is performed, `"P"` is the name of the property, `"get"` and `"set"`
+are special keys recognized by the interpreter, `name` is an optional formal
+parameter to accessor functions that is assigned the name of the property
+in the form of a string value, and `newValue` is the RHS of an assignment
+to the property.
 
 §3.9.7. The `.()` ("method call") operator. This special combination of the
 "member-of" and function call operators, in the form
@@ -430,11 +456,13 @@ A key which is recognized and/or used by an object or class is called a
     <expr>.methodname(args, ...)
 
 invokes the method `methodname` in the class of `<expr>`. If `<expr>` has no
-class, or if the specified method cannot be found in its class, then a runtime
-error is generated. The argument binding works almost in the same manner as
-with the ordinary `()` operator, except that `<expr>` itself will be passed
-as the first argument of the method, followed by `args`. In short, the above
-method invocation is equivalent with
+class, then a runtime error is generated. Method name lookup works under
+the same rules as property name lookup, described above.
+
+The argument binding works almost in the same manner as with the ordinary `()`
+operator, except that `<expr>` itself will be passed as the first argument of
+the method, followed by `args`. In short, the above method invocation is almost
+equivalent with
 
     <expr>.class(<expr>, args, ...)
 
@@ -448,35 +476,36 @@ function is not visible outside its translation unit).
 
 §3.11. Literals
 
-§3.11.1. Array literals (`array-literal`)
+§3.11.1. Compound literals
 
-Array literals provide a convenient way to create arrays out of known keys and
-values. Array literals consist of key-value pairs. If a key is not present,
-then it is implicitly assumed to be an integer, of which the value reflects the
-position of the key-value pair in question (the first pair is at position 0).
+§3.11.1.1. Array literals (`array-literal`)
 
-§3.11.2. Non-array literals
+Array literals provide a convenient way to create arrays out of known values.
+Array literals consist of a list of values which will be pushed onto an
+initially empty array value in the order they appear in the source text.
 
-Non-array (scalar) literals represent a single constant value. These include
+§3.11.1.2. Hashmap literals (`hashmap-literal`)
+
+Hashmap literals consist of key-value pairs, where keys are neither `nil` nor
+`NaN` and values are of any value. The order in which key-value pairs are
+organized in a hashmap is unspecified and is not determined by the order
+in which those pairs appear in the source text.
+
+§3.11.2. Scalar literals
+
+Non-compound (scalar) literals represent a single constant value. These include
 `nil` (or its synonym, `null`); decimal, octal and hexadecimal integer numbers,
 character constants (enclosed by apostrophes, interpreted as a big-endian
 integer number composed using the bytes of its characters), floating-point
-(decimal fractional) numbers, strings (enclosed between double quotation marks),
-and the Boolean literals `true` and `false`.
-
-§3.12. The `argc` keyword
-
-`argc` is a special keyword that evaluates to an integer which is the number of
-arguments that the function in which the `argc` keyword is used was called
-with.
+numbers, strings (enclosed between double quotation marks), and the Boolean
+literals `true` and `false`.
 
 §3.13. The `argv` keyword
 
 `argv` yields an array of which the n-th element is the n-th call-time argument
 of the function in which it is used. Array and argument indexing starts from 0.
 The `argv` array contains the declared, named arguments of the function,
-as well as any extra variadic arguments. If none of the arguments is `nil`,
-then the equality `sizeof argv == argc` holds.
+as well as any extra variadic arguments.
 
 §4. Classes
 -----------
@@ -486,18 +515,17 @@ any user-defined functions) associated with a certain type and/or object.
 These are accessed by the means of the member-of and method call operators,
 as described in Section 3.
 
-Strings, arrays and user info objects have a class. The class of a value may
-be accessed through its `class` property. Strings and arrays have "built-in"
-methods (i. e. methods defined by the standard library). The class of all of
-these types may be extended or altered by assigning functions to their members.
-In addition, individual arrays and user info objects (instances) may also be
-associated with a class so as to extend their behavior with custom,
-user-defined functionality. This can be achieved by assiging a new class
-to their `class` property.
+Strings, arrays, hashmaps, functions and user info objects may have a class.
+Strings, arrays, hashmaps and functions have "built-in" methods, defined by
+the standard library. The class of all of these types may be extended or
+altered by assigning functions to their members.
+In addition, individual user info objects (instances) may also be associated
+with a class so as to extend their behavior with custom, user-defined
+functionality.
 
 §4.1. Special pre-defined properties. The documentation of most predefined
 methods and properties can be found in the documentation of the standard
 library. The property `length` is worth mentioning separately. This read-only
-property only exists on strings and arrays, and yields their length in bytes
-and key-value pairs, respectively.
+property only exists on strings, arrays and hashmaps, and yields their length
+in terms of bytes, values or key-value pairs, respectively.
 

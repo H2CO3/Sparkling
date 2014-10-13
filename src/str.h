@@ -46,8 +46,8 @@ SPN_API SpnString *spn_string_concat(SpnString *lhs, SpnString *rhs);
 /* This is a function that is used internally only, e. g. when generating
  * custom error messages in the parser, the compiler and the virtual machine,
  * since there, it's easy to check the number and type of arguments manually
- * before compilation time. It is not advised that you use this functions;
- * in order to get meaningful error messages, use `spn_string_format_obj()`
+ * before compilation time. It is not advised that you use this function;
+ * in order to get meaningful error messages, use 'spn_string_format_obj()'
  * instead.
  */
 SPN_API char *spn_string_format_cstr(

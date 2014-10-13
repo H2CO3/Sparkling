@@ -15,6 +15,7 @@
 #include "rtlb.h"
 #include "parser.h"
 #include "compiler.h"
+#include "hashmap.h"
 #include "vm.h"
 
 
@@ -66,9 +67,9 @@ SPN_API const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
 SPN_API SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr);
 
 /* accessors for library functions, other globals and class descriptors */
-SPN_API void      spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc  fns[],  size_t n);
-SPN_API void      spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtValue vals[], size_t n);
-SPN_API SpnArray *spn_ctx_getglobals(SpnContext *ctx);
-SPN_API SpnArray *spn_ctx_getclasses(SpnContext *ctx);
+SPN_API void        spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc  fns[],  size_t n);
+SPN_API void        spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtValue vals[], size_t n);
+SPN_API SpnHashMap *spn_ctx_getglobals(SpnContext *ctx);
+SPN_API SpnHashMap *spn_ctx_getclasses(SpnContext *ctx);
 
 #endif /* SPN_CTX_H */

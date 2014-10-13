@@ -149,22 +149,23 @@ postfix-expr = term
           '++'                                |
           '--'                                |
           ( '.' IDENT )                       |
-          ( '::' IDENT )
         )(*) /* left-assoc */
 
 term         = IDENT                   |
                literal                 |
-               'argc'                  |
                'argv'                  |
                ( '(' expression ')' )  |
                function-expr           |
-               array-expr
+               array-literal           |
+               hashmap-literal
 
-function-expr  = 'function' [ IDENT ] '(' argument-declaration-list ')' block-statement
+function-expr   = 'function' [ IDENT ] '(' argument-declaration-list ')' block-statement
 
-array-expr     = '{' [ key-val ( ',' key-val )(*) ] '}'
+array-literal   = '[' [ expression ( ',' expression )(*) ] ']'
 
-key-val        = expression [ ':' expression ]
+hashmap-literal = '{' [ key-val ( ',' key-val )(*) ] '}'
+
+key-val         = expression ':' expression
 
 argument-call-list = ( expression ( ',' expression )(*) )(?)
 
@@ -181,7 +182,7 @@ Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
 and         else        if        return
-argc        false       let       true
+argv        false       let       true
 break       for         nil       typeof
 const       function    not       var
 continue    global      null      while
@@ -225,19 +226,19 @@ IDENT        = /[a-zA-Z_][a-zA-Z0-9_]*/
 Valid escape sequences:
 ~~~~~~~~~~~~~~~~~~~~~~~
 The same as in C:
- - \\	->	\
- - \/	->	/
- - \'	->	'
- - \"	->	"
- - \a	->	bell
- - \b	->	backspace
- - \f	->	form feed
- - \n	->	LF
- - \r	->	CR
- - \t	->	TAB
- - \0	->	NUL, char code 0
- - \xHH      ->	the character with code HH, where HH denotes two hexadecimal digits
+ - \\   ->	\
+ - \/   ->	/
+ - \'   ->	'
+ - \"   ->	"
+ - \a   ->	bell
+ - \b   ->	backspace
+ - \f   ->	form feed
+ - \n   ->	LF
+ - \r   ->	CR
+ - \t   ->	TAB
+ - \0   ->	NUL, char code 0
+ - \xHH ->	the character with code HH, where HH denotes two hexadecimal digits
 
-Sparkling source files preferrably use UTF-8 (or ASCII), but nothing else is prohibited.
+Sparkling source files preferably use UTF-8 (or ASCII), but nothing else is prohibited.
 (Read: please facilitate our lives and DO USE UTF-8, unless you really really can't.)
 

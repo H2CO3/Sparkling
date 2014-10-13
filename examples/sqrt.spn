@@ -10,19 +10,20 @@
 /* Babylonian method, a. k. a. Newton-Raphson */
 function bab_sqrt(x) {
 	var y, n = 0, eps = 1.0e-8;
-	
+
 	for (y = x / 2.0; abs(y - x / y) > eps; y = (y + x / y) / 2) {
 		n++;
 	}
-	
+
 	printf("%d iterations\n", n);
-	
+
 	return y;
 }
 
 
-var test = { 0, 1, 2, 3, 4, 9, 16, 25, 100, 123456789 };
+var test = [ 0, 1, 2, 3, 4, 9, 16, 25, 100, 123456789 ];
 for (var i = 0; i < test.length; i++) {
 	let x = test[i];
 	printf("babylonian: %f; C stdlib: %f\n", bab_sqrt(x), sqrt(x));
 }
+

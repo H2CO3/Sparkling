@@ -35,35 +35,35 @@ The workflow in JavaScript is similar to the usage of the C API:
 
 Mapping between Sparkling and JavaScript types:
 
-	nil		->	  undefined or null
-	bool		->	  boolean
-	number		->	  number
-	string		->	  string
-	array		->	  Array or Object
-	function	->	  function
-	userinfo	->	  SparklingUserInfo object
+	nil        ->   undefined or null
+	bool       ->   boolean
+	number     ->   number
+	string     ->   string
+	array      ->   Array
+	hashmap    ->   Object
+	function   ->   function
+	userinfo   ->   SparklingUserInfo object
 
 The mapping between the first four types is mostly self-explanatory. If `nil`
 is returned from Sparkling code, it will always be converted to `undefined`.
 You can, however, pass either `undefined` or `null` to Sparkling from JS --
 both values will be translated to `nil`.
 
-Sparkling arrays are returned to JavaScript as an `Array` object if they only
-contain integral keys between `[0...sizeof array)`, else they are returned as
-a generic `Object` instance that functions as a hash table.
+Sparkling arrays are returned to JavaScript as an `Array` object. Hashmaps are
+converted to a generic `Object` instance that functions as a hash table.
 
-If a Sparkling array contains keys other than numbers or strings, an exception
-is thrown.
+If a Sparkling hashmap contains keys other than numbers or strings, an
+exception is thrown.
 
-The inverse mapping is conceptually simpler: a JavaScript `Array` object is
-mapped to a Sparkling array with 0-based contiguous integral keys, any other
-object is converted to an array with string keys.
+The inverse mapping is also conceptually simple: a JavaScript `Array` object
+is mapped to a Sparkling array, any other object is converted to a hashmap
+with string keys.
 
 One thing to note is that the conversion between Sparkling and JavaScript
-arrays and objects is quite expensive, so it's best to reduce the number
-of repeated conversions. One should do most of their computations in one
-language or another, then transfer the results preferably once when the two
-runtimes need to exchange data.
+arrays, hashmaps and objects is quite expensive, so it's best to reduce the
+number of repeated conversions. One should do most of their computation in one
+language or another, then transfer the results, preferably only once, when the
+two runtimes need to exchange data.
 
 Sparkling and JavaScript functions can interoperate without any further effort.
 A Sparkling function, when returned to JS-land, is wrapped into a JavaScript
@@ -113,13 +113,13 @@ Usage example:
 Type the following lines into a JavaScript console on `libspn.html`, or open a
 Node.JS / JavaScriptCode / SpiderMonkey / etc. shell and import `libspn.js`:
 
-    > var fn = Sparkling.compile('return "Hello, " .. #0 .. "!";');
+    > var fn = Sparkling.compile('return "Hello, " .. argv[0] .. "!";');
     undefined
     > var greetMe = fn("H2CO3");
     undefined
     > greetMe
     "Hello, H2CO3!"
-    > var acc = Sparkling.compile('return #0 + #1;');
+    > var acc = Sparkling.compile('return argv[0] + argv[1];');
     undefined
     > [1, 2, 3, 4, 5].reduce(acc, 0)
     15

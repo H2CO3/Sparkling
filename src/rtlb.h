@@ -22,7 +22,7 @@
  * fprintf(), fgetline()
  * fread(), fwrite()
  * fflush(), ftell(), fseek(), feof()
- * remove(), rename(), tmpnam(), tmpfile()
+ * remove(), rename(), tmpfile()
  * readfile()
  *
  * Constants:
@@ -41,7 +41,6 @@
  *
  * Properties:
  * -----------
- * .class  [r]
  * .length [r]
  */
 
@@ -56,9 +55,22 @@
  * join()
  * foreach(), reduce(), filter(), map()
  * insert(), inject(), erase(), concat()
- * merge(), convol()
- * push(), pop()
+ * push(), pop(), last()
  * swap(), reverse()
+ *
+ * Properties:
+ * -----------
+ * .length [r]
+ */
+
+/* Hashmap library
+ * ==============
+ * Methods:
+ * --------
+ * foreach()
+ * map()
+ * filter()
+ * keys(), values()
  *
  * Free functions:
  * ---------------
@@ -66,10 +78,7 @@
  *
  * Properties:
  * -----------
- * .class  [rw]
  * .length [r]
- * .keys   [r]
- * .values [r]
  */
 
 /* Maths library
@@ -116,20 +125,18 @@
  * toint()
  * tofloat()
  * tonumber()
- * call()
  * require()
  * backtrace()
  *
- * Properties:
- * -----------
- * .class [rw] -- on values of type user info
+ * Methods:
+ * --------
+ * Function::call
  *
  * Constants:
  * ----------
- * getter (special ID of the getter method of a class)
- * setter (special ID of the setter method of a class)
- * Array: the default class for arrays
  * String: the default class for strings
+ * Array: the default class for arrays
+ * HashMap: the defautl class for hashmaps
  */
 
 /* A convenience function that loads the entire standard library.

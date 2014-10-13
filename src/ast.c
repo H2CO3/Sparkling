@@ -18,7 +18,7 @@ SpnAST *spn_ast_new(enum spn_ast_node node, int lineno)
 	SpnAST *ast = spn_malloc(sizeof(*ast));
 
 	ast->node   = node;
-	ast->value  = makenil();
+	ast->value  = spn_nilval;
 	ast->name   = NULL;
 	ast->lineno = lineno;
 	ast->left   = NULL;

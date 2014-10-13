@@ -10,6 +10,7 @@
 
 #include <stdlib.h>
 #include <string.h>
+#include <stdio.h>
 
 #include "private.h"
 
@@ -29,7 +30,8 @@ void *spn_malloc(size_t n)
 	void *ptr = malloc(n);
 
 	if (ptr == NULL) {
-		abort();
+		unsigned long uln = n;
+		spn_die("memory allocation of %lu bytes failed", uln);
 	}
 
 	return ptr;
@@ -40,12 +42,28 @@ void *spn_realloc(void *ptr, size_t n)
 	void *ret = realloc(ptr, n);
 
 	if (ret == NULL) {
-		abort();
+		unsigned long uln = n;
+		spn_die("reallocation of pointer %p to size %lu failed", ptr, uln);
 	}
 
 	return ret;
 }
 
+void spn_die(const char *fmt, ...)
+{
+	va_list args;
+	va_start(args, fmt);
+	spn_diev(fmt, args);
+	va_end(args);
+}
+
+void spn_diev(const char *fmt, va_list args)
+{
+	fprintf(stderr, "fatal error in Sparkling: ");
+	vfprintf(stderr, fmt, args);
+	fflush(stderr);
+	abort();
+}
 
 /* implementation of the symbol stub class */
 
@@ -90,4 +108,3 @@ int is_symstub(const SpnValue *val)
 
 	return 0;
 }
-

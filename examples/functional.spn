@@ -6,8 +6,8 @@
 # This is just for demo purposes. Blows up when 'f' is passed
 # nil arguments (because then 'argv' will not be sortable...)
 let flip = function (f) {
-	return function() {
-		return call(f, argv.reverse());
+	return function () {
+		return f.call(argv.reverse());
 	};
 };
 
@@ -25,10 +25,9 @@ printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
 # with the rest of the arguments of 'curry()' and its own arguments.
 # (again, assuming that no nil parameters will be passed to 'f'.)
 let curry = function (f) {
-	let fargc = argc - 1;
-	let rest = argv.slice(1, fargc);
+	let rest = argv.slice(1, argv.length - 1);
 	return function () {
-		return call(f, rest.concat(argv));
+		return f.call(rest.concat(argv));
 	};
 };
 
@@ -39,4 +38,88 @@ let adder = function () {
 let addsix = curry(adder, 1, 2, 3);
 
 print("(1 + 2 + 3) + (4 + 5 + 6 + 7) = ", addsix(4, 5, 6, 7));
+
+# The Maybe monad
+# 'Maybe' is the 'return()' or 'unit()' function itself
+# (just a constructor)
+
+function Maybe(val) {
+	return {
+		"bind": function (self, f) {
+			if self["value"] == nil {
+				return self;
+			}
+
+			return f(self["value"]);
+		},
+		"value": val
+	};
+}
+
+# Some sample data: my family tree... or something like that.
+# 'Maybe' is the classic example of looking up stuff in an
+# associative container, since it's possible that a key
+# simply does not exist in which case we get 'nil'.
+let me = {
+	"name": "Arpad",
+	"age": 20,
+	"mom": {
+		"name": "N...",
+		"mom": {
+			"name": "I...",
+			"age": 75
+		},
+		"dad": {
+			"name": "K..."
+		},
+		"siblings": []
+	},
+	"dad": {
+		"name": "F...",
+		"age": 37,
+		"mom": {
+			"name": "H..."
+		},
+		"dad": {
+			"name": "K...",
+			"age": 56
+		},
+		"siblings": [
+			{
+				"name": "K...",
+				"age": 29
+			}
+		]
+	},
+	"siblings": [
+		{
+			"name": "J...",
+			"age": 7
+		}
+	]
+};
+
+let Me = Maybe(me);
+
+# Find my grandma's age
+let grandmaAge = Me.bind(function (person) {
+	return Maybe(person["mom"]);
+}).bind(function (person) {
+	return Maybe(person["mom"]);
+}).bind(function (person) {
+	return Maybe(person["age"]);
+});
+
+# Find the age of my mom's cousin.
+# But there's no such person in the tree...!
+let momsCousinAge = Me.bind(function (person) {
+	return Maybe(person["mom"]);
+}).bind(function (person) {
+	return Maybe(person["cousin"]);
+}).bind(function (person) {
+	return Maybe(person["age"]);
+});
+
+print("Grandma's age: ", grandmaAge["value"]);
+print("Mom's cousin's age: ", momsCousinAge["value"]);
 

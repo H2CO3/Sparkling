@@ -123,6 +123,14 @@ size_t spn_hashmap_count(SpnHashMap *hm)
 	return hm->valcount;
 }
 
+SpnValue spn_makehashmap(void)
+{
+	SpnValue val;
+	val.type = SPN_TYPE_HASHMAP;
+	val.v.o = spn_hashmap_new();
+	return val;
+}
+
 static Bucket *find_key(Bucket *head, const SpnValue *key)
 {
 	Bucket *node = head;
@@ -185,7 +193,7 @@ void spn_hashmap_get(SpnHashMap *hm, const SpnValue *key, SpnValue *val)
 
 	/* avoid division by 0 - an empty map has no values anyway */
 	if (allocsize == 0) {
-		*val = makenil();
+		*val = spn_nilval;
 		return;
 	}
 
@@ -193,7 +201,7 @@ void spn_hashmap_get(SpnHashMap *hm, const SpnValue *key, SpnValue *val)
 	index = spn_hash_value(key) % allocsize;
 	head = &hm->buckets[index]; /* not NULL */
 	node = find_key(head, key);
-	*val = node ? node->value : makenil();
+	*val = node ? node->value : spn_nilval;
 }
 
 void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
@@ -333,8 +341,7 @@ static void expand_or_rehash(SpnHashMap *hm, int always_expand)
 		hm->sizeindex++;
 
 		if (hm->sizeindex >= COUNT(sizes)) {
-			fputs("exceeded maximal size of hashmap", stderr);
-			abort();
+			spn_die("exceeded maximal size of hashmap");
 		}
 	}
 
@@ -343,8 +350,8 @@ static void expand_or_rehash(SpnHashMap *hm, int always_expand)
 
 	/* the new bucket array starts out all empty */
 	for (i = 0; i < newsize; i++) {
-		newbuckets[i].key = makenil();
-		newbuckets[i].value = makenil();
+		newbuckets[i].key = spn_nilval;
+		newbuckets[i].value = spn_nilval;
 		newbuckets[i].next = NULL;
 	}
 
@@ -413,8 +420,21 @@ static void expand_or_rehash(SpnHashMap *hm, int always_expand)
 
 void spn_hashmap_delete(SpnHashMap *hm, const SpnValue *key)
 {
-	SpnValue nilval = makenil();
-	spn_hashmap_set(hm, key, &nilval);
+	spn_hashmap_set(hm, key, &spn_nilval);
+}
+
+void spn_hashmap_get_strkey(SpnHashMap *hm, const char *key, SpnValue *val)
+{
+	SpnValue str = makestring_nocopy(key);
+	spn_hashmap_get(hm, &str, val);
+	spn_value_release(&str);
+}
+
+void spn_hashmap_set_strkey(SpnHashMap *hm, const char *key, const SpnValue *val)
+{
+	SpnValue str = makestring(key);
+	spn_hashmap_set(hm, &str, val);
+	spn_value_release(&str);
 }
 
 size_t spn_hashmap_next(SpnHashMap *hm, size_t cursor, SpnValue *key, SpnValue *val)

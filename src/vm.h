@@ -16,6 +16,7 @@
 
 #include "api.h"
 #include "array.h"
+#include "hashmap.h"
 #include "func.h"
 
 /* an extension function written in C. It receives a pointer to the return
@@ -77,24 +78,24 @@ SPN_API void        spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const voi
  */
 SPN_API const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
 
-/* this returns an array that contains the global constants and functions.
+/* this returns a hashmap that contains the global constants and functions.
  * the keys are symbol names (SpnString instances).
  * The returned pointer is non-owning: the result of a call to this function
  * is only valid as long as the virtual machine `vm' is itself alive as well.
  */
-SPN_API SpnArray *spn_vm_getglobals(SpnVMachine *vm);
+SPN_API SpnHashMap *spn_vm_getglobals(SpnVMachine *vm);
 
 /* Returns the class descriptor table of the VM.
  * You can use the returned array to add, modify or remove the class
- * of a certain object. A class descriptor must be an array (SpnArray value).
+ * of a certain object. A class descriptor must be a hashmap (SpnHashMap value).
  *
- * The returned global class array must be either indexed using one of the
- * SPN_TTAG_* enums (as integers), or by an array or a user info object.
- * The philosophy behind this decision is that all object of the same class
+ * The returned global class descriptor must be either indexed using one of
+ * the SPN_TTAG_* enums (as integers), or by a hashmap or a user info object.
+ * The philosophy behind this decision is that all objects of the same class
  * have the same type, conceptually. Primitive types (numbers, strings, etc.)
  * have their own, limited set of possible values. Custom objects, however,
- * are best realized using either arrays, or maybe even user info objects,
- * so not all array or user info instances have to belong to the same "type".
+ * are best realized using either hashmaps, or maybe even user info objects,
+ * so not all hashmap or user info instances have to belong to the same "type".
  *
  * Class descriptors must only be indexed with identifiers (strings that meet
  * the requirements of an identifier, e. g. no special characters or spaces)
@@ -105,43 +106,23 @@ SPN_API SpnArray *spn_vm_getglobals(SpnVMachine *vm);
  * (you must not use it after the VM is freed nor should you release it).
  */
 
-SPN_API SpnArray *spn_vm_getclasses(SpnVMachine *vm);
-
-/* This function implements the unified class-lookup mechanism:
- * if 'pself' is an array or a user info, then first attempt
- * to look up its class by _instance_, and only if that fails,
- * return the class descriptor corresponding to its type.
- * If, however, 'pself' is a primitive type, i. e. it is
- * neither an array nor a user info object, then always try
- * retrieving its class solely based on its type.
- * Upon return, 'clsval' will contain the class array of 'pself'.
- * Warning: 'clsval' is non-owning (this function internally
- * issues a call to 'spn_array_get()', so the ownership of the
- * class descriptor array is not modified in any way).
- */
-SPN_API void spn_get_class_of_value(SpnArray *classes, const SpnValue *pself, SpnValue *clsval);
-
-/* special values used to index into a class descriptor */
-enum spn_method_index {
-	SPN_METHODIDX_GETTER,     /* property getter of the class  */
-	SPN_METHODIDX_SETTER      /* property setter of the class  */
-};
+SPN_API SpnHashMap *spn_vm_getclasses(SpnVMachine *vm);
 
 
 /* layout of a Sparkling bytecode file:
  *
  * +------------------------------------+
- * | Length of executable code		|
+ * | Length of executable code          |
  * +------------------------------------+
- * | number of formal parameters (0)	|
+ * | number of formal parameters (0)    |
  * +------------------------------------+
- * | size of 1st frame			|
+ * | size of 1st frame                  |
  * +------------------------------------+
- * | number of local symbols		|
+ * | number of local symbols            |
  * +------------------------------------+
- * | executable code			|
+ * | executable code                    |
  * +------------------------------------+
- * | symbol table			|
+ * | symbol table                       |
  * +------------------------------------+
  */
 
@@ -252,11 +233,12 @@ enum spn_vm_ins {
 	SPN_INS_LDCONST,  /* a = <constant> (IV)                  */
 	SPN_INS_LDSYM,    /* a = local symtab[b] (V)              */
 	SPN_INS_MOV,      /* a = b                                */
-	SPN_INS_ARGC,     /* a = argc (# of call-time arguments)  */
 	SPN_INS_ARGV,     /* a = argv (contains all arguments)    */
 	SPN_INS_NEWARR,   /* a = new array                        */
-	SPN_INS_ARRGET,   /* a = b[c]                             */
-	SPN_INS_ARRSET,   /* a[b] = c                             */
+	SPN_INS_NEWHASH,  /* a = new hashmap                      */
+	SPN_INS_IDX_GET,  /* a = b[c]                             */
+	SPN_INS_IDX_SET,  /* a[b] = c                             */
+	SPN_INS_ARR_PUSH, /* a.push(b); used for array literals   */
 	SPN_INS_FUNCTION, /* function definition (VI)             */
 	SPN_INS_GLBVAL,   /* add a value to the global symtab     */
 	SPN_INS_CLOSURE,  /* create closure from free func (VII)  */

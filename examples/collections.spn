@@ -1,14 +1,14 @@
 #!/usr/local/bin/spn
 
 /*
- * arrays.spn
- * iterating over the key-value pairs of an associative array
+ * collections.spn
+ * Using arrays and hashmaps
  *
  * created by Árpád Goretity on 30/09/2013
  */
 
 
-let arr1 = {
+let hm = {
 	0	:	"Value for index zero",
 	1337	:	"Some other value at index leet",
 	"bar"	:	function(x, y) {
@@ -17,8 +17,8 @@ let arr1 = {
 	"quirk"	:	3.14159265358979323846
 };
 
-// iterating over all key-value pairs
-arr1.foreach(function(value, key) {
+// iterating over all key-value pairs in a hashmap
+hm.foreach(function(value, key) {
 	print(key, " -> ", value);
 });
 
@@ -32,7 +32,7 @@ let mapped = arr2.map(function(value, key) {
 print("mapped: ", mapped);
 
 // flattening an array using 'reduce()'
-let arr3 = { 1, 3, 5, 7, 9 };
+let arr3 = [ 1, 3, 5, 7, 9 ];
 let sum = arr3.reduce(0, function(a, b) {
 	return a + b;
 });

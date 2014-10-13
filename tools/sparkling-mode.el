@@ -40,7 +40,7 @@
 
 (defvar sparkling-font-lock-keywords
   (list
-   '("\\<\\(a\\(nd\\|rg\\(c\\|v\\)\\)\\|break\\|con\\(st\\|tinue\\)\\|do\\|else\\|f\\(or\\|unction\\)\\|global\\|if\\|let\\|not\\|or\\|return\\|sizeof\\|typeof\\|var\\|while\\)\\>" . font-lock-keyword-face)
+   '("\\<\\(a\\(nd\\|rgv\\)\\|break\\|con\\(st\\|tinue\\)\\|do\\|else\\|f\\(or\\|unction\\)\\|global\\|if\\|let\\|not\\|or\\|return\\|sizeof\\|typeof\\|var\\|while\\)\\>" . font-lock-keyword-face)
    '("\\('\\w*'\\)" . font-lock-variable-name-face)
    '("\\(\\\"\\(\\\\\"\\|[^\\\"]\\)*\\\"\\)" . font-lock-string-face)
 	 '("\\(nil\\|null\\|true\\|false\\)" . font-lock-constant-face)

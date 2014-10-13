@@ -17,6 +17,7 @@
 #include "private.h"
 #include "func.h"
 #include "array.h"
+#include "hashmap.h"
 
 
 // forward-declare Sparkling library functions
@@ -58,16 +59,16 @@ static SpnArray *get_global_values(void)
 
 static int next_value_index = FIRST_VALUE_INDEX;
 
-static int add_to_values(SpnValue *val)
+static int add_to_values(const SpnValue *val)
 {
-	spn_array_set_intkey(get_global_values(), next_value_index, val);
+	spn_array_push(get_global_values(), val);
 	return next_value_index++;
 }
 
 static SpnValue value_by_index(int index)
 {
 	SpnValue result;
-	spn_array_get_intkey(get_global_values(), index, &result);
+	spn_array_get(get_global_values(), index, &result);
 	return result;
 }
 
@@ -89,12 +90,7 @@ extern void jspn_reset(void)
 extern void jspn_freeAll(void)
 {
 	SpnArray *globals = get_global_values();
-	SpnValue nilval = makenil();
-
-	for (int i = 0; i < next_value_index; i++) {
-		spn_array_set_intkey(globals, i, &nilval);
-	}
-
+	spn_array_setsize(globals, 0);
 	next_value_index = FIRST_VALUE_INDEX;
 }
 
@@ -120,7 +116,7 @@ extern int jspn_compileExpr(const char *src)
 	return add_to_values(&fnval);
 }
 
-extern int jspn_call(int func_index, int argv_index, size_t argc)
+extern int jspn_call(int func_index, int argv_index)
 {
 	SpnValue func_val = value_by_index(func_index);
 	if (!isfunc(&func_val)) {
@@ -134,12 +130,13 @@ extern int jspn_call(int func_index, int argv_index, size_t argc)
 
 	SpnFunction *func = funcvalue(&func_val);
 	SpnArray *argv = arrayvalue(&argv_val);
+	size_t argc = spn_array_count(argv);
 
 	// malloc is used instead of a VLA so that we can avoid
 	// working around the UB in the special case of argc == 0
 	SpnValue *args = malloc(argc * sizeof args[0]);
 	for (size_t i = 0; i < argc; i++) {
-		spn_array_get_intkey(argv, i, &args[i]);
+		spn_array_get(argv, i, &args[i]);
 	}
 
 	SpnValue result;
@@ -182,17 +179,17 @@ extern const char *jspn_lastErrorType(void)
 
 extern int jspn_getGlobal(const char *name)
 {
-	SpnArray *globals = spn_ctx_getglobals(get_global_context());
+	SpnHashMap *globals = spn_ctx_getglobals(get_global_context());
 	SpnValue global;
-	spn_array_get_strkey(globals, name, &global);
+	spn_hashmap_get_strkey(globals, name, &global);
 	return add_to_values(&global);
 }
 
 extern void jspn_setGlobal(const char *name, int index)
 {
 	SpnValue val = value_by_index(index);
-	SpnArray *globals = spn_ctx_getglobals(get_global_context());
-	spn_array_set_strkey(globals, name, &val);
+	SpnHashMap *globals = spn_ctx_getglobals(get_global_context());
+	spn_hashmap_set_strkey(globals, name, &val);
 }
 
 extern const char *jspn_backtrace(void)
@@ -236,14 +233,12 @@ extern const char *jspn_backtrace(void)
 // Setters (JavaScript -> Sparkling/C)
 extern int jspn_addNil(void)
 {
-	SpnValue val = makenil();
-	return add_to_values(&val);
+	return add_to_values(&spn_nilval);
 }
 
 extern int jspn_addBool(int b)
 {
-	SpnValue val = makebool(!!b);
-	return add_to_values(&val);
+	return add_to_values(b ? &spn_trueval : &spn_falseval);
 }
 
 extern int jspn_addNumber(double x)
@@ -267,7 +262,7 @@ extern int jspn_addArrayWithIndexBuffer(int32_t *indexBuffer, size_t n_objects)
 	for (size_t i = 0; i < n_objects; i++) {
 		int32_t index = indexBuffer[i];
 		SpnValue val = value_by_index(index);
-		spn_array_set_intkey(array, i, &val);
+		spn_array_push(array, &val);
 	}
 
 	SpnValue arrval = { .type = SPN_TYPE_ARRAY, .v.o = array };
@@ -278,17 +273,17 @@ extern int jspn_addArrayWithIndexBuffer(int32_t *indexBuffer, size_t n_objects)
 
 extern int jspn_addDictionaryWithIndexBuffer(int32_t *indexBuffer, size_t n_key_val_pairs)
 {
-	SpnArray *dict = spn_array_new();
+	SpnHashMap *dict = spn_hashmap_new();
 
 	for (size_t i = 0; i < n_key_val_pairs; i++) {
 		int32_t key_index = indexBuffer[2 * i + 0];
 		int32_t val_index = indexBuffer[2 * i + 1];
 		SpnValue key = value_by_index(key_index);
 		SpnValue val = value_by_index(val_index);
-		spn_array_set(dict, &key, &val);
+		spn_hashmap_set(dict, &key, &val);
 	}
 
-	SpnValue dictval = { .type = SPN_TYPE_ARRAY, .v.o = dict };
+	SpnValue dictval = { .type = SPN_TYPE_HASHMAP, .v.o = dict };
 	int result_index = add_to_values(&dictval);
 	spn_object_release(dict);
 	return result_index;
@@ -312,7 +307,7 @@ extern double jspn_getNumber(int index)
 {
 	SpnValue val = value_by_index(index);
 	assert(isnum(&val));
-	return val.type & SPN_FLAG_FLOAT ? val.v.f : val.v.i;
+	return isfloat(&val) ? floatvalue(&val) : intvalue(&val);
 }
 
 extern const char *jspn_getString(int index)
@@ -333,11 +328,7 @@ extern int jspn_addWrapperFunction(int funcIndex)
 			get_global_context(),
 			"let funcIndex = argv[0];"
 			"return function() {"
-			"	let _argc = argc, _argv = argv;"
-			"	var args = {};"
-			"	for (var i = 0; i < _argc; ++i) {"
-			"		args[i] = jspn_valueToIndex(_argv[i]);"
-			"	}"
+			"	let args = argv.map(jspn_valueToIndex);"
 			"	return jspn_callWrappedFunc(funcIndex, args);"
 			"};"
 		);
@@ -364,7 +355,7 @@ extern int jspn_addWrapperFunction(int funcIndex)
 // Helpers for addWrapperFunction
 static int jspn_valueToIndex(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
 {
-	assert(argc == 1);
+	assert(argc >= 1); // usually 2 because 'map' passes in the index too
 	int index = add_to_values(&argv[0]);
 	*ret = makeint(index);
 	return 0;
@@ -382,14 +373,14 @@ static int jspn_callWrappedFunc(SpnValue *ret, int argc, SpnValue argv[], void *
 	SpnArray *argIndices = arrayvalue(&argv[1]);
 	size_t count = spn_array_count(argIndices);
 	int retValIndex = jspn_callJSFunc(funcIndex, count, argIndices);
-	spn_array_get_intkey(get_global_values(), retValIndex, ret);
+	spn_array_get(get_global_values(), retValIndex, ret);
 	spn_value_retain(ret);
 
 	return 0;
 }
 
 // helper for jspn_jseval, implemented in JavaScript
-extern int jspn_jseval_helper(char *src);
+extern int jspn_jseval_helper(const char *src);
 
 static int jspn_jseval(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
 {
@@ -414,7 +405,7 @@ static int jspn_jseval(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
 		return -3;
 	}
 
-	spn_array_get_intkey(get_global_values(), index, ret);
+	spn_array_get(get_global_values(), index, ret);
 	spn_value_retain(ret);
 
 	return 0;
@@ -423,7 +414,7 @@ static int jspn_jseval(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
 extern int jspn_getIntFromArray(SpnArray *array, int index)
 {
 	SpnValue val;
-	spn_array_get_intkey(array, index, &val);
+	spn_array_get(array, index, &val);
 	assert(isint(&val));
 	return intvalue(&val);
 }
@@ -445,21 +436,40 @@ extern size_t jspn_countOfArrayAtIndex(int index)
 	return spn_array_count(arrayvalue(&val));
 }
 
-extern void jspn_getKeyAndValueIndicesOfArrayAtIndex(int index, int32_t *indexBuffer)
+extern size_t jspn_countOfHashMapAtIndex(int index)
+{
+	SpnValue val = value_by_index(index);
+	assert(ishashmap(&val));
+	return spn_hashmap_count(hashmapvalue(&val));
+}
+
+extern void jspn_getValueIndicesOfArrayAtIndex(int index, int32_t *indexBuffer)
 {
 	SpnValue arrayval = value_by_index(index);
 	assert(isarray(&arrayval));
 
-	SpnArray *array = arrayvalue(&arrayval);
-	SpnIterator *it = spn_iter_new(array);
-	size_t n = spn_array_count(array);
-	size_t i;
+	SpnArray *arr = arrayvalue(&arrayval);
+	size_t n = spn_array_count(arr);
+
+	for (size_t i = 0; i < n; i++) {
+		SpnValue val;
+		spn_array_get(arr, i, &val);
+		indexBuffer[i] = add_to_values(&val);
+	}
+}
+
+extern void jspn_getKeyAndValueIndicesOfHashMapAtIndex(int index, int32_t *indexBuffer)
+{
+	SpnValue hmval = value_by_index(index);
+	assert(ishashmap(&hmval));
+
+	SpnHashMap *hm = hashmapvalue(&hmval);
+	size_t i = 0, cursor = 0;
 
 	SpnValue key, value;
-	while ((i = spn_iter_next(it, &key, &value)) < n) {
+	while ((cursor = spn_hashmap_next(hm, cursor, &key, &value)) != 0) {
 		indexBuffer[i * 2 + 0] = add_to_values(&key);
 		indexBuffer[i * 2 + 1] = add_to_values(&value);
+		i++;
 	}
-
-	spn_iter_free(it);
 }

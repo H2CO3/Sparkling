@@ -18,7 +18,7 @@
 #ifdef __cplusplus
 #define SPN_API extern "C"
 #else	/* __cplusplus */
-#define SPN_API
+#define SPN_API extern
 #endif	/* __cplusplus */
 
 
@@ -115,6 +115,7 @@ enum {
 	SPN_TTAG_NUMBER,	 /* floating-point if `FLOAT' flag is set */
 	SPN_TTAG_STRING,
 	SPN_TTAG_ARRAY,
+	SPN_TTAG_HASHMAP,
 	SPN_TTAG_FUNC,
 	SPN_TTAG_USERINFO /* strong pointer when `OBJECT' flag is set	 */
 };
@@ -134,6 +135,7 @@ enum {
 	SPN_TYPE_FUNC               = SPN_TTAG_FUNC     | SPN_FLAG_OBJECT,
 	SPN_TYPE_STRING             = SPN_TTAG_STRING   | SPN_FLAG_OBJECT,
 	SPN_TYPE_ARRAY              = SPN_TTAG_ARRAY    | SPN_FLAG_OBJECT,
+	SPN_TYPE_HASHMAP            = SPN_TTAG_HASHMAP  | SPN_FLAG_OBJECT,
 	SPN_TYPE_WEAKUSERINFO       = SPN_TTAG_USERINFO,
 	SPN_TYPE_STRGUSERINFO       = SPN_TTAG_USERINFO | SPN_FLAG_OBJECT
 };
@@ -150,6 +152,7 @@ enum {
 #define spn_isnumber(val)       (spn_valtype(val) == SPN_TTAG_NUMBER)
 #define spn_isstring(val)       (spn_valtype(val) == SPN_TTAG_STRING)
 #define spn_isarray(val)        (spn_valtype(val) == SPN_TTAG_ARRAY)
+#define spn_ishashmap(val)      (spn_valtype(val) == SPN_TTAG_HASHMAP)
 #define spn_isfunc(val)         (spn_valtype(val) == SPN_TTAG_FUNC)
 #define spn_isuserinfo(val)     (spn_valtype(val) == SPN_TTAG_USERINFO)
 
@@ -184,12 +187,16 @@ typedef struct SpnValue {
  * Again, more of these constructors are implemented for each
  * specific object type separately in various header files.
  */
-SPN_API SpnValue spn_makenil(void);
 SPN_API SpnValue spn_makebool(int b);
 SPN_API SpnValue spn_makeint(long i);
 SPN_API SpnValue spn_makefloat(double f);
 SPN_API SpnValue spn_makeweakuserinfo(void *p);
 SPN_API SpnValue spn_makestrguserinfo(void *o);
+
+/* 'nil' and Boolean constants */
+SPN_API const SpnValue spn_nilval;
+SPN_API const SpnValue spn_falseval;
+SPN_API const SpnValue spn_trueval;
 
 /* reference counting */
 SPN_API void spn_value_retain(const SpnValue *val);

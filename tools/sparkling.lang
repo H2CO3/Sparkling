@@ -62,7 +62,6 @@
       <keyword>function</keyword>
       <keyword>typeof</keyword>
       <keyword>sizeof</keyword>
-      <keyword>argc</keyword>
       <keyword>argv</keyword>
     </context>
 

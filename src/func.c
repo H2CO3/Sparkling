@@ -102,14 +102,14 @@ SpnFunction *spn_func_new_script(const char *name, spn_uword *bc, SpnFunction *e
 	func->native = 0;
 	func->topprg = 0;
 	func->is_closure = 0;
-	func->nwords = 0;		/* unused */
+	func->nwords = 0; /* unused */
 
 	func->name = name;
 	func->env = env;
-	func->readsymtab = 0;		/* unused */
-	func->symtab = env->symtab;	/* weak pointer */
-	func->upvalues = NULL;		/* unused */
-	func->repr.bc = bc;		/* weak pointer */
+	func->readsymtab = 0;       /* unused       */
+	func->symtab = env->symtab; /* weak pointer */
+	func->upvalues = NULL;      /* unused       */
+	func->repr.bc = bc;         /* weak pointer */
 
 	return func;
 }
@@ -140,13 +140,13 @@ SpnFunction *spn_func_new_native(const char *name, int (*fn)(SpnValue *, int, Sp
 	func->native = 1;
 	func->topprg = 0;
 	func->is_closure = 0;
-	func->nwords = 0;	/* unused */
+	func->nwords = 0;       /* unused */
 
 	func->name = name;
-	func->env = NULL;	/* unused */
-	func->readsymtab = 0;	/* unused */
-	func->symtab = NULL;	/* unused */
-	func->upvalues = NULL;	/* unused */
+	func->env = NULL;       /* unused */
+	func->readsymtab = 0;   /* unused */
+	func->symtab = NULL;    /* unused */
+	func->upvalues = NULL;  /* unused */
 	func->repr.fn = fn;
 
 	return func;
@@ -167,7 +167,7 @@ SpnFunction *spn_func_new_closure(SpnFunction *prototype)
 	func->native = 0;
 	func->topprg = 0;
 	func->is_closure = 1;
-	func->nwords = 0;			/* unused */
+	func->nwords = 0; /* unused */
 
 	/* func->symtab is always a weak pointer for closures,
 	 * because the prototype is never a top-level program,
@@ -175,10 +175,10 @@ SpnFunction *spn_func_new_closure(SpnFunction *prototype)
 	 * program have a strong symbol table pointer.
 	 */
 
-	func->name = prototype->name;		/* weak pointer */
-	func->env = prototype->env; 		/* weak pointer */
-	func->readsymtab = 0;			/* unused */
-	func->symtab = prototype->symtab;	/* weak pointer */
+	func->name = prototype->name;       /* weak pointer */
+	func->env = prototype->env;         /* weak pointer */
+	func->readsymtab = 0;               /* unused */
+	func->symtab = prototype->symtab;   /* weak pointer */
 	func->upvalues = spn_array_new();
 	func->repr = prototype->repr;
 
@@ -187,38 +187,34 @@ SpnFunction *spn_func_new_closure(SpnFunction *prototype)
 
 /* convenience value constructors */
 
-SpnValue spn_makescriptfunc(const char *name, spn_uword *bc, SpnFunction *env)
+static SpnValue func_to_val(SpnFunction *func)
 {
-	SpnFunction *func = spn_func_new_script(name, bc, env);
 	SpnValue ret;
 	ret.type = SPN_TYPE_FUNC;
 	ret.v.o = func;
 	return ret;
+}
+
+SpnValue spn_makescriptfunc(const char *name, spn_uword *bc, SpnFunction *env)
+{
+	SpnFunction *func = spn_func_new_script(name, bc, env);
+	return func_to_val(func);
 }
 
 SpnValue spn_maketopprgfunc(const char *name, spn_uword *bc, size_t nwords)
 {
 	SpnFunction *func = spn_func_new_topprg(name, bc, nwords);
-	SpnValue ret;
-	ret.type = SPN_TYPE_FUNC;
-	ret.v.o = func;
-	return ret;
+	return func_to_val(func);
 }
 
 SpnValue spn_makenativefunc(const char *name, int (*fn)(SpnValue *, int, SpnValue *, void *))
 {
 	SpnFunction *func = spn_func_new_native(name, fn);
-	SpnValue ret;
-	ret.type = SPN_TYPE_FUNC;
-	ret.v.o = func;
-	return ret;
+	return func_to_val(func);
 }
 
 SpnValue spn_makeclosure(SpnFunction *prototype)
 {
 	SpnFunction *func = spn_func_new_closure(prototype);
-	SpnValue ret;
-	ret.type = SPN_TYPE_FUNC;
-	ret.v.o = func;
-	return ret;
+	return func_to_val(func);
 }

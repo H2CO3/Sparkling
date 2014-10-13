@@ -13,10 +13,10 @@
 
 	var compileExpr = Module.cwrap('jspn_compileExpr', 'number', ['string']);
 
-	// Takes a function index, an array index and an array length.
+	// Takes a function index and an array index.
 	// Returns the index of the value which is the result of calling the
 	// function at the given index in the specified array as arguments.
-	var call = Module.cwrap('jspn_call', 'number', ['number', 'number', 'number']);
+	var call = Module.cwrap('jspn_call', 'number', ['number', 'number']);
 
 	// takes the name of a global value, returns its referencing index
 	var getGlobal = Module.cwrap('jspn_getGlobal', 'number', ['string']);
@@ -150,8 +150,9 @@
 		    TYPE_NUMBER   = 2,
 		    TYPE_STRING   = 3,
 		    TYPE_ARRAY    = 4,
-		    TYPE_FUNC     = 5,
-		    TYPE_USERINFO = 6;
+		    TYPE_HASHMAP  = 5,
+		    TYPE_FUNC     = 6,
+		    TYPE_USERINFO = 7;
 
 		switch (typeAtIndex(index)) {
 		case TYPE_NIL:        return undefined;
@@ -159,6 +160,7 @@
 		case TYPE_NUMBER:     return getNumber(index);
 		case TYPE_STRING:     return getString(index);
 		case TYPE_ARRAY:      return getArray(index);
+		case TYPE_HASHMAP:    return getHashmap(index);
 		case TYPE_FUNC:       return getFunction(index);
 		case TYPE_USERINFO:   return getUserInfo(index);
 		default: /* error */  throw "unknown type tag";
@@ -190,72 +192,56 @@
 	};
 
 	var getArray = function(index) {
-		var length = countOfArrayAtIndex(index);
-		var keys = [], values = [];
-
-		var indexBuffer = Module._malloc(length * 2 * 4);
-		var object;
-		getKeyAndValueIndicesOfArrayAtIndex(index, indexBuffer);
-
-		var isArray = true;
 		var i;
-		var keyIndex, valueIndex, key, value;
+		var values = [];
+		var length = countOfArrayAtIndex(index);
+		var indexBuffer = Module._malloc(length * 4);
+
+		getValueIndicesOfArrayAtIndex(index, indexBuffer);
 
 		for (i = 0; i < length; i++) {
-			keyIndex = getValue(indexBuffer + (2 * i + 0) * 4, 'i32');
-			key = valueAtIndex(keyIndex);
-			keys[i] = key;
-
-			valueIndex = getValue(indexBuffer + (2 * i + 1) * 4, 'i32');;
-			value = valueAtIndex(valueIndex);
-			values[i] = value;
-
-			switch (typeof key) {
-			case 'string':
-				isArray = false;
-				break;
-			case 'number':
-				if (isNaN(key)) {
-					Module._free(indexBuffer);
-					throw "NaN is not allowed as a key";
-				}
-
-				// fractional key, can't be an array
-				if (key % 1 !== 0) {
-					isArray = false;
-				}
-
-				// holes in the "array" or not 0-based -> cannot be an array
-				if (key !== i) {
-					isArray = false;
-				}
-				break;
-			default:
-				Module._free(indexBuffer);
-				throw "keys must be numbers or strings";
-			}
+			valueIndex = Module.getValue(indexBuffer + i * 4, 'i32');
+			values[i] = valueAtIndex(valueIndex);
 		}
 
 		Module._free(indexBuffer);
 
-		if (isArray) {
-			return values;
-		}
+		return values;
+	};
 
-		// if it's not an array, it's an object
-		object = {};
+	var getHashmap = function(index) {
+		var i;
+		var keyIndex, valueIndex, key, value;
+		var object = {};
+		var length = countOfHashMapAtIndex(index);
+		var indexBuffer = Module._malloc(length * 2 * 4);
+
+		getKeyAndValueIndicesOfHashMapAtIndex(index, indexBuffer);
 
 		for (i = 0; i < length; i++) {
-			key = keys[i];
-			value = values[i];
+			keyIndex = Module.getValue(indexBuffer + (2 * i + 0) * 4, 'i32');
+			key = valueAtIndex(keyIndex);
+
+			valueIndex = Module.getValue(indexBuffer + (2 * i + 1) * 4, 'i32');
+			value = valueAtIndex(valueIndex);
+
+			if (typeof key !== 'string') {
+					Module._free(indexBuffer);
+					throw "keys must be strings";
+			}
+
 			object[key] = value;
 		}
+
+		Module._free(indexBuffer);
 
 		return object;
 	};
 
 	var countOfArrayAtIndex = Module.cwrap('jspn_countOfArrayAtIndex', 'number', ['number']);
-	var getKeyAndValueIndicesOfArrayAtIndex = Module.cwrap('jspn_getKeyAndValueIndicesOfArrayAtIndex', null, ['number', 'number']);
+	var countOfHashMapAtIndex = Module.cwrap('jspn_countOfHashMapAtIndex', 'number', ['number']);
+	var getValueIndicesOfArrayAtIndex = Module.cwrap('jspn_getValueIndicesOfArrayAtIndex', null, ['number', 'number']);
+	var getKeyAndValueIndicesOfHashMapAtIndex = Module.cwrap('jspn_getKeyAndValueIndicesOfHashMapAtIndex', null, ['number', 'number']);
 
 	var getFunction = function(fnIndex) {
 		// XXX: should we check if the value at given index is really a function?
@@ -263,7 +249,7 @@
 		var result = function() {
 			var argv = Array.prototype.slice.apply(arguments);
 			var argvIndex = addArray(argv); // returns the index of an SpnValue<SpnArray>
-			var retIndex = call(fnIndex, argvIndex, argv.length);
+			var retIndex = call(fnIndex, argvIndex);
 
 			if (retIndex < 0) {
 				throw Sparkling.lastErrorMessage();

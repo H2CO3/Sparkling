@@ -45,7 +45,6 @@ enum spn_lex_token {
 	SPN_TOK_TYPEOF,
 	SPN_TOK_VAR,
 	SPN_TOK_CONST,
-	SPN_TOK_ARGC,
 	SPN_TOK_ARGV,
 
 	/* `and', `or' and `not' are lexed as the corresponding logical
@@ -74,7 +73,6 @@ enum spn_lex_token {
 	SPN_TOK_GREATER,
 	SPN_TOK_QMARK,
 	SPN_TOK_COLON,
-	SPN_TOK_DBLCOLON,
 	SPN_TOK_SEMICOLON,
 	SPN_TOK_COMMA,
 	SPN_TOK_DOT,

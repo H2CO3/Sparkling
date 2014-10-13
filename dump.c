@@ -88,16 +88,17 @@ void spn_dump_ast(SpnAST *ast, int indent)
 
 		"postincrement",
 		"postdecrement",
-		"array-subscript",
+		"indexing-subscript",
 		"memberof",
 		"function-call",
 
 		"identifier",
 		"literal",
 		"function-expr",
-		"argc",
 		"argv",
 		"array-literal",
+		"array-value",
+		"hashmap-literal",
 		"key-value-pair",
 
 		"decl-argument",
@@ -144,22 +145,6 @@ void spn_dump_ast(SpnAST *ast, int indent)
 
 /* Disassembling */
 
-#ifdef __GNUC__
-__attribute__((format(printf, 1, 2)))
-#endif /* __GNUC__ */
-static void bail(const char *fmt, ...)
-{
-	va_list args;
-
-	fprintf(stderr, "error disassembling bytecode: ");
-
-	va_start(args, fmt);
-	vfprintf(stderr, fmt, args);
-	va_end(args);
-
-	fprintf(stderr, "\n");
-}
-
 /* hopefully there'll be no more than 4096 levels of nested function bodies.
  * if you write code that has more of them, you should feel bad (and refactor).
  */
@@ -182,8 +167,9 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 		unsigned long addr = ip - 1 - bc;
 
 		if (fnlevel >= MAX_FUNC_NEST) {
-			bail(
-				"more than %d nested function definitions\n"
+			spn_die(
+				"error disassembling bytecode: more than %d nested"
+				"function definitions\n"
 				"-- consider refactoring your code!\n",
 				MAX_FUNC_NEST - 1 /* -1 for top-level program */
 			);
@@ -395,8 +381,13 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 				break;
 			}
 			default:
-				bail("\n\nincorrect constant kind %d in SPN_INS_LDCONST\n"
-				     "at address %08lx\n", type, addr);
+				spn_die(
+					"\n\nerror disassembling bytecode:"
+					"incorrect constant kind %d in SPN_INS_LDCONST\n"
+					"at address %08lx\n",
+					type,
+					addr
+				);
 				return -1;
 				break;
 			}
@@ -413,9 +404,9 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			printf("mov\tr%d, r%d\n", opa, opb);
 			break;
 		}
-		case SPN_INS_ARGC: {
+		case SPN_INS_ARGV: {
 			int opa = OPA(ins);
-			printf("ld\tr%d, argc\n", opa);
+			printf("ld\tr%d, argv\t# r%d = argv\n", opa, opa);
 			break;
 		}
 		case SPN_INS_NEWARR: {
@@ -423,21 +414,26 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			printf("ld\tr%d, new array\n", opa);
 			break;
 		}
-		case SPN_INS_ARRGET: {
-			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
-			printf("arrget\tr%d, r%d, r%d\t# r%d = r%d[r%d]\n",
-				opa, opb, opc, opa, opb, opc);
-			break;
-		}
-		case SPN_INS_ARRSET: {
-			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
-			printf("arrset\tr%d, r%d, r%d\t# r%d[r%d] = r%d\n",
-				opa, opb, opc, opa, opb, opc);
-			break;
-		}
-		case SPN_INS_ARGV: {
+		case SPN_INS_NEWHASH: {
 			int opa = OPA(ins);
-			printf("ld\tr%d, argv\t# r%d = argv\n", opa, opa);
+			printf("ld\tr%d, new hashmap\n", opa);
+			break;
+		}
+		case SPN_INS_IDX_GET: {
+			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
+			printf("idxget\tr%d, r%d, r%d\t# r%d = r%d[r%d]\n",
+				opa, opb, opc, opa, opb, opc);
+			break;
+		}
+		case SPN_INS_IDX_SET: {
+			int opa = OPA(ins), opb = OPB(ins), opc = OPC(ins);
+			printf("idxset\tr%d, r%d, r%d\t# r%d[r%d] = r%d\n",
+				opa, opb, opc, opa, opb, opc);
+			break;
+		}
+		case SPN_INS_ARR_PUSH: {
+			int opa = OPA(ins), opb = OPB(ins);
+			printf("push\tr%d, r%d\t# r%d.push(r%d)\n", opa, opb, opa, opb);
 			break;
 		}
 		case SPN_INS_FUNCTION: {
@@ -462,9 +458,9 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 
 			/* sanity check */
 			if (argc > nregs) {
-				bail(
-					"number of arguments (%d) is greater "
-					"than number of registers (%d)!\n",
+				spn_die(
+					"error disassembling bytecode: number of arguments "
+					"(%d) is greater than number of registers (%d)!\n",
 					argc,
 					nregs
 				);
@@ -486,9 +482,9 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
 
 			if (namelen != reallen) {
-				bail(
-					"\n\nsymbol name length (%lu) does not match "
-					"expected (%lu) at address %#08lx\n",
+				spn_die(
+					"\n\nerror disassembling bytecode: symbol name length "
+					"(%lu) does not match expected (%lu) at address %#08lx\n",
 					(unsigned long)(reallen),
 					(unsigned long)(namelen),
 					addr
@@ -527,7 +523,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 					upval_typechr = 'O'; /* [O]uter */
 					break;
 				default:
-					bail("Unknown upvalue type %d\n", upval_type);
+					spn_die("error disassembling bytecode: unknown upvalue type %d\n", upval_type);
 					return -1;
 				}
 
@@ -562,7 +558,12 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			break;
 		}
 		default:
-			bail("unrecognized opcode %d at address %#08lx\n", (int)(opcode), addr);
+			spn_die(
+				"error disassembling bytecode: "
+				"unrecognized opcode %d at address %#08lx\n",
+				(int)(opcode),
+				addr
+			);
 			return -1;
 			break;
 		}
@@ -593,7 +594,8 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 			unsigned long explen = OPLONG(ins);
 
 			if (len != explen) {
-				bail(
+				spn_die(
+					"error disassembling bytecode: "
 					"string literal at address %#08lx: "
 					"actual string length (%lu) does not match "
 					"expected (%lu)\n",
@@ -616,7 +618,8 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 			unsigned long explen = OPLONG(ins);
 
 			if (len != explen) {
-				bail(
+				spn_die(
+					"error disassembling bytecode: "
 					"symbol stub at address %#08lx: "
 					"actual name length (%lu) does not match "
 					"expected (%lu)\n",
@@ -640,7 +643,8 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
 
 			if (namelen != reallen) {
-				bail(
+				spn_die(
+					"error disassembling bytecode: "
 					"definition of function `%s' at %#08lx: "
 					"actual name length (%lu) does not match "
 					"expected (%lu)\n",
@@ -658,17 +662,22 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 			break;
 		}
 		default:
-			bail("incorrect local symbol type %d at address %#08lx\n", kind, addr);
+			spn_die(
+				"error disassembling bytecode: incorrect local "
+				"symbol type %d at address %#08lx\n",
+				kind,
+				addr
+			);
 			return -1;
 			break;
 		}
 	}
 
 	if (ip > bc + offset + datalen) {
-		bail("bytecode is longer than length in header\n");
+		spn_die("error disassembling bytecode: bytecode is longer than length in header\n");
 		return -1;
 	} else if (ip < bc + offset + datalen) {
-		bail("bytecode is shorter than length in header\n");
+		spn_die("error disassembling bytecode: bytecode is shorter than length in header\n");
 		return -1;
 	}
 
@@ -705,4 +714,3 @@ int spn_dump_assembly(spn_uword *bc, size_t len)
 	 */
 	return disasm_symtab(bc, symtaboff, len - symtaboff, symtablen);
 }
-
