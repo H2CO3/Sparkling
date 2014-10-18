@@ -678,7 +678,7 @@ int spn_lex(SpnParser *p)
 	return 0;
 }
 
-int spn_accept(struct SpnParser *p, enum spn_lex_token tok)
+int spn_accept(SpnParser *p, enum spn_lex_token tok)
 {
 	if (p->curtok.tok == tok) {
 		spn_lex(p);
@@ -688,7 +688,7 @@ int spn_accept(struct SpnParser *p, enum spn_lex_token tok)
 	return 0;
 }
 
-int spn_accept_multi(struct SpnParser *p, const enum spn_lex_token toks[], size_t n)
+int spn_accept_multi(SpnParser *p, const enum spn_lex_token toks[], size_t n)
 {
 	size_t i;
 	for (i = 0; i < n; i++) {

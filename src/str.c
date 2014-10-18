@@ -44,13 +44,24 @@ static void free_string(void *obj)
 static int compare_strings(void *lp, void *rp)
 {
 	SpnString *lhs = lp, *rhs = rp;
-	return strcmp(lhs->cstr, rhs->cstr);
+
+	size_t l_len = lhs->len;
+	size_t r_len = rhs->len;
+
+	size_t minlen = l_len < r_len ? l_len : r_len;
+
+	int res = memcmp(lhs->cstr, rhs->cstr, minlen);
+
+	if (res != 0) {
+		return res;
+	}
+
+	return l_len < r_len ? -1 : l_len > r_len ? +1 : 0;
 }
 
 static int equal_strings(void *lp, void *rp)
 {
-	SpnString *lhs = lp, *rhs = rp;
-	return strcmp(lhs->cstr, rhs->cstr) == 0;
+	return compare_strings(lp, rp) == 0;
 }
 
 /* since strings are immutable, it's enough to generate the hash on-demand,
