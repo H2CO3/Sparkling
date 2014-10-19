@@ -8,10 +8,10 @@
  */
 
 var f = fopen("stuff.txt", "wb");
-fwrite(f, "hello world");
-fclose(f);
+f.write("hello world");
+f.close();
 
 f = fopen("stuff.txt", "rb");
-var l = fgetline(f);
+var l = f.getline();
 print(l);
-fclose(f);
+f.close();

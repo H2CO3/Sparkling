@@ -12,7 +12,7 @@ let hm = {
 	0	:	"Value for index zero",
 	1337	:	"Some other value at index leet",
 	"bar"	:	function(x, y) {
-				printf("lambda function; x = %d, y = %d\n", x, y);
+				stdout.printf("lambda function; x = %d, y = %d\n", x, y);
 			},
 	"quirk"	:	3.14159265358979323846
 };

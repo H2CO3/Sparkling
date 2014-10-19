@@ -119,10 +119,110 @@ static void rtlb_aux_getline(SpnValue *ret, FILE *f)
 	}
 }
 
-static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+/* The file handle class */
+typedef struct SpnFileHandle {
+	SpnObject base;
+	FILE *f; /* NULL pointer if file was closed */
+	int close; /* tells if 'f' should be fclose()'d by destructor */
+} SpnFileHandle;
+
+static void fhandle_free(void *obj);
+
+static const SpnClass spn_class_fhandle = {
+	sizeof(SpnFileHandle),
+	NULL, /* pointer-wise identity */
+	NULL, /* <, > not applicable   */
+	NULL, /* hash = object address */
+	fhandle_free
+};
+
+static SpnFileHandle *fhandle_new(FILE *f, int should_close)
 {
-	rtlb_aux_getline(ret, stdin);
-	return 0;
+	SpnFileHandle *obj = spn_object_new(&spn_class_fhandle);
+	obj->f = f;
+	obj->close = should_close;
+	return obj;
+}
+
+/* "safe" close, prevents double closure/double free */
+static void fhandle_close(SpnFileHandle *hndl)
+{
+	if (hndl->f) {
+		fclose(hndl->f);
+		hndl->f = NULL;
+	}
+}
+
+static void fhandle_free(void *obj)
+{
+	SpnFileHandle *hndl = obj;
+
+	if (hndl->close) {
+		fhandle_close(hndl);
+	}
+}
+
+/* The key with which the file handle user info object
+ * is associated in a file descriptor hashmap
+ */
+enum {
+	FILE_HANDLE_INDEX = 1
+};
+
+/* the name of the global hashmap that contains file methods */
+#define FILE_LIB_NAME "File"
+
+/* wraps a C 'FILE *' stream into a hashmap */
+static SpnValue make_fhandle_hashmap(SpnHashMap *globals, FILE *f, int close)
+{
+	SpnValue ret = makehashmap();
+	SpnHashMap *hm = hashmapvalue(&ret);
+
+	SpnFileHandle *hndl = fhandle_new(f, close);
+	SpnValue hval = makestrguserinfo(hndl);
+	SpnValue fclass;
+
+	SpnValue file_idx = makeint(FILE_HANDLE_INDEX);
+
+	spn_hashmap_set(hm, &file_idx, &hval);
+	spn_object_release(hndl);
+
+	/* set the "prototype" of our file object to the global File class */
+	spn_hashmap_get_strkey(globals, FILE_LIB_NAME, &fclass);
+	spn_hashmap_set_strkey(hm, "super", &fclass);
+
+	return ret;
+}
+
+/* Extracts an SpnFileHandle descriptor from a hashmap.
+ * Returns the file descriptor object if found, or NULL
+ * if it wasn't found or if it isn't a valid file handle.
+ * 'hmv' must always point to an SpnValue of type hashmap.
+ */
+static SpnFileHandle *fhandle_from_hashmap(SpnContext *ctx, SpnValue *hmv)
+{
+	SpnValue key = makeint(FILE_HANDLE_INDEX);
+	SpnValue val;
+
+	SpnHashMap *hm;
+	SpnObject *obj;
+
+	assert(ishashmap(hmv));
+	hm = hashmapvalue(hmv);
+
+	spn_hashmap_get(hm, &key, &val);
+
+	if (!isstrguserinfo(&val)) {
+		return NULL;
+	}
+
+	obj = objvalue(&val);
+
+	if (obj->isa != &spn_class_fhandle) {
+		return NULL;
+	}
+
+	return objvalue(&val);
 }
 
 static int rtlb_print(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
@@ -149,40 +249,6 @@ static int rtlb_dbgprint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	SpnString *fmt;
-	SpnString *res;
-	char *errmsg;
-
-	if (argc < 1) {
-		spn_ctx_runtime_error(ctx, "at least one argument is required", NULL);
-		return -1;
-	}
-
-	if (!isstring(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "first argument must be a format string", NULL);
-		return -2;
-	}
-
-	fmt = stringvalue(&argv[0]);
-	res = spn_string_format_obj(fmt, argc - 1, &argv[1], &errmsg);
-
-	if (res != NULL) {
-		fputs(res->cstr, stdout);
-		*ret = makeint(res->len);
-		spn_object_release(res);
-	} else {
-		const void *args[1];
-		args[0] = errmsg;
-		spn_ctx_runtime_error(ctx, "error in format string: %s", args);
-		free(errmsg);
-		return -3;
-	}
-
-	return 0;
-}
-
 static int rtlb_fopen(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	FILE *fp;
@@ -203,37 +269,45 @@ static int rtlb_fopen(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	fp = fopen(fname->cstr, mode->cstr);
 
 	if (fp != NULL) {
-		*ret = makeweakuserinfo(fp);
+		SpnHashMap *globals = spn_ctx_getglobals(ctx);
+		*ret = make_fhandle_hashmap(globals, fp, 1);
 	}
-	/* else implicitly return nil */
+
+	/* on error, implicitly return nil */
 
 	return 0;
 }
 
 static int rtlb_fclose(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	FILE *fp;
+	SpnFileHandle *hndl;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
-	fclose(fp);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
+
+	/* safely close the associated C stream pointer */
+	fhandle_close(hndl);
 	return 0;
 }
 
-static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *fmt;
 	SpnString *res;
-	FILE *stream;
+	SpnFileHandle *hndl;
 	char *errmsg;
 
 	if (argc < 2) {
@@ -241,8 +315,8 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
 
@@ -251,12 +325,23 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	stream = ptrvalue(&argv[0]);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
 	fmt = stringvalue(&argv[1]);
+
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
+
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
+
 	res = spn_string_format_obj(fmt, argc - 2, &argv[2], &errmsg);
 
 	if (res != NULL) {
-		fputs(res->cstr, stream);
+		fputs(res->cstr, hndl->f);
 		*ret = makeint(res->len);
 		spn_object_release(res);
 	} else {
@@ -270,23 +355,32 @@ static int rtlb_fprintf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-/* XXX: should this remove newlines as well, like getline()? */
-static int rtlb_fgetline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	FILE *fp;
+	SpnFileHandle *hndl;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
-	rtlb_aux_getline(ret, fp);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
+
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
+
+	rtlb_aux_getline(ret, hndl->f);
 	return 0;
 }
 
@@ -294,15 +388,15 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	long n;
 	char *buf;
-	FILE *fp;
+	SpnFileHandle *hndl;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
 
@@ -311,13 +405,23 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
 	n = intvalue(&argv[1]);
+
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
+
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
 
 	buf = spn_malloc(n + 1);
 	buf[n] = 0;
 
-	if (fread(buf, n, 1, fp) != 1) {
+	if (fread(buf, n, 1, hndl->f) != 1) {
 		free(buf);
 		/* implicitly return nil */
 	} else {
@@ -330,7 +434,7 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	int success;
-	FILE *fp;
+	SpnFileHandle *hndl;
 	SpnString *str;
 
 	if (argc != 2) {
@@ -338,8 +442,8 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
 
@@ -348,53 +452,82 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
 	str = stringvalue(&argv[1]);
 
-	success = fwrite(str->cstr, str->len, 1, fp) == 1;
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
+
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
+
+	success = fwrite(str->cstr, str->len, 1, hndl->f) == 1;
 	*ret = makebool(success);
 
 	return 0;
 }
 
-/* if passed `nil`, flushes all streams by calling `fflush(NULL)` */
 static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	FILE *fp;
+	SpnFileHandle *hndl;
+	int error;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be an output file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
 
-	*ret = makebool(!fflush(fp));
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
+
+	error = fflush(hndl->f);
+	*ret = makebool(error == 0);
 	return 0;
 }
 
 static int rtlb_ftell(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	FILE *fp;
+	SpnFileHandle *hndl;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
 
-	*ret = makeint(ftell(fp));
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
+
+	*ret = makeint(ftell(hndl->f));
 
 	return 0;
 }
@@ -402,8 +535,8 @@ static int rtlb_ftell(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	long off;
-	int flag;
-	FILE *fp;
+	int flag, error;
+	SpnFileHandle *hndl;
 	SpnString *whence;
 
 	if (argc != 3) {
@@ -411,8 +544,8 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "first argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
 
@@ -426,9 +559,19 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
 	off = intvalue(&argv[1]);
 	whence = stringvalue(&argv[2]);
+
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
+
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
 
 	if (strcmp(whence->cstr, "set") == 0) {
 		flag = SEEK_SET;
@@ -437,38 +580,52 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	} else if (strcmp(whence->cstr, "end") == 0) {
 		flag = SEEK_END;
 	} else {
-		spn_ctx_runtime_error(ctx, "third argument must be one of \"set\", \"cur\" or \"end\"", NULL);
-		return -3;
+		spn_ctx_runtime_error(
+			ctx,
+			"third argument must be one of \"set\", \"cur\" or \"end\"",
+			NULL
+		);
+		return -5;
 	}
 
-	*ret = makebool(!fseek(fp, off, flag));
-
+	error = fseek(hndl->f, off, flag);
+	*ret = makebool(error == 0);
 	return 0;
 }
 
 static int rtlb_feof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	FILE *fp;
+	SpnFileHandle *hndl;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
 		return -1;
 	}
 
-	if (!isweakuserinfo(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a file handle", NULL);
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	fp = ptrvalue(&argv[0]);
+	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
 
-	*ret = makebool(feof(fp) != 0);
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
+
+	*ret = makebool(feof(hndl->f) != 0);
 
 	return 0;
 }
 
 static int rtlb_remove(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
+	int error;
 	SpnString *fname;
 
 	if (argc != 1) {
@@ -483,13 +640,14 @@ static int rtlb_remove(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	fname = stringvalue(&argv[0]);
 
-	*ret = makebool(remove(fname->cstr) == 0);
-
+	error = remove(fname->cstr);
+	*ret = makebool(error == 0);
 	return 0;
 }
 
 static int rtlb_rename(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
+	int error;
 	SpnString *oldname, *newname;
 
 	if (argc != 2) {
@@ -505,8 +663,8 @@ static int rtlb_rename(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	oldname = stringvalue(&argv[0]);
 	newname = stringvalue(&argv[1]);
 
-	*ret = makebool(rename(oldname->cstr, newname->cstr) == 0);
-
+	error = rename(oldname->cstr, newname->cstr);
+	*ret = makebool(error == 0);
 	return 0;
 }
 
@@ -515,9 +673,11 @@ static int rtlb_tmpfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	FILE *fp = tmpfile();
 
 	if (fp != NULL) {
-		*ret = makeweakuserinfo(fp);
+		SpnHashMap *globals = spn_ctx_getglobals(ctx);
+		*ret = make_fhandle_hashmap(globals, fp, 1);
 	}
-	/* else implicitly return nil */
+
+	/* on error, implicitly return nil */
 
 	return 0;
 }
@@ -547,7 +707,7 @@ static int rtlb_readfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		const void *args[2];
 		args[0] = fname;
 		args[1] = strerror(errno);
-		spn_ctx_runtime_error(ctx, "can't open file `%s': %s", args);
+		spn_ctx_runtime_error(ctx, "can't open file '%s': %s", args);
 		return -3;
 	}
 
@@ -561,7 +721,7 @@ static int rtlb_readfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		const void *args[2];
 		args[0] = fname;
 		args[1] = strerror(errno);
-		spn_ctx_runtime_error(ctx, "can't read file `%s': %s", args);
+		spn_ctx_runtime_error(ctx, "can't read file '%s': %s", args);
 
 		free(buf);
 		status = -4;
@@ -578,40 +738,55 @@ static void loadlib_io(SpnVMachine *vm)
 {
 	/* Free functions */
 	static const SpnExtFunc F[] = {
-		{ "getline",  rtlb_getline  },
 		{ "print",    rtlb_print    },
 		{ "dbgprint", rtlb_dbgprint },
-		{ "printf",   rtlb_printf   },
 		{ "fopen",    rtlb_fopen    },
-		{ "fclose",   rtlb_fclose   },
-		{ "fprintf",  rtlb_fprintf  },
-		{ "fgetline", rtlb_fgetline },
-		{ "fread",    rtlb_fread    },
-		{ "fwrite",   rtlb_fwrite   },
-		{ "fflush",   rtlb_fflush   },
-		{ "ftell",    rtlb_ftell    },
-		{ "fseek",    rtlb_fseek    },
-		{ "feof",     rtlb_feof     },
 		{ "remove",   rtlb_remove   },
 		{ "rename",   rtlb_rename   },
 		{ "tmpfile",  rtlb_tmpfile  },
 		{ "readfile", rtlb_readfile }
 	};
 
+	/* File methods */
+	static const SpnExtFunc M[] = {
+		{ "close",    rtlb_fclose   },
+		{ "getline",  rtlb_getline  },
+		{ "printf",   rtlb_printf   },
+		{ "read",     rtlb_fread    },
+		{ "write",    rtlb_fwrite   },
+		{ "flush",    rtlb_fflush   },
+		{ "tell",     rtlb_ftell    },
+		{ "seek",     rtlb_fseek    },
+		{ "eof",      rtlb_feof     },
+	};
+
+	SpnHashMap *globals = spn_vm_getglobals(vm);
+
 	/* Constants */
 	SpnExtValue C[3];
 
+	/* Add file methods first so that we can use them... */
+	spn_vm_addlib_cfuncs(vm, FILE_LIB_NAME, M, COUNT(M));
+
+	/* ...in 'make_fhandle_hashmap()'.
+	 * Also, specify false (0) for the 'close' argument of this function:
+	 * standard streams are implicitly closed when the program exits.
+	 */
 	C[0].name = "stdin";
-	C[0].value = makeweakuserinfo(stdin);
+	C[0].value = make_fhandle_hashmap(globals, stdin, 0);
 
 	C[1].name = "stdout";
-	C[1].value = makeweakuserinfo(stdout);
+	C[1].value = make_fhandle_hashmap(globals, stdout, 0);
 
 	C[2].name = "stderr";
-	C[2].value = makeweakuserinfo(stderr);
+	C[2].value = make_fhandle_hashmap(globals, stderr, 0);
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
 	spn_vm_addlib_values(vm, NULL, C, COUNT(C));
+
+	spn_value_release(&C[0].value);
+	spn_value_release(&C[1].value);
+	spn_value_release(&C[2].value);
 }
 
 /******************
@@ -4016,7 +4191,8 @@ static void loadlib_sysutil(SpnVMachine *vm)
 /* By default, only strings, arrays hashmaps and functions are considered
  * "object-like", while nil, booleans and numbers are not.
  * (Frankly, why would you ever call a method on a boolean?)
- * User info values can only have their methods and properties defined instance-wise.
+ * User info values can only have their methods and properties defined
+ * instance-wise.
  */
 static void init_stdlib_classes(SpnVMachine *vm)
 {
@@ -4045,6 +4221,10 @@ static void init_stdlib_classes(SpnVMachine *vm)
 
 void spn_load_stdlib(SpnVMachine *vm)
 {
+	/* it is important to initialize the classes _before_
+	 * loading standard libraries so that library loading
+	 * functions can make use of them freely.
+	 */
 	init_stdlib_classes(vm);
 
 	loadlib_io(vm);

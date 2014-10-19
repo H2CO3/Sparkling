@@ -372,7 +372,7 @@ and `else` statements:
     if 0 == 0 {
         print("equal");
     } else {
-        printf("not equal");
+        print("not equal");
     }
 
 In order to implement multi-way branching, use `else if`:

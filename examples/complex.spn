@@ -56,12 +56,12 @@ var z1 = Cplx({ "re": 1, "im": -1 });
 var z2 = Cplx({ "re": 2, "im":  3 });
 var z3 = Cplx({ "r": 2, "theta": M_PI / 3 });
 
-printf("%s + %s = %s\n", z1.cfmt(), z2.cfmt(), z1.add(z2).cfmt());
-printf("%s - %s = %s\n", z1.cfmt(), z2.cfmt(), z1.sub(z2).cfmt());
-printf("%s * %s = %s\n", z1.cfmt(), z2.cfmt(), z1.mul(z2).cfmt());
-printf("%s / %s = %s\n", z1.cfmt(), z2.cfmt(), z1.div(z2).cfmt());
+stdout.printf("%s + %s = %s\n", z1.cfmt(), z2.cfmt(), z1.add(z2).cfmt());
+stdout.printf("%s - %s = %s\n", z1.cfmt(), z2.cfmt(), z1.sub(z2).cfmt());
+stdout.printf("%s * %s = %s\n", z1.cfmt(), z2.cfmt(), z1.mul(z2).cfmt());
+stdout.printf("%s / %s = %s\n", z1.cfmt(), z2.cfmt(), z1.div(z2).cfmt());
 
-printf("conj %s = %s\n", z1.cfmt(), z1.conj().cfmt());
+stdout.printf("conj %s = %s\n", z1.cfmt(), z1.conj().cfmt());
 
-printf("%s in trigonometric form: %s\n", z2.cfmt(), z2.toPolar().pfmt());
-printf("%s in canonical form: %s\n", z3.pfmt(), z3.toCartesian().cfmt());
+stdout.printf("%s in trigonometric form: %s\n", z2.cfmt(), z2.toPolar().pfmt());
+stdout.printf("%s in canonical form: %s\n", z3.pfmt(), z3.toCartesian().cfmt());

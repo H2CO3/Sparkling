@@ -11,5 +11,5 @@
  * treat each entry as the name of an environment variable
  */
 for (var i = 1; i < argv.length; i++) {
-	printf("%s = %s\n", argv[i], getenv(argv[i]));
+	stdout.printf("%s = %s\n", argv[i], getenv(argv[i]));
 }

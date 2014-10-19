@@ -9,15 +9,15 @@
 //
 
 // a tracing printf()
-function tracingPrintf() {
+File.tracingPrintf = function () {
 	// print custom message
 	print("You called printf!");
 
 	// forward variadic arguments to printf()
-	return printf.call(argv);
-}
+	return stdout.printf.call(argv);
+};
 
-tracingPrintf("%d %s\n", 1337, "Hello world!");
+stdout.tracingPrintf("%d %s\n", 1337, "Hello world!");
 
 // a `max()` function that operates on arrays
 function arrayMax(arr) {

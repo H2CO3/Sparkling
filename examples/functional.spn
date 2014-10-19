@@ -16,8 +16,8 @@ let lessThan = function (a, b) {
 let greaterThan = flip(lessThan);
 let a = 13, b = 37;
 
-printf("%d < %d -> %B\n", a, b, lessThan(a, b));
-printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
+stdout.printf("%d < %d -> %B\n", a, b, lessThan(a, b));
+stdout.printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
 
 # takes a function 'f' and returns a new function which calls 'f'
 # with the rest of the arguments of 'curry()' and its own arguments.

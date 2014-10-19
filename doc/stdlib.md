@@ -22,26 +22,37 @@ A complete list of functions can be found in the `rtlb.h` header file.
 1. I/O library
 --------------
 
-    userinfo stdin
-    userinfo stdout
-    userinfo stderr
+    hashmap stdin
+    hashmap stdout
+    hashmap stderr
 
-Globals of type "userinfo", representing the standard input, output and error
+Global file descriptors representing the standard input, output and error
 stream, respectively.
-
-    string getline(void)
-
-Reads a line from the standard input and returns it as a string. Reads until
-either a line separator character (`'\n'` or whatever it is on the host
-operating system) is reached or end-of-file is encountered.
 
     nil print(...)
 
-Prints a human-readable (debug) description of its arguments. Returns `nil`.
+Prints a human-readable (debug) description of its arguments to standard
+output. Returns `nil`.
 
-    nil printf(string format, ...)
+<!-- this comment is needed because Markdown sucks. -->
 
-Writes a formatted stream to the standard input. It has similar semantics to
+    hashmap fopen(string name, string mode)
+
+Opens the file `name` in mode `mode`. The meaning of the mode string is
+identical to that of the second argument of `fopen()` in the C standard
+library. On success, it returns a carefully crafted hashmap value which
+represents the open file, or `nil` on failure.
+
+The following functions are implemented as methods on the returned file
+handle object and they are available in the global `File` class as well.
+
+    nil close(hashmap file)
+
+closes the file object associated with `file`.
+
+    integer printf(hashmap file, string format, ...)
+
+Writes a formatted string to the stream `file`. It has similar semantics to
 that of `printf()` in the C standard library. Valid conversion specifiers are:
 
  - `%%` prints a literal percent symbol
@@ -78,53 +89,47 @@ format string contains conversion specifiers), or the variable-length width
 and/or precision specifiers are not integers, this function throws a runtime
 error.
 
+`printf()` returns the number of bytes written to the stream as an integer.
+
 <!-- this comment is needed because Markdown sucks. -->
 
-    userinfo fopen(string name, string mode)
+    string getline(hashmap file)
 
-Opens the file `name` in mode `mode`. The meaning of the mode string is
-identical to that of the second argument of `fopen()` in the C standard library.
-Returns an user info value representing the open file if successful, or `nil`
-on failure.
+Reads a line from `file` and returns it as a string. Reads until either
+a line separator character (`'\n'` or whatever it is on the host operating
+system) is reached or end-of-file is encountered. The line separator is
+**not** included in the returned string.
 
-    nil fclose(userinfo file)
-
-closes the file object associated with `file`.
-
-    nil fprintf(userinfo file, string format, ...)
-    string fgetline(userinfo file)
-
-These work in the same manner as `printf()` and `getline()`, but they operate
-on the specified file instead of `stdout`.
-
-    string fread(userinfo file, int length)
+    string read(hashmap file, int length)
 
 Reads `length` bytes from the open file `file`. Returns the bytes as a string
 on success, `nil` on failure.
 
-    bool fwrite(userinfo file, string buf)
+    bool write(hashmap file, string buf)
 
 writes the characters in the string `buf` into the file `file`. Returns true
 on success, false on error.
 
-    nil fflush(userinfo file)
+    bool flush(hashmap file)
 
 flushes the buffer of `file`, which must be a file opened for writing.
+Returns `true` on success, `false` on failure.
 
-    int ftell(userinfo file)
+    int tell(hashmap file)
 
 returns the position indicator of `file`, i. e. the offset where the next
 read or write operation occurs. Returns a negative value on failure.
 
-    bool fseek(userinfo file, int off, string whence)
+    bool seek(hashmap file, int off, string whence)
 
 Sets the file position indicator to `off`. `whence` should be one of `"cur"`,
 `"set"` or `"end"`. Its meaning is the same as it is when used with the C
-stdlib function `fseek()`.
+stdlib function `fseek()`. Returns `true` on success, `false` on error.
 
-    bool feof(userinfo file)
+    bool eof(hashmap file)
 
-returns true if the position indicator of `file` is at the end, false otherwise.
+returns `true` if the "end-of-file" condition was encountered while processing
+`file`, and `false` otherwise.
 
     bool remove(string fname)
 
@@ -135,7 +140,7 @@ Deletes the file with the name `fname`. Returns true on success, false on error.
 renames file `old` so that it will have the name `new`.
 Returns true on success, false on failure.
 
-    userinfo tmpfile(void)
+    hashmap tmpfile()
 
 This function returns a temporary file handle.
 

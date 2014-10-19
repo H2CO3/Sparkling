@@ -7,19 +7,19 @@
 //
 
 function solvede(a, b, y0, yprime) {
-  let N = 10000;
-  let dx = (b - a) * 1.0 / N;
-  var xv = [], yv = [];
-  var s = y0;
+	let N = 10000;
+	let dx = (b - a) * 1.0 / N;
+	var xv = [], yv = [];
+	var s = y0;
 
-  for (var i = 0; i <= N; i++) {
-    let x = a + i * dx;
-    xv.push(x);
-    yv.push(s);
-    s += dx * yprime(x, s);
-  }
+	for (var i = 0; i <= N; i++) {
+		let x = a + i * dx;
+		xv.push(x);
+		yv.push(s);
+		s += dx * yprime(x, s);
+	}
 
-  return { "x": xv, "y": yv };
+	return { "x": xv, "y": yv };
 }
 
 let a  = tofloat(argv[1]),
@@ -31,14 +31,14 @@ let src = "var x = argv[0], y = argv[1]; return " .. argv[4] .. ";";
 let yprime = compile(src);
 
 if typeof yprime != "function" {
-  fprintf(stderr, "%s\n", yprime);
-  return -1;
+	stderr.printf("%s\n", yprime);
+	return -1;
 }
 
 let sol = solvede(a, b, y0, yprime);
 
-printf("x\ty\n");
+stdout.printf("x\ty\n");
 for (var i = 0; i < sol.x.length; i++) {
-  printf("%f\t%f\n", sol.x[i], sol.y[i]);
+	stdout.printf("%f\t%f\n", sol.x[i], sol.y[i]);
 }
 
