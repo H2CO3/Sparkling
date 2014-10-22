@@ -119,8 +119,8 @@ typedef struct SpnParser {
 } SpnParser;
 
 
-SPN_API SpnParser *spn_parser_new(void);
-SPN_API void       spn_parser_free(SpnParser *p);
+SPN_API void spn_parser_init(SpnParser *p);
+SPN_API void spn_parser_free(SpnParser *p);
 
 /* parse `src' to an abstract syntax tree. returns NULL on error
  * (in which case, one should inspect p->errmsg)

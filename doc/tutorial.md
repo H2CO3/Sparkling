@@ -451,7 +451,8 @@ can be found in `doc/stdlib.md`.
 Typically, you access the Sparkling engine using the Context API. It's quite
 straightforward to use. First, create a new Sparkling context object:
 
-   SpnContext *ctx = spn_ctx_new();
+   SpnContext ctx;
+   spn_ctx_init(&ctx);
 
 Then you may take different approaches. If you only want to run a program once,
 then use `spn_ctx_execstring()` or `spn_ctx_execsrcfile()`. These are
@@ -464,7 +465,7 @@ If a program has run successfully, then its return value will be in
 by calling `spn_value_release()` on it (since SpnValue are reference counted).
 
     SpnValue retval;
-    if (spn_ctx_execstring(ctx, "return \"Hello world!\";", &retval) == 0) {
+    if (spn_ctx_execstring(&ctx, "return \"Hello world!\";", &retval) == 0) {
         /* show return value */
         printf("Return value: ");
         spn_value_print(&retval);
@@ -481,12 +482,12 @@ you need it later!). You can also request a stack trace if the error was a
 runtime error by calling the `spn_ctx_stacktrace()` function.
 
     else {
-        fputs(spn_ctx_geterrmsg(ctx), stderr);
+        fputs(spn_ctx_geterrmsg(&ctx), stderr);
 
-        if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
+        if (spn_ctx_geterrtype(&ctx) == SPN_ERROR_RUNTIME) {
             size_t i, n;
 
-            const char **bt = spn_ctx_stacktrace(ctx, &n);
+            const char **bt = spn_ctx_stacktrace(&ctx, &n);
 
             for (i = 0; i < n; i++) {
                 printf("frame %zu: %s\n", i, bt[i]);
@@ -504,7 +505,7 @@ In that case, you can use `spn_ctx_loadstring()` and `spn_ctx_loadsrcfile()`
 for parsing and compiling the source once. Once compiled, you can run the
 resulting code with the help of the `spn_ctx_callfunc()` function.
 
-    SpnFunction *main_func = spn_ctx_loadstring(ctx, "print(42);")
+    SpnFunction *main_func = spn_ctx_loadstring(&ctx, "print(42);")
     if (main_func == NULL) {
         /* handle parser or syntax error */
     } else {
@@ -512,7 +513,7 @@ resulting code with the help of the `spn_ctx_callfunc()` function.
         int i;
         for (i = 0; i < 1000000; i++) { /* run the program a lot of times */
             SpnValue retval;
-            if (spn_ctx_callfunc(ctx, main_func, &retval, 0, NULL) == 0) {
+            if (spn_ctx_callfunc(&ctx, main_func, &retval, 0, NULL) == 0) {
                 /* optionally use return value, then release it */
                 spn_value_release(&retval);
             } else {
@@ -525,7 +526,7 @@ resulting code with the help of the `spn_ctx_callfunc()` function.
 When you no longer need access to the Sparkling engine, you must free the
 context object in order to reclaim all resources:
 
-    spn_context_free(ctx);
+    spn_context_free(&ctx);
 
 # Advanced C API concepts
 

@@ -29,13 +29,13 @@ An abstract syntax tree object. AST nodes have at most two children, and
 they are connected in a righ-leaning manner (the first child is called the
 left child, the second child is the right child).
 
-    SpnParser *spn_parser_new(void);
+    void spn_parser_init(SpnParser *);
 
-Creates an initialized parser object.
+Initializes a parser object.
 
     void spn_parser_free(SpnParser *);
 
-Deallocates a parser object.
+Deallocates resources that the parser object owns.
 
     SpnAST *spn_parser_parse(SpnParser *, const char *);
 
@@ -190,11 +190,11 @@ API. **This API is the preferred way of accessing the Sparkling engine.**
 A context object encapsulates a parser, a compiler, a virtual machine,
 and each bytecode file that has been loaded into that context.
 
-    SpnContext *spn_ctx_new(void);
+    void spn_ctx_init(SpnContext *ctx);
     void spn_ctx_free(SpnContext *ctx);
 
-These functions create and destroy a context object. `spn_ctx_new()` sets the
-context object itself as the context info of the contained virtual machine.
+These functions initialize and destroy a context object. `spn_ctx_init()` sets
+the context object itself as the context info of the contained virtual machine.
 If you need user info (e. g. from within an extension function), use the
 `spn_ctx_getuserinfo()` and `spn_user_setuserinfo()` functions.
 

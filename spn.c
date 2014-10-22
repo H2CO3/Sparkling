@@ -196,18 +196,20 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 
 static int run_file(const char *fname, int argc, char *argv[])
 {
-	SpnContext *ctx = spn_ctx_new();
 	int status = EXIT_SUCCESS;
+
+	SpnContext ctx;
+	spn_ctx_init(&ctx);
 
 	/* check if file is a binary object or source text */
 	if (endswith(fname, ".spn")) {
-		if (run_script_file(ctx, fname, argc, argv) != 0) {
+		if (run_script_file(&ctx, fname, argc, argv) != 0) {
 			status = EXIT_FAILURE;
 		}
 	} else if (endswith(fname, ".spo")) {
-		if (spn_ctx_execobjfile(ctx, fname, NULL) != 0) {
-			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
-			print_stacktrace_if_needed(ctx);
+		if (spn_ctx_execobjfile(&ctx, fname, NULL) != 0) {
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(&ctx));
+			print_stacktrace_if_needed(&ctx);
 			status = EXIT_FAILURE;
 		}
 	} else {
@@ -215,21 +217,23 @@ static int run_file(const char *fname, int argc, char *argv[])
 		status = EXIT_FAILURE;
 	}
 
-	spn_ctx_free(ctx);
+	spn_ctx_free(&ctx);
 	return status;
 }
 
 static int run_args(int argc, char *argv[], enum cmd_args args)
 {
-	SpnContext *ctx = spn_ctx_new();
 	int status = EXIT_SUCCESS;
-
 	int i;
+
+	SpnContext ctx;
+	spn_ctx_init(&ctx);
+
 	for (i = 0; i < argc; i++) {
 		SpnValue val;
-		if (spn_ctx_execstring(ctx, argv[i], &val) != 0) {
-			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
-			print_stacktrace_if_needed(ctx);
+		if (spn_ctx_execstring(&ctx, argv[i], &val) != 0) {
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(&ctx));
+			print_stacktrace_if_needed(&ctx);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -242,7 +246,7 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 		spn_value_release(&val);
 	}
 
-	spn_ctx_free(ctx);
+	spn_ctx_free(&ctx);
 	return status;
 }
 
@@ -299,9 +303,11 @@ static void read_history_if_exists(void)
 
 static int enter_repl(enum cmd_args args)
 {
-	SpnContext *ctx = spn_ctx_new();
 	int session_no = 1;
 	FILE *history_file = NULL;
+
+	SpnContext ctx;
+	spn_ctx_init(&ctx);
 
 #if USE_READLINE
 	/* try reading the history file */
@@ -355,17 +361,17 @@ static int enter_repl(enum cmd_args args)
 		/* first, try treating the input as a statement.
 		 * If that fails, try interpreting it as an expression.
 		 */
-		status = spn_ctx_execstring(ctx, buf, &ret);
+		status = spn_ctx_execstring(&ctx, buf, &ret);
 		if (status != 0) {
-			if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
-				fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(ctx));
-				print_stacktrace_if_needed(ctx);
+			if (spn_ctx_geterrtype(&ctx) == SPN_ERROR_RUNTIME) {
+				fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(&ctx));
+				print_stacktrace_if_needed(&ctx);
 			} else {
 				SpnFunction *fn;
 				/* Save the original error message, because
 				 * it's probably going to be more meaningful.
 				 */
-				const char *errmsg = spn_ctx_geterrmsg(ctx);
+				const char *errmsg = spn_ctx_geterrmsg(&ctx);
 				size_t len = strlen(errmsg);
 				char *orig_errmsg = spn_malloc(len + 1);
 				memcpy(orig_errmsg, errmsg, len + 1);
@@ -378,13 +384,13 @@ static int enter_repl(enum cmd_args args)
 				 * we managed to parse and compile the string as an
 				 * expression, so it's the new error message that is relevant.
 				 */
-				fn = spn_ctx_compile_expr(ctx, buf);
+				fn = spn_ctx_compile_expr(&ctx, buf);
 				if (fn == NULL) {
 					fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", orig_errmsg);
 				} else {
-					if (spn_ctx_callfunc(ctx, fn, &ret, 0, NULL) != 0) {
-						fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(ctx));
-						print_stacktrace_if_needed(ctx);
+					if (spn_ctx_callfunc(&ctx, fn, &ret, 0, NULL) != 0) {
+						fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(&ctx));
+						print_stacktrace_if_needed(&ctx);
 					} else {
 						printf("= " CLR_VAL);
 						spn_repl_print(&ret);
@@ -412,7 +418,7 @@ static int enter_repl(enum cmd_args args)
 		session_no++;
 	}
 
-	spn_ctx_free(ctx);
+	spn_ctx_free(&ctx);
 
 	if (history_file != NULL) {
 		fclose(history_file);
@@ -424,10 +430,12 @@ static int enter_repl(enum cmd_args args)
 /* XXX: this function modifies filenames in `argv' */
 static int compile_files(int argc, char *argv[])
 {
-	SpnContext *ctx = spn_ctx_new();
 	int status = EXIT_SUCCESS;
-
 	int i;
+
+	SpnContext ctx;
+	spn_ctx_init(&ctx);
+
 	for (i = 0; i < argc; i++) {
 		static char outname[FILENAME_MAX];
 		char *dotp;
@@ -440,10 +448,10 @@ static int compile_files(int argc, char *argv[])
 		fflush(stdout);
 		fflush(stderr);
 
-		fn = spn_ctx_loadsrcfile(ctx, argv[i]);
+		fn = spn_ctx_loadsrcfile(&ctx, argv[i]);
 		if (fn == NULL) {
 			printf("\n");
-			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(&ctx));
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -479,7 +487,7 @@ static int compile_files(int argc, char *argv[])
 		printf(" done.\n");
 	}
 
-	spn_ctx_free(ctx);
+	spn_ctx_free(&ctx);
 	return status;
 }
 
@@ -520,10 +528,12 @@ static int disassemble_files(int argc, char *argv[])
 
 static int dump_ast_of_files(int argc, char *argv[])
 {
-	SpnParser *parser = spn_parser_new();
+	int i;
 	int status = EXIT_SUCCESS;
 
-	int i;
+	SpnParser parser;
+	spn_parser_init(&parser);
+
 	for (i = 0; i < argc; i++) {
 		SpnAST *ast;
 
@@ -534,11 +544,11 @@ static int dump_ast_of_files(int argc, char *argv[])
 			break;
 		}
 
-		ast = spn_parser_parse(parser, src);
+		ast = spn_parser_parse(&parser, src);
 		free(src);
 
 		if (ast == NULL) {
-			fprintf(stderr, "%s\n", parser->errmsg);
+			fprintf(stderr, "%s\n", parser.errmsg);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -547,7 +557,7 @@ static int dump_ast_of_files(int argc, char *argv[])
 		spn_ast_free(ast);
 	}
 
-	spn_parser_free(parser);
+	spn_parser_free(&parser);
 	return status;
 }
 

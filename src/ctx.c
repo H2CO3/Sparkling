@@ -13,23 +13,10 @@
 #include "private.h"
 
 
-struct SpnContext {
-	SpnParser *parser;
-	SpnCompiler *cmp;
-	SpnVMachine *vm;
-	SpnArray *programs; /* holds all programs ever compiled */
-
-	enum spn_error_type errtype; /* type of the last error */
-	const char *errmsg; /* last error message */
-
-	void *info; /* context info initialized to NULL, use freely */
-};
-
-SpnContext *spn_ctx_new(void)
+void spn_ctx_init(SpnContext *ctx)
 {
-	SpnContext *ctx = spn_malloc(sizeof(*ctx));
+	spn_parser_init(&ctx->parser);
 
-	ctx->parser   = spn_parser_new();
 	ctx->cmp      = spn_compiler_new();
 	ctx->vm       = spn_vm_new();
 	ctx->programs = spn_array_new();
@@ -39,18 +26,15 @@ SpnContext *spn_ctx_new(void)
 
 	spn_vm_setcontext(ctx->vm, ctx);
 	spn_load_stdlib(ctx->vm);
-
-	return ctx;
 }
 
 void spn_ctx_free(SpnContext *ctx)
 {
-	spn_parser_free(ctx->parser);
+	spn_parser_free(&ctx->parser);
 	spn_compiler_free(ctx->cmp);
 	spn_vm_free(ctx->vm);
 
 	spn_object_release(ctx->programs);
-	free(ctx);
 }
 
 enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx)
@@ -62,7 +46,7 @@ const char *spn_ctx_geterrmsg(SpnContext *ctx)
 {
 	switch (ctx->errtype) {
 	case SPN_ERROR_OK:       return NULL;
-	case SPN_ERROR_SYNTAX:   return ctx->parser->errmsg;
+	case SPN_ERROR_SYNTAX:   return ctx->parser.errmsg;
 	case SPN_ERROR_SEMANTIC: return spn_compiler_errmsg(ctx->cmp);
 	case SPN_ERROR_RUNTIME:  return spn_vm_geterrmsg(ctx->vm);
 	case SPN_ERROR_GENERIC:  return ctx->errmsg;
@@ -111,7 +95,7 @@ SpnFunction *spn_ctx_loadstring(SpnContext *ctx, const char *str)
 	ctx->errtype = SPN_ERROR_OK;
 
 	/* attempt parsing, handle error */
-	ast = spn_parser_parse(ctx->parser, str);
+	ast = spn_parser_parse(&ctx->parser, str);
 	if (ast == NULL) {
 		ctx->errtype = SPN_ERROR_SYNTAX;
 		return NULL;
@@ -271,7 +255,7 @@ SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr)
 	ctx->errtype = SPN_ERROR_OK;
 
 	/* parse as expression */
-	ast = spn_parser_parse_expression(ctx->parser, expr);
+	ast = spn_parser_parse_expression(&ctx->parser, expr);
 	if (ast == NULL) {
 		ctx->errtype = SPN_ERROR_SYNTAX;
 		return NULL;

@@ -27,9 +27,19 @@ enum spn_error_type {
 	SPN_ERROR_GENERIC   /* some other kind of error  */
 };
 
-typedef struct SpnContext SpnContext;
+typedef struct SpnContext {
+	SpnParser parser;
+	SpnCompiler *cmp;
+	SpnVMachine *vm;
+	SpnArray *programs; /* holds all programs ever compiled */
 
-SPN_API SpnContext *spn_ctx_new(void);
+	enum spn_error_type errtype; /* type of the last error */
+	const char *errmsg; /* last error message */
+
+	void *info; /* context info initialized to NULL, use freely */
+} SpnContext;
+
+SPN_API void spn_ctx_init(SpnContext *ctx);
 SPN_API void spn_ctx_free(SpnContext *ctx);
 
 SPN_API enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx);

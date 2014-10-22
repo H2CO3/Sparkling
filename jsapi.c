@@ -31,7 +31,10 @@ static SpnArray *jspn_global_vals = NULL;
 static SpnContext *get_global_context(void)
 {
 	if (jspn_global_ctx == NULL) {
-		jspn_global_ctx = spn_ctx_new();
+		static SpnContext ctx;
+		spn_ctx_init(&ctx);
+
+		jspn_global_ctx = &ctx;
 
 		static const SpnExtFunc lib[] = {
 			{ "jspn_callWrappedFunc", jspn_callWrappedFunc },

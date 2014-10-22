@@ -80,23 +80,18 @@ static SpnAST *parse_binexpr_leftassoc(
 );
 
 
-SpnParser *spn_parser_new(void)
+void spn_parser_init(SpnParser *p)
 {
-	SpnParser *p = spn_malloc(sizeof(*p));
-
 	p->pos = NULL;
 	p->eof = 0;
 	p->error = 0;
 	p->lineno = 1;
 	p->errmsg = NULL;
-
-	return p;
 }
 
 void spn_parser_free(SpnParser *p)
 {
 	free(p->errmsg);
-	free(p);
 }
 
 void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
@@ -788,7 +783,7 @@ static SpnAST *parse_postfix(SpnParser *p)
 
 			if (!spn_accept(p, SPN_TOK_RPAREN)) {
 				/* error: expected closing parenthesis */
-				spn_parser_error(p, "expected `)' after expression in function call", NULL);
+				spn_parser_error(p, "expected ')' after expression in function call", NULL);
 				spn_value_release(&p->curtok.val);
 				/* this frees ast and arglist as well */
 				spn_ast_free(tmp);
@@ -820,7 +815,7 @@ static SpnAST *parse_term(SpnParser *p)
 		}
 
 		if (!spn_accept(p, SPN_TOK_RPAREN)) {
-			spn_parser_error(p, "expected `)' after parenthesized expression", NULL);
+			spn_parser_error(p, "expected ')' after parenthesized expression", NULL);
 			spn_value_release(&p->curtok.val);
 			spn_ast_free(ast);
 			return NULL;
