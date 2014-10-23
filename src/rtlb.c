@@ -1946,61 +1946,73 @@ static int rtlb_aux_bsearch_compare(SpnValue vals[2], SpnFunction *predicate, Sp
 	return -3;
 }
 
-static int rtlb_aux_bsearch(SpnValue *ret, SpnArray *arr, SpnValue *elem,
-	size_t lower, size_t upper, SpnFunction *predicate, SpnContext *ctx) {
-	int is_smaller, is_greater;
-	size_t middle;
-	SpnValue vals[2];
+/* searches for elements in the range [lower, upper) */
+static int rtlb_aux_bsearch(SpnValue *ret, SpnArray *arr, const SpnValue *elem,
+	SpnFunction *predicate, SpnContext *ctx) {
+	size_t lower = 0;
+	size_t upper = spn_array_count(arr);
 
-	assert(lower <= upper);
+	while (lower < upper) {
+		SpnValue vals[2];
+		SpnValue tmp;
 
-	if (lower == upper) {
-		*ret = makeint(-1);
+		/* this is never out of bounds since integer division truncates */
+		size_t middle = lower + (upper - lower) / 2;
+		int is_smaller, is_greater;
+
+		spn_array_get(arr, middle, &tmp);
+
+		/* first, check if elem < middle */
+		vals[0] = *elem;
+		vals[1] = tmp;
+		is_smaller = rtlb_aux_bsearch_compare(vals, predicate, ctx);
+
+		/* check for errors */
+		if (is_smaller < 0) {
+			return -1;
+		}
+
+		/* key is smaller than middle element,
+		 * so we search the lower half of the array
+		 */
+		if (is_smaller > 0) {
+			upper = middle;
+			continue;
+		}
+
+		/* key was not smaller than middle element,
+		 * so check if "middle < elem"
+		 */
+		vals[0] = tmp;
+		vals[1] = *elem;
+		is_greater = rtlb_aux_bsearch_compare(vals, predicate, ctx);
+
+		/* check for errors again */
+		if (is_greater < 0) {
+			return -1;
+		}
+
+		/* key is greater than middle element, continue
+		 * search with upper half of the array
+		 */
+		if (is_greater > 0) {
+			lower = middle + 1;
+			continue;
+		}
+
+		/* otherwise, the key is neither smaller nor greater than
+		 * the middle element, so they are equal to each other
+		 */
+		*ret = makeint(middle);
 		return 0;
 	}
 
-	middle = lower + (upper - lower) / 2;
-
-	/* first, check if elem < middle */
-	vals[0] = *elem;
-	spn_array_get(arr, middle, &vals[1]);
-	is_smaller = rtlb_aux_bsearch_compare(vals, predicate, ctx);
-
-	/* check for errors */
-	if (is_smaller < 0) {
-		return -1;
-	}
-
-	/* key is smaller than middle element,
-	 * so we search the lower half of the array
+	/* if we reach this point, then the size of the search range
+	 * has been reduced to zero: the element was not found
 	 */
-	if (is_smaller > 0) {
-		return rtlb_aux_bsearch(ret, arr, elem, lower, middle, predicate, ctx);
-	}
+	assert(lower == upper);
 
-	/* key was not smaller than middle element,
-	 * so check if "elem > middle"
-	 */
-	vals[1] = *elem;
-	spn_array_get(arr, middle, &vals[0]);
-	is_greater = rtlb_aux_bsearch_compare(vals, predicate, ctx);
-
-	/* check for errors again */
-	if (is_greater < 0) {
-		return -1;
-	}
-
-	/* key is greater than middle element, continue
-	 * search with upper half of the array
-	 */
-	if (is_greater > 0) {
-		return rtlb_aux_bsearch(ret, arr, elem, middle + 1, upper, predicate, ctx);
-	}
-
-	/* otherwise, the key is neither smaller nor greater than
-	 * the middle element, so they are equal to each other
-	 */
-	*ret = makeint(middle);
+	*ret = makeint(-1);
 	return 0;
 }
 
@@ -2008,7 +2020,6 @@ static int rtlb_bsearch(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnArray *arr;
 	SpnFunction *predicate;
-	size_t n;
 
 	if (argc < 2 || argc > 3) {
 		spn_ctx_runtime_error(ctx, "expecting 2 or 3 arguments", NULL);
@@ -2027,9 +2038,8 @@ static int rtlb_bsearch(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	arr = arrayvalue(&argv[0]);
 	predicate = argc >= 3 ? funcvalue(&argv[2]) : NULL;
-	n = spn_array_count(arr);
 
-	return rtlb_aux_bsearch(ret, arr, &argv[1], 0, n, predicate, ctx);
+	return rtlb_aux_bsearch(ret, arr, &argv[1], predicate, ctx);
 }
 
 static int rtlb_slice(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
