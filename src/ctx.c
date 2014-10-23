@@ -265,7 +265,7 @@ SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr)
 	result = spn_compiler_compile(ctx->cmp, ast);
 	spn_ast_free(ast);
 
-	if (result == 0) {
+	if (result == NULL) {
 		ctx->errtype = SPN_ERROR_SEMANTIC;
 		return NULL;
 	}

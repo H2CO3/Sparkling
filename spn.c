@@ -33,7 +33,7 @@
 #include "private.h"
 #include "dump.h"
 
-#define N_CMDS     5
+#define N_CMDS     6
 #define N_FLAGS    2
 #define N_ARGS    (N_CMDS + N_FLAGS)
 
@@ -46,10 +46,11 @@
 
 enum cmd_args {
 	CMD_HELP      = 1 << 0,
-	CMD_EXECUTE   = 1 << 1,
-	CMD_COMPILE   = 1 << 2,
-	CMD_DISASM    = 1 << 3,
-	CMD_DUMPAST   = 1 << 4,
+	CMD_EVAL      = 1 << 1,
+	CMD_RUN       = 1 << 2,
+	CMD_COMPILE   = 1 << 3,
+	CMD_DISASM    = 1 << 4,
+	CMD_DUMPAST   = 1 << 5,
 
 	FLAG_PRINTNIL = 1 << 8,
 	FLAG_PRINTRET = 1 << 9
@@ -64,7 +65,8 @@ static enum cmd_args process_args(int argc, char *argv[], int *pos)
 		enum cmd_args mask;
 	} args[N_ARGS] = {
 		{ "-h", "--help",      CMD_HELP      },
-		{ "-e", "--execute",   CMD_EXECUTE   },
+		{ "-e", "--eval",      CMD_EVAL      },
+		{ "-r", "--run",       CMD_RUN       },
 		{ "-c", "--compile",   CMD_COMPILE   },
 		{ "-d", "--disasm",    CMD_DISASM    },
 		{ "-a", "--dump-ast",  CMD_DUMPAST   },
@@ -107,7 +109,8 @@ static void show_help(const char *progname)
 	printf("Usage: %s [command] [flags...] [file [scriptargs...]] \n", progname);
 	printf("Where <command> is one of:\n\n");
 	printf("\t-h, --help\tShow this help then exit\n");
-	printf("\t-e, --execute\tExecute command-line arguments\n");
+	printf("\t-e, --eval\tEvaluate command-line arguments as expressions\n");
+	printf("\t-r, --run\tRun command-line arguments as statements\n");
 	printf("\t-c, --compile\tCompile source files to bytecode\n");
 	printf("\t-d, --disasm\tDisassemble bytecode files\n");
 	printf("\t-a, --dump-ast\tDump abstract syntax tree of files\n\n");
@@ -215,6 +218,41 @@ static int run_file(const char *fname, int argc, char *argv[])
 	} else {
 		fputs("generic error: invalid file extension\n", stderr);
 		status = EXIT_FAILURE;
+	}
+
+	spn_ctx_free(&ctx);
+	return status;
+}
+
+static int eval_args(int argc, char *argv[])
+{
+	int status = EXIT_SUCCESS;
+	int i;
+
+	SpnContext ctx;
+	spn_ctx_init(&ctx);
+
+	for (i = 0; i < argc; i++) {
+		SpnValue val;
+		SpnFunction *fn = spn_ctx_compile_expr(&ctx, argv[i]);
+		if (fn == NULL) {
+			printf("%s\n", spn_ctx_geterrmsg(&ctx));
+
+			status = EXIT_FAILURE;
+			continue;
+		}
+
+		if (spn_ctx_callfunc(&ctx, fn, &val, 0, NULL) != 0) {
+			printf("%s\n", spn_ctx_geterrmsg(&ctx));
+			print_stacktrace_if_needed(&ctx);
+
+			status = EXIT_FAILURE;
+			continue;
+		}
+
+		spn_repl_print(&val);
+		spn_value_release(&val);
+		printf("\n");
 	}
 
 	spn_ctx_free(&ctx);
@@ -594,7 +632,10 @@ int main(int argc, char *argv[])
 		show_help(argv[0]);
 		status = EXIT_SUCCESS;
 		break;
-	case CMD_EXECUTE:
+	case CMD_EVAL:
+		status = eval_args(argc - pos, &argv[pos]);
+		break;
+	case CMD_RUN:
 		status = run_args(argc - pos, &argv[pos], args);
 		break;
 	case CMD_COMPILE:
