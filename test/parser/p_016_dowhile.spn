@@ -1,0 +1,3 @@
+do {
+	baz(bar);
+} while a > b;

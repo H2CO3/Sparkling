@@ -1,0 +1,10 @@
+if true {
+	print("foo");
+}
+
+if false {
+	never_happens();
+} else {
+	always_happens();
+}
+

@@ -17,17 +17,27 @@
 #include "str.h"
 #include "private.h"
 
-#define RESERVED_ENTRY(w, t) { w, sizeof(w) - 1, t }
 
+#define RESERVED_ENTRY(w) { w, sizeof(w) - 1 }
 
 /* Structure for searching reserved keywords */
-typedef struct TReserved {
-	const char *word;
+typedef struct Reserved {
+	const char *str;
 	size_t len;
-	enum spn_lex_token tok;
-} TReserved;
+} Reserved;
 
 /* Helper functions for the lexer */
+
+static void lexer_error(SpnLexer *lexer, const char *fmt, const void *args[])
+{
+	/* update the column because next_token wasn't called anymore
+	 * because of the error, so it couldn't update the location.
+	 */
+	lexer->location.column = lexer->cursor - lexer->lastline + 1;
+
+	free(lexer->errmsg);
+	lexer->errmsg = spn_string_format_cstr(fmt, NULL, args);
+}
 
 static int is_special(char c)
 {
@@ -50,7 +60,6 @@ static int is_special(char c)
 	case '|':
 	case '^':
 	case '~':
-	case '#':
 	case '(':
 	case ')':
 	case '[':
@@ -61,24 +70,30 @@ static int is_special(char c)
 	}
 }
 
-static int is_ident_begin(char c)
+static int is_word_begin(char c)
 {
 	return isalpha(c) || c == '_';
 }
 
-static int is_ident(char c)
+static int is_word(char c)
 {
 	return isalnum(c) || c == '_';
 }
 
-static int is_octal(char c)
+static int is_octal(int c)
 {
 	return '0' <= c && c <= '7';
 }
 
-static int is_num_begin(const char *s)
+static int is_binary(int c)
 {
-	return isdigit(s[0]) || (s[0] == '.' && isdigit(s[1]));
+	return '0' <= c && c <= '1';
+}
+
+static int is_radix_prefix(char c)
+{
+	char ch = tolower(c);
+	return ch == 'x' || ch == 'o' || ch == 'b';
 }
 
 static int hexch_to_int(char c)
@@ -101,6 +116,55 @@ static int hexch_to_int(char c)
 	return -1;
 }
 
+static int is_at_comment(SpnLexer *lexer)
+{
+	return lexer->cursor[0] == '#'
+	    || lexer->cursor[0] == '/' && lexer->cursor[1] == '/'
+	    || lexer->cursor[0] == '/' && lexer->cursor[1] == '*';
+}
+
+/* checks if next token is a whitespace or a comment */
+static int is_at_space(SpnLexer *lexer)
+{
+	return isspace(lexer->cursor[0]) || is_at_comment(lexer);
+}
+
+/* checks if next token is an identifier or a reserved keyword */
+static int is_at_word_begin(SpnLexer *lexer)
+{
+	return is_word_begin(lexer->cursor[0]);
+}
+
+static int is_at_string(SpnLexer *lexer)
+{
+	return lexer->cursor[0] == '"';
+}
+
+static int is_at_char(SpnLexer *lexer)
+{
+	return lexer->cursor[0] == '\'';
+}
+
+/* checks if next token is a decimal, octal, hex or binary integer literal
+ * or a floating-point literal
+ */
+static int is_at_number(SpnLexer *lexer)
+{
+	return isdigit(lexer->cursor[0]);
+}
+
+/* checks if next token is punctuation (e. g. an operator) */
+static int is_at_punct(SpnLexer *lexer)
+{
+	return is_special(lexer->cursor[0]);
+}
+
+/* checks if end-of-input was reached */
+static int is_at_eof(SpnLexer *lexer)
+{
+	return lexer->cursor[0] == 0;
+}
+
 /* Because not every system may have this in libc */
 static char *spn_strndup(const char *s, size_t n)
 {
@@ -116,138 +180,154 @@ static char *spn_strndup(const char *s, size_t n)
 	return r;
 }
 
-/* For characters and strings */
-static int unescape_char(SpnParser *p)
+/* Returns 0 if the escape sequence at the cursor is valid,
+ * and non-zero if it is incorrect
+ */
+static int check_escape_char(SpnLexer *lexer)
 {
+	assert(*lexer->cursor == '\\');
+
 	/* skip leading backslash '\' */
-	switch (*++p->pos) {
-	case '\\': p->pos++; return '\\';
-	case '/':  p->pos++; return  '/';
-	case '\'': p->pos++; return '\'';
-	case '"':  p->pos++; return '\"';
-	case 'a':  p->pos++; return '\a';
-	case 'b':  p->pos++; return '\b';
-	case 'f':  p->pos++; return '\f';
-	case 'n':  p->pos++; return '\n';
-	case 'r':  p->pos++; return '\r';
-	case 't':  p->pos++; return '\t';
-	case '0':  p->pos++; return '\0';
+	switch (*++lexer->cursor) {
+	case '\\':
+	case '/':
+	case '\'':
+	case '"':
+	case 'a':
+	case 'b':
+	case 'f':
+	case 'n':
+	case 'r':
+	case 't':
+		lexer->cursor++;
+		return 0;
 
 	case 'x': {
-		p->pos++;
-		if (isxdigit(p->pos[0]) && isxdigit(p->pos[1])) {
-			int hn = hexch_to_int(*p->pos++);
-			int ln = hexch_to_int(*p->pos++);
-			return (hn << 4) | ln;
+		lexer->cursor++;
+		if (isxdigit(lexer->cursor[0]) && isxdigit(lexer->cursor[1])) {
+			lexer->cursor += 2;
+			return 0;
 		} else {
 			/* invalid hex escape sequence */
-			long lc0 = p->pos[0];
-			long lc1 = p->pos[1];
+			long lc0 = lexer->cursor[0];
+			long lc1 = lexer->cursor[1];
 			const void *args[2];
 			args[0] = &lc0;
 			args[1] = &lc1;
-			spn_parser_error(p, "invalid hex escape sequence '\\x%c%c'", args);
+			lexer_error(lexer, "invalid hex escape sequence '\\x%c%c'", args);
 			return -1;
 		}
 	}
 	default:
 		{
-			long lc = p->pos[0];
+			long lc = lexer->cursor[0];
 			const void *args[1];
 			args[0] = &lc;
-			spn_parser_error(p, "invalid escape sequence '\\%c'", args);
+			lexer_error(lexer, "invalid escape sequence '\\%c'", args);
 			return -1;
 		}
 	}
 }
 
-/* Handling whitespace and comments (treated as whitespace) */
-
-static void skip_space(SpnParser *p)
+/* this assumes that the given escape sequence is correct. */
+static unsigned char unescape_char(const char *seq, size_t *len)
 {
-	while (isspace(p->pos[0])) {
-		if (p->pos[0] == '\n') {
-			if (p->pos[1] == '\r') {
-				p->pos++;
-			}
+	assert(*seq == '\\');
 
-			p->lineno++;
-		} else if (p->pos[0] == '\r') {
-			if (p->pos[1] == '\n') {
-				p->pos++;
-			}
-
-			p->lineno++;
-		}
-
-		p->pos++;
+	switch (*++seq) {
+	case '\\': *len = 2; return '\\';
+	case '/':  *len = 2; return '/';
+	case '"':  *len = 2; return '"';
+	case '\'': *len = 2; return '\'';
+	case 'a':  *len = 2; return '\a';
+	case 'b':  *len = 2; return '\b';
+	case 'f':  *len = 2; return '\f';
+	case 'n':  *len = 2; return '\n';
+	case 'r':  *len = 2; return '\r';
+	case 't':  *len = 2; return '\t';
+	case 'x': {
+		unsigned char hi_nib = hexch_to_int(*++seq);
+		unsigned char lo_nib = hexch_to_int(*++seq);
+		*len = 4;
+		return (hi_nib << 4) | lo_nib;
+	}
+	default:
+		*len = 0;
+		SHANT_BE_REACHED();
+		return 0;
 	}
 }
 
-static int skip_comment(SpnParser *p)
+/* Handling whitespace and comments (treated as whitespace) */
+
+static void skip_space(SpnLexer *lexer)
 {
-	while (p->pos[0] == '/' && p->pos[1] == '*'
-	    || p->pos[0] == '/' && p->pos[1] == '/'
-	    || p->pos[0] == '#') {
+	while (isspace(lexer->cursor[0])) {
+		if (lexer->cursor[0] == '\n') {
+			if (lexer->cursor[1] == '\r') {
+				lexer->cursor++;
+			}
 
+			lexer->location.line++;
+			lexer->lastline = ++lexer->cursor;
+		} else if (lexer->cursor[0] == '\r') {
+			if (lexer->cursor[1] == '\n') {
+				lexer->cursor++;
+			}
+
+			lexer->location.line++;
+			lexer->lastline = ++lexer->cursor;
+		} else {
+			lexer->cursor++;
+		}
+	}
+}
+
+static int skip_comment(SpnLexer *lexer)
+{
+	while (is_at_comment(lexer)) {
 		/* then-branch: block comments; else-branch: line comments */
-		if (p->pos[0] == '/' && p->pos[1] == '*') {
+		if (lexer->cursor[0] == '/' && lexer->cursor[1] == '*') {
 			/* skip block comment beginning marker */
-			p->pos += 2;
+			lexer->cursor += 2;
 
-			if (p->pos[0] == 0) {
+			if (lexer->cursor[0] == 0) {
 				/* error: unterminated comment */
-				spn_parser_error(p, "unterminated comment", NULL);
+				lexer_error(lexer, "unterminated comment", NULL);
 				return 0;
 			}
 
-			while (p->pos[0] != '*' || p->pos[1] != '/') {
-				if (p->pos[1] == 0) {
+			while (lexer->cursor[0] != '*' || lexer->cursor[1] != '/') {
+				if (lexer->cursor[0] == 0 || lexer->cursor[1] == 0) {
 					/* error: unterminated comment */
-					spn_parser_error(p, "unterminated comment", NULL);
+					lexer_error(lexer, "unterminated comment", NULL);
 					return 0;
 				}
 
-				if (isspace(p->pos[0])) {
-					skip_space(p);
+				if (isspace(lexer->cursor[0])) {
+					skip_space(lexer);
 				} else {
-					p->pos++;
+					lexer->cursor++;
 				}
 			}
 
 			/* skip comment end marker */
-			p->pos += 2;
+			lexer->cursor += 2;
 		} else {
-			/* actually, we don't need to skip the comment marker separtely,
+			/* actually, we don't need to skip the comment marker separately,
 			 * since neither '/' nor '#' is a newline character or NUL.
 			 * Just advance the cursor until the next newline or end-of-input...
 			 */
-			while (p->pos[0] != '\0'
-			    && p->pos[0] != '\n'
-			    && p->pos[0] != '\r') {
-				p->pos++;
+			while (lexer->cursor[0] != 0
+			    && lexer->cursor[0] != '\n'
+			    && lexer->cursor[0] != '\r') {
+				lexer->cursor++;
 			}
 
 			/* ...and skip the bastard! */
-			if (p->pos[0]) {
-				skip_space(p);
+			if (lexer->cursor[0]) {
+				skip_space(lexer);
 			}
-		}
-	}
-
-	return 1;
-}
-
-static int skip_space_and_comment(SpnParser *p)
-{
-	while (isspace(p->pos[0])
-	    || p->pos[0] == '/' && p->pos[1] == '*'
-	    || p->pos[0] == '/' && p->pos[1] == '/'
-	    || p->pos[0] == '#') {
-		skip_space(p);
-
-		if (!skip_comment(p)) {
-			return 0;
 		}
 	}
 
@@ -256,66 +336,81 @@ static int skip_space_and_comment(SpnParser *p)
 
 /* Lexers for token-subtypes */
 
-static int lex_op(SpnParser *p)
+static int lex_space(SpnLexer *lexer, SpnToken *token)
 {
-	size_t i;
+	while (is_at_space(lexer)) {
+		skip_space(lexer);
+		if (skip_comment(lexer) == 0) {
+			return 0;
+		}
+	}
 
+	token->type = SPN_TOKEN_WSPACE;
+	token->value = NULL;
+
+	return 1;
+}
+
+static int lex_op(SpnLexer *lexer, SpnToken *token)
+{
 	/* The order of entries in this array matters because linear search is
 	 * performed on it, and if '+' gets caught before '++', we're in trouble
 	 */
-	static const TReserved ops[] = {
-		RESERVED_ENTRY("++",    SPN_TOK_INCR),
-		RESERVED_ENTRY("+=",    SPN_TOK_PLUSEQ),
-		RESERVED_ENTRY("+",     SPN_TOK_PLUS),
-		RESERVED_ENTRY("--",    SPN_TOK_DECR),
-		RESERVED_ENTRY("-=",    SPN_TOK_MINUSEQ),
-		RESERVED_ENTRY("-",     SPN_TOK_MINUS),
-		RESERVED_ENTRY("*=",    SPN_TOK_MULEQ),
-		RESERVED_ENTRY("*",     SPN_TOK_MUL),
-		RESERVED_ENTRY("/=",    SPN_TOK_DIVEQ),
-		RESERVED_ENTRY("/",     SPN_TOK_DIV),
-		RESERVED_ENTRY("%=",    SPN_TOK_MODEQ),
-		RESERVED_ENTRY("%",     SPN_TOK_MOD),
-		RESERVED_ENTRY("==",    SPN_TOK_EQUAL),
-		RESERVED_ENTRY("=",     SPN_TOK_ASSIGN),
-		RESERVED_ENTRY("!=",    SPN_TOK_NOTEQ),
-		RESERVED_ENTRY("!",     SPN_TOK_LOGNOT),
-		RESERVED_ENTRY("?",     SPN_TOK_QMARK),
-		RESERVED_ENTRY(":",     SPN_TOK_COLON),
-		RESERVED_ENTRY("..=",   SPN_TOK_DOTDOTEQ),
-		RESERVED_ENTRY("..",    SPN_TOK_DOTDOT),
-		RESERVED_ENTRY(".",     SPN_TOK_DOT),
-		RESERVED_ENTRY(",",     SPN_TOK_COMMA),
-		RESERVED_ENTRY(";",     SPN_TOK_SEMICOLON),
-		RESERVED_ENTRY("<<=",   SPN_TOK_SHLEQ),
-		RESERVED_ENTRY("<<",    SPN_TOK_SHL),
-		RESERVED_ENTRY("<=",    SPN_TOK_LEQ),
-		RESERVED_ENTRY("<",     SPN_TOK_LESS),
-		RESERVED_ENTRY(">>=",   SPN_TOK_SHREQ),
-		RESERVED_ENTRY(">>",    SPN_TOK_SHR),
-		RESERVED_ENTRY(">=",    SPN_TOK_GEQ),
-		RESERVED_ENTRY(">",     SPN_TOK_GREATER),
-		RESERVED_ENTRY("&&",    SPN_TOK_LOGAND),
-		RESERVED_ENTRY("&=",    SPN_TOK_ANDEQ),
-		RESERVED_ENTRY("&",     SPN_TOK_BITAND),
-		RESERVED_ENTRY("||",    SPN_TOK_LOGOR),
-		RESERVED_ENTRY("|=",    SPN_TOK_OREQ),
-		RESERVED_ENTRY("|",     SPN_TOK_BITOR),
-		RESERVED_ENTRY("^=",    SPN_TOK_XOREQ),
-		RESERVED_ENTRY("^",     SPN_TOK_XOR),
-		RESERVED_ENTRY("~",     SPN_TOK_BITNOT),
-		RESERVED_ENTRY("(",     SPN_TOK_LPAREN),
-		RESERVED_ENTRY(")",     SPN_TOK_RPAREN),
-		RESERVED_ENTRY("[",     SPN_TOK_LBRACKET),
-		RESERVED_ENTRY("]",     SPN_TOK_RBRACKET),
-		RESERVED_ENTRY("{",     SPN_TOK_LBRACE),
-		RESERVED_ENTRY("}",     SPN_TOK_RBRACE)
+	static const Reserved ops[] = {
+		RESERVED_ENTRY("("),
+		RESERVED_ENTRY(")"),
+		RESERVED_ENTRY("["),
+		RESERVED_ENTRY("]"),
+		RESERVED_ENTRY("{"),
+		RESERVED_ENTRY("}"),
+		RESERVED_ENTRY(","),
+		RESERVED_ENTRY(";"),
+		RESERVED_ENTRY("++"),
+		RESERVED_ENTRY("+="),
+		RESERVED_ENTRY("+"),
+		RESERVED_ENTRY("--"),
+		RESERVED_ENTRY("-="),
+		RESERVED_ENTRY("-"),
+		RESERVED_ENTRY("*="),
+		RESERVED_ENTRY("*"),
+		RESERVED_ENTRY("/="),
+		RESERVED_ENTRY("/"),
+		RESERVED_ENTRY("%="),
+		RESERVED_ENTRY("%"),
+		RESERVED_ENTRY("=="),
+		RESERVED_ENTRY("="),
+		RESERVED_ENTRY("!="),
+		RESERVED_ENTRY("!"),
+		RESERVED_ENTRY("..="),
+		RESERVED_ENTRY(".."),
+		RESERVED_ENTRY("."),
+		RESERVED_ENTRY("<<="),
+		RESERVED_ENTRY("<<"),
+		RESERVED_ENTRY("<="),
+		RESERVED_ENTRY("<"),
+		RESERVED_ENTRY(">>="),
+		RESERVED_ENTRY(">>"),
+		RESERVED_ENTRY(">="),
+		RESERVED_ENTRY(">"),
+		RESERVED_ENTRY("&&"),
+		RESERVED_ENTRY("&="),
+		RESERVED_ENTRY("&"),
+		RESERVED_ENTRY("||"),
+		RESERVED_ENTRY("|="),
+		RESERVED_ENTRY("|"),
+		RESERVED_ENTRY("^="),
+		RESERVED_ENTRY("^"),
+		RESERVED_ENTRY("?"),
+		RESERVED_ENTRY(":"),
+		RESERVED_ENTRY("~")
 	};
 
+	size_t i;
 	for (i = 0; i < COUNT(ops); i++) {
-		if (strncmp(p->pos, ops[i].word, ops[i].len) == 0) {
-			p->curtok.tok = ops[i].tok;
-			p->pos += ops[i].len;
+		if (strncmp(lexer->cursor, ops[i].str, ops[i].len) == 0) {
+			token->type = SPN_TOKEN_PUNCT;
+			token->value = spn_strndup(lexer->cursor, ops[i].len);
+			lexer->cursor += ops[i].len;
 			return 1;
 		}
 	}
@@ -324,378 +419,452 @@ static int lex_op(SpnParser *p)
 	return 0;
 }
 
-static int lex_number(SpnParser *p)
+static int lex_number(SpnLexer *lexer, SpnToken *token)
 {
-	const char *end = p->pos;
-	if (end[0] == '0' && end[1] != '.') { /* hexadecimal or octal literal */
+	const char *end = lexer->cursor;
+	int isfloat = 0;
+
+	/* hexadecimal, octal or binary _integer_ literal */
+	if (end[0] == '0' && is_radix_prefix(end[1])) {
+		int (*classify)(int) = NULL;
+
+		/* skip '0' */
 		end++;
-		if (end[0] == 'x' || end[0] == 'X') { /* hexadecimal */
-			char *tmp;
-			long i;
 
-			end++;
-
-			while (isxdigit(end[0])) {
-				end++;
-			}
-
-			i = strtol(p->pos, &tmp, 0);
-			if (tmp != end) {
-				/* error */
-				spn_parser_error(p, "cannot parse hexadecimal integer literal", NULL);
-				return 0;
-			}
-
-			p->pos = end;
-			p->curtok.tok = SPN_TOK_INT;
-			p->curtok.val = makeint(i);
-
-			return 1;
-		} else { /* octal */
-			char *tmp;
-			long i;
-
-			while (is_octal(end[0])) {
-				end++;
-			}
-
-			i = strtol(p->pos, &tmp, 0);
-			if (tmp != end) {
-				/* error */
-				spn_parser_error(p, "cannot parse octal integer literal", NULL);
-				return 0;
-			}
-
-			p->pos = end;
-			p->curtok.tok = SPN_TOK_INT;
-			p->curtok.val = makeint(i);
-			return 1;
+		switch (tolower(*end++)) {
+		case 'x':
+			classify = isxdigit;
+			break;
+		case 'o':
+			classify = is_octal;
+			break;
+		case 'b':
+			classify = is_binary;
+			break;
+		default:
+			SHANT_BE_REACHED();
+			break;
 		}
-	} else { /* decimal */
-		int isfloat = 0, hadexp = 0;
 
-		/* walk past initial digits of radix */
+		while (classify(end[0])) {
+			end++;
+		}
+
+		/* if there are no digits after the 2-char prefix, it's an error */
+		if (end - lexer->cursor <= 2) {
+			lexer_error(lexer, "expecting digits after 0x, 0o or 0b", NULL);
+			return 0;
+		}
+
+		token->type = SPN_TOKEN_INT;
+		token->value = spn_strndup(lexer->cursor, end - lexer->cursor);
+		lexer->cursor = end;
+
+		return 1;
+	}
+
+	/* decimal integer or floating-point.
+	 * Walk past initial digits of radix.
+	 */
+	while (isdigit(end[0])) {
+		end++;
+	}
+
+	/* skip decimal point if present */
+	if (end[0] == '.') {
+		isfloat = 1;
+		end++;
+
 		while (isdigit(end[0])) {
 			end++;
 		}
-
-		/* skip decimal point if present */
-		if (end[0] == '.') {
-			isfloat = 1;
-			end++;
-		} else if (end[0] == 'e' || end[0] == 'E') {
-			end++;
-			isfloat = 1;
-			hadexp = 1;
-		}
-
-		if (isfloat) {
-			char *tmp;
-			double d;
-
-			/* walk past fractional or exponent part, if any */
-			while (isdigit(end[0])) {
-				end++;
-			}
-
-			if (!hadexp) {
-				/* walk past exponent part, if any */
-				if (end[0] == 'e' || end[0] == 'E') {
-					end++;
-					if (end[0] == '+' || end[0] == '-') {
-						end++;
-					}
-
-					if (!isdigit(end[0])) {
-						/* error: missing exponent part */
-						spn_parser_error(p, "exponent in decimal floating-point literal is missing", NULL);
-						return 0;
-					}
-
-					while (isdigit(end[0])) {
-						end++;
-					}
-				}
-			}
-
-			d = strtod(p->pos, &tmp);
-
-			if (tmp != end) {
-				/* error */
-				spn_parser_error(p, "cannot parse decimal floating-point literal", NULL);
-				return 0;
-			}
-
-			p->pos = end;
-			p->curtok.tok = SPN_TOK_FLOAT;
-			p->curtok.val = makefloat(d);
-
-			return 1;
-		} else {
-			char *tmp;
-			long i = strtol(p->pos, &tmp, 0);
-
-			if (tmp != end) {
-				spn_parser_error(p, "cannot parse decimal integer literal", NULL);
-				return 0;
-			}
-
-			p->pos = end;
-			p->curtok.tok = SPN_TOK_INT;
-			p->curtok.val = makeint(i);
-
-			return 1;
-		}
 	}
-}
 
-static int lex_ident(SpnParser *p)
-{
-	size_t diff, i;
-	char *buf;
-	const char *end = p->pos;
-
-	/* here, order does not matter - keywords and identifiers have to be
-	 * delimited by whitespace or special characters, so there's no
-	 * ambiguity in lexing them
-	 */
-	static const TReserved kwds[] = {
-		RESERVED_ENTRY("and",       SPN_TOK_LOGAND),
-		RESERVED_ENTRY("argv",      SPN_TOK_ARGV),
-		RESERVED_ENTRY("break",     SPN_TOK_BREAK),
-		RESERVED_ENTRY("const",     SPN_TOK_CONST),
-		RESERVED_ENTRY("continue",  SPN_TOK_CONTINUE),
-		RESERVED_ENTRY("do",        SPN_TOK_DO),
-		RESERVED_ENTRY("else",      SPN_TOK_ELSE),
-		RESERVED_ENTRY("false",     SPN_TOK_FALSE),
-		RESERVED_ENTRY("for",       SPN_TOK_FOR),
-		RESERVED_ENTRY("function",  SPN_TOK_FUNCTION),
-		RESERVED_ENTRY("global",    SPN_TOK_CONST),
-		RESERVED_ENTRY("if",        SPN_TOK_IF),
-		RESERVED_ENTRY("let",       SPN_TOK_VAR),
-		RESERVED_ENTRY("nil",       SPN_TOK_NIL),
-		RESERVED_ENTRY("not",       SPN_TOK_LOGNOT),
-		RESERVED_ENTRY("null",      SPN_TOK_NIL),
-		RESERVED_ENTRY("or",        SPN_TOK_LOGOR),
-		RESERVED_ENTRY("return",    SPN_TOK_RETURN),
-		RESERVED_ENTRY("true",      SPN_TOK_TRUE),
-		RESERVED_ENTRY("typeof",    SPN_TOK_TYPEOF),
-		RESERVED_ENTRY("var",       SPN_TOK_VAR),
-		RESERVED_ENTRY("while",     SPN_TOK_WHILE)
-	};
-
-	while (is_ident(*end)) {
+	if (tolower(end[0]) == 'e') {
+		isfloat = 1;
 		end++;
+
+		if (end[0] == '+' || end[0] == '-') {
+			end++;
+		}
+
+		if (!isdigit(end[0])) {
+			/* error: missing exponent part */
+			lexer_error(lexer, "exponent in floating-point literal is missing", NULL);
+			return 0;
+		}
+
+		while (isdigit(end[0])) {
+			end++;
+		}
 	}
 
-	diff = end - p->pos;
-
-	/* check if the word is one of the reserved keywords */
-
-	for (i = 0; i < COUNT(kwds); i++) {
-		if (diff == kwds[i].len
-		 && strncmp(p->pos, kwds[i].word, kwds[i].len) == 0) {
-		 	p->pos = end;
-		 	p->curtok.tok = kwds[i].tok;
-		 	return 1; /* if so, mark it as such */
-		 }
-	}
-
-	/* if not, it's a proper identifier */
-	buf = spn_strndup(p->pos, diff);
-	p->curtok.tok = SPN_TOK_IDENT;
-	p->curtok.val = makestring_nocopy_len(buf, diff, 1);
-	p->pos = end;
+	token->type = isfloat ? SPN_TOKEN_FLOAT : SPN_TOKEN_INT;
+	token->value = spn_strndup(lexer->cursor, end - lexer->cursor);
+	lexer->cursor = end;
 
 	return 1;
 }
 
-static int lex_char(SpnParser *p)
+static int lex_word(SpnLexer *lexer, SpnToken *token)
 {
-	/* this is unsigned so that shifting into the MSB is well-defined */
-	unsigned long i = 0;
+	const char *end = lexer->cursor;
+
+	while (is_word(end[0])) {
+		end++;
+	}
+
+	token->type = SPN_TOKEN_WORD;
+	token->value = spn_strndup(lexer->cursor, end - lexer->cursor);
+	lexer->cursor = end;
+
+	return 1;
+}
+
+static int lex_char(SpnLexer *lexer, SpnToken *token)
+{
 	int n = 0;
 
-	/* skip leading character literal delimiter apostrophe */
-	p->pos++;
-	if (p->pos[0] == '\'') {
+	/* skip leading delimiter apostrophe */
+	const char *begin = lexer->cursor++;
+
+	if (lexer->cursor[0] == '\'') {
 		/* empty character literal */
-		spn_parser_error(p, "empty character literal", NULL);
+		lexer_error(lexer, "empty character literal", NULL);
 		return 0;
 	}
 
-	while (p->pos[0] != '\'') {
-		if (p->pos[0] == 0) {
+	while (lexer->cursor[0] != '\'') {
+		if (lexer->cursor[0] == 0) {
 			/* premature end of char literal */
-			spn_parser_error(p, "end of input before closing apostrophe in character literal", NULL);
+			lexer_error(lexer, "end of input before closing \"'\" in character literal", NULL);
 			return 0;
 		}
 
-		/* TODO: should this always be 8 instead? */
-		i <<= CHAR_BIT;
-		if (p->pos[0] == '\\') {
-			int c = unescape_char(p);
-			if (c < 0) {
-				/* error unescaping the character */
+		if (lexer->cursor[0] == '\n' || lexer->cursor[0] == '\r') {
+			lexer_error(lexer, "character literal must not contain a newline", NULL);
+			return 0;
+		}
+
+		if (lexer->cursor[0] == '\\') {
+			if (check_escape_char(lexer)) {
+				/* error in escape sequence */
 				return 0;
 			}
-			i += c;
 		} else {
-			i += *p->pos++;
+			lexer->cursor++;
 		}
 
 		n++;
 	}
 
-	/* skip trailing character literal delimiter apostrophe */
-	p->pos++;
+	/* skip closing apostrophe */
+	lexer->cursor++;
 
 	if (n > 8) {
 		/* character literal is too long */
-		spn_parser_error(p, "character literal longer than 8 bytes", NULL);
+		lexer_error(lexer, "character literal longer than 8 bytes", NULL);
 		return 0;
 	}
 
-	/* XXX: this: http://stackoverflow.com/q/18922601 says that the
-	 * assignment operator cannot overflow, so long = unsigned long
-	 * should be defined. Is this right?
-	 */
-	p->curtok.tok = SPN_TOK_INT;
-	p->curtok.val = makeint(i);
+	token->type = SPN_TOKEN_CHAR;
+	token->value = spn_strndup(begin, lexer->cursor - begin);
 
 	return 1;
 }
 
-static int lex_string(SpnParser *p)
+static int lex_string(SpnLexer *lexer, SpnToken *token)
 {
-	size_t sz = 0x10;
-	size_t n = 0;
-	char *buf = spn_malloc(sz);
-
 	/* skip string beginning marker double quotation mark */
-	p->pos++;
+	const char *begin = lexer->cursor++;
 
-	while (p->pos[0] != '"') {
-		if (p->pos[0] == 0) {
+	while (lexer->cursor[0] != '"') {
+		if (lexer->cursor[0] == 0) {
 			/* premature end of string literal */
-			free(buf);
-			spn_parser_error(p, "end of input before closing \" in string literal", NULL);
+			lexer_error(lexer, "end of input before closing '\"' in string literal", NULL);
 			return 0;
 		}
 
-		if (p->pos[0] == '\\') {
-			int c = unescape_char(p);
-			if (c < 0) {
-				/* error unescaping the character */
-				free(buf);
-				return 0;
-			}
-
-			buf[n++] = c;
-		} else {
-			buf[n++] = *p->pos++;
+		if (lexer->cursor[0] == '\n' || lexer->cursor[0] == '\r') {
+			lexer_error(lexer, "string literal must not contain a newline", NULL);
+			return 0;
 		}
 
-		/* expand the buffer if necessary */
-		if (n >= sz) {
-			sz *= 2;
-			buf = spn_realloc(buf, sz);
+		if (lexer->cursor[0] == '\\') {
+			if (check_escape_char(lexer)) {
+				/* error in escape sequence */
+				return 0;
+			}
+		} else {
+			lexer->cursor++;
 		}
 	}
 
-	buf[n] = 0;
+	/* skip closing quotation mark */
+	lexer->cursor++;
 
-	/* skip string ending marker double quotation mark */
-	p->pos++;
-
-	p->curtok.tok = SPN_TOK_STR;
-	p->curtok.val = makestring_nocopy_len(buf, n, 1);
+	token->type = SPN_TOKEN_STRING;
+	token->value = spn_strndup(begin, lexer->cursor - begin);
 
 	return 1;
 }
 
 /* The main lexer function */
-
-int spn_lex(SpnParser *p)
+static int next_token(SpnLexer *lexer, SpnToken *token)
 {
 	/* for error reporting */
 	long lc;
 	const void *args[1];
 
-	/* skip whitespace and comments before token */
-	if (!skip_space_and_comment(p)) {
-		return 0;
+	/* Set up location of lexer and token */
+	lexer->location.column = lexer->cursor - lexer->lastline + 1;
+	token->location = lexer->location;
+	token->offset = lexer->cursor - lexer->source;
+
+	if (is_at_space(lexer)) {
+		return lex_space(lexer, token);
 	}
 
-	/* just so that it can always be released safely if
-	 * an unexpected token is encountered, without having to
-	 * know its exact type. Also, the object value (`val.v.o')
-	 * member is explicitly set to NULL because some parser methods
-	 * expecting an identifier read this member before knowing
-	 * whether or not the token is indeed an identifier. So we must
-	 * set it if we don't want to invoke undefined behavior.
-	 */
-	p->curtok.val = spn_nilval;
-	p->curtok.val.v.o = NULL;
-
-	/* this needs to come before the check for `is_special()',
-	 * since numbers can begin with a dot too, therefore checking if the
-	 * decimal floating-point literal starts with `.<digits>' must
-	 * be done before blindly assuming that `.' is always the memberof
-	 * operator.
-	 */
-	if (is_num_begin(p->pos)) {
-		return lex_number(p);
+	if (is_at_punct(lexer)) {
+		return lex_op(lexer, token);
 	}
 
-	if (is_ident_begin(p->pos[0])) {
-		return lex_ident(p);
+	if (is_at_number(lexer)) {
+		return lex_number(lexer, token);
 	}
 
-	if (is_special(p->pos[0])) {
-		return lex_op(p);
+	if (is_at_word_begin(lexer)) {
+		return lex_word(lexer, token);
 	}
 
-	if (p->pos[0] == '\'') {
-		return lex_char(p);
+	if (is_at_char(lexer)) {
+		return lex_char(lexer, token);
 	}
 
-	if (p->pos[0] == '"') {
-		return lex_string(p);
+	if (is_at_string(lexer)) {
+		return lex_string(lexer, token);
 	}
 
 	/* end-of-input */
-	if (p->pos[0] == 0) {
-		p->eof = 1;
-		p->curtok.tok = SPN_TOK_EOF;
+	if (is_at_eof(lexer)) {
+		lexer->eof = 1;
 		return 0;
 	}
 
 	/* nothing matched so far -- error */
-	lc = p->pos[0];
+	lc = lexer->cursor[0];
 	args[0] = &lc;
-	spn_parser_error(p, "unexpected character `%c'", args);
+	lexer_error(lexer, "unexpected character '%c'", args);
 	return 0;
 }
 
-int spn_accept(SpnParser *p, enum spn_lex_token tok)
+void spn_lexer_init(SpnLexer *lexer)
 {
-	if (p->curtok.tok == tok) {
-		spn_lex(p);
-		return !p->error; /* return success status */
+	lexer->location.line = 0;
+	lexer->location.column = 0;
+	lexer->source = NULL;
+	lexer->cursor = NULL;
+	lexer->lastline = NULL;
+	lexer->errmsg = NULL;
+	lexer->eof = 0;
+}
+
+void spn_lexer_free(SpnLexer *lexer)
+{
+	free(lexer->errmsg);
+}
+
+SpnToken *spn_lexer_lex(SpnLexer *lexer, const char *src, size_t *count)
+{
+	size_t alloc_size = 8;
+	size_t n = 0;
+	SpnToken *buf = spn_malloc(alloc_size * sizeof buf[0]);
+	SpnToken token;
+
+	lexer->location.line = 1;
+	lexer->location.column = 1;
+
+	lexer->source = src;
+	lexer->cursor = src;
+	lexer->lastline = src;
+
+	lexer->eof = 0;
+
+	while (next_token(lexer, &token)) {
+		if (token.type == SPN_TOKEN_WSPACE) {
+			continue;
+		}
+
+		if (n >= alloc_size) {
+			alloc_size *= 2;
+			buf = spn_realloc(buf, alloc_size * sizeof buf[0]);
+		}
+
+		buf[n++] = token;
 	}
 
-	return 0;
+	/* if 'next_token()' returned false and we haven't reached
+	 * the end of the input, then there has been an error.
+	 */
+	if (lexer->eof == 0) {
+		spn_free_tokens(buf, n);
+		*count = 0;
+		return NULL;
+	}
+
+	*count = n;
+	return buf;
 }
 
-int spn_accept_multi(SpnParser *p, const enum spn_lex_token toks[], size_t n)
+/* std::move()-style ownership transfer of error message */
+char *spn_lexer_steal_errmsg(SpnLexer *lexer)
 {
+	char *errmsg = lexer->errmsg;
+	lexer->errmsg = NULL;
+	return errmsg;
+}
+
+int spn_token_is_reserved(const char *str)
+{
+	static const char *const kwds[] = {
+		"and",
+		"argv",
+		"break",
+		"const",
+		"continue",
+		"do",
+		"else",
+		"false",
+		"for",
+		"function",
+		"global",
+		"if",
+		"let",
+		"nil",
+		"not",
+		"null",
+		"or",
+		"return",
+		"true",
+		"typeof",
+		"var",
+		"while"
+	};
+
 	size_t i;
-	for (i = 0; i < n; i++) {
-		if (spn_accept(p, toks[i])) {
-			return i;
+	for (i = 0; i < COUNT(kwds); i++) {
+		if (strcmp(str, kwds[i]) == 0) {
+			return 1;
 		}
 	}
 
-	return -1;
+	return 0;
+}
+
+void spn_free_tokens(SpnToken *buf, size_t n)
+{
+	size_t i;
+	for (i = 0; i < n; i++) {
+		free(buf[i].value);
+	}
+
+	free(buf);
+}
+
+long spn_char_literal_toint(const char *chr)
+{
+	/* this is unsigned so that overflow is well-defined */
+	unsigned long n = 0;
+
+	/* skip leading single quotation mark */
+	assert(*chr == '\'');
+	chr++;
+
+	while (*chr != '\'') {
+		n <<= CHAR_BIT;
+
+		if (*chr == '\\') {
+			size_t len;
+			n += unescape_char(chr, &len);
+			chr += len;
+		} else {
+			n += *chr++;
+		}
+	}
+
+	return n;
+}
+
+char *spn_unescape_string_literal(const char *str, size_t *outlen)
+{
+	/* since each escape sequence is more than one character long, it is guaranteed
+	 * that the unescaped string will not be longer than the escaped one.
+	 */
+	size_t maxlen = strlen(str);
+	char *buf = spn_malloc(maxlen + 1);
+	char *p = buf;
+
+	/* skip leading double quotation mark */
+	assert(*str == '"');
+	str++;
+
+	while (*str != '"') {
+		if (*str == '\\') {
+			size_t len;
+			*p++ = unescape_char(str, &len);
+			str += len;
+		} else {
+			*p++ = *str++;
+		}
+	}
+
+	assert(p - buf <= maxlen);
+
+	/* NUL-terminate the string and return its length */
+	*p = 0;
+	*outlen = p - buf;
+	return buf;
+}
+
+long spn_token_to_integer(SpnToken *token)
+{
+	enum spn_token_type type = token->type;
+	const char *value = token->value;
+	size_t len = strlen(value);
+	int base;
+
+	assert(type == SPN_TOKEN_INT || type == SPN_TOKEN_CHAR);
+
+	if (type == SPN_TOKEN_CHAR) {
+		return spn_char_literal_toint(value);
+	}
+
+	/* if we got here, the token must be an integer literal */
+	if (len < 2) {
+		/* can only be a single digit - assume decimal */
+		return strtol(value, NULL, 10);
+	}
+
+	/* if the token is at least 2 characters long,
+	 * it can have a prefix specifying the base.
+	 */
+	switch (value[1]) {
+	case 'b': case 'B':
+		base = 2;
+		value += 2; /* skip '0b' prefix */
+		break;
+	case 'o': case 'O':
+		base = 8;
+		value += 2; /* skip '0o' prefix */
+		break;
+	case 'x': case 'X':
+		base = 16;
+		value += 2; /* skip '0x' prefix */
+		break;
+	default:
+		base = 10;
+		break;
+	}
+
+	return strtol(value, NULL, base);
 }

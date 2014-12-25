@@ -63,14 +63,14 @@ size_t spn_array_count(SpnArray *arr)
 	return arr->count;
 }
 
-void spn_array_get(SpnArray *arr, size_t index, SpnValue *val)
+SpnValue spn_array_get(SpnArray *arr, size_t index)
 {
 	if (index >= arr->count) {
 		unsigned long ulindex = index, ulcount = arr->count;
 		spn_die("array index %lu is too high (size = %lu)\n", ulindex, ulcount);
 	}
 
-	*val = arr->vector[index];
+	return arr->vector[index];
 }
 
 void spn_array_set(SpnArray *arr, size_t index, const SpnValue *val)

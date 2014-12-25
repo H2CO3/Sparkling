@@ -16,6 +16,7 @@
 #include "ctx.h"
 #include "private.h"
 #include "func.h"
+#include "str.h"
 #include "array.h"
 #include "hashmap.h"
 
@@ -62,18 +63,23 @@ static SpnArray *get_global_values(void)
 
 static int next_value_index = FIRST_VALUE_INDEX;
 
-static int add_to_values(const SpnValue *val)
+static int add_to_values(SpnValue val)
 {
-	spn_array_push(get_global_values(), val);
+	spn_array_push(get_global_values(), &val);
 	return next_value_index++;
 }
 
 static SpnValue value_by_index(int index)
 {
-	SpnValue result;
-	spn_array_get(get_global_values(), index, &result);
-	return result;
+	return spn_array_get(get_global_values(), index);
 }
+
+// Various 'static' variables that only need to be created once for
+// performance reasons.
+// As they're owned by a particular context, they need to be re-created
+// when the context is deallocated.
+static SpnFunction *wrapperGenerator = NULL;
+static SpnFunction *validateAST = NULL;
 
 extern void jspn_reset(void)
 {
@@ -87,6 +93,8 @@ extern void jspn_reset(void)
 		jspn_global_vals = NULL;
 	}
 
+	wrapperGenerator = NULL;
+	validateAST = NULL;
 	next_value_index = FIRST_VALUE_INDEX;
 }
 
@@ -104,8 +112,7 @@ extern int jspn_compile(const char *src)
 		return ERROR_INDEX;
 	}
 
-	SpnValue fnval = { .type = SPN_TYPE_FUNC, .v.o = fn };
-	return add_to_values(&fnval);
+	return add_to_values((SpnValue){ .type = SPN_TYPE_FUNC, .v.o = fn });
 }
 
 extern int jspn_compileExpr(const char *src)
@@ -115,8 +122,78 @@ extern int jspn_compileExpr(const char *src)
 		return ERROR_INDEX;
 	}
 
-	SpnValue fnval = { .type = SPN_TYPE_FUNC, .v.o = fn };
-	return add_to_values(&fnval);
+	return add_to_values((SpnValue){ .type = SPN_TYPE_FUNC, .v.o = fn });
+}
+
+extern int jspn_parse(const char *src)
+{
+	SpnHashMap *ast = spn_ctx_parse(get_global_context(), src);
+	if (ast == NULL) {
+		return ERROR_INDEX;
+	}
+
+	SpnValue val = { .type = SPN_TYPE_HASHMAP, .v.o = ast };
+	int index = add_to_values(val);
+	spn_object_release(ast);
+	return index;
+}
+
+extern int jspn_parseExpr(const char *src)
+{
+	SpnHashMap *ast = spn_ctx_parse_expr(get_global_context(), src);
+	if (ast == NULL) {
+		return ERROR_INDEX;
+	}
+
+	SpnValue val = { .type = SPN_TYPE_HASHMAP, .v.o = ast };
+	int index = add_to_values(val);
+	spn_object_release(ast);
+	return index;
+}
+
+extern int jspn_compileAST(int astIndex)
+{
+	if (validateAST == NULL) {
+		char *src = spn_read_text_file("tools/validateAST.spn");
+		if (src == NULL) {
+			spn_die("cannot read validateAST.spn");
+		}
+
+		SpnValue ret;
+		int error = spn_ctx_execstring(get_global_context(), src, &ret);
+		free(src);
+
+		if (error != 0) {
+			spn_die("cannot execute validateAST.spn");
+		}
+
+		assert(isfunc(&ret));
+		validateAST = funcvalue(&ret);
+	}
+
+	SpnValue astVal = value_by_index(astIndex);
+	assert(ishashmap(&astVal));
+
+	SpnValue ret;
+	int error = spn_ctx_callfunc(get_global_context(), validateAST, &ret, 1, &astVal);
+	if (error != 0) {
+		spn_die("cannot call validateAST()");
+	}
+
+	assert(isbool(&ret));
+	if (boolvalue(&ret) == 0) {
+		get_global_context()->errtype = SPN_ERROR_GENERIC;
+		get_global_context()->errmsg = "AST is invalid";
+		return ERROR_INDEX; /* invalid AST */
+	}
+
+	SpnHashMap *ast = hashmapvalue(&astVal);
+	SpnFunction *fn = spn_ctx_compile_ast(get_global_context(), ast);
+	if (fn == NULL) {
+		return ERROR_INDEX;
+	}
+
+	return add_to_values((SpnValue){ .type = SPN_TYPE_FUNC, .v.o = fn });
 }
 
 extern int jspn_call(int func_index, int argv_index)
@@ -139,7 +216,7 @@ extern int jspn_call(int func_index, int argv_index)
 	// working around the UB in the special case of argc == 0
 	SpnValue *args = malloc(argc * sizeof args[0]);
 	for (size_t i = 0; i < argc; i++) {
-		spn_array_get(argv, i, &args[i]);
+		args[i] = spn_array_get(argv, i);
 	}
 
 	SpnValue result;
@@ -157,7 +234,7 @@ extern int jspn_call(int func_index, int argv_index)
 		return ERROR_INDEX;
 	}
 
-	int result_index = add_to_values(&result);
+	int result_index = add_to_values(result);
 	spn_value_release(&result);
 	return result_index;
 }
@@ -165,6 +242,16 @@ extern int jspn_call(int func_index, int argv_index)
 extern const char *jspn_lastErrorMessage(void)
 {
 	return spn_ctx_geterrmsg(get_global_context());
+}
+
+extern unsigned jspn_lastErrorLine(void)
+{
+	return spn_ctx_geterrloc(get_global_context()).line;
+}
+
+extern unsigned jspn_lastErrorColumn(void)
+{
+	return spn_ctx_geterrloc(get_global_context()).column;
 }
 
 extern const char *jspn_lastErrorType(void)
@@ -183,9 +270,8 @@ extern const char *jspn_lastErrorType(void)
 extern int jspn_getGlobal(const char *name)
 {
 	SpnHashMap *globals = spn_ctx_getglobals(get_global_context());
-	SpnValue global;
-	spn_hashmap_get_strkey(globals, name, &global);
-	return add_to_values(&global);
+	SpnValue global = spn_hashmap_get_strkey(globals, name);
+	return add_to_values(global);
 }
 
 extern void jspn_setGlobal(const char *name, int index)
@@ -236,24 +322,23 @@ extern const char *jspn_backtrace(void)
 // Setters (JavaScript -> Sparkling/C)
 extern int jspn_addNil(void)
 {
-	return add_to_values(&spn_nilval);
+	return add_to_values(spn_nilval);
 }
 
 extern int jspn_addBool(int b)
 {
-	return add_to_values(b ? &spn_trueval : &spn_falseval);
+	return add_to_values(b ? spn_trueval : spn_falseval);
 }
 
 extern int jspn_addNumber(double x)
 {
-	SpnValue val = floor(x) == x ? makeint(x) : makefloat(x);
-	return add_to_values(&val);
+	return add_to_values(floor(x) == x ? makeint(x) : makefloat(x));
 }
 
 extern int jspn_addString(const char *str)
 {
 	SpnValue val = makestring(str);
-	int index = add_to_values(&val);
+	int index = add_to_values(val);
 	spn_value_release(&val);
 	return index;
 }
@@ -268,8 +353,7 @@ extern int jspn_addArrayWithIndexBuffer(int32_t *indexBuffer, size_t n_objects)
 		spn_array_push(array, &val);
 	}
 
-	SpnValue arrval = { .type = SPN_TYPE_ARRAY, .v.o = array };
-	int result_index = add_to_values(&arrval);
+	int result_index = add_to_values((SpnValue){ .type = SPN_TYPE_ARRAY, .v.o = array });
 	spn_object_release(array);
 	return result_index;
 }
@@ -286,8 +370,7 @@ extern int jspn_addDictionaryWithIndexBuffer(int32_t *indexBuffer, size_t n_key_
 		spn_hashmap_set(dict, &key, &val);
 	}
 
-	SpnValue dictval = { .type = SPN_TYPE_HASHMAP, .v.o = dict };
-	int result_index = add_to_values(&dictval);
+	int result_index = add_to_values((SpnValue){ .type = SPN_TYPE_HASHMAP, .v.o = dict });
 	spn_object_release(dict);
 	return result_index;
 }
@@ -324,8 +407,6 @@ extern const char *jspn_getString(int index)
 // security enthusiasts cry and vomit.
 extern int jspn_addWrapperFunction(int funcIndex)
 {
-	static SpnFunction *wrapperGenerator = NULL;
-
 	if (wrapperGenerator == NULL) {
 		wrapperGenerator = spn_ctx_loadstring(
 			get_global_context(),
@@ -350,7 +431,7 @@ extern int jspn_addWrapperFunction(int funcIndex)
 
 	assert(err == 0);
 
-	int wrapperIndex = add_to_values(&wrapper);
+	int wrapperIndex = add_to_values(wrapper);
 	spn_value_release(&wrapper);
 	return wrapperIndex;
 }
@@ -359,7 +440,7 @@ extern int jspn_addWrapperFunction(int funcIndex)
 static int jspn_valueToIndex(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
 {
 	assert(argc >= 1); // usually 2 because 'map' passes in the index too
-	int index = add_to_values(&argv[0]);
+	int index = add_to_values(argv[0]);
 	*ret = makeint(index);
 	return 0;
 }
@@ -376,7 +457,7 @@ static int jspn_callWrappedFunc(SpnValue *ret, int argc, SpnValue argv[], void *
 	SpnArray *argIndices = arrayvalue(&argv[1]);
 	size_t count = spn_array_count(argIndices);
 	int retValIndex = jspn_callJSFunc(funcIndex, count, argIndices);
-	spn_array_get(get_global_values(), retValIndex, ret);
+	*ret = spn_array_get(get_global_values(), retValIndex);
 	spn_value_retain(ret);
 
 	return 0;
@@ -408,7 +489,7 @@ static int jspn_jseval(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
 		return -3;
 	}
 
-	spn_array_get(get_global_values(), index, ret);
+	*ret = spn_array_get(get_global_values(), index);
 	spn_value_retain(ret);
 
 	return 0;
@@ -416,8 +497,7 @@ static int jspn_jseval(SpnValue *ret, int argc, SpnValue argv[], void *ctx)
 
 extern int jspn_getIntFromArray(SpnArray *array, int index)
 {
-	SpnValue val;
-	spn_array_get(array, index, &val);
+	SpnValue val = spn_array_get(array, index);
 	assert(isint(&val));
 	return intvalue(&val);
 }
@@ -426,10 +506,10 @@ extern int jspn_getIntFromArray(SpnArray *array, int index)
 // arithmetic in C... although I could technically
 // do this right from JavaScript, but this way it's
 // more convenient.
-// Also, I don't have to export the `add_to_values()` function.
+// Also, I don't have to export the 'add_to_values()' function.
 extern int jspn_addValueFromArgv(SpnValue argv[], int index)
 {
-	return add_to_values(&argv[index]);
+	return add_to_values(argv[index]);
 }
 
 extern size_t jspn_countOfArrayAtIndex(int index)
@@ -455,9 +535,8 @@ extern void jspn_getValueIndicesOfArrayAtIndex(int index, int32_t *indexBuffer)
 	size_t n = spn_array_count(arr);
 
 	for (size_t i = 0; i < n; i++) {
-		SpnValue val;
-		spn_array_get(arr, i, &val);
-		indexBuffer[i] = add_to_values(&val);
+		SpnValue val = spn_array_get(arr, i);
+		indexBuffer[i] = add_to_values(val);
 	}
 }
 
@@ -471,8 +550,8 @@ extern void jspn_getKeyAndValueIndicesOfHashMapAtIndex(int index, int32_t *index
 
 	SpnValue key, value;
 	while ((cursor = spn_hashmap_next(hm, cursor, &key, &value)) != 0) {
-		indexBuffer[i * 2 + 0] = add_to_values(&key);
-		indexBuffer[i * 2 + 1] = add_to_values(&value);
+		indexBuffer[i * 2 + 0] = add_to_values(key);
+		indexBuffer[i * 2 + 1] = add_to_values(value);
 		i++;
 	}
 }

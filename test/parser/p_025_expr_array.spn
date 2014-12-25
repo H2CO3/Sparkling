@@ -1,0 +1,3 @@
+let empty = [];
+let single = [ "foo" ];
+let multi = [ "foo", "bar", "baz", "qux" ];

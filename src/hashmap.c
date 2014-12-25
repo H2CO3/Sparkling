@@ -23,7 +23,7 @@
  * every integral expression using the widest integer known to
  * its corresponding C compiler, and that C compiler might not
  * have an integer type wide enough to represent 0x2fffffffffff,
- * the may overflow and the comparison will probably fail.
+ * the computation may overflow and the comparison will probably fail.
  * Hence we do a little workaround. The idea is this:
  * 1. ULONG_MAX is always >= 0xffffffff (guaranteed by C89).
  * 2. If ULONG_MAX == 0xffffffff, we're most probably on 32-bit.
@@ -185,7 +185,7 @@ static Bucket *find_next_empty(Bucket *buckets, size_t headidx, size_t allocsize
 	return NULL;
 }
 
-void spn_hashmap_get(SpnHashMap *hm, const SpnValue *key, SpnValue *val)
+SpnValue spn_hashmap_get(SpnHashMap *hm, const SpnValue *key)
 {
 	Bucket *head, *node;
 	size_t index;
@@ -193,15 +193,14 @@ void spn_hashmap_get(SpnHashMap *hm, const SpnValue *key, SpnValue *val)
 
 	/* avoid division by 0 - an empty map has no values anyway */
 	if (allocsize == 0) {
-		*val = spn_nilval;
-		return;
+		return spn_nilval;
 	}
 
 	/* compute hash and get candidate bucket */
 	index = spn_hash_value(key) % allocsize;
 	head = &hm->buckets[index]; /* not NULL */
 	node = find_key(head, key);
-	*val = node ? node->value : spn_nilval;
+	return node ? node->value : spn_nilval;
 }
 
 void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
@@ -423,11 +422,15 @@ void spn_hashmap_delete(SpnHashMap *hm, const SpnValue *key)
 	spn_hashmap_set(hm, key, &spn_nilval);
 }
 
-void spn_hashmap_get_strkey(SpnHashMap *hm, const char *key, SpnValue *val)
+SpnValue spn_hashmap_get_strkey(SpnHashMap *hm, const char *key)
 {
-	SpnValue str = makestring_nocopy(key);
-	spn_hashmap_get(hm, &str, val);
-	spn_value_release(&str);
+	SpnString key_str = spn_string_emplace_nonretained_for_hashmap(key);
+
+	SpnValue key_val;
+	key_val.type = SPN_TYPE_STRING;
+	key_val.v.o = &key_str;
+
+	return spn_hashmap_get(hm, &key_val);
 }
 
 void spn_hashmap_set_strkey(SpnHashMap *hm, const char *key, const SpnValue *val)

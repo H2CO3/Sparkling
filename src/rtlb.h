@@ -48,7 +48,7 @@
  * =============
  * Methods:
  * --------
- * sort() (uses custom comparison function if given, `<' operator otherwise),
+ * sort() (uses custom comparison function if given, '<' operator otherwise),
  * find(), pfind(), bsearch()
  * any(), all()
  * slice()
@@ -116,11 +116,16 @@
  * system()
  * assert()
  * time()
+ * clock()
+ * sleep()
  * utctime()
  * localtime()
  * fmtdate()
  * difftime()
- * compile()
+ * parse()
+ * parseexpr()
+ * compilestr()
+ * compileast()
  * exprtofn()
  * toint()
  * tofloat()
@@ -136,7 +141,7 @@
  * ----------
  * String: the default class for strings
  * Array: the default class for arrays
- * HashMap: the defautl class for hashmaps
+ * HashMap: the default class for hashmaps
  */
 
 /* A convenience function that loads the entire standard library.

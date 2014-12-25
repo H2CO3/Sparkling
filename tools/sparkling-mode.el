@@ -6,30 +6,51 @@
 ;;; Code:
 (defvar sparkling-mode-hook nil)
 
-;; auto-insert curly brace pair
-;; shamelessly stolen from http://stackoverflow.com/q/3801147
-(defun sparkling-mode-insert-curly ()
+(defun sparkling-eval-replace-expr (start end)
+  "Evaluate the contents of the selected region (or the region between START and END) as an expression and replace it with the result."
+  (interactive "r")
+  (call-process "spn" nil t nil "-e" (delete-and-extract-region start end))
+)
+
+(defun sparkling-eval-replace-stmt (start end)
+  "Evaluate the contents of the selected region (or the region between START and END) as statements and replace it with the result."
+  (interactive "r")
+  (call-process "spn" nil t nil "-t" "-r" (delete-and-extract-region start end))
+)
+
+(defvar sparkling-eval-buffer-name "*sparkling-eval*")
+
+(defun sparkling-eval-expr (start end)
+  "Evaluate the contents of the selected region (or the region between START and END) as an expression."
+  (interactive "r")
+  (call-process "spn" nil sparkling-eval-buffer-name nil "-e" (buffer-substring start end))
+  (deactivate-mark)
+  (switch-to-buffer-other-window sparkling-eval-buffer-name)
+)
+
+(defun sparkling-eval-stmt (start end)
+  "Evaluate the contents of the selected region (or the region between START and END) as statements."
+  (interactive "r")
+  (call-process "spn" nil sparkling-eval-buffer-name nil "-t" "-r" (buffer-substring start end))
+  (deactivate-mark)
+  (switch-to-buffer-other-window sparkling-eval-buffer-name)
+)
+
+(defun sparkling-close-curly ()
   (interactive)
-  (insert "{")
-  (let ((pps (syntax-ppss)))
-    (when (and (eolp) (not (or (nth 3 pps) (nth 4 pps)))) ;; EOL and not in string or comment
-      ;; (sparkling-indent-line) ;; needed only if return doesn't auto-indent
-      (insert "\n\n}")
-      (sparkling-indent-line)
-      (forward-line -1)
-      (sparkling-indent-line)
-      (forward-line -1)
-      (sparkling-indent-line)
-      (forward-line 1)
-      (sparkling-indent-line))
-  )
+  (insert "}")
+  (sparkling-indent-line)
 )
 
 ;; Define keymap
 (defvar sparkling-mode-map
   (let ((map (make-sparse-keymap)))
     (define-key map "RET" 'newline-and-indent)
-    (define-key map "{" 'sparkling-mode-insert-curly)
+    (define-key map "}" 'sparkling-close-curly)
+    (define-key map (kbd "C-c C-e") 'sparkling-eval-replace-expr)
+    (define-key map (kbd "C-c C-r") 'sparkling-eval-replace-stmt)
+    (define-key map (kbd "C-M-e") 'sparkling-eval-expr)
+    (define-key map (kbd "C-M-r") 'sparkling-eval-stmt)
     map
   )
   "Keymap for Sparkling major mode"
@@ -63,12 +84,14 @@
 	    (backward-up-list 1)
 	    (when (looking-at "[{]")
 	      (setq indent-col (+ indent-col sparkling-indent-offset))))
-	(error nil)))
+    (error nil)))
     (save-excursion
       (back-to-indentation)
       (when (and (looking-at "[}]") (>= indent-col sparkling-indent-offset))
-	(setq indent-col (- indent-col sparkling-indent-offset))))
-    (indent-line-to indent-col)
+      (setq indent-col (- indent-col sparkling-indent-offset)))
+	  (indent-line-to indent-col))
+    (if (string-match "^[ \t]+$" (thing-at-point 'line))
+      (end-of-line))
   )
 )
 

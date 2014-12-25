@@ -28,6 +28,7 @@
 
 #include "spn.h"
 #include "array.h"
+#include "str.h"
 #include "func.h"
 #include "ctx.h"
 #include "private.h"
@@ -56,7 +57,7 @@ enum cmd_args {
 	FLAG_PRINTRET = 1 << 9
 };
 
-/* `pos' is the index of the first non-option */
+/* 'pos' is the index of the first non-option */
 static enum cmd_args process_args(int argc, char *argv[], int *pos)
 {
 	static const struct {
@@ -156,10 +157,11 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 	}
 }
 
-/* This checks if the file starts with a shebang, so that it can be run as a
- * stand-alone script if the shell supports this notation. This is necessary
- * because Sparkling doesn't recognize '#' as a line comment delimiter.
- */
+static void print_location_and_errmsg(SpnSourceLocation loc, const char *errmsg)
+{
+	fprintf(stderr, "near line %u, char %u: %s\n", loc.line, loc.column, errmsg);
+}
+
 static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *argv[])
 {
 	SpnValue *vals;
@@ -169,7 +171,16 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 	SpnFunction *fn = spn_ctx_loadsrcfile(ctx, fname);
 
 	if (fn == NULL) {
-		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+		enum spn_error_type errtype = spn_ctx_geterrtype(ctx);
+
+		if (errtype == SPN_ERROR_SYNTAX || errtype == SPN_ERROR_SEMANTIC) {
+			SpnSourceLocation loc = spn_ctx_geterrloc(ctx);
+			const char *errmsg = spn_ctx_geterrmsg(ctx);
+			print_location_and_errmsg(loc, errmsg);
+		} else {
+			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+		}
+
 		return -1;
 	}
 
@@ -179,7 +190,7 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 		vals[i] = makestring_nocopy(argv[i]);
 	}
 
-	/* throw away return value */
+	/* run program; throw away return value */
 	err = spn_ctx_callfunc(ctx, fn, NULL, argc, vals);
 
 	/* free arguments array */
@@ -190,6 +201,7 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 	free(vals);
 
 	if (err != 0) {
+		/* this can only mean a runtime error */
 		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
 		print_stacktrace_if_needed(ctx);
 	}
@@ -236,8 +248,10 @@ static int eval_args(int argc, char *argv[])
 		SpnValue val;
 		SpnFunction *fn = spn_ctx_compile_expr(&ctx, argv[i]);
 		if (fn == NULL) {
-			printf("%s\n", spn_ctx_geterrmsg(&ctx));
+			SpnSourceLocation loc = spn_ctx_geterrloc(&ctx);
+			const char *errmsg = spn_ctx_geterrmsg(&ctx);
 
+			print_location_and_errmsg(loc, errmsg);
 			status = EXIT_FAILURE;
 			continue;
 		}
@@ -270,8 +284,17 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 	for (i = 0; i < argc; i++) {
 		SpnValue val;
 		if (spn_ctx_execstring(&ctx, argv[i], &val) != 0) {
-			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(&ctx));
-			print_stacktrace_if_needed(&ctx);
+			const char *errmsg = spn_ctx_geterrmsg(&ctx);
+			enum spn_error_type errtype = spn_ctx_geterrtype(&ctx);
+
+			if (errtype == SPN_ERROR_SYNTAX || errtype == SPN_ERROR_SEMANTIC) {
+				SpnSourceLocation loc = spn_ctx_geterrloc(&ctx);
+				print_location_and_errmsg(loc, errmsg);
+			} else {
+				fprintf(stderr, "%s\n", errmsg);
+				print_stacktrace_if_needed(&ctx);
+			}
+
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -406,9 +429,10 @@ static int enter_repl(enum cmd_args args)
 				print_stacktrace_if_needed(&ctx);
 			} else {
 				SpnFunction *fn;
-				/* Save the original error message, because
-				 * it's probably going to be more meaningful.
+				/* Save the original error message and location,
+				 * because it's probably going to be more meaningful.
 				 */
+				SpnSourceLocation orig_loc = spn_ctx_geterrloc(&ctx);
 				const char *errmsg = spn_ctx_geterrmsg(&ctx);
 				size_t len = strlen(errmsg);
 				char *orig_errmsg = spn_malloc(len + 1);
@@ -424,9 +448,13 @@ static int enter_repl(enum cmd_args args)
 				 */
 				fn = spn_ctx_compile_expr(&ctx, buf);
 				if (fn == NULL) {
-					fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", orig_errmsg);
+					/* this is a parser or compiler error */
+					fprintf(stderr, CLR_ERR);
+					print_location_and_errmsg(orig_loc, orig_errmsg);
+					fprintf(stderr, CLR_RST "\n");
 				} else {
 					if (spn_ctx_callfunc(&ctx, fn, &ret, 0, NULL) != 0) {
+						/* this will be a runtime error */
 						fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(&ctx));
 						print_stacktrace_if_needed(&ctx);
 					} else {
@@ -465,7 +493,7 @@ static int enter_repl(enum cmd_args args)
 	return EXIT_SUCCESS;
 }
 
-/* XXX: this function modifies filenames in `argv' */
+/* XXX: this function modifies filenames in 'argv' */
 static int compile_files(int argc, char *argv[])
 {
 	int status = EXIT_SUCCESS;
@@ -482,14 +510,16 @@ static int compile_files(int argc, char *argv[])
 		spn_uword *bc;
 		size_t nwords;
 
-		printf("compiling file `%s'...", argv[i]);
+		printf("compiling file '%s'...", argv[i]);
 		fflush(stdout);
 		fflush(stderr);
 
 		fn = spn_ctx_loadsrcfile(&ctx, argv[i]);
 		if (fn == NULL) {
+			SpnSourceLocation loc = spn_ctx_geterrloc(&ctx);
+			const char *errmsg = spn_ctx_geterrmsg(&ctx);
 			printf("\n");
-			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(&ctx));
+			print_location_and_errmsg(loc, errmsg);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -504,7 +534,7 @@ static int compile_files(int argc, char *argv[])
 
 		outfile = fopen(outname, "wb");
 		if (outfile == NULL) {
-			fprintf(stderr, "\nI/O error: can't open file `%s'\n", outname);
+			fprintf(stderr, "\nI/O error: can't open file '%s'\n", outname);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -514,7 +544,7 @@ static int compile_files(int argc, char *argv[])
 		nwords = fn->nwords;
 
 		if (fwrite(bc, sizeof bc[0], nwords, outfile) < nwords) {
-			fprintf(stderr, "\nI/O error: can't write to file `%s'\n", outname);
+			fprintf(stderr, "\nI/O error: can't write to file '%s'\n", outname);
 			fclose(outfile);
 			status = EXIT_FAILURE;
 			break;
@@ -541,7 +571,7 @@ static int disassemble_files(int argc, char *argv[])
 
 		bc = spn_read_binary_file(argv[i], &fsz);
 		if (bc == NULL) {
-			fprintf(stderr, "I/O error: could not read file `%s'\n", argv[i]);
+			fprintf(stderr, "I/O error: could not read file '%s'\n", argv[i]);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -573,11 +603,12 @@ static int dump_ast_of_files(int argc, char *argv[])
 	spn_parser_init(&parser);
 
 	for (i = 0; i < argc; i++) {
-		SpnAST *ast;
+		SpnHashMap *ast;
+		SpnValue astval;
 
 		char *src = spn_read_text_file(argv[i]);
 		if (src == NULL) {
-			fprintf(stderr, "I/O error: cannot read file `%s'\n", argv[i]);
+			fprintf(stderr, "I/O error: cannot read file '%s'\n", argv[i]);
 			status = EXIT_FAILURE;
 			break;
 		}
@@ -586,13 +617,18 @@ static int dump_ast_of_files(int argc, char *argv[])
 		free(src);
 
 		if (ast == NULL) {
-			fprintf(stderr, "%s\n", parser.errmsg);
+			SpnSourceLocation loc = spn_parser_get_error_location(&parser);
+			print_location_and_errmsg(loc, parser.errmsg);
 			status = EXIT_FAILURE;
 			break;
 		}
 
-		spn_dump_ast(ast, 0);
-		spn_ast_free(ast);
+		astval.type = SPN_TYPE_HASHMAP;
+		astval.v.o = ast;
+		spn_repl_print(&astval);
+		spn_object_release(ast);
+
+		printf("\n");
 	}
 
 	spn_parser_free(&parser);
@@ -639,20 +675,18 @@ int main(int argc, char *argv[])
 		status = run_args(argc - pos, &argv[pos], args);
 		break;
 	case CMD_COMPILE:
-		print_version();
-		/* XXX: this function modifies filenames in `argv' */
+		/* XXX: this function modifies filenames in 'argv' */
 		status = compile_files(argc - pos, &argv[pos]);
 		break;
 	case CMD_DISASM:
-		print_version();
 		status = disassemble_files(argc - pos, &argv[pos]);
 		break;
 	case CMD_DUMPAST:
-		print_version();
 		status = dump_ast_of_files(argc - pos, &argv[pos]);
 		break;
 	default:
-		spn_die("generic error: internal inconsistency\n\n");
+		fprintf(stderr, "error: more than one command specified\n");
+		status = EXIT_FAILURE;
 		break;
 	}
 

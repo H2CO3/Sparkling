@@ -4,8 +4,8 @@
   "Sparkling syntax checker"
   :command ("spnlint" source)
   :modes (sparkling-mode)
-  :error-patterns ((error line-start "syntax error near line " line ": " (message) line-end)
-		   (error line-start "semantic error near line " line ": " (message) line-end)
+  :error-patterns (
+	(error line-start "near line " line ", char " column ": " (message) line-end)
   )
 )
 (add-hook 'sparkling-mode-hook (lambda ()

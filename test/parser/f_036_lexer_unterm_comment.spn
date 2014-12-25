@@ -1,0 +1,6 @@
+"hi there";
+if (this_is_all_valid) {
+} else {
+	/* but we have an unterminated comment
+}
+

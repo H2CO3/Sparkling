@@ -44,7 +44,7 @@ SPN_API void spn_ctx_free(SpnContext *ctx);
 
 SPN_API enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx);
 SPN_API const char *spn_ctx_geterrmsg(SpnContext *ctx);
-SPN_API void spn_ctx_clearerror(SpnContext *ctx);
+SPN_API SpnSourceLocation spn_ctx_geterrloc(SpnContext *ctx);
 
 SPN_API SpnArray *spn_ctx_getprograms(SpnContext *ctx); /* read-only array! */
 SPN_API void *spn_ctx_getuserinfo(SpnContext *ctx);
@@ -75,6 +75,26 @@ SPN_API const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
 
 /* compile and evaluate expressions */
 SPN_API SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr);
+
+/* The following functions give users access to the parser
+ * and the compiler separately.
+ * They all return NULL upon encountering an error.
+ *
+ * Parser functions return an _owning_ (strong) pointer to the root
+ * of the resulting AST!
+ * 'spn_ctx_parse()' tries to parse a top-level program (statements);
+ * 'spn_ctx_parse_expr()' tries to parse an expression.
+ *
+ * 'spn_ctx_compile_ast()' attempts to compile an AST into bytecode.
+ * The AST must be valid (i. e. it must come directly from the parser
+ * or it should be validated somehow); if it is invalid (inconsistent
+ * with the expectations of the compiler), the behavior is undefined!
+ * 'spn_ctx_compile_ast()' returns a _non-owning_ (weak) pointer to
+ * the generated function! (The function is owned by the context.)
+ */
+SPN_API SpnHashMap *spn_ctx_parse(SpnContext *ctx, const char *src);
+SPN_API SpnHashMap *spn_ctx_parse_expr(SpnContext *ctx, const char *src);
+SPN_API SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast);
 
 /* accessors for library functions, other globals and class descriptors */
 SPN_API void        spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc  fns[],  size_t n);

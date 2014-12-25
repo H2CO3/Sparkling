@@ -1,0 +1,12 @@
+var a = 0, b = 0, c = 0xff, d = false;
+
+++a;
+--b;
+
+b = +a;
+a = -b;
+c = ~c;
+d = !d;
+d = not d;
+
+let t = typeof a;

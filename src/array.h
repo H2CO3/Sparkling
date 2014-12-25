@@ -28,7 +28,7 @@ SPN_API size_t    spn_array_count(SpnArray *arr);
  * 'index' must not exceed the bounds of the array:
  * 0 <= index < spn_array_count(array)
  */
-SPN_API void spn_array_get(SpnArray *arr, size_t index, SpnValue *val);
+SPN_API SpnValue spn_array_get(SpnArray *arr, size_t index);
 SPN_API void spn_array_set(SpnArray *arr, size_t index, const SpnValue *val);
 
 SPN_API void spn_array_insert(SpnArray *arr, size_t index, const SpnValue *val);

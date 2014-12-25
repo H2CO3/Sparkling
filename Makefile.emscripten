@@ -1,16 +1,16 @@
-CC ?= emcc
+CC = emcc
 LD = $(CC)
 
 # optimizations *MUST* be the same for compile- and link time
-OPTIMIZE = -O2 -flto
-CORE_DEFINES = -DUSE_READLINE=0 -DNDEBUG
-JSAPI_DEFINES = -DUSE_READLINE=0 -DDEBUG
+OPTIMIZE = -O3 -flto
+CORE_DEFINES = -DUSE_READLINE=0 -DNDEBUG -D_POSIX_SOURCE
+JSAPI_DEFINES = -DUSE_READLINE=0 -DDEBUG -D_POSIX_SOURCE
 WARNINGS = -Wall -Wextra -Wno-unused-parameter -Wno-sign-compare -Wno-logical-op-parentheses
-EXPORT = "['_jspn_freeAll','_jspn_compile','_jspn_compileExpr','_jspn_call','_jspn_lastErrorMessage','_jspn_lastErrorType','_jspn_getGlobal','_jspn_setGlobal','_jspn_backtrace','_jspn_reset','_jspn_addNil','_jspn_addBool','_jspn_addNumber','_jspn_addString','_jspn_addArrayWithIndexBuffer','_jspn_addDictionaryWithIndexBuffer','_jspn_typeAtIndex','_jspn_getBool','_jspn_getNumber','_jspn_getString','_jspn_addValueFromArgv','_jspn_countOfArrayAtIndex','_jspn_countOfHashMapAtIndex','_jspn_getValueIndicesOfArrayAtIndex','_jspn_getKeyAndValueIndicesOfHashMapAtIndex','_jspn_addWrapperFunction','_jspn_getIntFromArray']"
+EXPORT = "['_jspn_freeAll','_jspn_compile','_jspn_compileExpr','_jspn_parse','_jspn_parseExpr','_jspn_compileAST','_jspn_call','_jspn_lastErrorMessage','_jspn_lastErrorLine','_jspn_lastErrorColumn','_jspn_lastErrorType','_jspn_getGlobal','_jspn_setGlobal','_jspn_backtrace','_jspn_reset','_jspn_addNil','_jspn_addBool','_jspn_addNumber','_jspn_addString','_jspn_addArrayWithIndexBuffer','_jspn_addDictionaryWithIndexBuffer','_jspn_typeAtIndex','_jspn_getBool','_jspn_getNumber','_jspn_getString','_jspn_addValueFromArgv','_jspn_countOfArrayAtIndex','_jspn_countOfHashMapAtIndex','_jspn_getValueIndicesOfArrayAtIndex','_jspn_getKeyAndValueIndicesOfHashMapAtIndex','_jspn_addWrapperFunction','_jspn_getIntFromArray']"
 
 CORE_CFLAGS = -c -std=c89 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(CORE_DEFINES)
 JSAPI_CFLAGS = -c -std=c99 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(JSAPI_DEFINES) 
-LDFLAGS = $(OPTIMIZE) -dynamiclib -flto --post-js jsapi.js --js-library auxlib.js -s EXPORTED_FUNCTIONS=$(EXPORT)
+LDFLAGS = $(OPTIMIZE) -dynamiclib -flto --post-js jsapi.js --js-library auxlib.js --memory-init-file 0 --embed-file tools/validateAST.spn -s EXPORTED_FUNCTIONS=$(EXPORT)
 
 OBJECTS = $(patsubst src/%.c, bld/%.bc, $(wildcard src/*.c)) jsapi.bc
 PAGE = libspn.html

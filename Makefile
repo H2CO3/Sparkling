@@ -23,7 +23,7 @@ ifeq ($(OPSYS), darwin)
 
 	CC = clang
 	CFLAGS = -isysroot $(SYSROOT)
-	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error-deprecated-declarations
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error-deprecated-declarations -Wno-error=missing-field-initializers
 	LDFLAGS = -isysroot $(SYSROOT) -w
 	DYNLDFLAGS = -isysroot $(SYSROOT) -w -dynamiclib
 	LTO_FLAG = -flto
@@ -32,7 +32,8 @@ else
 	CC = gcc
 	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter
 	LIBS = -lm
-	DYNLDFLAGS = -lm -shared
+	LDFLAGS = -lrt
+	DYNLDFLAGS = -lm -lrt -shared
 	DYNEXT = so
 endif
 
@@ -107,5 +108,12 @@ dump.o: dump.c
 clean:
 	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h dump.o gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store *~ src/*~
 
-.PHONY: all install clean
+test:
+	VALGRIND="" ./runtests.sh
+
+test-valgrind:
+	VALGRIND="valgrind --quiet --leak-check=full --show-leak-kinds=definite,possible,indirect --leak-check-heuristics=all --dsymutil=yes" ./runtests.sh
+
+
+.PHONY: all install clean test test-valgrind
 

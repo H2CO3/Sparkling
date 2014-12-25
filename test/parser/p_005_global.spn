@@ -1,0 +1,3 @@
+# test multiple declarations too
+
+global bar = "hey", baz = "there";

@@ -13,18 +13,20 @@
 #include <stdarg.h>
 
 #include "compiler.h"
+#include "parser.h"
 #include "vm.h"
+#include "str.h"
 #include "array.h"
 #include "hashmap.h"
 #include "private.h"
 #include "func.h"
 
 
-typedef struct TBytecode {
+typedef struct Bytecode {
 	spn_uword *insns;
 	size_t len;
 	size_t allocsz;
-} TBytecode;
+} Bytecode;
 
 /* bidirectional hash table: maps indices to values and values to indices */
 typedef struct RoundTripStore {
@@ -34,7 +36,7 @@ typedef struct RoundTripStore {
 } RoundTripStore;
 
 /* linked list for storing offsets and types
- * of `break` and `continue` statements
+ * of 'break' and 'continue' statements
  */
 struct jump_stmt_list {
 	int is_break; /* boolean flag: 1 -> break, 0 -> continue */
@@ -58,19 +60,20 @@ typedef struct UpvalChain {
 } UpvalChain;
 
 /* if you ever add a member to this structure, consider adding it to the
- * scope context info as well if necessary (and extend the `save_scope()`
- * and `restore_scope()` functions accordingly).
+ * scope context info as well if necessary (and extend the 'save_scope()'
+ * and 'restore_scope()' functions accordingly).
  */
 struct SpnCompiler {
-	TBytecode              bc;
+	Bytecode               bc;
 	char                  *errmsg;
-	int                    tmpidx;      /* (I)   */
-	int                    nregs;       /* (II)  */
-	RoundTripStore        *symtab;      /* (III) */
-	RoundTripStore        *varstack;    /* (IV)  */
-	struct jump_stmt_list *jumplist;    /* (V)   */
-	int                    is_in_loop;  /* (VI)  */
-	UpvalChain            *upval_chain; /* (VII) */
+	int                    tmpidx;      /* (I)    */
+	int                    nregs;       /* (II)   */
+	RoundTripStore        *symtab;      /* (III)  */
+	RoundTripStore        *varstack;    /* (IV)   */
+	struct jump_stmt_list *jumplist;    /* (V)    */
+	int                    is_in_loop;  /* (VI)   */
+	UpvalChain            *upval_chain; /* (VII)  */
+	SpnSourceLocation      error_loc;   /* (VIII) */
 };
 
 /* Remarks:
@@ -84,27 +87,30 @@ struct SpnCompiler {
  * (II): number of registers maximally needed. This counter is only set if
  * an expression that needs temporaries is ever compiled. (this is why we
  * check if the number of local variables is greater than this number --
- * see the remark in the `compile_funcdef()` function.)
+ * see the remark in the 'compile_funcdef()' function.)
  *
  * (III) - (IV): array of local symbols and stack of file-scope and local
  * (block-scope) variable names and the corresponding register indices
  *
  * (V): link list for storing the offsets and types of unconditional
- * control flow statements `break` and `continue`
+ * control flow statements 'break' and 'continue'
  *
  * (VI): Boolean flag which is nonzero inside a loop and zero outside a
- * loop. It is used to limit the use of `break` and `continue` to loop bodies
- * (since it doesn't make sense to `break` or `continue` outside a loop).
+ * loop. It is used to limit the use of 'break' and 'continue' to loop bodies
+ * (since it doesn't make sense to 'break' or 'continue' outside a loop).
  *
  * (VII): the UpvalChain link list forms a stack. Each node contains two
  * arrays: they contain the same 'spn_uword's (the "upvalue descriptors"),
  * that describe which variables in the scope of the containing function are
  * referred to as upvalues in the function corresponding to a given node.
- * The `names_to_desc` array maps variable names to upvalue descriptors,
- * and is unordered; meanwhile, `index_to_desc` is sorted. The former array
+ * The 'names_to_desc' array maps variable names to upvalue descriptors,
+ * and is unordered; meanwhile, 'index_to_desc' is sorted. The former array
  * is used for looking up the external local variables _during_ compilation,
  * the latter is used for generating the SPN_INS_CLOSURE instruction _after_
  * the compilation of the function body.
+ *
+ * (VIII): error_loc is the location information for the AST node for which
+ * a compiler error occurred.
  */
 
 /* information describing the state of the global scope or a function scope.
@@ -258,48 +264,126 @@ static SymtabEntry *symtabentry_new_function(ptrdiff_t offset, SpnString *name)
 /****************************************/
 
 /* compile_*() functions return nonzero on success, 0 on error */
-static int compile(SpnCompiler *cmp, SpnAST *ast);
+static int compile(SpnCompiler *cmp, SpnHashMap *ast);
 
-static int compile_program(SpnCompiler *cmp, SpnAST *ast);
-static int compile_compound(SpnCompiler *cmp, SpnAST *ast);
-static int compile_block(SpnCompiler *cmp, SpnAST *ast);
-static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray *upvalues);
-static int compile_while(SpnCompiler *cmp, SpnAST *ast);
-static int compile_do(SpnCompiler *cmp, SpnAST *ast);
-static int compile_for(SpnCompiler *cmp, SpnAST *ast);
-static int compile_if(SpnCompiler *cmp, SpnAST *ast);
+static int compile_program(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_block(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnArray *upvalues);
+static int compile_while(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_do(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_for(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_if(SpnCompiler *cmp, SpnHashMap *ast);
 
-static int compile_break(SpnCompiler *cmp, SpnAST *ast);
-static int compile_continue(SpnCompiler *cmp, SpnAST *ast);
-static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast);
-static int compile_const(SpnCompiler *cmp, SpnAST *ast);
-static int compile_return(SpnCompiler *cmp, SpnAST *ast);
+static int compile_break(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_continue(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_vardecl(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_const(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_return(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_empty(SpnCompiler *cmp, SpnHashMap *ast);
 
 /* compile and load string literal */
-static void compile_string_literal(SpnCompiler *cmp, SpnValue *str, int *dst);
+static void compile_string_literal(SpnCompiler *cmp, SpnValue str, int *dst);
 
-/* `dst` is a pointer to `int` that will be filled with the index of the
+/* 'dst' is a pointer to 'int' that will be filled with the index of the
  * destination register (i. e. the one holding the result of the expression)
- * pass `NULL` if you don't need this information (e. g. when an expression
+ * pass 'NULL' if you don't need this information (e. g. when an expression
  * is merely evaluated for its side effects)
  */
-static int compile_expr_toplevel(SpnCompiler *cmp, SpnAST *ast, int *dst);
+static int compile_expr_toplevel(SpnCompiler *cmp, SpnHashMap *ast, int *dst);
 
 /* dst is the preferred destination register index. Pass a pointer to
- * a non-negative `int` to force the function to emit an instruction
- * of which the destination register is `*dst`. If the integer pointed
- * to by `dst` is initially negative, then the function decides which
- * register to use as the destination, then sets `*dst` accordingly.
+ * a non-negative 'int' to force the function to emit an instruction
+ * of which the destination register is '*dst'. If the integer pointed
+ * to by 'dst' is initially negative, then the function decides which
+ * register to use as the destination, then sets '*dst' accordingly.
  */
-static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst);
+static int compile_expr(SpnCompiler *cmp, SpnHashMap *ast, int *dst);
 
 /* takes a printf-like format string */
-static void compiler_error(SpnCompiler *cmp, int lineno, const char *fmt, const void *args[]);
+static void compiler_error(SpnCompiler *cmp, SpnHashMap *ast, const char *fmt, const void *args[]);
 
 /* quick and dirty integer maximum function */
 static int max(int x, int y)
 {
 	return x > y ? x : y;
+}
+
+/* Helper functions for walking the AST and
+ * obtaining various properties thereof along the way
+ */
+static SpnString *ast_get_string(SpnHashMap *ast, const char *key)
+{
+	SpnValue value = spn_hashmap_get_strkey(ast, key);
+	assert(isstring(&value));
+	return stringvalue(&value);
+}
+
+static SpnString *ast_get_string_optional(SpnHashMap *ast, const char *key)
+{
+	SpnValue value = spn_hashmap_get_strkey(ast, key);
+	assert(isstring(&value) || isnil(&value));
+	return isstring(&value) ? stringvalue(&value) : NULL;
+}
+
+static SpnArray *ast_get_array(SpnHashMap *ast, const char *key)
+{
+	SpnValue value = spn_hashmap_get_strkey(ast, key);
+	assert(isarray(&value));
+	return arrayvalue(&value);
+}
+
+/* used for getting the type of an AST node.
+ * Returns a (non-owning) pointer to the type string inside the AST node.
+ */
+static const char *ast_get_type(SpnHashMap *ast)
+{
+	SpnString *typestr = ast_get_string(ast, "type");
+	return typestr->cstr;
+}
+
+/* returns nonzero if the two node type strings are equal, and zero otherwise */
+static int type_equal(const char *p, const char *q)
+{
+	return strcmp(p, q) == 0;
+}
+
+static SpnArray *ast_get_children(SpnHashMap *ast)
+{
+	return ast_get_array(ast, "children");
+}
+
+static SpnHashMap *ast_get_nth_child(SpnArray *children, size_t index)
+{
+	SpnValue child_val = spn_array_get(children, index);
+	assert(ishashmap(&child_val));
+	return hashmapvalue(&child_val);
+}
+
+static SpnHashMap *ast_get_child_byname(SpnHashMap *ast, const char *key)
+{
+	SpnValue child = spn_hashmap_get_strkey(ast, key);
+	assert(ishashmap(&child));
+	return hashmapvalue(&child);
+}
+
+static SpnHashMap *ast_get_child_byname_optional(SpnHashMap *ast, const char *key)
+{
+	SpnValue child = spn_hashmap_get_strkey(ast, key);
+	assert(ishashmap(&child) || isnil(&child));
+	return ishashmap(&child) ? hashmapvalue(&child) : NULL;
+}
+
+static SpnHashMap *ast_shallow_copy(SpnHashMap *ast)
+{
+	size_t cursor = 0;
+	SpnValue key, val;
+	SpnHashMap *dup = spn_hashmap_new();
+
+	while ((cursor = spn_hashmap_next(ast, cursor, &key, &val)) != 0) {
+		spn_hashmap_set(dup, &key, &val);
+	}
+
+	return dup;
 }
 
 /* these functions execute "push" and "pop" operations on the operand stack
@@ -326,15 +410,15 @@ static void tmp_pop(SpnCompiler *cmp)
 }
 
 /* raw bytecode manipulation */
-static void bytecode_init(TBytecode *bc);
-static void bytecode_append(TBytecode *bc, spn_uword *words, size_t n);
-static void append_cstring(TBytecode *bc, const char *str, size_t len);
+static void bytecode_init(Bytecode *bc);
+static void bytecode_append(Bytecode *bc, spn_uword *words, size_t n);
+static void append_cstring(Bytecode *bc, const char *str, size_t len);
 
 /* managing round-trip stores */
 static void rts_init(RoundTripStore *rts);
-static int rts_add(RoundTripStore *rts, SpnValue *val);
-static void rts_getval(RoundTripStore *rts, int idx, SpnValue *val); /* sets val to nil if not found */
-static int rts_getidx(RoundTripStore *rts, SpnValue *val); /* returns < 0 if not found */
+static int rts_add(RoundTripStore *rts, SpnValue val);
+static SpnValue rts_getval(RoundTripStore *rts, int idx); /* returns nil if not found */
+static int rts_getidx(RoundTripStore *rts, SpnValue val); /* returns < 0 if not found */
 static int rts_count(RoundTripStore *rts);
 static void rts_delete_top(RoundTripStore *rts, int newsize);
 static void rts_free(RoundTripStore *rts);
@@ -347,6 +431,8 @@ SpnCompiler *spn_compiler_new(void)
 	cmp->jumplist = NULL;
 	cmp->is_in_loop = 0;
 	cmp->upval_chain = NULL;
+	cmp->error_loc.line = 0;
+	cmp->error_loc.column = 0;
 
 	return cmp;
 }
@@ -357,7 +443,7 @@ void spn_compiler_free(SpnCompiler *cmp)
 	free(cmp);
 }
 
-SpnFunction *spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast)
+SpnFunction *spn_compiler_compile(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	bytecode_init(&cmp->bc);
 
@@ -377,6 +463,30 @@ SpnFunction *spn_compiler_compile(SpnCompiler *cmp, SpnAST *ast)
 const char *spn_compiler_errmsg(SpnCompiler *cmp)
 {
 	return cmp->errmsg;
+}
+
+SpnSourceLocation spn_compiler_errloc(SpnCompiler *cmp)
+{
+	return cmp->error_loc;
+}
+
+/* Map AST node types to virtual machine instruction opcodes */
+typedef struct NodeAndOpcode {
+	const char *type;
+	enum spn_vm_ins opcode;
+} NodeAndOpcode;
+
+static enum spn_vm_ins node_to_opcode(const NodeAndOpcode opcode_map[], size_t size, const char *type)
+{
+	size_t i;
+	for (i = 0; i < size; i++) {
+		if (type_equal(opcode_map[i].type, type)) {
+			return opcode_map[i].opcode;
+		}
+	}
+
+	SHANT_BE_REACHED();
+	return -1;
 }
 
 /* Functions for working with upvalues
@@ -415,7 +525,7 @@ static void upval_chain_pop(SpnCompiler *cmp)
  *
  * XXX: If there's no variable in scope with the given name, returns -1.
  */
-static int search_upvalues(UpvalChain *node, SpnValue *name)
+static int search_upvalues(UpvalChain *node, SpnValue name)
 {
 	int enclosing_varidx, enclosing_upvalidx, flat_upvalidx;
 	spn_uword flat_upvaldesc;
@@ -425,10 +535,10 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 		return -1;
 	}
 
-	assert(isstring(name));
+	assert(isstring(&name));
 
 	/* first, search in the closure of the current function */
-	spn_hashmap_get(node->name_to_index, name, &upval_idx_val);
+	upval_idx_val = spn_hashmap_get(node->name_to_index, &name);
 
 	/* if it's found, return its index */
 	if (isint(&upval_idx_val)) {
@@ -455,7 +565,7 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 		 */
 		assert(spn_array_count(node->index_to_desc) == upval_idx);
 
-		spn_hashmap_set(node->name_to_index, name, &new_idx_val);
+		spn_hashmap_set(node->name_to_index, &name, &new_idx_val);
 		spn_array_push(node->index_to_desc, &upval_desc_val);
 
 		return upval_idx;
@@ -480,21 +590,21 @@ static int search_upvalues(UpvalChain *node, SpnValue *name)
 	flat_upvaldesc = SPN_MKINS_A(SPN_UPVAL_OUTER, enclosing_upvalidx);
 	flat_upvaldesc_val = makeint(flat_upvaldesc);
 
-	spn_hashmap_set(node->name_to_index, name, &flat_upvalidx_val);
+	spn_hashmap_set(node->name_to_index, &name, &flat_upvalidx_val);
 	spn_array_push(node->index_to_desc, &flat_upvaldesc_val);
 
 	return flat_upvalidx;
 }
 
 /* bytecode manipulation */
-static void bytecode_init(TBytecode *bc)
+static void bytecode_init(Bytecode *bc)
 {
 	bc->insns = NULL;
 	bc->len = 0;
 	bc->allocsz = 0;
 }
 
-static void bytecode_append(TBytecode *bc, spn_uword *words, size_t n)
+static void bytecode_append(Bytecode *bc, spn_uword *words, size_t n)
 {
 	if (bc->allocsz < bc->len + n) {
 		if (bc->allocsz == 0) {
@@ -505,10 +615,10 @@ static void bytecode_append(TBytecode *bc, spn_uword *words, size_t n)
 			bc->allocsz *= 2;
 		}
 
-		bc->insns = spn_realloc(bc->insns, bc->allocsz * sizeof(bc->insns[0]));
+		bc->insns = spn_realloc(bc->insns, bc->allocsz * sizeof bc->insns[0]);
 	}
 
-	memcpy(bc->insns + bc->len, words, n * sizeof(bc->insns[0]));
+	memcpy(bc->insns + bc->len, words, n * sizeof bc->insns[0]);
 	bc->len += n;
 }
 
@@ -516,20 +626,80 @@ static void bytecode_append(TBytecode *bc, spn_uword *words, size_t n)
  * in the compiler. The number of characters (including the NUL terminator) is
  * of course padded with zeroes to the nearest multiple of sizeof(spn_uword).
  */
-static void append_cstring(TBytecode *bc, const char *str, size_t len)
+static void append_cstring(Bytecode *bc, const char *str, size_t len)
 {
 	size_t nwords = ROUNDUP(len + 1, sizeof(spn_uword));
 	size_t padded_len = nwords * sizeof(spn_uword);
 
 	spn_uword *buf = spn_malloc(padded_len);
 
-	/* this relies on the fact that `strncpy()` pads with NUL characters
+	/* this relies on the fact that 'strncpy()' pads with NUL characters
 	 * when strlen(src) < sizeof(dest)
 	 */
 	strncpy((char *)(buf), str, padded_len);
 
 	bytecode_append(bc, buf, nwords);
 	free(buf);
+}
+
+/* Helpers for emitting single-word instructions */
+static void emit_ins_void(SpnCompiler *cmp, enum spn_vm_ins opcode)
+{
+	spn_uword ins = SPN_MKINS_VOID(opcode);
+	bytecode_append(&cmp->bc, &ins, 1);
+}
+
+static void emit_ins_A(SpnCompiler *cmp, enum spn_vm_ins opcode,
+	unsigned char a)
+{
+	spn_uword ins = SPN_MKINS_A(opcode, a);
+	bytecode_append(&cmp->bc, &ins, 1);
+}
+
+static void emit_ins_AB(SpnCompiler *cmp, enum spn_vm_ins opcode,
+	unsigned char a, unsigned char b)
+{
+	spn_uword ins = SPN_MKINS_AB(opcode, a, b);
+	bytecode_append(&cmp->bc, &ins, 1);
+}
+
+static void emit_ins_ABC(SpnCompiler *cmp, enum spn_vm_ins opcode,
+	unsigned char a, unsigned char b, unsigned char c)
+{
+	spn_uword ins = SPN_MKINS_ABC(opcode, a, b, c);
+	bytecode_append(&cmp->bc, &ins, 1);
+}
+
+static void emit_ins_mid(SpnCompiler *cmp, enum spn_vm_ins opcode,
+	unsigned char a, unsigned short b)
+{
+	spn_uword ins = SPN_MKINS_MID(opcode, a, b);
+	bytecode_append(&cmp->bc, &ins, 1);
+}
+
+static void emit_ins_long(SpnCompiler *cmp, enum spn_vm_ins opcode,
+	spn_uword a)
+{
+	spn_uword ins = SPN_MKINS_LONG(opcode, a);
+	bytecode_append(&cmp->bc, &ins, 1);
+}
+
+/* These are overloads with opcode of type 'enum spn_local_symbol',
+ * so that the compiler leaves us alone.
+ * Also, it is clearer that we are messing around with the local symbol table
+ * using these functions (which is data rather than executable code).
+ */
+static void emit_symtab_entry_void(SpnCompiler *cmp, enum spn_local_symbol opcode)
+{
+	spn_uword ins = SPN_MKINS_VOID(opcode);
+	bytecode_append(&cmp->bc, &ins, 1);
+}
+
+static void emit_symtab_entry_long(SpnCompiler *cmp, enum spn_local_symbol opcode,
+	spn_uword a)
+{
+	spn_uword ins = SPN_MKINS_LONG(opcode, a);
+	bytecode_append(&cmp->bc, &ins, 1);
 }
 
 
@@ -541,15 +711,15 @@ static void rts_init(RoundTripStore *rts)
 	rts->maxsize = 0;
 }
 
-static int rts_add(RoundTripStore *rts, SpnValue *val)
+static int rts_add(RoundTripStore *rts, SpnValue val)
 {
 	int idx = rts_count(rts);
 	int newsize;
 
 	/* insert element into last place */
 	SpnValue idxval = makeint(idx);
-	spn_array_push(rts->fwd, val);
-	spn_hashmap_set(rts->inv, val, &idxval);
+	spn_array_push(rts->fwd, &val);
+	spn_hashmap_set(rts->inv, &val, &idxval);
 
 	/* keep track of maximal size of the RTS */
 	newsize = rts_count(rts);
@@ -560,15 +730,14 @@ static int rts_add(RoundTripStore *rts, SpnValue *val)
 	return idx;
 }
 
-static void rts_getval(RoundTripStore *rts, int idx, SpnValue *val)
+static SpnValue rts_getval(RoundTripStore *rts, int idx)
 {
-	spn_array_get(rts->fwd, idx, val);
+	return spn_array_get(rts->fwd, idx);
 }
 
-static int rts_getidx(RoundTripStore *rts, SpnValue *val)
+static int rts_getidx(RoundTripStore *rts, SpnValue val)
 {
-	SpnValue res;
-	spn_hashmap_get(rts->inv, val, &res);
+	SpnValue res = spn_hashmap_get(rts->inv, &val);
 	return isnum(&res) ? intvalue(&res) : -1;
 }
 
@@ -582,7 +751,7 @@ static int rts_count(RoundTripStore *rts)
 	return n;
 }
 
-/* removes the last elements so that only the first `newsize` ones remain */
+/* removes the last elements so that only the first 'newsize' ones remain */
 static void rts_delete_top(RoundTripStore *rts, int newsize)
 {
 	int oldsize = rts_count(rts);
@@ -595,9 +764,7 @@ static void rts_delete_top(RoundTripStore *rts, int newsize)
 	 * get confused by the gradually shrinking array...
 	 */
 	for (i = oldsize; i > newsize; i--) {
-		SpnValue val;
-
-		spn_array_get(rts->fwd, i - 1, &val);
+		SpnValue val = spn_array_get(rts->fwd, i - 1);
 		assert(notnil(&val));
 
 		spn_array_pop(rts->fwd);
@@ -614,57 +781,60 @@ static void rts_free(RoundTripStore *rts)
 }
 
 
-static void compiler_error(SpnCompiler *cmp, int lineno, const char *fmt, const void *args[])
+static void compiler_error(SpnCompiler *cmp, SpnHashMap *ast, const char *fmt, const void *args[])
 {
-	char *prefix, *msg;
-	size_t prefix_len, msg_len;
-	const void *prefix_args[1];
-	prefix_args[0] = &lineno;
+	SpnValue line = spn_hashmap_get_strkey(ast, "line");
+	SpnValue column = spn_hashmap_get_strkey(ast, "column");
 
-	prefix = spn_string_format_cstr(
-		"semantic error near line %i: ",
-		&prefix_len,
-		prefix_args
-	);
+	assert(isint(&line));
+	assert(isint(&column));
 
-	msg = spn_string_format_cstr(fmt, &msg_len, args);
+	cmp->error_loc.line = intvalue(&line);
+	cmp->error_loc.column = intvalue(&column);
 
 	free(cmp->errmsg);
-	cmp->errmsg = spn_malloc(prefix_len + msg_len + 1);
-
-	strcpy(cmp->errmsg, prefix);
-	strcpy(cmp->errmsg + prefix_len, msg);
-
-	free(prefix);
-	free(msg);
+	cmp->errmsg = spn_string_format_cstr(fmt, NULL, args);
 }
 
 /* this assumes an expression statement if the node is an expression,
  * so it doesn't return the destination register index. DO NOT use this
  * if the resut of an expression shall be known.
  */
-static int compile(SpnCompiler *cmp, SpnAST *ast)
+static int compile(SpnCompiler *cmp, SpnHashMap *ast)
 {
-	/* compiling an empty tree always succeeds silently */
-	if (ast == NULL) {
-		return 1;
+	size_t i;
+	const char *nodetype = ast_get_type(ast);
+
+	static const struct {
+		const char *node;
+		int (*fn)(SpnCompiler *, SpnHashMap *);
+	} compilers[] = {
+		{ "block",     compile_block    },
+		{ "if",        compile_if       },
+		{ "for",       compile_for      },
+		{ "while",     compile_while    },
+		{ "do",        compile_do       },
+		{ "return",    compile_return   },
+		{ "vardecl",   compile_vardecl  },
+		{ "constdecl", compile_const    },
+		{ "break",     compile_break    },
+		{ "continue",  compile_continue },
+		{ "empty",     compile_empty    }
+	};
+
+	assert(ast != NULL);
+
+	/* My benchmarking result: for a dozen elements, linear search
+	 * and 'strcmp()' is ~14% faster than looking up in an SpnHashMap
+	 */
+	for (i = 0; i < COUNT(compilers); i++) {
+		if (type_equal(compilers[i].node, nodetype)) {
+			return compilers[i].fn(cmp, ast);
+		}
 	}
 
-	switch (ast->node) {
-	case SPN_NODE_COMPOUND: return compile_compound(cmp, ast);
-	case SPN_NODE_BLOCK:    return compile_block(cmp, ast);
-	case SPN_NODE_WHILE:    return compile_while(cmp, ast);
-	case SPN_NODE_DO:       return compile_do(cmp, ast);
-	case SPN_NODE_FOR:      return compile_for(cmp, ast);
-	case SPN_NODE_IF:       return compile_if(cmp, ast);
-	case SPN_NODE_BREAK:    return compile_break(cmp, ast);
-	case SPN_NODE_CONTINUE: return compile_continue(cmp, ast);
-	case SPN_NODE_RETURN:   return compile_return(cmp, ast);
-	case SPN_NODE_EMPTY:    return 1; /* no compile_empty() for you ;-) */
-	case SPN_NODE_VARDECL:  return compile_vardecl(cmp, ast);
-	case SPN_NODE_CONST:    return compile_const(cmp, ast);
-	default:                return compile_expr_toplevel(cmp, ast, NULL);
-	}
+	/* if the node was neither of the known statements, assume an expression */
+	return compile_expr_toplevel(cmp, ast, NULL);
 }
 
 /* returns zero on success, nonzero on error */
@@ -673,8 +843,7 @@ static int write_symtab(SpnCompiler *cmp)
 	int i, nsyms = rts_count(cmp->symtab);
 
 	for (i = 0; i < nsyms; i++) {
-		SpnValue sym;
-		rts_getval(cmp->symtab, i, &sym);
+		SpnValue sym = rts_getval(cmp->symtab, i);
 
 		switch (valtype(&sym)) {
 		case SPN_TTAG_STRING: {
@@ -683,8 +852,7 @@ static int write_symtab(SpnCompiler *cmp)
 			SpnString *str = stringvalue(&sym);
 
 			/* append symbol type and length description */
-			spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_STRCONST, str->len);
-			bytecode_append(&cmp->bc, &ins, 1);
+			emit_symtab_entry_long(cmp, SPN_LOCSYM_STRCONST, str->len);
 
 			/* append actual 0-terminated string */
 			append_cstring(&cmp->bc, str->cstr, str->len);
@@ -698,8 +866,7 @@ static int write_symtab(SpnCompiler *cmp)
 				SpnString *name = entry->name;
 
 				/* append symbol type and name length */
-				spn_uword ins = SPN_MKINS_LONG(SPN_LOCSYM_SYMSTUB, name->len);
-				bytecode_append(&cmp->bc, &ins, 1);
+				emit_symtab_entry_long(cmp, SPN_LOCSYM_SYMSTUB, name->len);
 
 				/* append symbol name */
 				append_cstring(&cmp->bc, name->cstr, name->len);
@@ -707,15 +874,13 @@ static int write_symtab(SpnCompiler *cmp)
 				break;
 			}
 			case SYMTABENTRY_FUNCTION: {
-				spn_uword symtype = SPN_MKINS_VOID(SPN_LOCSYM_FUNCDEF);
-				spn_uword offset = entry->offset;
-
 				SpnString *nobj = entry->name;
+				spn_uword offset = entry->offset;
 				spn_uword namelen = nobj ? nobj->len : strlen(SPN_LAMBDA_NAME);
 				const char *name = nobj ? nobj->cstr : SPN_LAMBDA_NAME;
 
 				/* append symbol type */
-				bytecode_append(&cmp->bc, &symtype, 1);
+				emit_symtab_entry_void(cmp, SPN_LOCSYM_FUNCDEF);
 
 				/* append function header offset */
 				bytecode_append(&cmp->bc, &offset, 1);
@@ -764,7 +929,24 @@ static void append_return_nil(SpnCompiler *cmp)
 	}
 }
 
-static int compile_program(SpnCompiler *cmp, SpnAST *ast)
+static int compile_children(SpnCompiler *cmp, SpnHashMap *root)
+{
+	SpnArray *children = ast_get_children(root);
+	size_t n_children = spn_array_count(children);
+
+	size_t i;
+	for (i = 0; i < n_children; i++) {
+		SpnHashMap *child = ast_get_nth_child(children, i);
+
+		if (compile(cmp, child) == 0) {
+			return 0;
+		}
+	}
+
+	return 1;
+}
+
+static int compile_program(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	int regcnt;
 	RoundTripStore symtab, glbvars;
@@ -782,23 +964,22 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	/* set up the maximal number of registers needed at global scope */
 	cmp->nregs = 0;
 
-	/* compile children */
-	if (compile(cmp, ast->left) == 0 || compile(cmp, ast->right) == 0) {
-		/* on error, clean up and return error */
+	/* compile children; on error, clean up and return error */
+	if (compile_children(cmp, ast) == 0) {
 		rts_free(&symtab);
 		rts_free(&glbvars);
 		return 0;
 	}
 
-	/* unconditionally append `return nil;`, just in case */
+	/* unconditionally append 'return nil;', just in case */
 	append_return_nil(cmp);
 
-	/* since `cmp->nregs` is only set if temporary variables are used at
+	/* since 'cmp->nregs' is only set if temporary variables are used at
 	 * least once during compilation (i. e. if there's an expression that
 	 * needs temporary registers), it may contain zero even if more than
 	 * zero registers are necessary (for storing local variables).
 	 * So, we pick the maximum of the number of global variables and the
-	 * number of registers stored in `cmp->nregs`.
+	 * number of registers stored in 'cmp->nregs'.
 	 */
 	regcnt = max(cmp->nregs, cmp->varstack->maxsize);
 
@@ -825,7 +1006,7 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	if (regcnt > MAX_REG_FRAME) {
 		compiler_error(
 			cmp,
-			ast->lineno,
+			ast,
 			"too many registers in top-level program",
 			NULL
 		);
@@ -835,12 +1016,7 @@ static int compile_program(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-static int compile_compound(SpnCompiler *cmp, SpnAST *ast)
-{
-	return compile(cmp, ast->left) && compile(cmp, ast->right);
-}
-
-static int compile_block(SpnCompiler *cmp, SpnAST *ast)
+static int compile_block(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	/* block -> new lexical scope, "push" a new set of variable names on
 	 * the stack. This is done by keeping track of the current length of
@@ -851,7 +1027,7 @@ static int compile_block(SpnCompiler *cmp, SpnAST *ast)
 	int old_stack_size = rts_count(cmp->varstack);
 
 	/* compile children */
-	int success = compile(cmp, ast->left) && compile(cmp, ast->right);
+	int success = compile_children(cmp, ast);
 
 	/* and now remove the variables declared in the scope of this block */
 	rts_delete_top(cmp->varstack, old_stack_size);
@@ -859,24 +1035,29 @@ static int compile_block(SpnCompiler *cmp, SpnAST *ast)
 	return success;
 }
 
-static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray *upvalues)
+static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnArray *upvalues)
 {
-	int regcount, argc;
-	spn_uword ins, fnhdr[SPN_FUNCHDR_LEN] = { 0 };
-	size_t hdroff, bodylen;
-	SpnAST *arg;
+	int regcount;
+	spn_uword fnhdr[SPN_FUNCHDR_LEN] = { 0 };
+	size_t hdroff, bodylen, argc, i;
+
 	SymtabEntry *entry;
 	RoundTripStore vs_this;
 	ScopeInfo sci;
 	SpnValue offval;
 
-	/* self-examination (transitions are hard) */
-	assert(ast->node == SPN_NODE_FUNCEXPR);
+	/* obtain argument list, (optional) function name and body */
+	SpnArray *declargs = ast_get_array(ast, "declargs");
+	SpnString *funcname = ast_get_string_optional(ast, "name");
+	SpnHashMap *body = ast_get_child_byname(ast, "body");
 
-	/* The `upval_chain_push()` function must be called BEFORE we replace
-	 * `cmp->varstack` with our own, new variable stack, because the head
+	/* self-examination (transitions are hard) */
+	assert(type_equal(ast_get_type(ast), "function"));
+
+	/* The 'upval_chain_push()' function must be called BEFORE we replace
+	 * 'cmp->varstack' with our own, new variable stack, because the head
 	 * of the upvalue chain needs to refer to the scope of the enclosing
-	 * function; otherwise, `search_upvalues()` function would not really
+	 * function; otherwise, 'search_upvalues()' function would not really
 	 * search the upvalues of the current function, but rather its locals.
 	 */
 	upval_chain_push(cmp, upvalues);
@@ -891,9 +1072,8 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray 
 	cmp->varstack = &vs_this;
 	cmp->nregs = 0;
 
-	/* write VM instruction `SPN_INS_FUNCTION' to bytecode */
-	ins = SPN_MKINS_VOID(SPN_INS_FUNCTION);
-	bytecode_append(&cmp->bc, &ins, 1);
+	/* emit 'SPN_INS_FUNCTION' to bytecode */
+	emit_ins_void(cmp, SPN_INS_FUNCTION);
 
 	/* save the offset of the function header */
 	hdroff = cmp->bc.len;
@@ -902,27 +1082,26 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray 
 	bytecode_append(&cmp->bc, fnhdr, SPN_FUNCHDR_LEN);
 
 	/* create a local symtab entry for the function */
-	entry = symtabentry_new_function(hdroff, ast->name);
+	entry = symtabentry_new_function(hdroff, funcname);
 	offval = makestrguserinfo(entry);
-	*symidx = rts_add(cmp->symtab, &offval);
+	*symidx = rts_add(cmp->symtab, offval);
 	spn_object_release(entry);
 
-	/* bring function arguments in scope (they are put in the first
-	 * `argc' registers), and count them as well
-	 */
-	for (arg = ast->left; arg != NULL; arg = arg->left) {
-		SpnValue argname;
-		argname.type = SPN_TYPE_STRING;
-		argname.v.o = arg->name;
+	/* bring each declared argument in scope */
+	argc = spn_array_count(declargs);
+
+	for (i = 0; i < argc; i++) {
+		SpnValue argname = spn_array_get(declargs, i);
+		assert(isstring(&argname));
 
 		/* check for double declaration of an argument */
-		if (rts_getidx(cmp->varstack, &argname) < 0) {
-			rts_add(cmp->varstack, &argname);
+		if (rts_getidx(cmp->varstack, argname) < 0) {
+			rts_add(cmp->varstack, argname);
 		} else {
 			/* on error, free local var stack and restore scope context */
 			const void *args[1];
-			args[0] = arg->name->cstr;
-			compiler_error(cmp, arg->lineno, "argument `%s' already declared", args);
+			args[0] = stringvalue(&argname)->cstr;
+			compiler_error(cmp, ast, "argument '%s' already declared", args);
 
 			rts_free(&vs_this);
 			restore_scope(cmp, &sci);
@@ -932,10 +1111,8 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray 
 		}
 	}
 
-	argc = rts_count(cmp->varstack);
-
 	/* compile body */
-	if (compile(cmp, ast->right) == 0) {
+	if (compile(cmp, body) == 0) {
 		rts_free(&vs_this);
 		restore_scope(cmp, &sci);
 		upval_chain_pop(cmp);
@@ -943,11 +1120,11 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray 
 		return 0;
 	}
 
-	/* unconditionally append `return nil;` at the end */
+	/* unconditionally append 'return nil;' at the end */
 	append_return_nil(cmp);
 
-	/* `max()` is called for the same reason it is called in the
-	 * `compile_program()` function (see the explanation there)
+	/* 'max()' is called for the same reason it is called in the
+	 * 'compile_program()' function (see the explanation there)
 	 */
 	regcount = max(cmp->nregs, cmp->varstack->maxsize);
 
@@ -967,7 +1144,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray 
 	if (regcount > MAX_REG_FRAME) {
 		compiler_error(
 			cmp,
-			ast->lineno,
+			ast,
 			"too many registers in function",
 			NULL
 		);
@@ -977,13 +1154,13 @@ static int compile_funcdef(SpnCompiler *cmp, SpnAST *ast, int *symidx, SpnArray 
 	return 1;
 }
 
-/* helper function for filling in jump list (list of `break` and `continue`
+/* helper function for filling in jump list (list of 'break' and 'continue'
  * statements) in a while, do-while or for loop.
  *
- * `off_end` is the offset after the whole loop, where control flow should be
- * transferred by `break`. `off_cond` is the offset of the condition (or
- * that of the incrementing expression in the case of `for` loops) where a
- * `continue` statement should transfer the control flow.
+ * 'off_end' is the offset after the whole loop, where control flow should be
+ * transferred by 'break'. 'off_cond' is the offset of the condition (or
+ * that of the incrementing expression in the case of 'for' loops) where a
+ * 'continue' statement should transfer the control flow.
  *
  * This function also frees the link list on the fly.
  */
@@ -993,8 +1170,8 @@ static void fix_and_free_jump_list(SpnCompiler *cmp, spn_sword off_end, spn_swor
 	while (hdr != NULL) {
 		struct jump_stmt_list *tmp = hdr->next;
 
-		/* `break` jumps to right after the end of the body,
-		 * whereas `continue` jumps back to the condition
+		/* 'break' jumps to right after the end of the body,
+		 * whereas 'continue' jumps back to the condition
 		 * +2: a jump instruction is 2 words long
 		 */
 		spn_sword target_off = hdr->is_break ? off_end : off_cond;
@@ -1008,7 +1185,7 @@ static void fix_and_free_jump_list(SpnCompiler *cmp, spn_sword off_end, spn_swor
 	}
 }
 
-static int compile_while(SpnCompiler *cmp, SpnAST *ast)
+static int compile_while(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	int cndidx = -1;
 	spn_uword ins[2] = { 0 }; /* stub */
@@ -1017,6 +1194,9 @@ static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 	/* save old loop state */
 	int is_in_loop = cmp->is_in_loop;
 	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
+
+	SpnHashMap *condition = ast_get_child_byname(ast, "cond");
+	SpnHashMap *body = ast_get_child_byname(ast, "body");
 
 	/* set up new loop state */
 	cmp->is_in_loop = 1;
@@ -1029,7 +1209,7 @@ static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 	 * on error, clean up, restore jumplist
 	 * no need to free it -- it's empty so far
 	 */
-	if (compile_expr_toplevel(cmp, ast->left, &cndidx) == 0) {
+	if (compile_expr_toplevel(cmp, condition, &cndidx) == 0) {
 		cmp->jumplist = orig_jumplist;
 		cmp->is_in_loop = is_in_loop;
 		return 0;
@@ -1043,7 +1223,7 @@ static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 	off_body = cmp->bc.len;
 
 	/* compile loop body */
-	if (compile(cmp, ast->right) == 0) {
+	if (compile(cmp, body) == 0) {
 		/* clean up and restore jumplist */
 		free_jumplist(cmp->jumplist);
 		cmp->jumplist = orig_jumplist;
@@ -1074,7 +1254,7 @@ static int compile_while(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-static int compile_do(SpnCompiler *cmp, SpnAST *ast)
+static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	spn_sword off_body = cmp->bc.len;
 	spn_sword off_jmp, off_cond, off_end, diff;
@@ -1085,12 +1265,15 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 	int is_in_loop = cmp->is_in_loop;
 	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
 
+	SpnHashMap *condition = ast_get_child_byname(ast, "cond");
+	SpnHashMap *body = ast_get_child_byname(ast, "body");
+
 	/* set up new loop state */
 	cmp->is_in_loop = 1;
 	cmp->jumplist = NULL;
 
 	/* compile body; clean up jump list on error */
-	if (compile(cmp, ast->right) == 0) {
+	if (compile(cmp, body) == 0) {
 		free_jumplist(cmp->jumplist);
 		cmp->jumplist = orig_jumplist;
 		cmp->is_in_loop = is_in_loop;
@@ -1100,7 +1283,7 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 	off_cond = cmp->bc.len;
 
 	/* compile condition, clean up jump list on error */
-	if (compile_expr_toplevel(cmp, ast->left, &reg) == 0) {
+	if (compile_expr_toplevel(cmp, condition, &reg) == 0) {
 		free_jumplist(cmp->jumplist);
 		cmp->jumplist = orig_jumplist;
 		cmp->is_in_loop = is_in_loop;
@@ -1127,13 +1310,17 @@ static int compile_do(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-static int compile_for(SpnCompiler *cmp, SpnAST *ast)
+static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	int regidx = -1;
 	int old_stack_size;
 	spn_sword off_cond, off_incmt, off_body_begin, off_body_end, off_cond_jmp, off_uncd_jmp;
 	spn_uword jmpins[2] = { 0 }; /* dummy */
-	SpnAST *header, *init, *cond, *icmt;
+
+	SpnHashMap *init = ast_get_child_byname(ast, "init");
+	SpnHashMap *cond = ast_get_child_byname(ast, "cond");
+	SpnHashMap *icmt = ast_get_child_byname(ast, "increment");
+	SpnHashMap *body = ast_get_child_byname(ast, "body");
 
 	/* save old loop state */
 	int is_in_loop = cmp->is_in_loop;
@@ -1143,14 +1330,6 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	cmp->is_in_loop = 1;
 	cmp->jumplist = NULL;
 
-	/* hand-unrolled loops FTW! */
-	header = ast->left;
-	init = header->left;
-	header = header->right;
-	cond = header->left;
-	header = header->right;
-	icmt = header->left;
-
 	/* we want that the scope of variables declared in the initialization
 	 * be limited to the loop body, so here we save the variable stack size
 	 */
@@ -1158,8 +1337,8 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 
 	/* compile initialization ouside the loop;
 	 * restore jump list on error (no need to free, here it's empty)
-	 * `compile()' is used instead of `compile_expr_toplevel()'
-	 * because `init' may be an expression or a variable declaration
+	 * 'compile()' is used instead of 'compile_expr_toplevel()'
+	 * because 'init' may be an expression or a variable declaration
 	 */
 	if (compile(cmp, init) == 0) {
 		cmp->jumplist = orig_jumplist;
@@ -1181,7 +1360,7 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 
 	/* compile body */
 	off_body_begin = cmp->bc.len;
-	if (compile(cmp, ast->right) == 0) {
+	if (compile(cmp, body) == 0) {
 		free_jumplist(cmp->jumplist);
 		cmp->jumplist = orig_jumplist;
 		cmp->is_in_loop = is_in_loop;
@@ -1226,20 +1405,17 @@ static int compile_for(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-static int compile_if(SpnCompiler *cmp, SpnAST *ast)
+static int compile_if(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	spn_sword off_then, off_else, off_jze_b4_then, off_jmp_b4_else;
 	spn_sword len_then, len_else;
 	spn_uword ins[2] = { 0 };
 	int condidx = -1;
 
-	SpnAST *cond = ast->left;
-	SpnAST *branches = ast->right;
-	SpnAST *br_then = branches->left;
-	SpnAST *br_else = branches->right;
-
-	/* sanity check */
-	assert(branches->node == SPN_NODE_BRANCHES);
+	/* the else-branch might not exist, hence 'ast_get_child_byname_optional' */
+	SpnHashMap *cond = ast_get_child_byname(ast, "cond");
+	SpnHashMap *br_then = ast_get_child_byname(ast, "then");
+	SpnHashMap *br_else = ast_get_child_byname_optional(ast, "else");
 
 	/* compile condition */
 	if (compile_expr_toplevel(cmp, cond, &condidx) == 0) {
@@ -1266,7 +1442,7 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 	off_else = cmp->bc.len;
 
 	/* compile "else" branch */
-	if (compile(cmp, br_else) == 0) {
+	if (br_else != NULL && compile(cmp, br_else) == 0) {
 		return 0;
 	}
 
@@ -1283,7 +1459,7 @@ static int compile_if(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-/* helper function for `compile_break()` and `compile_continue()` */
+/* helper function for 'compile_break()' and 'compile_continue()' */
 static void prepend_jumplist_node(SpnCompiler *cmp, spn_sword offset, int is_break)
 {
 	struct jump_stmt_list *jump = spn_malloc(sizeof(*jump));
@@ -1303,14 +1479,14 @@ static void free_jumplist(struct jump_stmt_list *hdr)
 	}
 }
 
-static int compile_break(SpnCompiler *cmp, SpnAST *ast)
+static int compile_break(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	/* dummy jump instruction */
 	spn_uword ins[2] = { 0 };
 
-	/* it doesn't make sense to `break` outside a loop */
+	/* it doesn't make sense to 'break' outside a loop */
 	if (cmp->is_in_loop == 0) {
-		compiler_error(cmp, ast->lineno, "`break' is only meaningful inside a loop", NULL);
+		compiler_error(cmp, ast, "'break' is only meaningful inside a loop", NULL);
 		return 0;
 	}
 
@@ -1323,13 +1499,13 @@ static int compile_break(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-static int compile_continue(SpnCompiler *cmp, SpnAST *ast)
+static int compile_continue(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	spn_uword ins[2] = { 0 };
 
-	/* it doesn't make sense to `continue` outside a loop either */
+	/* it doesn't make sense to 'continue' outside a loop either */
 	if (cmp->is_in_loop == 0) {
-		compiler_error(cmp, ast->lineno, "`continue' is only meaningful inside a loop", NULL);
+		compiler_error(cmp, ast, "'continue' is only meaningful inside a loop", NULL);
 		return 0;
 	}
 
@@ -1342,94 +1518,104 @@ static int compile_continue(SpnCompiler *cmp, SpnAST *ast)
 	return 1;
 }
 
-/* left child: initializer expression, if any (or NULL)
- * right child: next variable declaration (link list)
- */
-static int compile_vardecl(SpnCompiler *cmp, SpnAST *ast)
+static int compile_vardecl(SpnCompiler *cmp, SpnHashMap *ast)
 {
-	SpnAST *head = ast;
+	SpnArray *children = ast_get_children(ast);
+	size_t n = spn_array_count(children);
+	size_t i;
 
-	while (head != NULL) {
+	/* bring all variables in scope (each child represents a variable) */
+	for (i = 0; i < n; i++) {
 		int idx;
-		spn_uword ins;
 
-		SpnValue name;
-		name.type = SPN_TYPE_STRING;
-		name.v.o = head->name;
+		/* the child representing a variable declaration */
+		SpnHashMap *child = ast_get_nth_child(children, i);
+
+		/* the name of the variable and the initializer expression */
+		SpnHashMap *init = ast_get_child_byname_optional(child, "init");
+		SpnValue name = spn_hashmap_get_strkey(child, "name");
+		assert(isstring(&name));
 
 		/* check for erroneous re-declaration - the name must not yet be
 		 * in scope (i. e. in the variable stack)
 		 */
-		if (rts_getidx(cmp->varstack, &name) >= 0) {
+		if (rts_getidx(cmp->varstack, name) >= 0) {
 			const void *args[1];
-			args[0] = head->name->cstr;
-			compiler_error(cmp, head->lineno, "variable `%s' already declared", args);
+			args[0] = stringvalue(&name)->cstr;
+			compiler_error(cmp, child, "variable '%s' is already declared", args);
 			return 0;
 		}
 
 		/* add identifier to variable stack */
-		idx = rts_add(cmp->varstack, &name);
+		idx = rts_add(cmp->varstack, name);
 
 		/* always load nil into register before compiling initializer
 		 * expression, in order to avoid garbage when one initializes
 		 * a variable with an expression that refers to itself
 		 */
-		ins = SPN_MKINS_AB(SPN_INS_LDCONST, idx, SPN_CONST_NIL);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_AB(cmp, SPN_INS_LDCONST, idx, SPN_CONST_NIL);
 
-		if (head->left != NULL) {
-			if (compile_expr_toplevel(cmp, head->left, &idx) == 0) {
+		/* only compile initializer expression if exists */
+		if (init != NULL) {
+			if (compile_expr_toplevel(cmp, init, &idx) == 0) {
 				return 0;
 			}
 		}
-
-		head = head->right;
 	}
 
 	return 1;
 }
 
-static int compile_const(SpnCompiler *cmp, SpnAST *ast)
+static int compile_const(SpnCompiler *cmp, SpnHashMap *ast)
 {
-	while (ast != NULL) {
-		spn_uword ins;
+	SpnArray *children = ast_get_children(ast);
+	size_t n = spn_array_count(children);
+	size_t i;
 
+	for (i = 0; i < n; i++) {
 		int regidx = -1;
-		if (compile_expr_toplevel(cmp, ast->left, &regidx) == 0) {
+
+		/* constant declaration descriptor */
+		SpnHashMap *child = ast_get_nth_child(children, i);
+
+		/* name and initializer expression of constant */
+		SpnString *name = ast_get_string(child, "name");
+		SpnHashMap *init = ast_get_child_byname(child, "init");
+
+		if (compile_expr_toplevel(cmp, init, &regidx) == 0) {
 			return 0;
 		}
 
 		/* write "set global symbol" instruction */
-		ins = SPN_MKINS_MID(SPN_INS_GLBVAL, regidx, ast->name->len);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_mid(cmp, SPN_INS_GLBVAL, regidx, name->len);
 
 		/* append 0-terminated name of the symbol */
-		append_cstring(&cmp->bc, ast->name->cstr, ast->name->len);
-
-		/* update head of link list */
-		ast = ast->right;
+		append_cstring(&cmp->bc, name->cstr, name->len);
 	}
 
 	return 1;
 }
 
-static int compile_return(SpnCompiler *cmp, SpnAST *ast)
+static int compile_return(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	/* compile expression (left child) if any; else return nil */
-	if (ast->left != NULL) {
-		spn_uword ins;
-
+	SpnHashMap *expression = ast_get_child_byname_optional(ast, "expr");
+	if (expression != NULL) {
 		int dst = -1;
-		if (compile_expr_toplevel(cmp, ast->left, &dst) == 0) {
+		if (compile_expr_toplevel(cmp, expression, &dst) == 0) {
 			return 0;
 		}
 
-		ins = SPN_MKINS_A(SPN_INS_RET, dst);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_A(cmp, SPN_INS_RET, dst);
 	} else {
 		append_return_nil(cmp);
 	}
 
+	return 1;
+}
+
+static int compile_empty(SpnCompiler *cmp, SpnHashMap *ast)
+{
 	return 1;
 }
 
@@ -1439,7 +1625,7 @@ static int compile_return(SpnCompiler *cmp, SpnAST *ast)
  * statement, or an expression which is part of the the header of a for
  * statement.
  */
-static int compile_expr_toplevel(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_expr_toplevel(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
 	int reg = dst != NULL ? *dst : -1;
 
@@ -1461,12 +1647,11 @@ static int compile_expr_toplevel(SpnCompiler *cmp, SpnAST *ast, int *dst)
 }
 
 /* helper function for loading a string literal */
-static void compile_string_literal(SpnCompiler *cmp, SpnValue *str, int *dst)
+static void compile_string_literal(SpnCompiler *cmp, SpnValue str, int *dst)
 {
-	spn_uword ins;
 	int idx;
 
-	assert(isstring(str));
+	assert(isstring(&str));
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
@@ -1479,59 +1664,60 @@ static void compile_string_literal(SpnCompiler *cmp, SpnValue *str, int *dst)
 	}
 
 	/* emit load instruction */
-	ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, idx);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_mid(cmp, SPN_INS_LDSYM, *dst, idx);
 }
 
 /* simple (non short-circuiting) binary operators: arithmetic, bitwise ops,
  * comparison and equality tests, string concatenation
  */
-static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_simple_binop(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	spn_uword ins;
-	int dst_left, dst_right, nvars;
+	int dst_left  = -1;
+	int dst_right = -1;
+	int nvars;
 
-	/* to silence "may be used uninitialized" warning in release build */
-	enum spn_vm_ins opcode = -1;
+	/* "side effect-less" binary operators, in ascending order of precedence */
+	static const NodeAndOpcode opcode_map[] = {
+		{ "concat",  SPN_INS_CONCAT },
+		{ "==",      SPN_INS_EQ     },
+		{ "!=",      SPN_INS_NE     },
+		{ "<",       SPN_INS_LT     },
+		{ "<=",      SPN_INS_LE     },
+		{ ">",       SPN_INS_GT     },
+		{ ">=",      SPN_INS_GE     },
+		{ "bit_or",  SPN_INS_OR     },
+		{ "bit_xor", SPN_INS_XOR    },
+		{ "bit_and", SPN_INS_AND    },
+		{ "<<",      SPN_INS_SHL    },
+		{ ">>",      SPN_INS_SHR    },
+		{ "+",       SPN_INS_ADD    },
+		{ "-",       SPN_INS_SUB    },
+		{ "*",       SPN_INS_MUL    },
+		{ "/",       SPN_INS_DIV    },
+		{ "mod",     SPN_INS_MOD    }
+	};
 
-	switch (ast->node) {
-	case SPN_NODE_ADD:     opcode = SPN_INS_ADD;    break;
-	case SPN_NODE_SUB:     opcode = SPN_INS_SUB;    break;
-	case SPN_NODE_MUL:     opcode = SPN_INS_MUL;    break;
-	case SPN_NODE_DIV:     opcode = SPN_INS_DIV;    break;
-	case SPN_NODE_MOD:     opcode = SPN_INS_MOD;    break;
-	case SPN_NODE_BITAND:  opcode = SPN_INS_AND;    break;
-	case SPN_NODE_BITOR:   opcode = SPN_INS_OR;     break;
-	case SPN_NODE_BITXOR:  opcode = SPN_INS_XOR;    break;
-	case SPN_NODE_SHL:     opcode = SPN_INS_SHL;    break;
-	case SPN_NODE_SHR:     opcode = SPN_INS_SHR;    break;
-	case SPN_NODE_EQUAL:   opcode = SPN_INS_EQ;     break;
-	case SPN_NODE_NOTEQ:   opcode = SPN_INS_NE;     break;
-	case SPN_NODE_LESS:    opcode = SPN_INS_LT;     break;
-	case SPN_NODE_LEQ:     opcode = SPN_INS_LE;     break;
-	case SPN_NODE_GREATER: opcode = SPN_INS_GT;     break;
-	case SPN_NODE_GEQ:     opcode = SPN_INS_GE;     break;
-	case SPN_NODE_CONCAT:  opcode = SPN_INS_CONCAT; break;
-	default: SHANT_BE_REACHED();  break;
-	}
+	SpnHashMap *left = ast_get_child_byname(ast, "left");
+	SpnHashMap *right = ast_get_child_byname(ast, "right");
 
-	dst_left  = -1;
-	dst_right = -1;
-	if (compile_expr(cmp, ast->left,  &dst_left)  == 0
-	 || compile_expr(cmp, ast->right, &dst_right) == 0) {
-		/* an error occurred */
+	const char *type = ast_get_type(ast);
+	enum spn_vm_ins opcode = node_to_opcode(opcode_map, COUNT(opcode_map), type);
+
+	/* compile children */
+	if (compile_expr(cmp, left,  &dst_left)  == 0
+	 || compile_expr(cmp, right, &dst_right) == 0) {
 		return 0;
 	}
 
 	nvars = rts_count(cmp->varstack);
 
-	/* if result of LHS went into a temporary, then "pop" */
-	if (dst_left >= nvars) {
+	/* if result of RHS went into a temporary, then "pop" */
+	if (dst_right >= nvars) {
 		tmp_pop(cmp);
 	}
 
-	/* if result of RHS went into a temporary, then "pop" */
-	if (dst_right >= nvars) {
+	/* if result of LHS went into a temporary, then "pop" */
+	if (dst_left >= nvars) {
 		tmp_pop(cmp);
 	}
 
@@ -1539,35 +1725,33 @@ static int compile_simple_binop(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		*dst = tmp_push(cmp);
 	}
 
-	ins = SPN_MKINS_ABC(opcode, *dst, dst_left, dst_right);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_ABC(cmp, opcode, *dst, dst_left, dst_right);
 	return 1;
 }
 
-static int compile_assignment_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_assignment_var(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	int idx;
+	SpnHashMap *left  = ast_get_child_byname(ast, "left");
+	SpnHashMap *right = ast_get_child_byname(ast, "right");
 
 	/* get register index of variable using its name */
-	SpnValue ident;
-	ident.type = SPN_TYPE_STRING;
-	ident.v.o = ast->left->name;
+	SpnValue varname = spn_hashmap_get_strkey(left, "name");
+	int idx = rts_getidx(cmp->varstack, varname);
 
-	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
 		const void *args[1];
-		args[0] = ast->left->name->cstr;
+		args[0] = stringvalue(&varname)->cstr;
 		compiler_error(
 			cmp,
-			ast->left->lineno,
-			"variable `%s' is undeclared",
+			left,
+			"variable '%s' is undeclared",
 			args
 		);
 		return 0;
 	}
 
 	/* store RHS to the variable register */
-	if (compile_expr(cmp, ast->right, &idx) == 0) {
+	if (compile_expr(cmp, right, &idx) == 0) {
 		return 0;
 	}
 
@@ -1579,24 +1763,27 @@ static int compile_assignment_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (*dst < 0) {
 		*dst = idx;
 	} else if (*dst != idx) {
-		/* tiny optimization: don't move a register into itself */
-		spn_uword ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-		bytecode_append(&cmp->bc, &ins, 1);
+		/* tiny optimization: don't move a register onto itself */
+		emit_ins_AB(cmp, SPN_INS_MOV, *dst, idx);
 	}
 
 	return 1;
 }
 
-static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_assignment_array(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	spn_uword ins;
-	SpnAST *lhs = ast->left;
-	SpnAST *rhs = ast->right;
-	enum spn_vm_ins opcode;
 	int nvars;
 
-	/* array and subscript indices: just like in `compile_subscript()` */
+	/* array and subscript indices: just like in 'compile_subscript()' */
 	int arridx = -1, subidx = -1;
+
+	SpnHashMap *lhs = ast_get_child_byname(ast, "left");
+	SpnHashMap *rhs = ast_get_child_byname(ast, "right");
+	SpnHashMap *object = ast_get_child_byname(lhs, "object");
+
+	const char *nodetype = ast_get_type(lhs);
+	int is_subscript = type_equal(nodetype, "subscript");
+	enum spn_vm_ins opcode = is_subscript ? SPN_INS_IDX_SET : SPN_INS_PROPSET;
 
 	/* compile right-hand side directly into the destination register,
 	 * since the assignment operation needs to yield it anyway
@@ -1608,34 +1795,26 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	/* compile array expression */
-	if (compile_expr(cmp, lhs->left, &arridx) == 0) {
+	if (compile_expr(cmp, object, &arridx) == 0) {
 		return 0;
 	}
 
 	/* compile subscript */
-	if (lhs->node == SPN_NODE_SUBSCRIPT) {
+	if (is_subscript) {
 		/* indexing with brackets */
-		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
+		SpnHashMap *index = ast_get_child_byname(lhs, "index");
+		if (compile_expr(cmp, index, &subidx) == 0) {
 			return 0;
 		}
 	} else {
 		/* memberof */
-		SpnValue nameval;
-		assert(lhs->node == SPN_NODE_MEMBEROF);
-		nameval.type = SPN_TYPE_STRING;
-		nameval.v.o = lhs->right->name;
-		compile_string_literal(cmp, &nameval, &subidx);
+		SpnValue nameval = spn_hashmap_get_strkey(lhs, "name");
+		assert(type_equal(nodetype, "memberof"));
+		compile_string_literal(cmp, nameval, &subidx);
 	}
 
 	/* emit "indexed setter" or "property setter" instruction */
-	if (lhs->node == SPN_NODE_SUBSCRIPT) {
-		opcode = SPN_INS_IDX_SET;
-	} else {
-		opcode = SPN_INS_PROPSET;
-	}
-
-	ins = SPN_MKINS_ABC(opcode, arridx, subidx, *dst);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_ABC(cmp, opcode, arridx, subidx, *dst);
 
 	/* XXX: is this correct? since we need neither the value of the
 	 * array nor the value of the subscripting expression, we can
@@ -1643,62 +1822,69 @@ static int compile_assignment_array(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	 */
 	nvars = rts_count(cmp->varstack);
 
-	if (arridx >= nvars) {
+	if (subidx >= nvars) {
 		tmp_pop(cmp);
 	}
 
-	if (subidx >= nvars) {
+	if (arridx >= nvars) {
 		tmp_pop(cmp);
 	}
 
 	return 1;
 }
 
-/* left child: LHS, right child: RHS */
-static int compile_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_assignment(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	switch (ast->left->node) {
-	case SPN_NODE_IDENT:    return compile_assignment_var(cmp, ast, dst);
+	SpnHashMap *lhs = ast_get_child_byname(ast, "left");
+	const char *nodetype = ast_get_type(lhs);
 
-	case SPN_NODE_SUBSCRIPT:
-	case SPN_NODE_MEMBEROF: return compile_assignment_array(cmp, ast, dst);
-
-	default:
-		compiler_error(
-			cmp,
-			ast->left->lineno,
-			"left-hand side of assignment must be a variable or an array member",
-			NULL
-		);
-		return 0;
+	/* assignment to a variable */
+	if (type_equal(nodetype, "ident")) {
+		return compile_assignment_var(cmp, ast, dst);
 	}
+
+	/* assignment to subscripted expression or object property */
+	if (type_equal(nodetype, "subscript") || type_equal(nodetype, "memberof")) {
+		return compile_assignment_array(cmp, ast, dst);
+	}
+
+	/* nothing else can be assigned to */
+	compiler_error(
+		cmp,
+		ast,
+		"LHS of assignment must be a variable, a subscripted expression or a property",
+		NULL
+	);
+
+	return 0;
 }
 
-static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum spn_vm_ins opcode)
+static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnHashMap *ast, int *dst, enum spn_vm_ins opcode)
 {
-	int idx, nvars, rhs = -1;
-	spn_uword ins;
+	int nvars;
+	int rhs = -1;
+
+	SpnHashMap *left  = ast_get_child_byname(ast, "left");
+	SpnHashMap *right = ast_get_child_byname(ast, "right");
 
 	/* get register index of variable using its name */
-	SpnValue ident;
-	ident.type = SPN_TYPE_STRING;
-	ident.v.o = ast->left->name;
+	SpnValue varname = spn_hashmap_get_strkey(left, "name");
+	int idx = rts_getidx(cmp->varstack, varname);
 
-	idx = rts_getidx(cmp->varstack, &ident);
 	if (idx < 0) {
 		const void *args[1];
-		args[0] = ast->left->name->cstr;
+		args[0] = stringvalue(&varname)->cstr;
 		compiler_error(
 			cmp,
-			ast->left->lineno,
-			"variable `%s' is undeclared",
+			left,
+			"variable '%s' is undeclared",
 			args
 		);
 		return 0;
 	}
 
 	/* evaluate RHS */
-	if (compile_expr(cmp, ast->right, &rhs) == 0) {
+	if (compile_expr(cmp, right, &rhs) == 0) {
 		return 0;
 	}
 
@@ -1709,8 +1895,7 @@ static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	}
 
 	/* emit instruction to operate on LHS and RHS */
-	ins = SPN_MKINS_ABC(opcode, idx, idx, rhs);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_ABC(cmp, opcode, idx, idx, rhs);
 
 	/* finally, yield the LHS. (this just means that we set the destination
 	 * register to the index of the variable if we can, and we emit a move
@@ -1719,21 +1904,34 @@ static int compile_cmpd_assgmt_var(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	if (*dst < 0) {
 		*dst = idx;
 	} else if (*dst != idx) {
-		ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_AB(cmp, SPN_INS_MOV, *dst, idx);
 	}
 
 	return 1;
 }
 
-static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum spn_vm_ins opcode)
+static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnHashMap *ast, int *dst, enum spn_vm_ins opcode)
 {
 	spn_uword ins[3];
-	SpnAST *lhs = ast->left;
-	SpnAST *rhs = ast->right;
+	int nvars;
 
-	int nvars, arridx = -1, subidx = -1, rhsidx = -1;
-	enum spn_vm_ins getter_opcode, setter_opcode;
+	/* VM register indices of:
+	 * 1. the object which is being subscripted
+	 * 2. the subscripting expression
+	 * 3. the RHS of the assignment
+	 */
+	int arridx = -1, subidx = -1, rhsidx = -1;
+
+	SpnHashMap *lhs = ast_get_child_byname(ast, "left");
+	SpnHashMap *rhs = ast_get_child_byname(ast, "right");
+	SpnHashMap *object = ast_get_child_byname(lhs, "object");
+
+	const char *nodetype = ast_get_type(lhs);
+	int is_subscript = type_equal(nodetype, "subscript");
+
+	/* select appropriate array/property getter and setter opcodes */
+	enum spn_vm_ins getter_opcode = is_subscript ? SPN_INS_IDX_GET : SPN_INS_PROPGET;
+	enum spn_vm_ins setter_opcode = is_subscript ? SPN_INS_IDX_SET : SPN_INS_PROPSET;
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
@@ -1744,33 +1942,23 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 		return 0;
 	}
 
-	/* compile array expression */
-	if (compile_expr(cmp, lhs->left, &arridx) == 0) {
+	/* compile array/object expression */
+	if (compile_expr(cmp, object, &arridx) == 0) {
 		return 0;
 	}
 
 	/* compile subscript */
-	if (lhs->node == SPN_NODE_SUBSCRIPT) {
+	if (is_subscript) {
 		/* indexing with brackets */
-		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
+		SpnHashMap *index = ast_get_child_byname(lhs, "index");
+		if (compile_expr(cmp, index, &subidx) == 0) {
 			return 0;
 		}
 	} else {
 		/* memberof */
-		SpnValue nameval;
-		assert(lhs->node == SPN_NODE_MEMBEROF);
-		nameval.type = SPN_TYPE_STRING;
-		nameval.v.o = lhs->right->name;
-		compile_string_literal(cmp, &nameval, &subidx);
-	}
-
-	/* select appropriate array/property getter and setter opcodes */
-	if (lhs->node == SPN_NODE_SUBSCRIPT) {
-		getter_opcode = SPN_INS_IDX_GET;
-		setter_opcode = SPN_INS_IDX_SET;
-	} else {
-		getter_opcode = SPN_INS_PROPGET;
-		setter_opcode = SPN_INS_PROPSET;
+		SpnValue nameval = spn_hashmap_get_strkey(lhs, "name");
+		assert(type_equal(nodetype, "memberof"));
+		compile_string_literal(cmp, nameval, &subidx);
 	}
 
 	/* load LHS into destination register */
@@ -1787,7 +1975,7 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 	/* pop as many times as we used a temporary register (XXX: correct?) */
 	nvars = rts_count(cmp->varstack);
 
-	if (rhsidx >= nvars) {
+	if (subidx >= nvars) {
 		tmp_pop(cmp);
 	}
 
@@ -1795,65 +1983,74 @@ static int compile_cmpd_assgmt_arr(SpnCompiler *cmp, SpnAST *ast, int *dst, enum
 		tmp_pop(cmp);
 	}
 
-	if (subidx >= nvars) {
+	if (rhsidx >= nvars) {
 		tmp_pop(cmp);
 	}
 
 	return 1;
 }
 
-static int compile_compound_assignment(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_compound_assignment(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	enum spn_vm_ins opcode;
+	const char *type = ast_get_type(ast);
+	SpnHashMap *lhs = ast_get_child_byname(ast, "left");
+	const char *lhs_type = ast_get_type(lhs);
 
-	switch (ast->node) {
-	case SPN_NODE_ASSIGN_ADD:    opcode = SPN_INS_ADD;    break;
-	case SPN_NODE_ASSIGN_SUB:    opcode = SPN_INS_SUB;    break;
-	case SPN_NODE_ASSIGN_MUL:    opcode = SPN_INS_MUL;    break;
-	case SPN_NODE_ASSIGN_DIV:    opcode = SPN_INS_DIV;    break;
-	case SPN_NODE_ASSIGN_MOD:    opcode = SPN_INS_MOD;    break;
-	case SPN_NODE_ASSIGN_AND:    opcode = SPN_INS_AND;    break;
-	case SPN_NODE_ASSIGN_OR:     opcode = SPN_INS_OR;     break;
-	case SPN_NODE_ASSIGN_XOR:    opcode = SPN_INS_XOR;    break;
-	case SPN_NODE_ASSIGN_SHL:    opcode = SPN_INS_SHL;    break;
-	case SPN_NODE_ASSIGN_SHR:    opcode = SPN_INS_SHR;    break;
-	case SPN_NODE_ASSIGN_CONCAT: opcode = SPN_INS_CONCAT; break;
-	default: SHANT_BE_REACHED(); break;
+	static const NodeAndOpcode opcode_map[] = {
+		{ "+=",  SPN_INS_ADD    },
+		{ "-=",  SPN_INS_SUB    },
+		{ "*=",  SPN_INS_MUL    },
+		{ "/=",  SPN_INS_DIV    },
+		{ "%=",  SPN_INS_MOD    },
+		{ "&=",  SPN_INS_AND    },
+		{ "|=",  SPN_INS_OR     },
+		{ "^=",  SPN_INS_XOR    },
+		{ "<<=", SPN_INS_SHL    },
+		{ ">>=", SPN_INS_SHR    },
+		{ "..=", SPN_INS_CONCAT }
+	};
+
+	enum spn_vm_ins opcode = node_to_opcode(opcode_map, COUNT(opcode_map), type);
+
+	if (type_equal(lhs_type, "ident")) {
+		return compile_cmpd_assgmt_var(cmp, ast, dst, opcode);
 	}
 
-	switch (ast->left->node) {
-	case SPN_NODE_IDENT:    return compile_cmpd_assgmt_var(cmp, ast, dst, opcode);
-
-	case SPN_NODE_SUBSCRIPT:
-	case SPN_NODE_MEMBEROF: return compile_cmpd_assgmt_arr(cmp, ast, dst, opcode);
-
-	default:
-		compiler_error(
-			cmp,
-			ast->left->lineno,
-			"left-hand side of assignment must be a variable or an array member",
-			NULL
-		);
-		return 0;
+	if (type_equal(lhs_type, "subscript") || type_equal(lhs_type, "memberof")) {
+		return compile_cmpd_assgmt_arr(cmp, ast, dst, opcode);
 	}
+
+	compiler_error(
+		cmp,
+		ast,
+		"LHS of assignment must be a variable, subscripted expression or a property",
+		NULL
+	);
+
+	return 0;
 }
 
-static int compile_logical(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_logical(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
 	spn_sword off_rhs, off_jump, end_rhs;
-	spn_uword movins, jumpins[2] = { 0 }; /* dummy */
+	spn_uword jumpins[2] = { 0 }; /* dummy */
 
-	enum spn_vm_ins opcode = ast->node == SPN_NODE_LOGAND ? SPN_INS_JZE : SPN_INS_JNZ;
+	const char *nodetype = ast_get_type(ast);
+	int is_and = type_equal(nodetype, "and");
+	enum spn_vm_ins opcode = is_and ? SPN_INS_JZE : SPN_INS_JNZ;
+
+	SpnHashMap *lhs = ast_get_child_byname(ast, "left");
+	SpnHashMap *rhs = ast_get_child_byname(ast, "right");
 
 	/* we can't compile the result directly into the destination register,
 	 * because if the destination is a variable which will be examined in
 	 * the right-hand side expression too, we will be in trouble.
-	 * So, the `idx` variable holds the desintation index of the temporary
+	 * So, the 'idx' variable holds the desintation index of the temporary
 	 * register in which the value of the two sides will be stored.
 	 */
 	int idx;
 
-	/* this needs to be done before `idx = tmp_push()`, because the
+	/* this needs to be done before 'idx = tmp_push()', because the
 	 * temporary register will be gone when the logical expression has
 	 * finished evaluating, whereas the result shall be preserved and
 	 * accessible. If I did this in the wrong order, then the result
@@ -1867,7 +2064,7 @@ static int compile_logical(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	idx = tmp_push(cmp);
 
 	/* compile left-hand side */
-	if (compile_expr(cmp, ast->left, &idx) == 0) {
+	if (compile_expr(cmp, lhs, &idx) == 0) {
 		return 0;
 	}
 
@@ -1880,7 +2077,7 @@ static int compile_logical(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	off_rhs = cmp->bc.len;
 
 	/* compile right-hand side */
-	if (compile_expr(cmp, ast->right, &idx) == 0) {
+	if (compile_expr(cmp, rhs, &idx) == 0) {
 		return 0;
 	}
 
@@ -1891,33 +2088,23 @@ static int compile_logical(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	cmp->bc.insns[off_jump + 1] = end_rhs - off_rhs;
 
 	/* move result into destination, then get rid of temporary */
-	movins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-	bytecode_append(&cmp->bc, &movins, 1);
+	emit_ins_AB(cmp, SPN_INS_MOV, *dst, idx);
 	tmp_pop(cmp);
 
 	return 1;
 }
 
-/* ternary conditional
- * left child: condition expression
- * right child: common parent for branches
- *	left child of right child: `then` value
- *	right         - " -      : `else` value
- */
-static int compile_condexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
+/* ternary conditional expression */
+static int compile_condexpr(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
 	spn_sword off_then, off_else, off_jze_b4_then, off_jmp_b4_else;
 	spn_sword len_then, len_else;
 	spn_uword ins[2] = { 0 }; /* stub */
 	int condidx = -1;
 
-	SpnAST *cond = ast->left;
-	SpnAST *branches = ast->right;
-	SpnAST *val_then = branches->left;
-	SpnAST *val_else = branches->right;
-
-	/* sanity check */
-	assert(branches->node == SPN_NODE_BRANCHES);
+	SpnHashMap *cond = ast_get_child_byname(ast, "cond");
+	SpnHashMap *val_then = ast_get_child_byname(ast, "true");
+	SpnHashMap *val_else = ast_get_child_byname(ast, "false");
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
@@ -1969,17 +2156,12 @@ static int compile_condexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_ident(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	int idx;
-	SpnValue varname;
+	SpnValue varname = spn_hashmap_get_strkey(ast, "name");
+	int idx = rts_getidx(cmp->varstack, varname);
 
-	varname.type = SPN_TYPE_STRING;
-	varname.v.o = ast->name;
-
-	idx = rts_getidx(cmp->varstack, &varname);
-
-	/* if `rts_getidx()` returns -1, then the variable is not in the
+	/* if 'rts_getidx()' returns -1, then the variable is not in the
 	 * current scope, so we search for its name in the enclosing scopes.
 	 * If it is found in one of the enclosing scopes, then we load it as
 	 * the appropriate upvalue. Else we assume that it referes to a global
@@ -1987,20 +2169,20 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	 * table, we create a symtab entry referencing the unresolved global.
 	 */
 	if (idx < 0) {
-		int upval_idx = search_upvalues(cmp->upval_chain, &varname);
+		int upval_idx = search_upvalues(cmp->upval_chain, varname);
 
 		/* if it's not found in the closure either, assume a global */
 		if (upval_idx < 0) {
-			spn_uword ins;
 			int sym;
 
-			SymtabEntry *entry = symtabentry_new_global(ast->name);
+			SpnString *varname_str = stringvalue(&varname);
+			SymtabEntry *entry = symtabentry_new_global(varname_str);
 			SpnValue stub = makestrguserinfo(entry);
 
-			sym = rts_getidx(cmp->symtab, &stub);
+			sym = rts_getidx(cmp->symtab, stub);
 			if (sym < 0) {
 				/* not found, append to symtab */
-				sym = rts_add(cmp->symtab, &stub);
+				sym = rts_add(cmp->symtab, stub);
 			}
 
 			spn_object_release(entry);
@@ -2010,22 +2192,18 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 				*dst = tmp_push(cmp);
 			}
 
-			ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, sym);
-			bytecode_append(&cmp->bc, &ins, 1);
+			emit_ins_mid(cmp, SPN_INS_LDSYM, *dst, sym);
 		} else {
 			/* if this is reached, the variable (upvalue) was
 			 * found in the enclosing scope
+			 *
+			 * XXX: TODO: check that upval_idx <= 255!
 			 */
-			spn_uword ins;
-
-			/* XXX: TODO: check that upval_idx <= 255! */
-
 			if (*dst < 0) {
 				*dst = tmp_push(cmp);
 			}
 
-			ins = SPN_MKINS_AB(SPN_INS_LDUPVAL, *dst, upval_idx);
-			bytecode_append(&cmp->bc, &ins, 1);
+			emit_ins_AB(cmp, SPN_INS_LDUPVAL, *dst, upval_idx);
 		}
 
 		return 1;
@@ -2039,37 +2217,33 @@ static int compile_ident(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	if (*dst < 0) {
 		*dst = idx;
 	} else if (*dst != idx) {
-		spn_uword ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_AB(cmp, SPN_INS_MOV, *dst, idx);
 	}
 
 	return 1;
 }
 
-static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_literal(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
+	SpnValue value = spn_hashmap_get_strkey(ast, "value");
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	switch (valtype(&ast->value)) {
+	switch (valtype(&value)) {
 	case SPN_TTAG_NIL: {
-		spn_uword ins = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_NIL);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_AB(cmp, SPN_INS_LDCONST, *dst, SPN_CONST_NIL);
 		break;
 	}
 	case SPN_TTAG_BOOL: {
-		enum spn_const_kind b = boolvalue(&ast->value)
-		                      ? SPN_CONST_TRUE
-		                      : SPN_CONST_FALSE;
-
-		spn_uword ins = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, b);
-		bytecode_append(&cmp->bc, &ins, 1);
+		enum spn_const_kind b = boolvalue(&value) ? SPN_CONST_TRUE : SPN_CONST_FALSE;
+		emit_ins_AB(cmp, SPN_INS_LDCONST, *dst, b);
 		break;
 	}
 	case SPN_TTAG_NUMBER: {
-		if (isfloat(&ast->value)) {
-			double num = floatvalue(&ast->value);
+		if (isfloat(&value)) {
+			double num = floatvalue(&value);
 			spn_uword ins[1 + ROUNDUP(sizeof num, sizeof(spn_uword))] = { 0 };
 
 			ins[0] = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_FLOAT);
@@ -2077,7 +2251,7 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 			bytecode_append(&cmp->bc, ins, COUNT(ins));
 		} else {
-			long num = intvalue(&ast->value);
+			long num = intvalue(&value);
 			spn_uword ins[1 + ROUNDUP(sizeof num, sizeof(spn_uword))] = { 0 };
 
 			ins[0] = SPN_MKINS_AB(SPN_INS_LDCONST, *dst, SPN_CONST_INT);
@@ -2089,34 +2263,29 @@ static int compile_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		break;
 	}
 	case SPN_TTAG_STRING:
-		compile_string_literal(cmp, &ast->value, dst);
+		compile_string_literal(cmp, value, dst);
 		break;
 	default:
-		SHANT_BE_REACHED();
+		compiler_error(cmp, ast, "invalid type for scalar literal", NULL);
 		return 0;
 	}
 
 	return 1;
 }
 
-static int compile_argv(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_argv(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	spn_uword ins;
-
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	assert(ast->node == SPN_NODE_ARGV);
-
 	/* emit "get argument vector" instruction */
-	ins = SPN_MKINS_A(SPN_INS_ARGV, *dst);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_A(cmp, SPN_INS_ARGV, *dst);
 
 	return 1;
 }
 
-static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_funcexpr(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
 	int symidx;
 	int upval_count;
@@ -2134,10 +2303,9 @@ static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	}
 
 	/* emit load instruction */
-	ins = SPN_MKINS_MID(SPN_INS_LDSYM, *dst, symidx);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_mid(cmp, SPN_INS_LDSYM, *dst, symidx);
 
-	/* By now, the `upvalues' array should be filled with upvalue
+	/* By now, the 'upvalues' array should be filled with upvalue
 	 * descriptors, in the order they will be written to the bytecode.
 	 * As an optimization, we create a closure object _only_ if the
 	 * function uses at least one upvalue.
@@ -2148,14 +2316,11 @@ static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		int i;
 
 		/* append SPN_INS_CLOSURE instruction */
-		ins = SPN_MKINS_AB(SPN_INS_CLOSURE, *dst, upval_count);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_AB(cmp, SPN_INS_CLOSURE, *dst, upval_count);
 
 		/* add upvalue descriptors */
 		for (i = 0; i < upval_count; i++) {
-			SpnValue upval_desc;
-
-			spn_array_get(upvalues, i, &upval_desc);
+			SpnValue upval_desc = spn_array_get(upvalues, i);
 			assert(isint(&upval_desc));
 
 			ins = intvalue(&upval_desc);
@@ -2168,9 +2333,12 @@ static int compile_funcexpr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_array_literal(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	spn_uword ins;
+	SpnArray *children = ast_get_children(ast);
+	size_t n = spn_array_count(children);
+	size_t i;
+
 	int validx;
 
 	if (*dst < 0) {
@@ -2181,19 +2349,17 @@ static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	validx = tmp_push(cmp);
 
 	/* create array instance */
-	ins = SPN_MKINS_A(SPN_INS_NEWARR, *dst);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_A(cmp, SPN_INS_NEWARR, *dst);
 
-	while (ast && ast->left) {
-		if (compile_expr(cmp, ast->left, &validx) == 0) {
+	for (i = 0; i < n; i++) {
+		SpnHashMap *expr = ast_get_nth_child(children, i);
+
+		if (compile_expr(cmp, expr, &validx) == 0) {
 			return 0;
 		}
 
 		/* emit 'push' instruction */
-		ins = SPN_MKINS_AB(SPN_INS_ARR_PUSH, *dst, validx);
-		bytecode_append(&cmp->bc, &ins, 1);
-
-		ast = ast->right;
+		emit_ins_AB(cmp, SPN_INS_ARR_PUSH, *dst, validx);
 	}
 
 	/* clean up temporary value register */
@@ -2202,9 +2368,12 @@ static int compile_array_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_hashmap_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_hashmap_literal(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	spn_uword ins;
+	SpnArray *children = ast_get_children(ast);
+	size_t n = spn_array_count(children);
+	size_t i;
+
 	int keyidx, validx;
 
 	if (*dst < 0) {
@@ -2216,20 +2385,13 @@ static int compile_hashmap_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	validx = tmp_push(cmp);
 
 	/* first, create the hashmap */
-	ins = SPN_MKINS_A(SPN_INS_NEWHASH, *dst);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_A(cmp, SPN_INS_NEWHASH, *dst);
 
-	/* ast->right is the next pointer;
-	 * ast->left is the key-value pair or NULL in case of an empty hashmap;
-	 * ast->left->left is the key;
-	 * ast->left->right is the value.
-	 */
-	while (ast && ast->left) {
-		SpnAST *key = ast->left->left;
-		SpnAST *val = ast->left->right;
-
-		assert(key != NULL);
-		assert(val != NULL);
+	/* then, compile keys and values */
+	for (i = 0; i < n; i++) {
+		SpnHashMap *kvpair = ast_get_nth_child(children, i);
+		SpnHashMap *key = ast_get_child_byname(kvpair, "key");
+		SpnHashMap *value = ast_get_child_byname(kvpair, "value");
 
 		/* compile the key */
 		if (compile_expr(cmp, key, &keyidx) == 0) {
@@ -2237,15 +2399,12 @@ static int compile_hashmap_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 		}
 
 		/* compile the value */
-		if (compile_expr(cmp, val, &validx) == 0) {
+		if (compile_expr(cmp, value, &validx) == 0) {
 			return 0;
 		}
 
 		/* emit instruction for indexing setter */
-		ins = SPN_MKINS_ABC(SPN_INS_IDX_SET, *dst, keyidx, validx);
-		bytecode_append(&cmp->bc, &ins, 1);
-
-		ast = ast->right;
+		emit_ins_ABC(cmp, SPN_INS_IDX_SET, *dst, keyidx, validx);
 	}
 
 	/* clean up temporary registers of key and value */
@@ -2255,10 +2414,9 @@ static int compile_hashmap_literal(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_subscript_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
+static int compile_subscript_ex(SpnCompiler *cmp, SpnHashMap *ast, int *dst,
 	int is_method_call, int *reg_array, int *reg_subsc)
 {
-	spn_uword ins;
 	enum spn_vm_ins opcode;
 
 	/* array index: register index of the array expression
@@ -2266,27 +2424,32 @@ static int compile_subscript_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
 	 */
 	int arridx = -1, subidx = -1;
 
+	const char *nodetype = ast_get_type(ast);
+	int is_subscript = type_equal(nodetype, "subscript");
+	int is_memberof = type_equal(nodetype, "memberof");
+
+	SpnHashMap *object = ast_get_child_byname(ast, "object");
+
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	/* compile array expression */
-	if (compile_expr(cmp, ast->left, &arridx) == 0) {
+	/* compile array/hashmap expression */
+	if (compile_expr(cmp, object, &arridx) == 0) {
 		return 0;
 	}
 
 	/* compile subscripting expression */
-	if (ast->node == SPN_NODE_SUBSCRIPT) {
+	if (is_subscript) {
 		/* normal subscripting with brackets */
-		if (compile_expr(cmp, ast->right, &subidx) == 0) {
+		SpnHashMap *index = ast_get_child_byname(ast, "index");
+		if (compile_expr(cmp, index, &subidx) == 0) {
 			return 0;
 		}
 	} else {
 		/* memberof, dot/arrow notation */
-		SpnValue nameval;
-		nameval.type = SPN_TYPE_STRING;
-		nameval.v.o = ast->right->name;
-		compile_string_literal(cmp, &nameval, &subidx);
+		SpnValue nameval = spn_hashmap_get_strkey(ast, "name");
+		compile_string_literal(cmp, nameval, &subidx);
 	}
 
 	if (is_method_call) {
@@ -2318,24 +2481,23 @@ static int compile_subscript_ex(SpnCompiler *cmp, SpnAST *ast, int *dst,
 		/* when compiling a method call, the function is not actually
 		 * in the object itself; rather, it's a member of its class.
 		 */
-		assert(ast->node == SPN_NODE_MEMBEROF);
+		assert(is_memberof);
 		opcode = SPN_INS_METHOD;
-	} else if (ast->node == SPN_NODE_MEMBEROF) {
+	} else if (is_memberof) {
 		/* not a method call but still a property access */
 		opcode = SPN_INS_PROPGET;
 	} else {
 		/* plain array subscripting, just emit a normal "load from array" */
-		assert(ast->node == SPN_NODE_SUBSCRIPT);
+		assert(is_subscript);
 		opcode = SPN_INS_IDX_GET;
 	}
 
-	ins = SPN_MKINS_ABC(opcode, *dst, arridx, subidx);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_ABC(cmp, opcode, *dst, arridx, subidx);
 
 	return 1;
 }
 
-static int compile_subscript(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_subscript(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
 	/* Compile array subscript expression.
 	 * Keep the result only, throw away array
@@ -2344,168 +2506,151 @@ static int compile_subscript(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return compile_subscript_ex(cmp, ast, dst, 0, NULL, NULL);
 }
 
-static int compile_subscript_method_call(SpnCompiler *cmp, SpnAST *ast,
+static int compile_subscript_method_call(SpnCompiler *cmp, SpnHashMap *ast,
 	int *dst, int *reg_array, int *reg_subsc)
 {
 	/* Compile memberof expression. Keep the register index of
 	 * the array (which will become 'self'/'this') and that of the
 	 * method name as well, along with the result of the indexing.
 	 */
-	assert(ast->node == SPN_NODE_MEMBEROF);
 	return compile_subscript_ex(cmp, ast, dst, 1, reg_array, reg_subsc);
 }
 
-/* XXX: when passed to this function, `*argc` should be initialized to zero!
- * On return, it will contain the number of call arguments. `*idc` will
- * point to an array of register indices where the call arguments are stored.
- */
-static int compile_callargs(SpnCompiler *cmp, SpnAST *ast,
-	spn_uword **idc, int *argc, int is_method_call, int self_reg)
+/* returns an array of register indices where the call arguments are stored. */
+static spn_uword *compile_callargs(SpnCompiler *cmp, SpnArray *arguments, int is_method_call, int self_reg)
 {
-	if (ast == NULL) {
-		/* last argument in the list (first in the code)
-		 * calloc is necessary since we use `|=` to set the indices,
-		 * and that doesn't work well with uninitialized integers.
+	size_t explicit_argc = spn_array_count(arguments);
+	size_t total_argc = is_method_call ? explicit_argc + 1 : explicit_argc;
+	size_t i;
+	spn_uword *indices = calloc(ROUNDUP(total_argc, SPN_WORD_OCTETS), sizeof indices[0]);
+
+	/* calloc(0) may return NULL, hence the extra check */
+	if (total_argc > 0 && indices == NULL) {
+		spn_die("calloc() failed");
+	}
+
+	if (is_method_call) {
+		/* 'self' is always argument #0 if present. So we can safely
+		 * omit the computation of the offsets for bit operations here.
+		 *
+		 * int zero_wordidx = 0 / SPN_WORD_OCTETS;     // 0
+		 * int zero_shift = 8 * (0 % SPN_WORD_OCTETS); // also 0
+		 * indices[zero_wordidx] |= (spn_uword)(self_reg) << zero_shift;
 		 */
-		if (is_method_call) {
-			++*argc;
-		}
+		assert(self_reg < 256);
+		indices[0] |= (spn_uword)(self_reg);
+	}
 
-		*idc = calloc(ROUNDUP(*argc, SPN_WORD_OCTETS), sizeof(**idc));
-		if (*argc > 0 && *idc == NULL) {
-			/* calloc(0) may return NULL, hence the extra check */
-			spn_die("calloc() failed");
-		}
+	for (i = 0; i < explicit_argc; i++) {
+		/* 'j' is the "physical" index of the argument, which indicates
+		 * where it is located in the bytecode. This index is the same
+		 * as its logical index in the explicit argument list if the
+		 * call is a free function call (*not* a method), and one bigger
+		 * then the logical index if the call is a method call.
+		 */
+		size_t j = is_method_call ? i + 1 : i;
+		size_t wordidx = j / SPN_WORD_OCTETS;
+		size_t shift = 8 * (j % SPN_WORD_OCTETS);
 
-		/* reset counter to 0 (or 1 in the case of a method call),
-		 * since the innermost argument is the first one, after
-		 * 'self', if it exists. */
-		if (is_method_call) {
-			/* 'self' is always argument #0 if present. So we can safely
-			 * omit the computation of the offsets for bit operations here.
-			 *
-			 * int zero_wordidx = 0 / SPN_WORD_OCTETS;
-			 * int zero_shift = 8 * (0 % SPN_WORD_OCTETS);
-			 * (*idc)[zero_wordidx] |= (spn_uword)(self_reg) << zero_shift;
-			 */
-			assert(self_reg < 256);
-			(*idc)[0] |= (spn_uword)(self_reg);
-			*argc = 1;
-		} else {
-			*argc = 0;
-		}
-	} else {
+		SpnHashMap *argexpr = ast_get_nth_child(arguments, i);
 		int dst = -1;
-		int wordidx, shift;
 
-		assert(ast->node == SPN_NODE_CALLARGS);
-
-		/* signal that there's one more argument */
-		++*argc;
-
-		if (compile_callargs(cmp, ast->left, idc, argc,
-		    is_method_call, self_reg) == 0) {
-			return 0;
-		}
-
-		if (compile_expr(cmp, ast->right, &dst) == 0) {
-			free(*idc);
-			return 0;
+		if (compile_expr(cmp, argexpr, &dst) == 0) {
+			free(indices);
+			return NULL;
 		}
 
 		/* fill in the appropriate octet in the bytecode */
-		wordidx = *argc / SPN_WORD_OCTETS;
-		shift = 8 * (*argc % SPN_WORD_OCTETS);
-		(*idc)[wordidx] |= (spn_uword)(dst) << shift;
-
-		/* step over to next register index */
-		++*argc;
+		indices[wordidx] |= (spn_uword)(dst) << shift;
 	}
 
-	return 1;
+	return indices;
 }
 
-/* left child: function-valued expression
- * right child: link list of call argument expressions
- */
-static int compile_call(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_call(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	spn_uword *idc = NULL;
-	/* 0-initializing `argc` is needed by `compile_callargs()` */
-	int argc = 0, fnreg = -1, self_reg = -1, method_name_reg = -1;
-	spn_uword ins;
+	int fnreg = -1, self_reg = -1, method_name_reg = -1;
+	spn_uword *arg_register_indices;
 
-	int is_method_call = 0;
+	SpnHashMap *funcexpr = ast_get_child_byname(ast, "func");
+	int is_method_call = type_equal(ast_get_type(funcexpr), "memberof");
+
+	SpnArray *children = ast_get_children(ast);
+	size_t argc = spn_array_count(children);
+
+	/* if the call is a method call (as opposed to a free function call),
+	 * then there's one extra call-time argument, 'self'.
+	 */
+	if (is_method_call) {
+		argc++;
+	}
 
 	/* make room for return value */
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	/* load function, check if it is a method */
-	if (ast->left->node == SPN_NODE_MEMBEROF) {
-		is_method_call = 1;
-		if (compile_subscript_method_call(cmp, ast->left,
+	/* compile function expression, check if it is a method */
+	if (is_method_call) {
+		if (compile_subscript_method_call(cmp, funcexpr,
 		   &fnreg, &self_reg, &method_name_reg) == 0) {
 			return 0;
 		}
 	} else {
-		if (compile_expr(cmp, ast->left, &fnreg) == 0) {
+		if (compile_expr(cmp, funcexpr, &fnreg) == 0) {
 			return 0;
 		}
 	}
 
-	/* Tell 'compile_callargs()' to...:
-	 * 1. ...reserve one extra entry for 'self' in 'idc'; and
-	 * 2. ...start argument register indices from 1, and put
-	 *       the regisiter index of 'self' in position 0.
+	/* the 'children' array of the function call AST node contains
+	 * the call arguments (actual parameters).
+	 * We need to check whether argc > 0, because if argc == 0,
+	 * then 'malloc()' may return NULL even if it succeeded.
+	 * Fortunately, this won't ever result in false negatives
+	 * (i. e. the omission of error reporting), since if there are
+	 * no arguments to compile, then nothing could possibly fail.
 	 */
-
-	/* call arguments are in reverse order in the AST, so we can use
-	 * recursion to count and evaluate them
-	 */
-	if (compile_callargs(cmp, ast->right, &idc, &argc,
-	    is_method_call, self_reg) == 0) {
+	arg_register_indices = compile_callargs(cmp, children, is_method_call, self_reg);
+	if (argc > 0 && arg_register_indices == NULL) {
 		return 0;
 	}
 
 	/* actually emit call instruction */
-	ins = SPN_MKINS_ABC(SPN_INS_CALL, *dst, fnreg, argc);
-	bytecode_append(&cmp->bc, &ins, 1);
-	bytecode_append(&cmp->bc, idc, ROUNDUP(argc, SPN_WORD_OCTETS));
+	emit_ins_ABC(cmp, SPN_INS_CALL, *dst, fnreg, argc);
+	bytecode_append(&cmp->bc, arg_register_indices, ROUNDUP(argc, SPN_WORD_OCTETS));
 
-	/* idc has been assigned to `calloc()`ed memory, so free it */
-	free(idc);
+	/* 'arg_register_indices' has been 'malloc()'ed, so free it */
+	free(arg_register_indices);
 
 	return 1;
 }
 
-static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
+/* compiles unary prefix operators that have no side effects */
+static int compile_unary(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	spn_uword ins;
 	int idx = -1, nvars;
 
-	/* to silence "may be used uninitialized" warning in release mode */
-	enum spn_vm_ins opcode = -1;
+	static const NodeAndOpcode opcode_map[] = {
+		{ "typeof",   SPN_INS_TYPEOF },
+		{ "not",      SPN_INS_LOGNOT },
+		{ "bit_not",  SPN_INS_BITNOT },
+		{ "un_minus", SPN_INS_NEG    },
+	};
 
-	switch (ast->node) {
-	case SPN_NODE_TYPEOF:  opcode = SPN_INS_TYPEOF; break;
-	case SPN_NODE_LOGNOT:  opcode = SPN_INS_LOGNOT; break;
-	case SPN_NODE_BITNOT:  opcode = SPN_INS_BITNOT; break;
-	case SPN_NODE_UNMINUS: opcode = SPN_INS_NEG;    break;
-	default: SHANT_BE_REACHED(); break;
-	}
+	const char *type = ast_get_type(ast);
+	enum spn_vm_ins opcode = node_to_opcode(opcode_map, COUNT(opcode_map), type);
+
+	SpnHashMap *child = ast_get_child_byname(ast, "right");
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	if (compile_expr(cmp, ast->left, &idx) == 0) {
+	if (compile_expr(cmp, child, &idx) == 0) {
 		return 0;
 	}
 
-	ins = SPN_MKINS_AB(opcode, *dst, idx);
-	bytecode_append(&cmp->bc, &ins, 1);
+	emit_ins_AB(cmp, opcode, *dst, idx);
 
 	nvars = rts_count(cmp->varstack);
 	if (idx >= nvars) {
@@ -2515,36 +2660,48 @@ static int compile_unary(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return 1;
 }
 
-static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_unplus(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
+{
+	SpnHashMap *child = ast_get_child_byname(ast, "right");
+	return compile_expr(cmp, child, dst);
+}
+
+static int compile_unminus(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
 	/* if the operand is a literal, check if it's actually a number,
-	 * and if it is, compile its negated value.
+	 * and if it is, directly emit its negated value.
 	 */
-	SpnAST *op = ast->left;
-	if (op->node == SPN_NODE_LITERAL) {
-		SpnAST *negated;
+	SpnHashMap *op = ast_get_child_byname(ast, "right");
+	const char *op_type = ast_get_type(op);
+
+	if (type_equal(op_type, "literal")) {
+		SpnValue value = spn_hashmap_get_strkey(op, "value");
+		SpnValue negated_value;
+		SpnHashMap *negated;
 		int success;
 
-		if (!isnum(&op->value)) {
+		if (!isnum(&value)) {
 			compiler_error(
 				cmp,
-				ast->lineno,
+				op,
 				"unary minus applied to non-number literal",
 				NULL
 			);
 			return 0;
 		}
 
-		negated = spn_ast_new(SPN_NODE_LITERAL, ast->lineno);
-
-		if (isfloat(&op->value)) {
-			negated->value = makefloat(-1.0 * floatvalue(&op->value));
+		if (isfloat(&value)) {
+			negated_value = makefloat(-1.0 * floatvalue(&value));
 		} else {
-			negated->value = makeint(-1 * intvalue(&op->value));
+			negated_value = makeint(-1 * intvalue(&value));
 		}
 
+		/* clone the entire operand as-is, except negate its value */
+		negated = ast_shallow_copy(op);
+		spn_hashmap_set_strkey(negated, "value", &negated_value);
+
 		success = compile_literal(cmp, negated, dst);
-		spn_ast_free(negated);
+		spn_object_release(negated);
 		return success;
 	}
 
@@ -2554,148 +2711,113 @@ static int compile_unminus(SpnCompiler *cmp, SpnAST *ast, int *dst)
 	return compile_unary(cmp, ast, dst);
 }
 
-static int compile_incdec_var(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_incdec_var(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	int idx;
-	SpnValue varname;
+	const char *nodetype = ast_get_type(ast);
 
-	assert(ast->left->node == SPN_NODE_IDENT);
+	int is_prefix = type_equal(nodetype, "pre_inc") || type_equal(nodetype, "pre_dec");
+	int is_incrmt = type_equal(nodetype, "pre_inc") || type_equal(nodetype, "post_inc");
 
-	varname.type = SPN_TYPE_STRING;
-	varname.v.o = ast->left->name;
-	idx = rts_getidx(cmp->varstack, &varname);
+	SpnHashMap *op = ast_get_child_byname(ast, is_prefix ? "right" : "left");
+	enum spn_vm_ins opcode = is_incrmt ? SPN_INS_INC : SPN_INS_DEC;
+
+	SpnValue varname = spn_hashmap_get_strkey(op, "name");
+	int idx = rts_getidx(cmp->varstack, varname);
 
 	if (idx < 0) {
 		const void *args[1];
-		args[0] = ast->left->name->cstr;
+		args[0] = stringvalue(&varname)->cstr;
 		compiler_error(
 			cmp,
-			ast->left->lineno,
-			"variable `%s' is undeclared",
+			op,
+			"variable '%s' is undeclared",
 			args
 		);
 		return 0;
 	}
 
-	/* here, case fallthru could avoid a tiny bit of code duplication,
-	 * but I hate falling through because it hurts when I land.
-	 */
-	switch (ast->node) {
-	case SPN_NODE_PREINCRMT:
-	case SPN_NODE_PREDECRMT: {
-		spn_uword ins;
-		enum spn_vm_ins opcode = ast->node == SPN_NODE_PREINCRMT
-				       ? SPN_INS_INC
-				       : SPN_INS_DEC;
-
+	if (is_prefix) {
 		/* increment or decrement first */
-		ins = SPN_MKINS_A(opcode, idx);
-		bytecode_append(&cmp->bc, &ins, 1);
+		emit_ins_A(cmp, opcode, idx);
 
 		/* then yield already changed value */
 		if (*dst < 0) {
 			*dst = idx;
 		} else if (*dst != idx) {
-			ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-			bytecode_append(&cmp->bc, &ins, 1);
+			emit_ins_AB(cmp, SPN_INS_MOV, *dst, idx);
 		}
-
-		break;
-	}
-	case SPN_NODE_POSTINCRMT:
-	case SPN_NODE_POSTDECRMT: {
-		spn_uword ins;
-		enum spn_vm_ins opcode = ast->node == SPN_NODE_POSTINCRMT
-				       ? SPN_INS_INC
-				       : SPN_INS_DEC;
-
+	} else {
 		/* first, yield unchanged value */
 		if (*dst < 0) {
 			*dst = tmp_push(cmp);
-			ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-			bytecode_append(&cmp->bc, &ins, 1);
+			emit_ins_AB(cmp, SPN_INS_MOV, *dst, idx);
 		} else if (*dst != idx) {
-			ins = SPN_MKINS_AB(SPN_INS_MOV, *dst, idx);
-			bytecode_append(&cmp->bc, &ins, 1);
+			emit_ins_AB(cmp, SPN_INS_MOV, *dst, idx);
 		}
 
 		/* increment/decrement only then */
-		ins = SPN_MKINS_A(opcode, idx);
-		bytecode_append(&cmp->bc, &ins, 1);
-
-		break;
-	}
-	default:
-		SHANT_BE_REACHED();
+		emit_ins_A(cmp, opcode, idx);
 	}
 
 	return 1;
 }
 
-static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_incdec_arr(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	SpnAST *lhs = ast->left;
+	const char *nodetype = ast_get_type(ast);
 
+	int is_prefix = type_equal(nodetype, "pre_inc") || type_equal(nodetype, "pre_dec");
+	int is_incrmt = type_equal(nodetype, "pre_inc") || type_equal(nodetype, "post_inc");
+
+	SpnHashMap *op = ast_get_child_byname(ast, is_prefix ? "right" : "left");
+	const char *op_type = ast_get_type(op);
+	int is_subscript = type_equal(op_type, "subscript");
+
+	/* select appropriate opcodes:
+	 * increment vs. decrement;  array subscript vs. property accessor
+	 */
+	enum spn_vm_ins arith_opcode = is_incrmt ? SPN_INS_INC : SPN_INS_DEC;
+	enum spn_vm_ins getter_opcode = is_subscript ? SPN_INS_IDX_GET : SPN_INS_PROPGET;
+	enum spn_vm_ins setter_opcode = is_subscript ? SPN_INS_IDX_SET : SPN_INS_PROPSET;
+
+	/* the subscripted object */
+	SpnHashMap *object = ast_get_child_byname(op, "object");
+
+	/* register index of subscripted object ("array")
+	 * and indexing expression, respectively
+	 */
 	int arridx = -1, subidx = -1;
+
 	int nvars;
-
-	enum spn_vm_ins arith_opcode;
-	enum spn_vm_ins getter_opcode, setter_opcode;
-
-	if (ast->node == SPN_NODE_PREINCRMT
-	 || ast->node == SPN_NODE_POSTINCRMT) {
-		arith_opcode = SPN_INS_INC;
-	} else {
-		arith_opcode = SPN_INS_DEC;
-	}
-
-	assert(lhs->node == SPN_NODE_SUBSCRIPT
-	    || lhs->node == SPN_NODE_MEMBEROF);
-
-	/* select appropriate array/property accessor opcodes */
-	if (lhs->node == SPN_NODE_SUBSCRIPT) {
-		getter_opcode = SPN_INS_IDX_GET;
-		setter_opcode = SPN_INS_IDX_SET;
-	} else {
-		getter_opcode = SPN_INS_PROPGET;
-		setter_opcode = SPN_INS_PROPSET;
-	}
 
 	if (*dst < 0) {
 		*dst = tmp_push(cmp);
 	}
 
-	/* compile array expression */
-	if (compile_expr(cmp, lhs->left, &arridx) == 0) {
+	/* compile subscripted object */
+	if (compile_expr(cmp, object, &arridx) == 0) {
 		return 0;
 	}
 
-	/* compile subscript expression */
-	if (lhs->node == SPN_NODE_SUBSCRIPT) { /* operator [] */
-		if (compile_expr(cmp, lhs->right, &subidx) == 0) {
+	/* compile indexing expression */
+	if (is_subscript) { /* operator [] */
+		SpnHashMap *index = ast_get_child_byname(op, "index");
+		if (compile_expr(cmp, index, &subidx) == 0) {
 			return 0;
 		}
-	} else { /* member-of, "." */
-		SpnValue nameval;
-		nameval.type = SPN_TYPE_STRING;
-		nameval.v.o = lhs->right->name;
-		compile_string_literal(cmp, &nameval, &subidx);
+	} else { /* member-of, '.' */
+		SpnValue nameval = spn_hashmap_get_strkey(op, "name");
+		compile_string_literal(cmp, nameval, &subidx);
 	}
 
-	switch (ast->node) {
-	case SPN_NODE_PREINCRMT:
-	case SPN_NODE_PREDECRMT: {
-		/* these yield the already incremented/decremented value */
+	if (is_prefix) { /* these yield the already incremented/decremented value */
 		spn_uword insns[3];
 		insns[0] = SPN_MKINS_ABC(getter_opcode, *dst, arridx, subidx);
 		insns[1] = SPN_MKINS_A(arith_opcode, *dst);
 		insns[2] = SPN_MKINS_ABC(setter_opcode, arridx, subidx, *dst);
 
 		bytecode_append(&cmp->bc, insns, COUNT(insns));
-		break;
-	}
-	case SPN_NODE_POSTINCRMT:
-	case SPN_NODE_POSTDECRMT: {
+	} else {
 		/* on the other hand, these operators yield the original
 		 * (yet unmodified) value. For this, we need a temporary
 		 * register to store the incremented/decremented value in.
@@ -2710,139 +2832,139 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnAST *ast, int *dst)
 
 		bytecode_append(&cmp->bc, insns, COUNT(insns));
 		tmp_pop(cmp);
-		break;
-	}
-	default:
-		SHANT_BE_REACHED();
 	}
 
 	/* once again, pop expired temporary values */
 	nvars = rts_count(cmp->varstack);
 
-	if (arridx >= nvars) {
+	if (subidx >= nvars) {
 		tmp_pop(cmp);
 	}
 
-	if (subidx >= nvars) {
+	if (arridx >= nvars) {
 		tmp_pop(cmp);
 	}
 
 	return 1;
 }
 
-static int compile_incdec(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_incdec(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	switch (ast->left->node) {
-	case SPN_NODE_IDENT:
+	const char *type = ast_get_type(ast);
+	int is_prefix = type_equal(type, "pre_inc") || type_equal(type, "pre_dec");
+
+	SpnHashMap *op = ast_get_child_byname(ast, is_prefix ? "right" : "left");
+	const char *op_type = ast_get_type(op);
+
+	if (type_equal(op_type, "ident")) {
 		return compile_incdec_var(cmp, ast, dst);
-
-	case SPN_NODE_SUBSCRIPT:
-	case SPN_NODE_MEMBEROF:
-		return compile_incdec_arr(cmp, ast, dst);
-
-	default:
-		compiler_error(
-			cmp,
-			ast->left->lineno,
-			"argument of ++ and -- must be a variable or array member",
-			NULL
-		);
-		return 0;
 	}
+
+	if (type_equal(op_type, "subscript") || type_equal(op_type, "memberof")) {
+		return compile_incdec_arr(cmp, ast, dst);
+	}
+
+	/* anything else is not an lvalue and cannot be [in | de]cremented */
+	compiler_error(
+		cmp,
+		ast,
+		"argument of ++ and -- must be a variable or array member",
+		NULL
+	);
+	return 0;
 }
 
-static int compile_expr(SpnCompiler *cmp, SpnAST *ast, int *dst)
+static int compile_expr(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 {
-	switch (ast->node) {
-	case SPN_NODE_CONCAT: /* concatenation */
-	case SPN_NODE_ADD:    /* arithmetic    */
-	case SPN_NODE_SUB:
-	case SPN_NODE_MUL:
-	case SPN_NODE_DIV:
-	case SPN_NODE_MOD:
-	case SPN_NODE_BITAND: /* bitwise ops   */
-	case SPN_NODE_BITOR:
-	case SPN_NODE_BITXOR:
-	case SPN_NODE_SHL:
-	case SPN_NODE_SHR:
-	case SPN_NODE_EQUAL:  /* comparisons   */
-	case SPN_NODE_NOTEQ:
-	case SPN_NODE_LESS:
-	case SPN_NODE_LEQ:
-	case SPN_NODE_GREATER:
-	case SPN_NODE_GEQ:           return compile_simple_binop(cmp, ast, dst);
+	const void *args[1]; /* for error reporting */
 
-	case SPN_NODE_ASSIGN:        return compile_assignment(cmp, ast, dst);
-
-	case SPN_NODE_ASSIGN_ADD:
-	case SPN_NODE_ASSIGN_SUB:
-	case SPN_NODE_ASSIGN_MUL:
-	case SPN_NODE_ASSIGN_DIV:
-	case SPN_NODE_ASSIGN_MOD:
-	case SPN_NODE_ASSIGN_AND:
-	case SPN_NODE_ASSIGN_OR:
-	case SPN_NODE_ASSIGN_XOR:
-	case SPN_NODE_ASSIGN_SHL:
-	case SPN_NODE_ASSIGN_SHR:
-	case SPN_NODE_ASSIGN_CONCAT: return compile_compound_assignment(cmp, ast, dst);
-
-	/* short-circuiting logical operators */
-	case SPN_NODE_LOGAND:
-	case SPN_NODE_LOGOR:         return compile_logical(cmp, ast, dst);
-
-	/* conditional ternary */
-	case SPN_NODE_CONDEXPR:      return compile_condexpr(cmp, ast, dst);
-
-	/* variables, functions */
-	case SPN_NODE_IDENT:         return compile_ident(cmp, ast, dst);
-
-	/* immediate values */
-	case SPN_NODE_LITERAL:       return compile_literal(cmp, ast, dst);
-
-	/* argument vector */
-	case SPN_NODE_ARGV:          return compile_argv(cmp, ast, dst);
-
-	/* function expression, lambda */
-	case SPN_NODE_FUNCEXPR:      return compile_funcexpr(cmp, ast, dst);
-
-	/* array literal */
-	case SPN_NODE_ARRAY_LITERAL: return compile_array_literal(cmp, ast, dst);
-
-	/* hashmap literal */
-	case SPN_NODE_HASHMAP_LITERAL: return compile_hashmap_literal(cmp, ast, dst);
-
-	/* array indexing */
-	case SPN_NODE_SUBSCRIPT:
-	case SPN_NODE_MEMBEROF:      return compile_subscript(cmp, ast, dst);
-
-	/* function calls */
-	case SPN_NODE_FUNCCALL:      return compile_call(cmp, ast, dst);
-
-	/* unary plus just returns its argument verbatim */
-	case SPN_NODE_UNPLUS:        return compile_expr(cmp, ast->left, dst);
-
-	/* prefix unary operators without side effects */
-	case SPN_NODE_TYPEOF:
-	case SPN_NODE_LOGNOT:
-	case SPN_NODE_BITNOT:        return compile_unary(cmp, ast, dst);
-
-	/* unary minus is special and it's handled separately,
-	 * because it is optimized when used with literals.
+	/* Linear search with a twist: frequently-used node types are ordered
+	 * before less common ones so that the constant factor stays smaller.
 	 */
-	case SPN_NODE_UNMINUS:       return compile_unminus(cmp, ast, dst);
+	static const struct {
+		const char *node;
+		int (*fn)(SpnCompiler *, SpnHashMap *, int *);
+	} compilers[] = {
+		/* terms and most postfix operators */
+		{ "literal",   compile_literal             },
+		{ "ident",     compile_ident               },
+		{ "function",  compile_funcexpr            },
+		{ "hashmap",   compile_hashmap_literal     },
+		{ "array",     compile_array_literal       },
+		{ "argv",      compile_argv                },
+		{ "call",      compile_call                },
+		{ "subscript", compile_subscript           },
+		{ "memberof",  compile_subscript           },
 
-	case SPN_NODE_PREINCRMT:
-	case SPN_NODE_PREDECRMT:
-	case SPN_NODE_POSTINCRMT:
-	case SPN_NODE_POSTDECRMT:    return compile_incdec(cmp, ast, dst);
+		/* comparisons */
+		{ "==",        compile_simple_binop        },
+		{ "!=",        compile_simple_binop        },
+		{ "<",         compile_simple_binop        },
+		{ "<=",        compile_simple_binop        },
+		{ ">",         compile_simple_binop        },
+		{ ">=",        compile_simple_binop        },
 
-	default: /* my apologies, again */
-		{
-			int node = ast->node;
-			const void *args[1];
-			args[0] = &node;
-			compiler_error(cmp, ast->lineno, "unrecognized AST node `%i'", args);
-			return 0;
+		/* simple assignment, logical ops and concatenation */
+		{ "assign",    compile_assignment          },
+		{ "or",        compile_logical             },
+		{ "and",       compile_logical             },
+		{ "concat",    compile_simple_binop        },
+
+		/* the rest of the binary operators (mostly arithmetic) */
+		{ "+",         compile_simple_binop        },
+		{ "-",         compile_simple_binop        },
+		{ "*",         compile_simple_binop        },
+		{ "/",         compile_simple_binop        },
+		{ "mod",       compile_simple_binop        },
+		{ "bit_or",    compile_simple_binop        },
+		{ "bit_xor",   compile_simple_binop        },
+		{ "bit_and",   compile_simple_binop        },
+		{ "<<",        compile_simple_binop        },
+		{ ">>",        compile_simple_binop        },
+
+		/* compound assignments */
+		{ "+=",        compile_compound_assignment },
+		{ "-=",        compile_compound_assignment },
+		{ "*=",        compile_compound_assignment },
+		{ "/=",        compile_compound_assignment },
+		{ "%=",        compile_compound_assignment },
+		{ "|=",        compile_compound_assignment },
+		{ "^=",        compile_compound_assignment },
+		{ "&=",        compile_compound_assignment },
+		{ "<<=",       compile_compound_assignment },
+		{ ">>=",       compile_compound_assignment },
+		{ "..=",       compile_compound_assignment },
+
+		/* and the rest: increment/decrement... */
+		{ "pre_inc",   compile_incdec              },
+		{ "pre_dec",   compile_incdec              },
+		{ "post_inc",  compile_incdec              },
+		{ "post_dec",  compile_incdec              },
+
+		/* ...prefix unary ops... */
+		{ "un_plus",   compile_unplus              },
+		{ "un_minus",  compile_unminus             },
+		{ "not",       compile_unary               },
+		{ "bit_not",   compile_unary               },
+		{ "typeof",    compile_unary               },
+
+		/* ... and the conditional expression */
+		{ "condexpr",  compile_condexpr            }
+	};
+
+	const char *type = ast_get_type(ast);
+
+	size_t i;
+	for (i = 0; i < COUNT(compilers); i++) {
+		if (type_equal(compilers[i].node, type)) {
+			return compilers[i].fn(cmp, ast, dst);
 		}
 	}
+
+	/* if neither one of the node types above matched,
+	 * then we don't know how to compile this node
+	 */
+	args[0] = type;
+	compiler_error(cmp, ast, "unknown AST node: \"%s\"", args);
+	return 0;
 }

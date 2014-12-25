@@ -15,782 +15,883 @@
 
 #include "parser.h"
 #include "lex.h"
+#include "str.h"
 #include "private.h"
+#include "array.h"
+
+/* for 'accept_multi()' */
+typedef struct TokenAndNode {
+	const char *token;
+	const char *node;
+} TokenAndNode;
+
+/* Parsers (productions/nonterminals, terminals) */
+
+static SpnHashMap *parse_program(SpnParser *p);
+static SpnHashMap *parse_stmt(SpnParser *p, int is_global);
+static SpnHashMap *parse_function(SpnParser *p, int is_stmt);
+static SpnHashMap *parse_expr(SpnParser *p);
+
+static SpnHashMap *parse_assignment(SpnParser *p);
+static SpnHashMap *parse_concat(SpnParser *p);
+static SpnHashMap *parse_condexpr(SpnParser *p);
+
+static SpnHashMap *parse_logical_or(SpnParser *p);
+static SpnHashMap *parse_logical_and(SpnParser *p);
+static SpnHashMap *parse_bitwise_or(SpnParser *p);
+static SpnHashMap *parse_bitwise_xor(SpnParser *p);
+static SpnHashMap *parse_bitwise_and(SpnParser *p);
+
+static SpnHashMap *parse_comparison(SpnParser *p);
+static SpnHashMap *parse_shift(SpnParser *p);
+static SpnHashMap *parse_additive(SpnParser *p);
+static SpnHashMap *parse_multiplicative(SpnParser *p);
+
+static SpnHashMap *parse_prefix(SpnParser *p);
+static SpnHashMap *parse_postfix(SpnParser *p);
+static SpnHashMap *parse_term(SpnParser *p);
+
+static SpnHashMap *parse_array_literal(SpnParser *p);
+static SpnHashMap *parse_hashmap_literal(SpnParser *p);
+static SpnArray *parse_decl_args(SpnParser *p);
+
+static SpnHashMap *parse_if(SpnParser *p);
+static SpnHashMap *parse_while(SpnParser *p);
+static SpnHashMap *parse_do(SpnParser *p);
+static SpnHashMap *parse_for(SpnParser *p);
+static SpnHashMap *parse_break(SpnParser *p);
+static SpnHashMap *parse_continue(SpnParser *p);
+static SpnHashMap *parse_return(SpnParser *p);
+static SpnHashMap *parse_vardecl(SpnParser *p);
+static SpnHashMap *parse_const(SpnParser *p);
+static SpnHashMap *parse_expr_stmt(SpnParser *p);
+static SpnHashMap *parse_empty(SpnParser *p);
+static SpnHashMap *parse_block(SpnParser *p);
+static SpnHashMap *parse_block_expecting(SpnParser *p, const char *where);
 
 
-static SpnAST *parse_program(SpnParser *p);
-static SpnAST *parse_program_nonempty(SpnParser *p);
-static SpnAST *parse_stmt(SpnParser *p, int is_global);
-static SpnAST *parse_stmt_list(SpnParser *p);
-static SpnAST *parse_function(SpnParser *p, int is_stmt);
-static SpnAST *parse_expr(SpnParser *p);
-
-static SpnAST *parse_assignment(SpnParser *p);
-static SpnAST *parse_concat(SpnParser *p);
-static SpnAST *parse_condexpr(SpnParser *p);
-
-static SpnAST *parse_logical_or(SpnParser *p);
-static SpnAST *parse_logical_and(SpnParser *p);
-static SpnAST *parse_bitwise_or(SpnParser *p);
-static SpnAST *parse_bitwise_xor(SpnParser *p);
-static SpnAST *parse_bitwise_and(SpnParser *p);
-
-static SpnAST *parse_comparison(SpnParser *p);
-static SpnAST *parse_shift(SpnParser *p);
-static SpnAST *parse_additive(SpnParser *p);
-static SpnAST *parse_multiplicative(SpnParser *p);
-
-static SpnAST *parse_prefix(SpnParser *p);
-static SpnAST *parse_postfix(SpnParser *p);
-static SpnAST *parse_term(SpnParser *p);
-
-static SpnAST *parse_array_literal(SpnParser *p);
-static SpnAST *parse_hashmap_literal(SpnParser *p);
-static SpnAST *parse_decl_args(SpnParser *p);
-static SpnAST *parse_call_args(SpnParser *p);
-
-static SpnAST *parse_if(SpnParser *p);
-static SpnAST *parse_while(SpnParser *p);
-static SpnAST *parse_do(SpnParser *p);
-static SpnAST *parse_for(SpnParser *p);
-static SpnAST *parse_break(SpnParser *p);
-static SpnAST *parse_continue(SpnParser *p);
-static SpnAST *parse_return(SpnParser *p);
-static SpnAST *parse_vardecl(SpnParser *p);
-static SpnAST *parse_const(SpnParser *p);
-static SpnAST *parse_expr_stmt(SpnParser *p);
-static SpnAST *parse_empty(SpnParser *p);
-static SpnAST *parse_block(SpnParser *p);
-
-
-static SpnAST *parse_binexpr_rightassoc(
+static SpnHashMap *parse_binexpr_rightassoc(
 	SpnParser *p,
-	const enum spn_lex_token toks[],
-	const enum spn_ast_node nodes[],
+	const TokenAndNode tokens[],
 	size_t n,
-	SpnAST *(*subexpr)(SpnParser *)
+	SpnHashMap *(*subexpr)(SpnParser *)
 );
 
-static SpnAST *parse_binexpr_leftassoc(
+static SpnHashMap *parse_binexpr_leftassoc(
 	SpnParser *p,
-	const enum spn_lex_token toks[],
-	const enum spn_ast_node nodes[],
+	const TokenAndNode tokens[],
 	size_t n,
-	SpnAST *(*subexpr)(SpnParser *)
+	SpnHashMap *(*subexpr)(SpnParser *)
 );
 
+/* Miscellaneous helpers */
+
+static int is_at_eof(SpnParser *p)
+{
+	return p->cursor >= p->num_toks;
+}
+
+static int is_at_token(SpnParser *p, const char *str)
+{
+	if (is_at_eof(p)) {
+		return 0;
+	}
+
+	return strcmp(p->tokens[p->cursor].value, str) == 0;
+}
+
+static SpnToken *accept_token_string(SpnParser *p, const char *str)
+{
+	if (is_at_token(p, str)) {
+		return &p->tokens[p->cursor++];
+	}
+
+	return NULL;
+}
+
+static SpnToken *accept_token_type(SpnParser *p, enum spn_token_type type)
+{
+	if (is_at_eof(p)) {
+		return NULL;
+	}
+
+	if (p->tokens[p->cursor].type == type) {
+		return &p->tokens[p->cursor++];
+	}
+
+	return NULL;
+}
+
+/* returns the next token if it is found in 'tokens'.
+ * Sets *index to the index it was found at.
+ * Returns NULL and doesn't touch *index otherwise.
+ * 'tokens' points to elements of an array of array of two strings.
+ * The first element (index 0) of the inner array is a token,
+ * the second one (index 1) is its corresponding AST node type.
+ * 'n' is the length of the outer array - the number of token-node pairs.
+ */
+static SpnToken *accept_multi(SpnParser *p, const TokenAndNode tokens[], size_t n, size_t *index)
+{
+	size_t i;
+	for (i = 0; i < n; i++) {
+		SpnToken *token = accept_token_string(p, tokens[i].token);
+		if (token) {
+			*index = i;
+			return token;
+		}
+	}
+
+	return NULL;
+}
+
+/* Public API */
 
 void spn_parser_init(SpnParser *p)
 {
-	p->pos = NULL;
-	p->eof = 0;
+	spn_lexer_init(&p->lexer);
+	p->tokens = NULL;
+	p->num_toks = 0;
+	p->cursor = 0;
 	p->error = 0;
-	p->lineno = 1;
 	p->errmsg = NULL;
 }
 
 void spn_parser_free(SpnParser *p)
 {
+	spn_lexer_free(&p->lexer);
+	spn_free_tokens(p->tokens, p->num_toks);
 	free(p->errmsg);
 }
 
-void spn_parser_error(SpnParser *p, const char *fmt, const void *args[])
+SpnSourceLocation spn_parser_get_error_location(SpnParser *p)
 {
-	char *prefix, *msg;
-	size_t prefix_len, msg_len;
-	const void *prefix_args[1];
-	prefix_args[0] = &p->lineno;
+	/* if a lexing error occurred, obtain the error location from the lexer */
+	if (p->tokens == NULL) {
+		return p->lexer.location;
+	}
 
+	/* else return the location of the token under the cursor */
+	if (p->num_toks > 0) {
+		size_t tok_index = p->cursor < p->num_toks ? p->cursor : p->num_toks - 1;
+		return p->tokens[tok_index].location;
+	} else {
+		SpnSourceLocation zero_loc = { 0, 0 };
+		return zero_loc;
+	}
+}
+
+static void parser_error(SpnParser *p, const char *fmt, const void *args[])
+{
 	if (p->error) {
 		return; /* only report first syntax error */
 	}
 
-	prefix = spn_string_format_cstr(
-		"syntax error near line %i: ",
-		&prefix_len,
-		prefix_args
-	);
-
-	msg = spn_string_format_cstr(fmt, &msg_len, args);
-
 	free(p->errmsg);
-	p->errmsg = spn_malloc(prefix_len + msg_len + 1);
-
-	strcpy(p->errmsg, prefix);
-	strcpy(p->errmsg + prefix_len, msg);
-
-	free(prefix);
-	free(msg);
-
+	p->errmsg = spn_string_format_cstr(fmt, NULL, args);
 	p->error = 1;
 }
 
-static void init_parser(SpnParser *p, const char *src)
+/* returns 0 if the lexing was successful.
+ * Returns non-zero and sets the error if an error occurred.
+ */
+static int setup_parser(SpnParser *p, const char *src)
 {
-	p->pos = src;
-	p->eof = 0;
-	p->error = 0;
-	p->lineno = 1;
+	/* it is safe to free the tokens array unconditionally, since
+	 * if the previous execution of the lexer resulted in an error,
+	 * then 'p->tokens' is set to NULL and 'p->num_toks' is set to 0.
+	 */
+	spn_free_tokens(p->tokens, p->num_toks);
+
+	p->tokens = spn_lexer_lex(&p->lexer, src, &p->num_toks);
+
+	if (p->tokens) {
+		p->error = 0;
+		p->cursor = 0;
+		return 0;
+	}
+
+	free(p->errmsg);
+	p->errmsg = spn_lexer_steal_errmsg(&p->lexer);
+	p->error = 1;
+	return -1;
+}
+
+/* AST writer API
+ * --------------
+ *
+ * These functions help building the abstract syntax tree.
+ */
+
+/* returns non-zero if nodes of type 'type' need a child array */
+static int ast_type_needs_children(const char *type);
+
+/*
+ * The set of possible keys, node types etc. is generally known at
+ * compile time (if one is messing around with generating ASTs at runtime,
+ * that is memory-safe anyway so the warning below doesn't concern him.)
+ * Hence, we mostly use 'makestring_nocopy()' so as to avoid extraneous
+ * dynamic allocation. This, however, means that we need to use string
+ * literals (that have static storage duration) so the strings are not
+ * deallocated (or otherwise invalidated) prematurely.
+ */
+static void ast_set_property(SpnHashMap *node, const char *key, const SpnValue *val)
+{
+	SpnValue pname = makestring_nocopy(key);
+	spn_hashmap_set(node, &pname, val);
+	spn_value_release(&pname);
+}
+
+/* Similarly, 'type' must also be a string literal in this function */
+static SpnHashMap *ast_new(const char *type, SpnSourceLocation loc)
+{
+	SpnHashMap *node = spn_hashmap_new();
+
+	SpnValue vtype = makestring_nocopy(type);
+	SpnValue line = makeint(loc.line);
+	SpnValue col = makeint(loc.column);
+
+	ast_set_property(node, "type", &vtype);
+	ast_set_property(node, "line", &line);
+	ast_set_property(node, "column", &col);
+
+	spn_value_release(&vtype);
+
+	/* if the node an explicit 'children' array, add it */
+	if (ast_type_needs_children(type)) {
+		SpnValue children = makearray();
+		ast_set_property(node, "children", &children);
+		spn_value_release(&children);
+	}
+
+	return node;
+}
+
+/* Sets 'child' as the child of parent 'node'.
+ * This transfers ownership ("xfer"), releases 'child'!
+ * 'key' must be a string literal too.
+ */
+static void ast_set_child_xfer(SpnHashMap *node, const char *key, SpnHashMap *child)
+{
+	SpnValue val;
+	val.type = SPN_TYPE_HASHMAP;
+	val.v.o = child;
+
+	ast_set_property(node, key, &val);
+	spn_object_release(child);
+}
+
+/* Returns the 'children' array of 'node'.
+ * Naturally, the returned pointer is *non-owning*.
+ */
+static SpnArray *ast_get_children(SpnHashMap *node)
+{
+	SpnValue val = spn_hashmap_get_strkey(node, "children");
+	assert(isarray(&val));
+	return arrayvalue(&val);
+}
+
+/* Adds 'child' to the children array of 'node'.
+ * Transfers ownership - releases 'child'!
+ */
+static void ast_push_child_xfer(SpnHashMap *node, SpnHashMap *child)
+{
+	SpnArray *children = ast_get_children(node);
+
+	SpnValue vchild;
+	vchild.type = SPN_TYPE_HASHMAP;
+	vchild.v.o = child;
+
+	spn_array_push(children, &vchild);
+	spn_object_release(child);
+}
+
+/* This returns a *non-owning* pointer to a newly appended child */
+static SpnHashMap *ast_append_child(SpnHashMap *node, const char *type, SpnSourceLocation loc)
+{
+	SpnHashMap *child = ast_new(type, loc);
+	ast_push_child_xfer(node, child);
+	return child;
+}
+
+static int ast_type_needs_children(const char *type)
+{
+	/* this array contains the node types that need an
+	 * explicit 'children' array because they may have
+	 * an arbitrary number of children.
+	 */
+	static const char *const partypes[] = {
+		"block",
+		"program",
+		"call",
+		"vardecl",
+		"constdecl",
+		"array",
+		"hashmap"
+	};
+
+	size_t i;
+	for (i = 0; i < COUNT(partypes); i++) {
+		if (strcmp(type, partypes[i]) == 0) {
+			return 1;
+		}
+	}
+
+	return 0;
 }
 
 /* re-initialize the parser object (so that it can be reused for parsing
  * multiple translation units), then kick off the actual recursive descent
  * parser to process the source text
  */
-SpnAST *spn_parser_parse(SpnParser *p, const char *src)
+SpnHashMap *spn_parser_parse(SpnParser *p, const char *src)
 {
-	init_parser(p, src);
+	/* return NULL on error */
+	if (setup_parser(p, src)) {
+		return NULL;
+	}
+
 	return parse_program(p);
 }
 
-SpnAST *spn_parser_parse_expression(SpnParser *p, const char *src)
+SpnHashMap *spn_parser_parse_expression(SpnParser *p, const char *src)
 {
-	SpnAST *expr;
+	SpnHashMap *expr;
 
-	init_parser(p, src);
-	spn_lex(p);
+	/* check for lexing errors */
+	if (setup_parser(p, src)) {
+		return NULL;
+	}
+
 	expr = parse_expr(p);
 
 	if (expr == NULL) {
 		return NULL;
 	}
 
-	if (p->eof) {
-		SpnAST *return_stmt, *program;
+	if (is_at_eof(p)) {
+		/* fake location, since our parsed expression doesn't
+		 * really contain a return statement or a program
+		 */
+		SpnSourceLocation zeroloc = { 0, 0 };
 
-		return_stmt = spn_ast_new(SPN_NODE_RETURN, 1);
-		return_stmt->left = expr;
-
-		program = spn_ast_new(SPN_NODE_PROGRAM, 1);
-		program->left = return_stmt;
+		SpnHashMap *program = ast_new("program", zeroloc);
+		SpnHashMap *return_stmt = ast_append_child(program, "return", zeroloc);
+		ast_set_child_xfer(return_stmt, "expr", expr);
 
 		return program;
 	}
 
 	/* it is an error if we are not at the end of the source */
-	spn_ast_free(expr);
-	spn_value_release(&p->curtok.val);
-	spn_parser_error(p, "garbage after input", NULL);
+	spn_object_release(expr);
+	parser_error(p, "garbage after input", NULL);
 	return NULL;
 }
 
-static SpnAST *parse_program(SpnParser *p)
+static SpnHashMap *parse_program(SpnParser *p)
 {
-	SpnAST *tree = NULL;
+	SpnSourceLocation begin = { 1, 1 };
+	SpnHashMap *program = ast_new("program", begin);
 
-	if (spn_lex(p))	{	/* there are tokens */
-		tree = parse_program_nonempty(p);
-	} else {
-		return p->error ? NULL : spn_ast_new(SPN_NODE_PROGRAM, p->lineno);
-	}
+	while (is_at_eof(p) == 0) {
+		SpnHashMap *stmt = parse_stmt(p, 1);
 
-	if (p->eof) {		/* if EOF after parsing, then all went fine */
-		return tree;
-	}
-
-	/* if not, then there's garbage after the source */
-	spn_ast_free(tree);
-	spn_parser_error(p, "garbage after input", NULL);
-	return NULL;
-}
-
-static SpnAST *parse_program_nonempty(SpnParser *p)
-{
-	SpnAST *ast;
-
-	/* parse global statements */
-	SpnAST *sub = parse_stmt(p, 1);
-	if (sub == NULL) {
-		return NULL;
-	}
-
-	while (!p->eof) {
-		SpnAST *tmp;
-		SpnAST *right = parse_stmt(p, 1);
-		if (right == NULL) {
-			spn_ast_free(sub);
+		if (stmt == NULL) {
+			spn_object_release(program);
 			return NULL;
 		}
 
-		tmp = spn_ast_new(SPN_NODE_COMPOUND, p->lineno);
-		tmp->left = sub;    /* this node    */
-		tmp->right = right; /* next node    */
-		sub = tmp;          /* update head  */
+		ast_push_child_xfer(program, stmt);
 	}
 
-	/* here the same hack is performed that is used in parse_block()
-	 * (refer there for an explanation)
-	 */
-
-	if (sub->node == SPN_NODE_COMPOUND) {
-		sub->node = SPN_NODE_PROGRAM;
-		return sub;
-	}
-
-	ast = spn_ast_new(SPN_NODE_PROGRAM, p->lineno);
-	ast->left = sub;
-	return ast;
+	return program;
 }
 
-/* statement lists appear in block statements, so loop until `}' is found */
-static SpnAST *parse_stmt_list(SpnParser *p)
+static SpnHashMap *parse_stmt(SpnParser *p, int is_global)
 {
-	/* parse local statement */
-	SpnAST *ast = parse_stmt(p, 0);
-	if (ast == NULL) {
-		return NULL;
-	}
+	static const struct {
+		const char *token;              /* a token corresponding to a production... */
+		SpnHashMap *(*fn)(SpnParser *); /* ...and a parser function that implements it */
+	} parsers[] = {
+		{ "var",      parse_vardecl  },
+		{ "let",      parse_vardecl  },
+		{ "if",       parse_if       },
+		{ "while",    parse_while    },
+		{ "for",      parse_for      },
+		{ "do",       parse_do       },
+		{ "return",   parse_return   },
+		{ "break",    parse_break    },
+		{ "continue", parse_continue },
+		{ "{",        parse_block    },
+		{ ";",        parse_empty    }
+	};
 
-	while (p->curtok.tok != SPN_TOK_RBRACE) {
-		SpnAST *tmp;
-		SpnAST *right = parse_stmt(p, 0);
-		if (right == NULL) {
-			spn_ast_free(ast);
-			return NULL;
+	size_t i;
+	for (i = 0; i < COUNT(parsers); i++) {
+		if (is_at_token(p, parsers[i].token)) {
+			return parsers[i].fn(p);
 		}
-
-		tmp = spn_ast_new(SPN_NODE_COMPOUND, p->lineno);
-		tmp->left = ast;    /* this node    */
-		tmp->right = right; /* next node    */
-		ast = tmp;          /* update head  */
 	}
 
-	return ast;
-}
-
-static SpnAST *parse_stmt(SpnParser *p, int is_global)
-{
-	switch (p->curtok.tok) {
-	case SPN_TOK_IF:        return parse_if(p);
-	case SPN_TOK_WHILE:     return parse_while(p);
-	case SPN_TOK_DO:        return parse_do(p);
-	case SPN_TOK_FOR:       return parse_for(p);
-	case SPN_TOK_BREAK:     return parse_break(p);
-	case SPN_TOK_CONTINUE:  return parse_continue(p);
-	case SPN_TOK_RETURN:    return parse_return(p);
-	case SPN_TOK_SEMICOLON: return parse_empty(p);
-	case SPN_TOK_LBRACE:    return parse_block(p);
-	case SPN_TOK_VAR:       return parse_vardecl(p);
-	case SPN_TOK_FUNCTION:
+	/* special cases follow */
+	if (is_at_token(p, "function")) {
 		if (is_global) {
-			/* assume function statement at file scope */
+			/* assume function statement at file scope... */
 			return parse_function(p, 1);
 		} else {
-			/* and a function expression at local scope */
+			/* ...and a function expression at local scope */
 			return parse_expr_stmt(p);
 		}
-	case SPN_TOK_CONST:
+	}
+
+	if (is_at_token(p, "const") || is_at_token(p, "global")) {
 		if (is_global) {
 			return parse_const(p);
 		} else {
-			spn_parser_error(p, "`const' declarations are only allowed at file scope", NULL);
+			parser_error(p, "'const' declarations are only allowed at file scope", NULL);
 			return NULL;
 		}
-	default:
-		return parse_expr_stmt(p);
 	}
+
+	/* there's always hope */
+	return parse_expr_stmt(p);
 }
 
-static SpnAST *parse_function(SpnParser *p, int is_stmt)
+static SpnHashMap *parse_function(SpnParser *p, int is_stmt)
 {
-	SpnString *name;
-	SpnAST *ast, *body;
+	SpnHashMap *ast, *body;
+	SpnArray *declargs;
+	SpnValue declargsval;
+	SpnValue nameval = spn_nilval;
 
-	/* skip `function' keyword */
-	if (!spn_accept(p, SPN_TOK_FUNCTION)) {
-		spn_parser_error(p, "internal error, expected `function'", NULL);
-		spn_value_release(&p->curtok.val);
+	SpnToken *token = accept_token_string(p, "function");
+	SpnToken *funcname = accept_token_type(p, SPN_TOKEN_WORD);
+	assert(token != NULL);
+
+	/* named global function statement: a global constant,
+	 * initialized with a _named_ function expression.
+	 * The name is obligatory. (for expressions, it's optional.)
+	 */
+	if (is_stmt && funcname == NULL) {
+			parser_error(p, "expecting function name in function statement", NULL);
+			return NULL;
+	}
+
+	if (funcname && spn_token_is_reserved(funcname->value)) {
+		const void *args[1];
+		args[0] = funcname->value;
+		parser_error(p, "'%s' is a keyword and cannot be a function name", args);
 		return NULL;
 	}
 
-	if (is_stmt) {
-		/* named global function statement: a global constant,
-		 * initialized with a named function expression
-		 */
-
-		if (p->curtok.tok != SPN_TOK_IDENT) {
-			spn_parser_error(p, "expected function name in function statement", NULL);
-			spn_value_release(&p->curtok.val);
-			return NULL;
-		}
-
-		name = stringvalue(&p->curtok.val);
-
-		/* skip identifier */
-		spn_lex(p);
-	} else {
-		/* optionally named function expression, lambda */
-		if (p->curtok.tok == SPN_TOK_IDENT) {
-			name = stringvalue(&p->curtok.val);
-			spn_lex(p);
-		} else {
-			name = NULL;
-		}
-	}
-
-	if (!spn_accept(p, SPN_TOK_LPAREN)) {
-		spn_parser_error(p, "expected `(' in function header", NULL);
-		spn_value_release(&p->curtok.val);
-
-		if (name != NULL) {
-			spn_object_release(name);
-		}
-
+	/* Parse formal parameters (declaration-time arguments) */
+	declargs = parse_decl_args(p);
+	if (declargs == NULL) {
 		return NULL;
 	}
 
-	ast = spn_ast_new(SPN_NODE_FUNCEXPR, p->lineno);
-	ast->name = name; /* ownership transfer */
+	declargsval.type = SPN_TYPE_ARRAY;
+	declargsval.v.o = declargs;
 
-	if (!spn_accept(p, SPN_TOK_RPAREN)) {
-		SpnAST *arglist = parse_decl_args(p);
-		if (arglist == NULL) {
-			spn_ast_free(ast);
-			return NULL;
-		}
-
-		ast->left = arglist;
-
-		if (!spn_accept(p, SPN_TOK_RPAREN)) { /* error */
-			spn_parser_error(p, "expected `)' after function argument list", NULL);
-			spn_value_release(&p->curtok.val);
-			spn_ast_free(ast); /* frees `arglist' and `name' too */
-			return NULL;
-		}
-	}
-
-	body = parse_block(p);
+	/* Parse function body */
+	body = parse_block_expecting(p, "function body");
 	if (body == NULL) {
-		spn_ast_free(ast);
+		spn_object_release(declargs);
 		return NULL;
 	}
 
-	ast->right = body;
+	if (funcname) {
+		nameval = makestring(funcname->value);
+	}
+
+	ast = ast_new("function", token->location);
+
+	ast_set_property(ast, "name", &nameval);
+	ast_set_property(ast, "declargs", &declargsval);
+	ast_set_child_xfer(ast, "body", body);
 
 	/* if we are parsing a function statement, then we need to
 	 * return a node for a global constant, initialized with a
 	 * function _expression_.
 	 * Else we can just return the function expression itself.
 	 */
-
 	if (is_stmt) {
-		SpnAST *global = spn_ast_new(SPN_NODE_CONST, ast->lineno);
-
+		SpnHashMap *global = ast_new("constdecl", token->location);
+		SpnHashMap *constant = ast_new("constant", token->location);
 		/* The name of the global is the same as the function name.
 		 * (we have to retain the name string because the AST assumes
 		 * that it's a strong pointer, so if we add it to another
 		 * node, we don't want it to be released twice if it doesn't
 		 * have a reference count of two.)
 		 */
-		assert(name != NULL);
+		assert(funcname != NULL);
 
-		spn_object_retain(name);
-		global->left = ast;
-		global->name = name;
-		return global;
-	} else {
-		return ast;
-	}
-}
+		ast_set_property(constant, "name", &nameval);
+		ast_set_child_xfer(constant, "init", ast);
 
-static SpnAST *parse_block(SpnParser *p)
-{
-	SpnAST *list, *ast;
+		ast_push_child_xfer(global, constant);
 
-	if (!spn_accept(p, SPN_TOK_LBRACE)) {
-		spn_parser_error(p, "expected `{' in block statement", NULL);
-		spn_value_release(&p->curtok.val);
-		return NULL;
+		ast = global;
 	}
 
-	if (spn_accept(p, SPN_TOK_RBRACE)) {	/* empty block */
-		return spn_ast_new(SPN_NODE_EMPTY, p->lineno);
-	}
+	spn_value_release(&nameval);
+	spn_value_release(&declargsval);
 
-	list = parse_stmt_list(p);
-
-	if (list == NULL) {
-		return NULL;
-	}
-
-	if (!spn_accept(p, SPN_TOK_RBRACE)) {
-		spn_parser_error(p, "expected `}' at end of block statement", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(list);
-		return NULL;
-	}
-
-	/* hack: we look at the subtree that parse_stmt_list() returned.
-	 * if it is a compound, we change its node from the generic
-	 * SPN_NODE_COMPOUND to the correct SPN_NODE_BLOCK. If it isn't (i. e.
-	 * it's a single statement), then we create a wrapper SPN_NODE_BLOCK
-	 * node, add the original subtree as its (left) child, and then we
-	 * return the new (block) node.
-	 *
-	 * The reason why SPN_NODE_BLOCK isn't used immediately
-	 * in parse_stmt_list() is that it may return multiple levels of nested
-	 * compounds, but only the top-level node should be marked as a block.
-	 */
-
-	if (list->node == SPN_NODE_COMPOUND) {
-		list->node = SPN_NODE_BLOCK;
-		return list;
-	}
-
-	ast = spn_ast_new(SPN_NODE_BLOCK, p->lineno);
-	ast->left = list;
 	return ast;
 }
 
-static SpnAST *parse_expr(SpnParser *p)
+/* This calls 'parse_block()' if we are looking at a left-brace '{'.
+ * Otherwise, it reports an error and returns NULL.
+ * The 'where' argument is a brief description of the production that
+ * we are currently parsing (e. g. "if statement" or "function body").
+ */
+static SpnHashMap *parse_block_expecting(SpnParser *p, const char *where)
+{
+	const void *args[1];
+
+	if (is_at_token(p, "{")) {
+		return parse_block(p);
+	}
+
+	args[0] = where;
+	parser_error(p, "expecting block in %s", args);
+	return NULL;
+}
+
+static SpnHashMap *parse_block(SpnParser *p)
+{
+	SpnHashMap *node;
+	SpnToken *rbrace;
+	SpnToken *lbrace = accept_token_string(p, "{");
+	assert(lbrace != NULL);
+
+	node = ast_new("block", lbrace->location);
+
+	/* spin around while there are tokens or the block has ended */
+	while (!((rbrace = accept_token_string(p, "}")) || is_at_eof(p))) {
+		SpnHashMap *stmt = parse_stmt(p, 0);
+
+		if (stmt == NULL) {
+			spn_object_release(node);
+			return NULL;
+		}
+
+		ast_push_child_xfer(node, stmt);
+	}
+
+	/* blocks must end with a closing right-brace */
+	if (rbrace == NULL) {
+		parser_error(p, "expecting '}' at end of block", NULL);
+		spn_object_release(node);
+		return NULL;
+	}
+
+	return node;
+}
+
+static SpnHashMap *parse_expr(SpnParser *p)
 {
 	return parse_assignment(p);
 }
 
-static SpnAST *parse_assignment(SpnParser *p)
+static SpnHashMap *parse_assignment(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = {
-		SPN_TOK_ASSIGN,
-		SPN_TOK_PLUSEQ,
-		SPN_TOK_MINUSEQ,
-		SPN_TOK_MULEQ,
-		SPN_TOK_DIVEQ,
-		SPN_TOK_MODEQ,
-		SPN_TOK_ANDEQ,
-		SPN_TOK_OREQ,
-		SPN_TOK_XOREQ,
-		SPN_TOK_SHLEQ,
-		SPN_TOK_SHREQ,
-		SPN_TOK_DOTDOTEQ,
+	static const TokenAndNode tokens[] = {
+		{ "=",   "assign" },
+		{ "+=",  "+="     },
+		{ "-=",  "-="     },
+		{ "*=",  "*="     },
+		{ "/=",  "/="     },
+		{ "%=",  "%="     },
+		{ "&=",  "&="     },
+		{ "|=",  "|="     },
+		{ "^=",  "^="     },
+		{ "<<=", "<<="    },
+		{ ">>=", ">>="    },
+		{ "..=", "..="    }
 	};
 
-	static const enum spn_ast_node nodes[] = {
-		SPN_NODE_ASSIGN,
-		SPN_NODE_ASSIGN_ADD,
-		SPN_NODE_ASSIGN_SUB,
-		SPN_NODE_ASSIGN_MUL,
-		SPN_NODE_ASSIGN_DIV,
-		SPN_NODE_ASSIGN_MOD,
-		SPN_NODE_ASSIGN_AND,
-		SPN_NODE_ASSIGN_OR,
-		SPN_NODE_ASSIGN_XOR,
-		SPN_NODE_ASSIGN_SHL,
-		SPN_NODE_ASSIGN_SHR,
-		SPN_NODE_ASSIGN_CONCAT,
-	};
-
-	return parse_binexpr_rightassoc(p, toks, nodes, COUNT(toks), parse_concat);
+	return parse_binexpr_rightassoc(p, tokens, COUNT(tokens), parse_concat);
 }
 
-static SpnAST *parse_concat(SpnParser *p)
+static SpnHashMap *parse_concat(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = { SPN_TOK_DOTDOT };
-	static const enum spn_ast_node nodes[] = { SPN_NODE_CONCAT };
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_condexpr);
+	static const TokenAndNode tokens[] = { { "..", "concat" } };
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_condexpr);
 }
 
-static SpnAST *parse_condexpr(SpnParser *p)
+static SpnHashMap *parse_condexpr(SpnParser *p)
 {
-	SpnAST *ast, *br_true, *br_false, *branches, *tmp;
+	SpnHashMap *cond, *br_true, *br_false, *node;
+	SpnToken *qmark;
 
-	ast = parse_logical_or(p);
-	if (ast == NULL) {
+	cond = parse_logical_or(p);
+	if (cond == NULL) {
 		return NULL;
 	}
 
-	if (!spn_accept(p, SPN_TOK_QMARK)) {
-		return ast;
+	qmark = accept_token_string(p, "?");
+	if (qmark == NULL) {
+		return cond;
 	}
 
 	br_true = parse_expr(p);
 	if (br_true == NULL) {
-		spn_ast_free(ast);
+		spn_object_release(cond);
 		return NULL;
 	}
 
-	if (!spn_accept(p, SPN_TOK_COLON)) {
+	if (accept_token_string(p, ":") == NULL) {
 		/* error, expected ':' */
-		spn_parser_error(p, "expected `:' in conditional expression", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(ast);
-		spn_ast_free(br_true);
+		parser_error(p, "expected ':' in conditional expression", NULL);
+		spn_object_release(cond);
+		spn_object_release(br_true);
 		return NULL;
 	}
 
 	br_false = parse_condexpr(p);
 	if (br_false == NULL) {
-		spn_ast_free(ast);
-		spn_ast_free(br_true);
+		spn_object_release(cond);
+		spn_object_release(br_true);
 		return NULL;
 	}
 
-	branches = spn_ast_new(SPN_NODE_BRANCHES, p->lineno);
-	branches->left  = br_true;
-	branches->right = br_false;
+	node = ast_new("condexpr", qmark->location);
 
-	tmp = spn_ast_new(SPN_NODE_CONDEXPR, p->lineno);
-	tmp->left = ast; /* condition */
-	tmp->right = branches; /* true and false values */
+	ast_set_child_xfer(node, "cond", cond);
+	ast_set_child_xfer(node, "true", br_true);
+	ast_set_child_xfer(node, "false", br_false);
 
-	return tmp;
+	return node;
 }
 
 /* Functions to parse binary mathematical expressions
- * in ascending precedence order.
+ * in ascending order of precedence.
  */
-static SpnAST *parse_logical_or(SpnParser *p)
+static SpnHashMap *parse_logical_or(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = { SPN_TOK_LOGOR };
-	static const enum spn_ast_node nodes[] = { SPN_NODE_LOGOR };
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_logical_and);
+	static const TokenAndNode tokens[] = {
+		{ "or", "or" },
+		{ "||", "or" }
+	};
+
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_logical_and);
 }
 
-static SpnAST *parse_logical_and(SpnParser *p)
+static SpnHashMap *parse_logical_and(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = { SPN_TOK_LOGAND };
-	static const enum spn_ast_node nodes[] = { SPN_NODE_LOGAND };
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_comparison);
+	static const TokenAndNode tokens[] = {
+		{ "and", "and" },
+		{ "&&",  "and" }
+	};
+
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_comparison);
 }
 
-static SpnAST *parse_comparison(SpnParser *p)
+static SpnHashMap *parse_comparison(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = {
-		SPN_TOK_EQUAL,
-		SPN_TOK_NOTEQ,
-		SPN_TOK_LESS,
-		SPN_TOK_GREATER,
-		SPN_TOK_LEQ,
-		SPN_TOK_GEQ
+	static const TokenAndNode tokens[] = {
+		{ "==", "==" },
+		{ "!=", "!=" },
+		{ "<",  "<", },
+		{ ">",  ">", },
+		{ "<=", "<=" },
+		{ ">=", ">=" }
 	};
 
-	static const enum spn_ast_node nodes[] = {
-		SPN_NODE_EQUAL,
-		SPN_NODE_NOTEQ,
-		SPN_NODE_LESS,
-		SPN_NODE_GREATER,
-		SPN_NODE_LEQ,
-		SPN_NODE_GEQ
-	};
-
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_bitwise_or);
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_bitwise_or);
 }
 
-static SpnAST *parse_bitwise_or(SpnParser *p)
+static SpnHashMap *parse_bitwise_or(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = { SPN_TOK_BITOR };
-	static const enum spn_ast_node nodes[] = { SPN_NODE_BITOR };
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_bitwise_xor);
+	static const TokenAndNode tokens[] = { { "|", "bit_or" } };
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_bitwise_xor);
 }
 
-static SpnAST *parse_bitwise_xor(SpnParser *p)
+static SpnHashMap *parse_bitwise_xor(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = { SPN_TOK_XOR };
-	static const enum spn_ast_node nodes[] = { SPN_NODE_BITXOR };
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_bitwise_and);
+	static const TokenAndNode tokens[] = { { "^", "bit_xor" } };
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_bitwise_and);
 }
 
-static SpnAST *parse_bitwise_and(SpnParser *p)
+static SpnHashMap *parse_bitwise_and(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = { SPN_TOK_BITAND };
-	static const enum spn_ast_node nodes[] = { SPN_NODE_BITAND };
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_shift);
+	static const TokenAndNode tokens[] = { { "&", "bit_and" } };
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_shift);
 }
 
-static SpnAST *parse_shift(SpnParser *p)
+static SpnHashMap *parse_shift(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = {
-		SPN_TOK_SHL,
-		SPN_TOK_SHR
+	static const TokenAndNode tokens[] = {
+		{ "<<", "<<" },
+		{ ">>", ">>" }
 	};
 
-	static const enum spn_ast_node nodes[] = {
-		SPN_NODE_SHL,
-		SPN_NODE_SHR
-	};
-
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_additive);
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_additive);
 }
 
-static SpnAST *parse_additive(SpnParser *p)
+static SpnHashMap *parse_additive(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = {
-		SPN_TOK_PLUS,
-		SPN_TOK_MINUS
+	static const TokenAndNode tokens[] = {
+		{ "+", "+" },
+		{ "-", "-" }
 	};
 
-	static const enum spn_ast_node nodes[] = {
-		SPN_NODE_ADD,
-		SPN_NODE_SUB
-	};
-
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_multiplicative);
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_multiplicative);
 }
 
-static SpnAST *parse_multiplicative(SpnParser *p)
+static SpnHashMap *parse_multiplicative(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = {
-		SPN_TOK_MUL,
-		SPN_TOK_DIV,
-		SPN_TOK_MOD
+	static const TokenAndNode tokens[] = {
+		{ "*", "*"   },
+		{ "/", "/"   },
+		{ "%", "mod" }
 	};
 
-	static const enum spn_ast_node nodes[] = {
-		SPN_NODE_MUL,
-		SPN_NODE_DIV,
-		SPN_NODE_MOD
-	};
-
-	return parse_binexpr_leftassoc(p, toks, nodes, COUNT(toks), parse_prefix);
+	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_prefix);
 }
 
-static SpnAST *parse_prefix(SpnParser *p)
+static SpnHashMap *parse_prefix(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = {
-		SPN_TOK_INCR,
-		SPN_TOK_DECR,
-		SPN_TOK_PLUS,
-		SPN_TOK_MINUS,
-		SPN_TOK_LOGNOT,
-		SPN_TOK_BITNOT,
-		SPN_TOK_TYPEOF
+	static const TokenAndNode tokens[] = {
+		{ "++",     "pre_inc"  },
+		{ "--",     "pre_dec"  },
+		{ "+",      "un_plus"  },
+		{ "-",      "un_minus" },
+		{ "!",      "not"      },
+		{ "not",    "not"      },
+		{ "~",      "bit_not"  },
+		{ "typeof", "typeof"   }
 	};
 
-	static const enum spn_ast_node nodes[] = {
-		SPN_NODE_PREINCRMT,
-		SPN_NODE_PREDECRMT,
-		SPN_NODE_UNPLUS,
-		SPN_NODE_UNMINUS,
-		SPN_NODE_LOGNOT,
-		SPN_NODE_BITNOT,
-		SPN_NODE_TYPEOF
-	};
+	SpnHashMap *child, *ast;
+	size_t index;
+	SpnToken *op = accept_multi(p, tokens, COUNT(tokens), &index);
 
-	SpnAST *operand, *ast;
-	int idx = spn_accept_multi(p, toks, COUNT(toks));
-	if (idx < 0) {
+	if (op == NULL) {
 		return parse_postfix(p);
 	}
 
 	/* right recursion for right-associative operators */
-	operand = parse_prefix(p);
-	if (operand == NULL) {	/* error */
+	child = parse_prefix(p);
+	if (child == NULL) { /* error */
 		return NULL;
 	}
 
-	ast = spn_ast_new(nodes[idx], p->lineno);
-	ast->left = operand;
+	ast = ast_new(tokens[index].node, op->location);
+	ast_set_child_xfer(ast, "right", child);
 
 	return ast;
 }
 
-static SpnAST *parse_postfix(SpnParser *p)
+static SpnHashMap *parse_postfix(SpnParser *p)
 {
-	static const enum spn_lex_token toks[] = {
-		SPN_TOK_INCR,
-		SPN_TOK_DECR,
-		SPN_TOK_LBRACKET,
-		SPN_TOK_LPAREN,
-		SPN_TOK_DOT,
+	/* XXX: beware of the order of these tokens and nodes!
+	 * their index is used later on to distinguish between them
+	 */
+	static const TokenAndNode tokens[] = {
+		{ "++", "post_inc"  },
+		{ "--", "post_dec"  },
+		{ "[",  "subscript" },
+		{ ".",  "memberof"  },
+		{ "(",  "call"      }
 	};
 
-	static const enum spn_ast_node nodes[] = {
-		SPN_NODE_POSTINCRMT,
-		SPN_NODE_POSTDECRMT,
-		SPN_NODE_SUBSCRIPT,
-		SPN_NODE_FUNCCALL,
-		SPN_NODE_MEMBEROF,
-	};
+	size_t index;
+	SpnToken *op;
 
-	SpnAST *ast;
-	int idx;
-
-	ast = parse_term(p);
+	SpnHashMap *ast = parse_term(p);
 	if (ast == NULL) {	/* error */
 		return NULL;
 	}
 
 	/* iteration instead of left recursion - we want to terminate */
-	while ((idx = spn_accept_multi(p, toks, COUNT(toks))) >= 0) {
-		SpnAST *tmp = spn_ast_new(nodes[idx], p->lineno);
+	while ((op = accept_multi(p, tokens, COUNT(tokens), &index)) != NULL) {
+		SpnHashMap *tmp = ast_new(tokens[index].node, op->location);
 
-		switch (toks[idx]) {
-		case SPN_TOK_INCR:
-		case SPN_TOK_DECR:
-			/* Postincrement, postdecrement */
-			tmp->left = ast;
+		/* XXX - here be dragons - evil magic number 'index' is used! It's
+		 * just the index of the token in the above set of postfix operators.
+		 */
+		switch (index) {
+		case 0: /* postincrement */
+		case 1: /* postdecrement */
+			ast_set_child_xfer(tmp, "left", ast);
 			break;
-		case SPN_TOK_LBRACKET: {
-			/* Array indexing */
-			SpnAST *expr = parse_expr(p);
+		case 2: {
+			/* Array or hashmap indexing */
+			SpnHashMap *expr = parse_expr(p);
 			if (expr == NULL) { /* error  */
-				spn_ast_free(ast);
-				spn_ast_free(tmp);
+				spn_object_release(ast);
+				spn_object_release(tmp);
 				return NULL;
 			}
 
-			tmp->left = ast;
-			tmp->right = expr;
+			ast_set_child_xfer(tmp, "object", ast);
+			ast_set_child_xfer(tmp, "index", expr);
 
-			if (!spn_accept(p, SPN_TOK_RBRACKET)) {
+			if (accept_token_string(p, "]") == NULL) {
 				/* error: expected closing bracket */
-				spn_parser_error(p, "expected `]' after expression in array subscript", NULL);
-				spn_value_release(&p->curtok.val);
-				/* this frees ast and expr as well */
-				spn_ast_free(tmp);
+				parser_error(p, "expected ']' after index in array subscript", NULL);
+				spn_object_release(tmp);
 				return NULL;
 			}
 
 			break;
 		}
-		case SPN_TOK_DOT: {
-			/* Property accessor */
-			SpnAST *ident;
+		case 3: {
+			/* Property accessor, dot notation */
+			SpnToken *ident;
+			SpnValue namestring;
 
-			if (p->curtok.tok != SPN_TOK_IDENT) { /* error: expected identifier as member */
-				spn_parser_error(p, "expected identifier after '.' operator", NULL);
-				spn_ast_free(ast);
-				spn_ast_free(tmp);
+			if ((ident = accept_token_type(p, SPN_TOKEN_WORD)) == NULL) {
+				/* error: expected identifier as member */
+				parser_error(p, "expecting property name after '.' operator", NULL);
+				spn_object_release(ast);
+				spn_object_release(tmp);
 				return NULL;
 			}
 
-			ident = parse_term(p);
+			/* do not check for reserved words explicitly
+			 * -- in property names, they are allowed.
+			 */
 
-			if (ident == NULL) { /* error */
-				spn_ast_free(ast);
-				spn_ast_free(tmp);
-				return NULL;
-			}
+			ast_set_child_xfer(tmp, "object", ast);
 
-			tmp->left = ast;
-			tmp->right = ident;
+			namestring = makestring(ident->value);
+			ast_set_property(tmp, "name", &namestring);
+			spn_value_release(&namestring);
 
 			break;
 		}
-		case SPN_TOK_LPAREN:
+		case 4: {
 			/* Function call */
-			tmp->left = ast;
+			ast_set_child_xfer(tmp, "func", ast);
 
-			if (p->curtok.tok != SPN_TOK_RPAREN) {
-				SpnAST *arglist = parse_call_args(p);
+			while (!accept_token_string(p, ")")) {
+				SpnHashMap *param = parse_expr(p);
 
-				if (arglist == NULL) {
-					spn_ast_free(tmp); /* this frees `ast' too */
+				if (param == NULL) {
+					spn_object_release(tmp); /* this frees 'ast' too */
 					return NULL;
 				}
 
-				tmp->right = arglist;
-			}
+				ast_push_child_xfer(tmp, param);
 
-			if (!spn_accept(p, SPN_TOK_RPAREN)) {
-				/* error: expected closing parenthesis */
-				spn_parser_error(p, "expected ')' after expression in function call", NULL);
-				spn_value_release(&p->curtok.val);
-				/* this frees ast and arglist as well */
-				spn_ast_free(tmp);
-				return NULL;
+				/* comma ',' or closing parenthesis ')' must follow */
+				if (accept_token_string(p, ",")) {
+					if (is_at_token(p, ")")) {
+						parser_error(p, "trailing comma after last function argument", NULL);
+						spn_object_release(tmp);
+						return NULL;
+					}
+				} else if (!is_at_token(p, ")")) {
+					parser_error(p, "expecting ',' or ')' after function argument", NULL);
+					spn_object_release(tmp); /* this frees ast and param */
+					return NULL;
+				}
 			}
 
 			break;
+		}
 		default:
 			SHANT_BE_REACHED();
 		}
@@ -801,340 +902,343 @@ static SpnAST *parse_postfix(SpnParser *p)
 	return ast;
 }
 
-static SpnAST *parse_term(SpnParser *p)
+static SpnHashMap *parse_term(SpnParser *p)
 {
-	SpnAST *ast;
+	SpnToken *token;
 
-	switch (p->curtok.tok) {
-	case SPN_TOK_LPAREN:
-		spn_lex(p);
-
-		ast = parse_expr(p);
+	/* Parenthesized expression */
+	if (accept_token_string(p, "(")) {
+		SpnHashMap *ast = parse_expr(p);
 		if (ast == NULL) {
 			return NULL;
 		}
 
-		if (!spn_accept(p, SPN_TOK_RPAREN)) {
-			spn_parser_error(p, "expected ')' after parenthesized expression", NULL);
-			spn_value_release(&p->curtok.val);
-			spn_ast_free(ast);
+		if (accept_token_string(p, ")") == NULL) {
+			parser_error(p, "expecting ')' after parenthesized expression", NULL);
+			spn_object_release(ast);
 			return NULL;
 		}
 
 		return ast;
-	case SPN_TOK_LBRACKET:
+	}
+
+	/* Array literal */
+	if (is_at_token(p, "[")) {
 		return parse_array_literal(p);
-	case SPN_TOK_LBRACE:
+	}
+
+	/* Hashmap literal */
+	if (is_at_token(p, "{")) {
 		return parse_hashmap_literal(p);
-	case SPN_TOK_ARGV: {
-		spn_lex(p);
-		if (p->error) {
-			return NULL;
-		}
-
-		return spn_ast_new(SPN_NODE_ARGV, p->lineno);
 	}
-	case SPN_TOK_FUNCTION:
-		/* only allow function expressions in an expression */
-		return parse_function(p, 0);
-	case SPN_TOK_IDENT:
-		ast = spn_ast_new(SPN_NODE_IDENT, p->lineno);
-		ast->name = stringvalue(&p->curtok.val);
 
-		spn_lex(p);
-		if (p->error) {
-			spn_ast_free(ast);
-			return NULL;
-		}
+	/* Function expression */
+	if (is_at_token(p, "function")) {
+		return parse_function(p, 0); /* parse function expression */
+	}
 
-		return ast;
-	case SPN_TOK_TRUE:
-	case SPN_TOK_FALSE: {
-		int bval = p->curtok.tok == SPN_TOK_TRUE ? 1 : 0;
+	/* 'argv', argument vector */
+	if ((token = accept_token_string(p, "argv")) != NULL) {
+		return ast_new("argv", token->location);
+	}
 
-		spn_lex(p);
-		if (p->error) {
-			return NULL;
-		}
+	/* literal nil */
+	if ((token = accept_token_string(p, "nil"))  != NULL
+	 || (token = accept_token_string(p, "null")) != NULL) {
+		return ast_new("literal", token->location); /* 'value' is nil by default */
+	}
 
-		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value = makebool(bval);
+	/* Boolean literals */
+	if ((token = accept_token_string(p, "true")) != NULL) {
+		SpnHashMap *ast = ast_new("literal", token->location);
+		ast_set_property(ast, "value", &spn_trueval);
 		return ast;
 	}
-	case SPN_TOK_NIL:
-		spn_lex(p);
-		if (p->error) {
-			return NULL;
-		}
 
-		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value = spn_nilval;
+	if ((token = accept_token_string(p, "false")) != NULL) {
+		SpnHashMap *ast = ast_new("literal", token->location);
+		ast_set_property(ast, "value", &spn_falseval);
 		return ast;
-	case SPN_TOK_INT:
-	case SPN_TOK_FLOAT:
-	case SPN_TOK_STR:
-		ast = spn_ast_new(SPN_NODE_LITERAL, p->lineno);
-		ast->value = p->curtok.val;
+	}
 
-		spn_lex(p);
-		if (p->error) {
-			spn_ast_free(ast);
-			return NULL;
-		}
+	/* Identifiers/names for variables, global and functions
+	 * This needs to come after we have tested for each valid
+	 * word (i. e. nil, boolean and function literals; argv),
+	 * since this 'jolly joker' call catches *all* word-like tokens.
+	 */
+	if ((token = accept_token_type(p, SPN_TOKEN_WORD)) != NULL) {
+		SpnHashMap *ast;
+		SpnValue name;
 
-		return ast;
-	default:
-		{
-			int tok = p->curtok.tok;
+		if (spn_token_is_reserved(token->value)) {
 			const void *args[1];
-			args[0] = &tok;
-			spn_parser_error(p, "unexpected token %i", args);
-			spn_value_release(&p->curtok.val);
+			args[0] = token->value;
+			parser_error(p, "'%s' is a keyword and cannot be a variable name", args);
 			return NULL;
 		}
+
+		ast = ast_new("ident", token->location);
+		name = makestring(token->value);
+		ast_set_property(ast, "name", &name);
+		spn_value_release(&name);
+
+		return ast;
 	}
+
+	/* Integer literal, which may be a character */
+	if ((token = accept_token_type(p, SPN_TOKEN_INT))  != NULL
+	 || (token = accept_token_type(p, SPN_TOKEN_CHAR)) != NULL) {
+		long n = spn_token_to_integer(token);
+		SpnValue val = makeint(n);
+		SpnHashMap *ast = ast_new("literal", token->location);
+		ast_set_property(ast, "value", &val);
+		return ast;
+	}
+
+	/* Floating-point literal */
+	if ((token = accept_token_type(p, SPN_TOKEN_FLOAT)) != NULL) {
+		double x = strtod(token->value, NULL);
+		SpnValue val = makefloat(x);
+		SpnHashMap *ast = ast_new("literal", token->location);
+		ast_set_property(ast, "value", &val);
+		return ast;
+	}
+
+	if ((token = accept_token_type(p, SPN_TOKEN_STRING)) != NULL) {
+		size_t len;
+		char *unescaped = spn_unescape_string_literal(token->value, &len);
+		SpnValue val = spn_makestring_nocopy_len(unescaped, len, 1);
+		SpnHashMap *ast = ast_new("literal", token->location);
+		ast_set_property(ast, "value", &val);
+		spn_value_release(&val);
+		return ast;
+	}
+
+	/* otherwise, we've got either an unexpected token,
+	 * or a premature end-of-input condition
+	 */
+	if (is_at_eof(p)) {
+		parser_error(p, "unexpected end of input", NULL);
+	} else {
+		const void *args[1];
+		args[0] = p->tokens[p->cursor].value;
+		parser_error(p, "unexpected '%s'", args);
+	}
+
+	return NULL;
 }
 
-static SpnAST *parse_array_literal(SpnParser *p)
+static SpnHashMap *parse_array_literal(SpnParser *p)
 {
-	SpnAST *ast = spn_ast_new(SPN_NODE_ARRAY_LITERAL, p->lineno);
-	SpnAST *tail = ast;
+	SpnHashMap *ast;
+	SpnToken *lbracket = accept_token_string(p, "[");
+	assert(lbracket != NULL);
 
-	/* skip leading '[' */
-	spn_lex(p);
+	ast = ast_new("array", lbracket->location);
 
-	while (!spn_accept(p, SPN_TOK_RBRACKET)) {
+	/* 'while we are not at ]' is enough for the condition, since a
+	 * premature end-of-input condition would be catched by parse_expr().
+	 */
+	while (!accept_token_string(p, "]")) {
 		/* parse value */
-		SpnAST *expr = parse_expr(p);
+		SpnHashMap *expr = parse_expr(p);
 		if (expr == NULL) {
-			spn_ast_free(ast);
+			spn_object_release(ast);
 			return NULL;
 		}
 
-		/* append it to the end of the link list */
-		if (tail == ast && tail->left == NULL) {
-			tail->left = expr;
-		} else {
-			SpnAST *node = spn_ast_new(SPN_NODE_ARRAY_LITERAL, p->lineno);
-			node->left = expr;
-			tail->right = node;
-			tail = node;
-		}
+		ast_push_child_xfer(ast, expr);
 
-		if (spn_accept(p, SPN_TOK_COMMA)) {
-			if (p->curtok.tok == SPN_TOK_RBRACKET) {
-				spn_parser_error(p, "trailing comma in array literal is prohibited", NULL);
-				spn_ast_free(ast);
+		/* comma ',' or closing bracket ']' must follow */
+		if (accept_token_string(p, ",")) {
+			if (is_at_token(p, "]")) {
+				parser_error(p, "trailing comma after last array element", NULL);
+				spn_object_release(ast);
 				return NULL;
 			}
-		} else {
-			if (p->curtok.tok != SPN_TOK_RBRACKET) {
-				spn_value_release(&p->curtok.val);
-				spn_parser_error(p, "expected ',' or ']' after value in array literal", NULL);
-				spn_ast_free(ast);
-				return NULL;
-			}
+		} else if (!is_at_token(p, "]")) {
+			parser_error(p, "expecting ',' or ']' after array element", NULL);
+			spn_object_release(ast);
+			return NULL;
 		}
 	}
 
 	return ast;
 }
 
-static SpnAST *parse_hashmap_literal(SpnParser *p)
+static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 {
-	SpnAST *ast = spn_ast_new(SPN_NODE_HASHMAP_LITERAL, p->lineno);
-	SpnAST *tail = ast;
+	SpnHashMap *ast;
+	SpnToken *lbrace = accept_token_string(p, "{");
 
-	/* skip '{' */
-	spn_lex(p);
+	assert(lbrace != NULL);
 
-	while (!spn_accept(p, SPN_TOK_RBRACE)) {
-		SpnAST *pair, *key, *val;
+	ast = ast_new("hashmap", lbrace->location);
 
-		/* parse key  */
+	while (!accept_token_string(p, "}")) {
+		SpnHashMap *key, *val, *pair;
+		SpnToken *colon;
+
+		/* parse key */
 		key = parse_expr(p);
 		if (key == NULL) {
-			spn_ast_free(ast);
+			spn_object_release(ast);
 			return NULL;
 		}
 
-		if (!spn_accept(p, SPN_TOK_COLON)) {
-			spn_ast_free(key);
-			spn_ast_free(ast);
-			spn_value_release(&p->curtok.val);
-			spn_parser_error(p, "expecting ':' between hashmap key and value", NULL);
+		if ((colon = accept_token_string(p, ":")) == NULL) {
+			parser_error(p, "expecting ':' between hashmap key and value", NULL);
+			spn_object_release(key);
+			spn_object_release(ast);
 			return NULL;
 		}
 
 		val = parse_expr(p);
 		if (val == NULL) {
-			spn_ast_free(key);
-			spn_ast_free(ast);
+			spn_object_release(key);
+			spn_object_release(ast);
 			return NULL;
 		}
 
 		/* construct key-value pair */
-		pair = spn_ast_new(SPN_NODE_HASHMAP_KVPAIR, p->lineno);
-		pair->left  = key;
-		pair->right = val;
+		pair = ast_new("kvpair", colon->location);
+		ast_set_child_xfer(pair, "key", key);
+		ast_set_child_xfer(pair, "value", val);
+		ast_push_child_xfer(ast, pair);
 
-		/* and append it to the end of the link list */
-		if (tail == ast && tail->left == NULL) {
-			tail->left = pair;
-		} else {
-			SpnAST *node = spn_ast_new(SPN_NODE_HASHMAP_LITERAL, p->lineno);
-			node->left = pair;
-			tail->right = node;
-			tail = node;
-		}
-
-		if (spn_accept(p, SPN_TOK_COMMA)) {
-			if (p->curtok.tok == SPN_TOK_RBRACE) {
-				spn_ast_free(ast);
-				spn_parser_error(p, "trailing comma in hashmap literal is prohibited", NULL);
+		/* comma ',' or closing brace '}' must follow */
+		if (accept_token_string(p, ",")) {
+			if (is_at_token(p, "}")) {
+				parser_error(p, "trailing comma after last key-value pair", NULL);
+				spn_object_release(ast);
 				return NULL;
 			}
-		} else {
-			if (p->curtok.tok != SPN_TOK_RBRACE) {
-				spn_value_release(&p->curtok.val);
-				spn_ast_free(ast);
-				spn_parser_error(p, "expected ',' or '}' after value in hashmap literal", NULL);
-				return NULL;
-			}
+		} else if (!is_at_token(p, "}")) {
+			parser_error(p, "expecting ',' or '}' after key-value pair", NULL);
+			spn_object_release(ast); /* this frees ast and param */
+			return NULL;
 		}
 	}
 
 	return ast;
 }
 
-/* this also makes a linked list */
-static SpnAST *parse_decl_args(SpnParser *p)
+static SpnArray *parse_decl_args(SpnParser *p)
 {
-	SpnAST *ast = NULL, *res;
-	SpnString *name = stringvalue(&p->curtok.val);
+	SpnArray *array;
 
-	if (!spn_accept(p, SPN_TOK_IDENT)) {
-		spn_parser_error(p, "expected identifier in function argument list", NULL);
-		spn_value_release(&p->curtok.val);
+	if (accept_token_string(p, "(") == NULL) {
+		parser_error(p, "expecting '(' in function definition", NULL);
 		return NULL;
 	}
 
-	ast = spn_ast_new(SPN_NODE_DECLARGS, p->lineno);
-	ast->name = name;
+	array = spn_array_new();
 
-	res = ast; /* preserve head */
+	while (!accept_token_string(p, ")")) {
+		SpnValue param_name_val;
 
-	while (spn_accept(p, SPN_TOK_COMMA)) {
-		SpnAST *tmp;
-		SpnString *name = objvalue(&p->curtok.val);
+		SpnToken *param_name = accept_token_type(p, SPN_TOKEN_WORD);
 
-		if (!spn_accept(p, SPN_TOK_IDENT)) {
-			spn_parser_error(p, "expected identifier in function argument list", NULL);
-			spn_value_release(&p->curtok.val);
-			spn_ast_free(ast);
+		if (param_name == NULL) {
+			parser_error(p, "expecting name of function parameter", NULL);
+			spn_object_release(array);
 			return NULL;
 		}
 
-		tmp = spn_ast_new(SPN_NODE_DECLARGS, p->lineno);
-		tmp->name = name;   /* this is the actual name   */
-		ast->left = tmp;    /* this builds the link list */
-		ast = tmp;          /* update head               */
-	}
-
-	return res;
-}
-
-static SpnAST *parse_call_args(SpnParser *p)
-{
-	SpnAST *expr, *ast;
-
-	expr = parse_expr(p);
-	if (expr == NULL) {
-		return NULL; /* fail */
-	}
-
-	ast = spn_ast_new(SPN_NODE_CALLARGS, p->lineno);
-	ast->right = expr;
-
-	while (spn_accept(p, SPN_TOK_COMMA)) {
-		SpnAST *right = parse_expr(p);
-
-		if (right == NULL) { /* fail */
-			spn_ast_free(ast);
+		if (spn_token_is_reserved(param_name->value)) {
+			const void *args[1];
+			args[0] = param_name->value;
+			parser_error(p, "'%s' is a keyword and cannot be a parameter name", args);
+			spn_object_release(array);
 			return NULL;
-		} else {
-			SpnAST *tmp = spn_ast_new(SPN_NODE_CALLARGS, p->lineno);
-			tmp->left = ast;    /* this node */
-			tmp->right = right; /* next node */
-			ast = tmp;          /* update head */
+		}
+
+		param_name_val = makestring(param_name->value);
+		spn_array_push(array, &param_name_val);
+		spn_value_release(&param_name_val);
+
+		/* comma ',' or closing parenthesis ')' must follow */
+		if (accept_token_string(p, ",")) {
+			if (is_at_token(p, ")")) {
+				parser_error(p, "trailing comma after last function argument", NULL);
+				spn_object_release(array);
+				return NULL;
+			}
+		} else if (!is_at_token(p, ")")) {
+			parser_error(p, "expecting ',' or ')' after function argument", NULL);
+			spn_object_release(array); /* this frees ast and param */
+			return NULL;
 		}
 	}
 
-	return ast;
+	return array;
 }
 
-static SpnAST *parse_binexpr_rightassoc(
+static SpnHashMap *parse_binexpr_rightassoc(
 	SpnParser *p,
-	const enum spn_lex_token toks[],
-	const enum spn_ast_node nodes[],
+	const TokenAndNode tokens[],
 	size_t n,
-	SpnAST *(*subexpr)(SpnParser *)
+	SpnHashMap *(*subexpr)(SpnParser *)
 )
 {
-	int idx;
-	SpnAST *ast, *right, *tmp;
+	size_t index;
+	SpnHashMap *left, *right, *node;
+	SpnToken *op;
 
-	ast = subexpr(p);
-	if (ast == NULL) {
+	left = subexpr(p);
+	if (left == NULL) { /* error */
 		return NULL;
 	}
 
-	idx = spn_accept_multi(p, toks, n);
-	if (idx < 0) {
-		return ast;
+	op = accept_multi(p, tokens, n, &index);
+	if (op == NULL) {
+		return left;
 	}
 
 	/* apply right recursion */
-	right = parse_binexpr_rightassoc(p, toks, nodes, n, subexpr);
+	right = parse_binexpr_rightassoc(p, tokens, n, subexpr);
 
-	if (right == NULL) {
-		spn_ast_free(ast);
+	if (right == NULL) { /* error */
+		spn_object_release(left);
 		return NULL;
 	}
 
-	tmp = spn_ast_new(nodes[idx], p->lineno);
-	tmp->left = ast;
-	tmp->right = right;
+	node = ast_new(tokens[index].node, op->location);
+	ast_set_child_xfer(node, "left", left);
+	ast_set_child_xfer(node, "right", right);
 
-	return tmp;
+	return node;
 }
 
-static SpnAST *parse_binexpr_leftassoc(
+static SpnHashMap *parse_binexpr_leftassoc(
 	SpnParser *p,
-	const enum spn_lex_token toks[],
-	const enum spn_ast_node nodes[],
+	const TokenAndNode tokens[],
 	size_t n,
-	SpnAST *(*subexpr)(SpnParser *)
+	SpnHashMap *(*subexpr)(SpnParser *)
 )
 {
-	int idx;
-	SpnAST *ast = subexpr(p);
-	if (ast == NULL) {
+	size_t index;
+	SpnToken *op;
+
+	SpnHashMap *ast = subexpr(p);
+	if (ast == NULL) { /* error */
 		return NULL;
 	}
 
 	/* iteration instead of left recursion (which wouldn't terminate) */
-	while ((idx = spn_accept_multi(p, toks, n)) >= 0) {
-		SpnAST *tmp, *right = subexpr(p);
+	while ((op = accept_multi(p, tokens, n, &index)) != NULL) {
+		SpnHashMap *tmp;
+		SpnHashMap *right = subexpr(p);
 
 		if (right == NULL) {
-			spn_ast_free(ast);
+			spn_object_release(ast);
 			return NULL;
 		}
 
-		tmp = spn_ast_new(nodes[idx], p->lineno);
-		tmp->left = ast;
-		tmp->right = right;
+		tmp = ast_new(tokens[index].node, op->location);
+		ast_set_child_xfer(tmp, "left", ast);
+		ast_set_child_xfer(tmp, "right", right);
+
 		ast = tmp;
 	}
 
@@ -1144,23 +1248,23 @@ static SpnAST *parse_binexpr_leftassoc(
 /**************
  * Statements *
  **************/
-static SpnAST *parse_if(SpnParser *p)
+
+static SpnHashMap *parse_if(SpnParser *p)
 {
-	SpnAST *cond, *br_then, *br_else, *br, *ast;
-	/* skip `if' */
-	if (!spn_lex(p)) {
-		spn_parser_error(p, "expected condition after `if'", NULL);
-		return NULL;
-	}
+	SpnHashMap *cond, *br_then, *br_else, *ast;
+
+	/* skip 'if' */
+	SpnToken *token = accept_token_string(p, "if");
+	assert(token != NULL);
 
 	cond = parse_expr(p);
 	if (cond == NULL) {
 		return NULL;
 	}
 
-	br_then = parse_block(p);
+	br_then = parse_block_expecting(p, "if statement");
 	if (br_then == NULL) {
-		spn_ast_free(cond);
+		spn_object_release(cond);
 		return NULL;
 	}
 
@@ -1172,246 +1276,220 @@ static SpnAST *parse_if(SpnParser *p)
 	 * common and safe enough construct to be allowed as an exception.
 	 */
 	br_else = NULL;
-	if (spn_accept(p, SPN_TOK_ELSE)) {
-		if (p->curtok.tok == SPN_TOK_LBRACE) {
+	if (accept_token_string(p, "else")) {
+		if (is_at_token(p, "{")) {
 			br_else = parse_block(p);
-		} else if (p->curtok.tok == SPN_TOK_IF) {
+		} else if (is_at_token(p, "if")) {
 			br_else = parse_if(p);
 		} else {
-			spn_parser_error(p, "expected block or 'if' after 'else'", NULL);
-			spn_ast_free(cond);
-			spn_ast_free(br_then);
+			parser_error(p, "expecting block or 'if' in 'else' branch", NULL);
+			spn_object_release(cond);
+			spn_object_release(br_then);
 			return NULL;
 		}
 
-		if (br_else == NULL) {
-			spn_ast_free(cond);
-			spn_ast_free(br_then);
+		if (br_else == NULL) { /* error while parsing 'else' clause */
+			spn_object_release(cond);
+			spn_object_release(br_then);
 			return NULL;
 		}
 	}
 
-	br = spn_ast_new(SPN_NODE_BRANCHES, p->lineno);
-	br->left = br_then;
-	br->right = br_else;
+	ast = ast_new("if", token->location);
 
-	ast = spn_ast_new(SPN_NODE_IF, p->lineno);
-	ast->left = cond;
-	ast->right = br;
+	ast_set_child_xfer(ast, "cond", cond);
+	ast_set_child_xfer(ast, "then", br_then);
+
+	if (br_else) {
+		ast_set_child_xfer(ast, "else", br_else);
+	}
 
 	return ast;
 }
 
-static SpnAST *parse_while(SpnParser *p)
+static SpnHashMap *parse_while(SpnParser *p)
 {
-	SpnAST *cond, *body, *ast;
+	SpnHashMap *cond, *body, *ast;
 
-	/* skip `while' */
-	if (!spn_lex(p)) {
-		spn_parser_error(p, "expected condition after `while'", NULL);
-		return NULL;
-	}
+	/* skip 'while' */
+	SpnToken *token = accept_token_string(p, "while");
+	assert(token != NULL);
 
 	cond = parse_expr(p);
 	if (cond == NULL) {
 		return NULL;
 	}
 
-	body = parse_block(p);
+	body = parse_block_expecting(p, "body of while loop");
 	if (body == NULL) {
-		spn_ast_free(cond);
+		spn_object_release(cond);
 		return NULL;
 	}
 
-	ast = spn_ast_new(SPN_NODE_WHILE, p->lineno);
-	ast->left = cond;
-	ast->right = body;
-
+	ast = ast_new("while", token->location);
+	ast_set_child_xfer(ast, "cond", cond);
+	ast_set_child_xfer(ast, "body", body);
 	return ast;
 }
 
-static SpnAST *parse_do(SpnParser *p)
+static SpnHashMap *parse_do(SpnParser *p)
 {
-	SpnAST *cond, *body, *ast;
+	SpnHashMap *cond, *body, *ast;
 
-	/* skip `do' */
-	if (!spn_lex(p)) {
-		spn_parser_error(p, "expected loop body after `do'", NULL);
-		return NULL;
-	}
+	/* skip 'do' */
+	SpnToken *token = accept_token_string(p, "do");
+	assert(token != NULL);
 
-	body = parse_block(p);
+	body = parse_block_expecting(p, "body of do-while loop");
 	if (body == NULL) {
 		return NULL;
 	}
 
 	/* expect "while expr;" */
-	if (!spn_accept(p, SPN_TOK_WHILE)) {
-		spn_parser_error(p, "expected `while' after body of do-while statement", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(body);
+	if (accept_token_string(p, "while") == NULL) {
+		parser_error(p, "expecting 'while' after body of do-while loop", NULL);
+		spn_object_release(body);
 		return NULL;
 	}
 
 	cond = parse_expr(p);
 	if (cond == NULL) {
-		spn_ast_free(body);
+		spn_object_release(body);
 		return NULL;
 	}
 
-	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after condition of do-while statement", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(body);
-		spn_ast_free(cond);
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expecting ';' after condition of do-while loop", NULL);
+		spn_object_release(body);
+		spn_object_release(cond);
 		return NULL;
 	}
 
-	ast = spn_ast_new(SPN_NODE_DO, p->lineno);
-	ast->left = cond;
-	ast->right = body;
-
+	ast = ast_new("do", token->location);
+	ast_set_child_xfer(ast, "cond", cond);
+	ast_set_child_xfer(ast, "body", body);
 	return ast;
 }
 
-static SpnAST *parse_for(SpnParser *p)
+static SpnHashMap *parse_for(SpnParser *p)
 {
-	SpnAST *init, *cond, *incr, *body, *h1, *h2, *h3, *ast;
+	SpnHashMap *ast, *cond, *incr, *body;
 	int parens = 0;
 
-	/* skip `for' */
-	if (!spn_lex(p)) {
-		spn_parser_error(p, "expected initializer after `for'", NULL);
-		return NULL;
-	}
+	/* skip 'for' */
+	SpnToken *token = accept_token_string(p, "for");
+	assert(token != NULL);
 
-	if (spn_accept(p, SPN_TOK_LPAREN)) {
+	ast = ast_new("for", token->location);
+
+	if (accept_token_string(p, "(")) {
 		parens = 1;
 	}
 
 	/* the initialization may be either an expression or a declaration */
-	if (p->curtok.tok == SPN_TOK_VAR) {
-		init = parse_vardecl(p);
+	if (is_at_token(p, "var") || is_at_token(p, "let")) {
+		SpnHashMap *init = parse_vardecl(p);
 
 		if (init == NULL) {
+			spn_object_release(ast);
 			return NULL;
 		}
+
+		ast_set_child_xfer(ast, "init", init);
 	} else {
-		init = parse_expr(p);
+		SpnHashMap *init = parse_expr(p);
 
 		if (init == NULL) {
+			spn_object_release(ast);
 			return NULL;
 		}
 
-		if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-			spn_parser_error(p, "expected `;' after initialization of for loop", NULL);
-			spn_value_release(&p->curtok.val);
-			spn_ast_free(init);
+		ast_set_child_xfer(ast, "init", init);
+
+		if (accept_token_string(p, ";") == NULL) {
+			parser_error(p, "expecting ';' after initialization of for loop", NULL);
+			spn_object_release(ast);
 			return NULL;
 		}
 	}
 
 	cond = parse_expr(p);
 	if (cond == NULL) {
-		spn_ast_free(init);
+		spn_object_release(ast);
 		return NULL;
 	}
 
-	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after condition of for loop", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(init);
-		spn_ast_free(cond);
+	ast_set_child_xfer(ast, "cond", cond);
+
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expecting ';' after condition of for loop", NULL);
+		spn_object_release(ast);
 		return NULL;
 	}
 
 	incr = parse_expr(p);
 	if (incr == NULL) {
-		spn_ast_free(init);
-		spn_ast_free(cond);
+		spn_object_release(ast);
 		return NULL;
 	}
 
-	if (parens && !spn_accept(p, SPN_TOK_RPAREN)) {
-		spn_parser_error(p, "expected ')' after for loop header", NULL);
-		spn_ast_free(init);
-		spn_ast_free(cond);
-		spn_ast_free(incr);
+	ast_set_child_xfer(ast, "increment", incr);
+
+	if (parens && accept_token_string(p, ")") == NULL) {
+		parser_error(p, "expecting ')' after for loop header", NULL);
+		spn_object_release(ast);
 		return NULL;
 	}
 
-	body = parse_block(p);
+	body = parse_block_expecting(p, "body of for loop");
 	if (body == NULL) {
-		spn_ast_free(init);
-		spn_ast_free(cond);
-		spn_ast_free(incr);
+		spn_object_release(ast);
 		return NULL;
 	}
 
-	/* linked list for the loop header */
-	h1 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-	h2 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-	h3 = spn_ast_new(SPN_NODE_FORHEADER, p->lineno);
-
-	h1->left = init;
-	h1->right = h2;
-	h2->left = cond;
-	h2->right = h3;
-	h3->left = incr;
-
-	ast = spn_ast_new(SPN_NODE_FOR, p->lineno);
-	ast->left = h1;
-	ast->right = body;
+	ast_set_child_xfer(ast, "body", body);
 
 	return ast;
 }
 
-static SpnAST *parse_break(SpnParser *p)
+static SpnHashMap *parse_break(SpnParser *p)
 {
-	/* skip `break' */
-	if (!spn_lex(p)) {
-		spn_parser_error(p, "expected `;' after `break'", NULL);
+	/* skip 'break' */
+	SpnToken *token = accept_token_string(p, "break");
+	assert(token != NULL);
+
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expecting ';' after 'break'", NULL);
 		return NULL;
 	}
 
-	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after `break'", NULL);
-		spn_value_release(&p->curtok.val);
-		return NULL;
-	}
-
-	return spn_ast_new(SPN_NODE_BREAK, p->lineno);
+	return ast_new("break", token->location);
 }
 
-static SpnAST *parse_continue(SpnParser *p)
+static SpnHashMap *parse_continue(SpnParser *p)
 {
-	/* skip `continue' */
-	if (!spn_lex(p)) {
-		spn_parser_error(p, "expected `;' after `continue'", NULL);
+	/* skip 'continue' */
+	SpnToken *token = accept_token_string(p, "continue");
+	assert(token != NULL);
+
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expecting ';' after 'continue'", NULL);
 		return NULL;
 	}
 
-	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after `continue'", NULL);
-		spn_value_release(&p->curtok.val);
-		return NULL;
-	}
-
-	return spn_ast_new(SPN_NODE_CONTINUE, p->lineno);
+	return ast_new("continue", token->location);
 }
 
-static SpnAST *parse_return(SpnParser *p)
+static SpnHashMap *parse_return(SpnParser *p)
 {
-	SpnAST *expr;
+	SpnHashMap *expr, *ast;
 
-	/* skip `return' */
-	if (!spn_lex(p)) {
-		spn_parser_error(p, "expected expression or `;' after `return'", NULL);
-		return NULL;
-	}
+	/* skip 'return' */
+	SpnToken *token = accept_token_string(p, "return");
+	assert(token != NULL);
 
-	if (spn_accept(p, SPN_TOK_SEMICOLON)) {
-		return spn_ast_new(SPN_NODE_RETURN, p->lineno); /* return without value */
+	if (accept_token_string(p, ";")) {
+		return ast_new("return", token->location); /* return without value */
 	}
 
 	expr = parse_expr(p);
@@ -1419,154 +1497,171 @@ static SpnAST *parse_return(SpnParser *p)
 		return NULL;
 	}
 
-	if (spn_accept(p, SPN_TOK_SEMICOLON)) {
-		SpnAST *ast = spn_ast_new(SPN_NODE_RETURN, p->lineno);
-		ast->left = expr;
-		return ast;
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expecting ';' after expression in return statement", NULL);
+		spn_object_release(expr);
+		return NULL;
 	}
 
-	spn_parser_error(p, "expected `;' after expression in return statement", NULL);
-	spn_ast_free(expr);
-
-	return NULL;
+	ast = ast_new("return", token->location);
+	ast_set_child_xfer(ast, "expr", expr);
+	return ast;
 }
 
 /* this builds a link list of comma-separated variable declarations */
-static SpnAST *parse_vardecl(SpnParser *p)
+static SpnHashMap *parse_vardecl(SpnParser *p)
 {
-	/* `ast' is the head of the list */
-	SpnAST *ast = NULL, *tail = NULL;
+	/* 'ast' is the head of the list */
+	SpnHashMap *ast;
 
-	/* skip "var" keyword */
-	spn_lex(p);
+	/* skip "var" or "let" keyword */
+	int is_at_var = is_at_token(p, "var");
+	SpnToken *var = accept_token_string(p, is_at_var ? "var" : "let");
+	assert(var != NULL);
+
+	ast = ast_new("vardecl", var->location);
 
 	do {
-		SpnString *name = stringvalue(&p->curtok.val);
-		SpnAST *expr = NULL, *tmp;
+		/* 'expr' is the optional initializer expression
+		 * 'child' is the node that actually contains the identifier
+		 * and the initialization expression.
+		 */
+		SpnHashMap *expr = NULL, *child;
+		SpnToken *ident = accept_token_type(p, SPN_TOKEN_WORD);
+		SpnValue identval;
 
-		if (!spn_accept(p, SPN_TOK_IDENT)) {
-			spn_parser_error(p, "expected identifier in variable declaration", NULL);
-			spn_value_release(&p->curtok.val);
+		if (ident == NULL) {
+			parser_error(p, "expected identifier in variable declaration", NULL);
+			spn_object_release(ast);
 			return NULL;
 		}
 
-		if (spn_accept(p, SPN_TOK_ASSIGN)) {
+		/* reserved keywords can't be used as variable or function names */
+		if (spn_token_is_reserved(ident->value)) {
+			const void *args[1];
+			args[0] = ident->value;
+			parser_error(p, "'%s' is a keyword and cannot be a variable name", args);
+			spn_object_release(ast);
+			return NULL;
+		}
+
+		/* the initializer expression is optional */
+		if (accept_token_string(p, "=")) {
 			expr = parse_expr(p);
 
 			if (expr == NULL) {
-				spn_object_release(name);
-				spn_ast_free(ast);
+				spn_object_release(ast);
 				return NULL;
 			}
 		}
 
-		tmp = spn_ast_new(SPN_NODE_VARDECL, p->lineno);
-		tmp->name = name;
-		tmp->left = expr;
+		/* set up single variable declaration node... */
+		child = ast_new("variable", ident->location);
 
-		if (ast == NULL) {
-			ast = tmp;
-		} else {
-			assert(tail != NULL); /* if I've got the logic right */
-			tail->right = tmp;
+		identval = makestring(ident->value);
+		ast_set_property(child, "name", &identval);
+		spn_value_release(&identval);
+
+		if (expr) {
+			ast_set_child_xfer(child, "init", expr);
 		}
 
-		tail = tmp;
-	} while (spn_accept(p, SPN_TOK_COMMA));
+		/* ...and add it to the parent */
+		ast_push_child_xfer(ast, child);
+	} while (accept_token_string(p, ","));
 
-	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after variable initialization", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(ast);
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expected ';' after variable declaration", NULL);
+		spn_object_release(ast);
 		return NULL;
 	}
 
 	return ast;
 }
 
-static SpnAST *parse_const(SpnParser *p)
+static SpnHashMap *parse_const(SpnParser *p)
 {
-	/* `ast' is the head of the list */
-	SpnAST *ast = NULL, *tail = NULL;
+	SpnHashMap *ast;
 
 	/* skip "const" or "global" keyword */
-	spn_lex(p);
+	int is_at_const = is_at_token(p, "const");
+	SpnToken *token = accept_token_string(p, is_at_const ? "const" : "global");
+	assert(token != NULL);
+
+	ast = ast_new("constdecl", token->location);
 
 	do {
-		SpnString *name;
-		SpnAST *expr, *tmp;
+		SpnHashMap *expr, *child;
+		SpnValue identval;
+		SpnToken *ident = accept_token_type(p, SPN_TOKEN_WORD);
 
-		if (p->curtok.tok != SPN_TOK_IDENT) {
-			spn_parser_error(p, "expected identifier in const declaration", NULL);
-			spn_value_release(&p->curtok.val);
+		if (ident == NULL) {
+			parser_error(p, "expected identifier in const declaration", NULL);
+			spn_object_release(ast);
 			return NULL;
 		}
 
-		name = stringvalue(&p->curtok.val);
-		spn_lex(p);
+		if (spn_token_is_reserved(ident->value)) {
+			const void *args[1];
+			args[0] = ident->value;
+			parser_error(p, "'%s' is a keyword and cannot be the name of a constant", args);
+			spn_object_release(ast);
+			return NULL;
+		}
 
-		if (!spn_accept(p, SPN_TOK_ASSIGN)) {
-			spn_parser_error(p, "expected `=' after identifier in const declaration", NULL);
-			spn_ast_free(ast);
+		if (accept_token_string(p, "=") == NULL) {
+			parser_error(p, "expected '=' after name of const declaration", NULL);
+			spn_object_release(ast);
 			return NULL;
 		}
 
 		expr = parse_expr(p);
 		if (expr == NULL) {
-			spn_object_release(name);
-			spn_ast_free(ast);
+			spn_object_release(ast);
 			return NULL;
 		}
 
-		tmp = spn_ast_new(SPN_NODE_CONST, p->lineno);
-		tmp->name = name;
-		tmp->left = expr;
+		child = ast_new("constant", ident->location);
 
-		if (ast == NULL) {
-			ast = tmp;
-		} else {
-			assert(tail != NULL);
-			tail->right = tmp;
-		}
+		identval = makestring(ident->value);
+		ast_set_property(child, "name", &identval);
+		spn_value_release(&identval);
 
-		tail = tmp;
-	} while (spn_accept(p, SPN_TOK_COMMA));
+		ast_set_child_xfer(child, "init", expr);
 
-	if (!spn_accept(p, SPN_TOK_SEMICOLON)) {
-		spn_parser_error(p, "expected `;' after constant initialization", NULL);
-		spn_value_release(&p->curtok.val);
-		spn_ast_free(ast);
+		ast_push_child_xfer(ast, child);
+	} while (accept_token_string(p, ","));
+
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expected ';' after constant initialization", NULL);
+		spn_object_release(ast);
 		return NULL;
 	}
 
 	return ast;
 }
 
-static SpnAST *parse_expr_stmt(SpnParser *p)
+static SpnHashMap *parse_expr_stmt(SpnParser *p)
 {
-	SpnAST *ast = parse_expr(p);
+	SpnHashMap *ast = parse_expr(p);
 	if (ast == NULL) {
 		return NULL;
 	}
 
-	if (spn_accept(p, SPN_TOK_SEMICOLON)) {
-		return ast;
-	}
-
-	spn_parser_error(p, "expected `;' after expression", NULL);
-	spn_value_release(&p->curtok.val);
-	spn_ast_free(ast);
-
-	return NULL;
-}
-
-static SpnAST *parse_empty(SpnParser *p)
-{
-	/* skip semicolon */
-	spn_lex(p);
-	if (p->error) {
+	if (accept_token_string(p, ";") == NULL) {
+		parser_error(p, "expected ';' after expression", NULL);
+		spn_object_release(ast);
 		return NULL;
 	}
 
-	return spn_ast_new(SPN_NODE_EMPTY, p->lineno);
+	return ast;
+}
+
+static SpnHashMap *parse_empty(SpnParser *p)
+{
+	/* skip semicolon */
+	SpnToken *semicolon = accept_token_string(p, ";");
+	assert(semicolon != NULL);
+
+	return ast_new("empty", semicolon->location);
 }

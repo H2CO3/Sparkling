@@ -6,12 +6,18 @@
  * Licensed under the 2-clause BSD License
  */
 
-(function() {
+(function () {
 	// Takes a JavaScript string, returns the index of
 	// the function representing the compiled program
 	var compile = Module.cwrap('jspn_compile', 'number', ['string']);
 
 	var compileExpr = Module.cwrap('jspn_compileExpr', 'number', ['string']);
+
+	var parse = Module.cwrap('jspn_parse', 'number', ['string']);
+
+	var parseExpr = Module.cwrap('jspn_parseExpr', 'number', ['string']);
+
+	var compileAST = Module.cwrap('jspn_compileAST', 'number', ['number']);
 
 	// Takes a function index and an array index.
 	// Returns the index of the value which is the result of calling the
@@ -27,7 +33,7 @@
 
 	// Given a JavaScript value, converts it to a Sparkling value
 	// and returns its referencing index
-	var addJSValue = function(val) {
+	var addJSValue = function (val) {
 		if (val === undefined || val === null) {
 			return addNil();
 		}
@@ -44,11 +50,11 @@
 
 	// Private helpers for addJSValue
 	var addNil = Module.cwrap('jspn_addNil', 'number', []);
-	var addBool = Module.cwrap('jspn_addBool', 'number', ['boolean']);
+	var addBool = Module.cwrap('jspn_addBool', 'number', ['number']);
 	var addNumber = Module.cwrap('jspn_addNumber', 'number', ['number']);
 	var addString = Module.cwrap('jspn_addString', 'number', ['string']);
 
-	var addObject = function(val) {
+	var addObject = function (val) {
 		if (val instanceof Array) {
 			return addArray(val);
 		} else if (val instanceof SparklingUserInfo) {
@@ -58,7 +64,7 @@
 		}
 	};
 
-	var addArray = function(val) {
+	var addArray = function (val) {
 		var length = val.length;
 		var i;
 		var index;
@@ -75,7 +81,7 @@
 		return result;
 	};
 
-	var addDictionary = function(val) {
+	var addDictionary = function (val) {
 		var keys = Object.keys(val);
 		var length = keys.length;
 		var i;
@@ -97,7 +103,7 @@
 		return result;
 	};
 
-	var addUserInfo = function(val) {
+	var addUserInfo = function (val) {
 		return val.index;
 	};
 
@@ -115,7 +121,7 @@
 	// this belongs to addFunction
 	var wrappedFunctions = [];
 
-	var addFunction = function(val) {
+	var addFunction = function (val) {
 		// optimization: if this function is a wrapper around
 		// a function that comes from Sparkling anyway, then
 		// just return its original index.
@@ -139,7 +145,7 @@
 	// This is the inverse of 'addJSValue'. Given an internal
 	// referencing index, pulls out the corresponding SpnValue
 	// and converts it into a JavaScript value.
-	var valueAtIndex = function(index) {
+	var valueAtIndex = function (index) {
 		if (index < 0) {
 			// error
 			throw "Cannot get value at error index";
@@ -169,15 +175,16 @@
 
 	var typeAtIndex = Module.cwrap('jspn_typeAtIndex', 'number', ['number']);
 
-	// Module.cwrap seems not to interpret the 'boolean'
-	// return type correctly -- such functions will only
-	// return 0 or 1, not a proper Boolean... So, we use
-	// this trick to work around this behavior.
-	var getBool = function(index) {
+	// Module.cwrap seems <s>not to interpret the 'boolean'
+	// return type correctly</s> not to support 'boolean' at all,
+	// either as a return type or as an argument type, and passing
+	// 'boolean' as an argument type will throw an exception.
+	// Hence the following work-around.
+	var getBool = function (index) {
 		return !!rawGetBool(index);
 	}
 
-	var rawGetBool = Module.cwrap('jspn_getBool', 'boolean', ['number']);
+	var rawGetBool = Module.cwrap('jspn_getBool', 'number', ['number']);
 	var getNumber = Module.cwrap('jspn_getNumber', 'number', ['number']);
 	var getString = Module.cwrap('jspn_getString', 'string', ['number']);
 
@@ -187,11 +194,11 @@
 	}
 
 	// Just returns a wrapper object
-	var getUserInfo = function(index) {
+	var getUserInfo = function (index) {
 		return new SparklingUserInfo(index);
 	};
 
-	var getArray = function(index) {
+	var getArray = function (index) {
 		var i;
 		var values = [];
 		var length = countOfArrayAtIndex(index);
@@ -209,7 +216,7 @@
 		return values;
 	};
 
-	var getHashmap = function(index) {
+	var getHashmap = function (index) {
 		var i;
 		var keyIndex, valueIndex, key, value;
 		var object = {};
@@ -243,10 +250,10 @@
 	var getValueIndicesOfArrayAtIndex = Module.cwrap('jspn_getValueIndicesOfArrayAtIndex', null, ['number', 'number']);
 	var getKeyAndValueIndicesOfHashMapAtIndex = Module.cwrap('jspn_getKeyAndValueIndicesOfHashMapAtIndex', null, ['number', 'number']);
 
-	var getFunction = function(fnIndex) {
+	var getFunction = function (fnIndex) {
 		// XXX: should we check if the value at given index is really a function?
 
-		var result = function() {
+		var result = function () {
 			var argv = Array.prototype.slice.apply(arguments);
 			var argvIndex = addArray(argv); // returns the index of an SpnValue<SpnArray>
 			var retIndex = call(fnIndex, argvIndex);
@@ -269,6 +276,9 @@
 
 	var backtrace = Module.cwrap('jspn_backtrace', 'string', []);
 
+	var lastErrorLine = Module.cwrap('jspn_lastErrorLine', 'number', []);
+	var lastErrorColumn = Module.cwrap('jspn_lastErrorColumn', 'number', []);
+
 	Sparkling = {
 		// export these values as "private" symbols
 		// in order that auxlib.js be able to use them
@@ -278,29 +288,51 @@
 		_getIntFromArray: getIntFromArray,
 
 		// Public API
-		compile: function(src) {
+		compile: function (src) {
 			var fnIndex = compile(src);
 			return fnIndex < 0 ? undefined : getFunction(fnIndex);
 		},
 
-		compileExpr: function(src) {
+		compileExpr: function (src) {
 			var fnIndex = compileExpr(src);
+			return fnIndex < 0 ? undefined : getFunction(fnIndex);
+		},
+
+		parse: function (src) {
+			var astIndex = parse(src);
+			return astIndex < 0 ? undefined : getHashmap(astIndex);
+		},
+
+		parseExpr: function (src) {
+			var astIndex = parseExpr(src);
+			return astIndex < 0 ? undefined : getHashmap(astIndex);
+		},
+
+		compileAST: function (ast) {
+			var astIndex = addDictionary(ast);
+			var fnIndex = compileAST(astIndex);
 			return fnIndex < 0 ? undefined : getFunction(fnIndex);
 		},
 
 		lastErrorMessage: Module.cwrap('jspn_lastErrorMessage', 'string', []),
 		lastErrorType: Module.cwrap('jspn_lastErrorType', 'string', []),
+		lastErrorLocation: function () {
+			return {
+				line: lastErrorLine(),
+				column: lastErrorColumn()
+			};
+		},
 
-		backtrace: function() {
+		backtrace: function () {
 			var bt = backtrace();
 			return bt ? bt.split("\n") : [];
 		},
 
-		getGlobal: function(name) {
+		getGlobal: function (name) {
 			return valueAtIndex(getGlobal(name));
 		},
 
-		setGlobal: function(name, value) {
+		setGlobal: function (name, value) {
 			var valIndex = addJSValue(value);
 			setGlobal(name, valIndex);
 		},

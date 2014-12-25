@@ -1,0 +1,4 @@
+var i;
+for i = 0; i < array.length; i++) {
+	print(array[i]);
+}

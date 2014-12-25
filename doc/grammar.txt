@@ -200,26 +200,28 @@ string-char  = /[^"\\]/
 
 chrlit-char  = /[^'\\]/
 
-escape       = /\\[\\/'"abfnrt0]/ | /\\x[0-9a-fA-F]{2}/
+escape       = /\\[\\/'"abfnrt]/ | /\\x[0-9a-fA-F]{2}/
 
 STRING       = '"' ( string-char | escape )(*) '"'
 
 CHAR         = '\'' ( chrlit-char | escape ){1, 8} '\''/
 
-decimal      = /[1-9][0-9]*/
+decimal      = /[0-9]+/
 
-octal        = /0[0-7]+/
+octal        = /0o[0-7]+/
+
+binary       = /0b[0-1]+/
 
 hex          = /0x[0-9a-fA-F]+/
 
 INTEGER      = decimal  |
+               binary   |
                octal    |
                hex
 
-exponent     = /[eE][+-]?\d+/
+exponent     = /[eE][+-]?[0-9]+/
 
-FLOAT        = [ decimal ] /\.\d+/ [ exponent ]
-               | decimal   /\.\d*/ [ exponent ]
+FLOAT        = /[0-9]+(\.[0-9]*)?/ [ exponent ]
 
 IDENT        = /[a-zA-Z_][a-zA-Z0-9_]*/
 
@@ -236,7 +238,6 @@ The same as in C:
  - \n   ->	LF
  - \r   ->	CR
  - \t   ->	TAB
- - \0   ->	NUL, char code 0
  - \xHH ->	the character with code HH, where HH denotes two hexadecimal digits
 
 Sparkling source files preferably use UTF-8 (or ASCII), but nothing else is prohibited.

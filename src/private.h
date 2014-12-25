@@ -127,10 +127,10 @@ typedef struct SymbolStub  {
 	const char *name;
 } SymbolStub;
 
-/* creates a SymbolStub value. Does _not_ copy `name'. */
+/* creates a SymbolStub value. Does _not_ copy 'name'. */
 SPN_API SpnValue make_symstub(const char *name);
 
-/* returns nonzero if `val' represents an unresolved symbol, 0 otherwise */
+/* returns nonzero if 'val' represents an unresolved symbol, 0 otherwise */
 SPN_API int is_symstub(const SpnValue *val);
 
 /* yields the symbol stub object of an SpnValue */

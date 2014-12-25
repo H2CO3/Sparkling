@@ -31,32 +31,32 @@ typedef struct SpnFunction {
 	} repr;                  /* representation                      */
 } SpnFunction;
 
-/* `name' is always a weak pointer, regardless of whether
+/* 'name' is always a weak pointer, regardless of whether
  * the function is a top-level program, a normal Sparkling
  * function or a native extension function.
  *
- * if `topprg' is true, then env == the function itself:
+ * if 'topprg' is true, then env == the function itself:
  * the environment (in which to look for the local symbol
  * table) of the top-level program is itself, naturally.
  *
- * The `env' pointer is always weak too (it does not own
+ * The 'env' pointer is always weak too (it does not own
  * the environment function object).
  *
- * In contrast, `symtab' is strong if self is a top-level
+ * In contrast, 'symtab' is strong if self is a top-level
  * program, and weak otherwise. In either case, it points
  * to the symbol table of the containing program.
  *
- * `readsymtab' (applicable to top-level programs only)
+ * 'readsymtab' (applicable to top-level programs only)
  * indicates whether the program has already been run
  * at least once, and thus whether its local symbol table
  * has already been parsed and stored in the SpnFunction.
  *
- * `upvalues' is always a strong pointer, since it's tied
+ * 'upvalues' is always a strong pointer, since it's tied
  * to a specific instance of a closure (i. e. it belongs
  * to the closure only and nothing else). It is freed if
  * the closure object is deallocated.
  *
- * `repr.bc' is a strong pointer if the function object
+ * 'repr.bc' is a strong pointer if the function object
  * designates a top-level program; otherwise (when the
  * function object represents a free script function or
  * a closure) it is a weak pointer.

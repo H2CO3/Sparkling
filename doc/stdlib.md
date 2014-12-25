@@ -62,21 +62,29 @@ that of `printf()` in the C standard library. Valid conversion specifiers are:
  - `%[+| ][0][W]{d|u|o|x|X|b}` formats an integer as signed decimal, unsigned
  decimal, octal, lowercase and uppercase hexadecimal or binary, respectively.
  If `W` is present, prepends space before the digits so that at least `W`
- characters are outputted. If `+` is present, always adds an (explicit) leading
+ characters are printed. If `+` is present, always adds an (explicit) leading
  sign (`+` or `-`). If `' '` (a space character) is specified instead of a `+`
- as the sign, then only the negative sign is printed, and for non-negative
+ as the sign, then only a negative sign is printed, and for non-negative
  numbers, a space is prepended. Octal, hex and binary conversion specifiers
  always treat the integer as unsigned.
  - `%c` takes an integer argument and prints its corresponding character (based
- on the character code).
- - `%[+| ][W][.P]f` formats a floating-point number. If an integer number is
- given, it is converted to a floating-point number. The rules for using `W`,
- `+` and `' '` are the same as they were in the case of `%d`. If an explicit
+ on its character code).
+ - `%[+| ][W][.P]{e|f}` formats a floating-point number. If an integer number
+ is given, it is converted to a floating-point number. The rules for using `W`,
+ `+` and `' '` are the same as they are in the case of `%d`. If an explicit
  precision (`.P`) is specified, then prints exactly P decimal digits after the
  decimal point, rounding the result if necessary. If an explicit precision is
- not specified, then it's assumed to be `DBL_DIG` (taken from the C standard
- library of the host platform).
- - `%B` formats a Boolean value. Prints either true or false.
+ not specified or it is greater than `DBL_DIG`, then it's treated as `DBL_DIG`
+ (taken from the C standard library of the host platform). If the width is
+ greater than the maximal width necessary to print any floating-point number
+ in decimal form to `DBL_DIG` decimal places (that is, more than
+ `DBL_DIG + DBL_MAX_10_EXP + 4` digits for the mantissa, the decimal point, the
+ the sign of the mantissa, the sign of the exponent and the letter 'e'), then
+ it is assumed to be this maximal width. This should not cause the truncation
+ of the significant digits of the converted number, it may only cause the
+ padding to be truncated. Otherwise, the conversion is performed as if by the
+ `%e` or `%f` conversion specifiers amd `printf()` in the C standard library.
+ - `%B` formats a Boolean value. Prints either `true` or `false`.
  - Width and precision may both be specified as `*`, in which case the actual
  width or precision is determined by looking at the next argument of the
  function, which must be an integer (one additional argument is used for each
@@ -375,6 +383,21 @@ be within the range `[0, arr.length)`.
 
 Returns an array of which the values are those of `arr`, in reverse order.
 
+    array zipwith(array seq_1, array seq_2, function transform)
+
+Takes two sequences (arrays) and calls the `transform` function with members
+of the first and the second sequence, in order. Effectively, the transform
+is called for each pair of values in `seq_1` and `seq_2`. Thus, the count of
+the two arrays must be equal. The return value is an array that contains the
+return values of the transform for each pair of values. The implementation
+of `zipwith` is roughly equivalent with the following:
+
+    function zipwith(seq_1, seq_2, transform) {
+        return seq_1.map(function (val, index) {
+            return transform(val, seq_2[index]);
+        });
+    }
+
 The following properties are available on arays:
 
     int length
@@ -401,10 +424,11 @@ except that these operate on hashmaps. As such, they don't guarantee
 the order of keys and values, and instead of integral indices, the second
 parameter that is passed to the callback functions is the appropriate key.
 
-    hashmap combine(array keys, array values)
+    hashmap zip(array keys, array values)
 
 Returns a hashmap of which the keys are the elements of `keys`, and the
-corresponding values are the elements of `values`, in order.
+corresponding values are the elements of `values`, in order. The number of
+values in `keys` must be the same as the number of values in `values`.
 
 Hashmaps also have a `length` property which yields the number of (non-`nil`)
 values in a particular hashmap.
@@ -484,7 +508,7 @@ Returns the value of the environment variable `name`, or `nil` if it's not set.
 
 Runs the command `cmd` in the shell, returns the exit status.
 
-    nil assert(bool cond, string errmsg)
+    nil assert(bool cond [, string errmsg])
 
 Evaluates `cond`, and if it is false, terminates the program, printing the
 error message to the standard error stream.
@@ -492,6 +516,22 @@ error message to the standard error stream.
     int time(void)
 
 Returns the current Unix timestamp in seconds.
+
+    float clock()
+
+Returns a number representing the number of CPU seconds used by the process.
+It is similar to the C standard library function `clock()`, but this function
+uses seconds as the unit (as opposed to clock ticks). The conversion is
+performed by dividing the return value of the C `clock()` function by
+`CLOCKS_PER_SEC` if available, and by `CLK_TCK` otherwise.
+
+    nil sleep(number seconds)
+
+Suspends execution for `seconds` seconds, which may be an integral or a
+floating-point number. The implementation of this function uses `nanosleep()`
+on POSIX-conformant platforms (e. g. Linux and OS X), the WinAPI `Sleep()`
+function on Windows, and a busy-wait loop based on `clock()` (which might be
+inaccurate), when neither of the alternatives mentioned above are available.
 
     hashmap utctime(int timestamp)
     hashmap localtime(int timestamp)
@@ -519,16 +559,33 @@ library function `strftime()`.
 
 Returns the difference between the two timestamps.
 
-    function compile(string source)
+    function parse(string source)
+    function parseexpr(string source)
 
-This function parses and compiles the supplied source code. On success, it
-returns the compiled function. On error, it returns an error string.
+These functions attempt to parse the supplied string as a top-level program
+or as an expression, respectively. They return a hashmap object upon success,
+and throw a runtime error otherwise.
+
+    function compilestr(string source)
+
+This function parses and compiles the supplied source code as a top-level
+program. On success, it returns the compiled function. On error, it throws
+a runtime error.
 
     function exprtofn(string source)
 
 Tries to parse and compile `source` as if it was an expression. On success,
 returns a function which, when called, will evaluate the expression.
-Returns an error message upon failure.
+Throws a runtime error upon failure.
+
+    function compileast(hashmap ast)
+
+Compiles the AST representation of some already-parsed source code down to
+bytecode, returns the generated Sparkling function.
+
+***WARNING:*** Currently **this function does no error checking whatsoever,**
+so supplying an incorrect AST may even crash the interpreter.
+This problem is to be fixed very soon.
 
     int toint(string str)
     float tofloat(string str)

@@ -1,0 +1,22 @@
+# first, try for loop with expression initialization
+
+var i;
+for (i = 0; i < 10; i++) {
+	print(i);
+}
+
+# then, make a for loop with a variable declaration as its initialization
+
+for (var j = 0; j < 10; j++) {
+	print(j);
+}
+
+# the same thing without parentheses
+
+for i = 0; i < 10; i++ {
+	print(i);
+}
+
+for var j = 0; j < 10; j++ {
+	print(j);
+}

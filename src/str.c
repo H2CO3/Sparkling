@@ -64,6 +64,17 @@ static int equal_strings(void *lp, void *rp)
 	return compare_strings(lp, rp) == 0;
 }
 
+/* Helper function for the constructors.
+ * Initializes an allocated string object.
+ */
+static void init_string(SpnString *strobj, const char *cstr, size_t len, int dealloc)
+{
+	strobj->cstr = (char *)(cstr);
+	strobj->len = len;
+	strobj->dealloc = dealloc;
+	strobj->ishashed = 0;
+}
+
 /* since strings are immutable, it's enough to generate the hash on-demand,
  * then store it for later use.
  */
@@ -101,14 +112,20 @@ SpnString *spn_string_new_len(const char *cstr, size_t len)
 
 SpnString *spn_string_new_nocopy_len(const char *cstr, size_t len, int dealloc)
 {
-	SpnString *str = spn_object_new(&spn_class_string);
+	SpnString *strobj = spn_object_new(&spn_class_string);
+	init_string(strobj, cstr, len, dealloc);
+	return strobj;
+}
 
-	str->dealloc = dealloc;
-	str->len = len;
-	str->cstr = (char *)(cstr);
-	str->ishashed = 0;
+SpnString spn_string_emplace_nonretained_for_hashmap(const char *cstr)
+{
+	SpnString strobj = { { &spn_class_string, UINT_MAX } };
 
-	return str;
+	/* Initialize object with the actual C string.
+	 * The buffer doesn't need to be deallocated.
+	 */
+	init_string(&strobj, cstr, strlen(cstr), 0);
+	return strobj;
 }
 
 SpnString *spn_string_concat(SpnString *lhs, SpnString *rhs)
@@ -170,10 +187,8 @@ enum format_flags {
 	FLAG_NEGATIVE       = 1 << 1, /* the number to be printed is negative    */
 	FLAG_EXPLICITSIGN   = 1 << 2, /* always print '+' or '-' sign            */
 	FLAG_PADSIGN        = 1 << 3, /* prepend space if negative               */
-	FLAG_EXPONENTSIGN   = 1 << 4, /* explicitly signed exponent (+/-e...)    */
-	FLAG_BASEPREFIX     = 1 << 5, /* prepend "0b", "0" or "0x" prefix        */
-	FLAG_CAPS           = 1 << 6  /* for hex: use 'A'..'Z' instead of 'a'..'z';
-	                               * for `%e': use 'E' instead of 'e'        */
+	FLAG_BASEPREFIX     = 1 << 4, /* prepend "0b", "0" or "0x" prefix        */
+	FLAG_CAPS           = 1 << 5  /* print 'A'...'Z' instead of 'a'...'z'    */
 };
 
 /* XXX: this should really be an inline function */
@@ -341,129 +356,6 @@ static char *ulong2str(
 	return begin;
 }
 
-/* helper for print_special_fp(): appends string, pads with space if needed */
-static void append_padded(struct string_builder *bld, const char *str, int width)
-{
-	size_t len = strlen(str);
-	size_t tmpwidth = width < 0 ? 0 : width;
-
-	if (tmpwidth > len) {
-		size_t pad = tmpwidth - len;
-		expand_buffer(bld, pad);
-		while (pad--) {
-			bld->buf[bld->len++] = ' ';
-		}
-	}
-
-	append_string(bld, str, len);
-}
-
-/* appends the formatted string representing a special floating-point number */
-static void print_special_fp(
-	struct string_builder *bld,
-	enum format_flags flags,
-	int width,
-	double x
-)
-{
-	if (x != x) {
-		/* NaN */
-		const char *str = flags & FLAG_CAPS ? "NAN" : "nan";
-		append_padded(bld, str, width);
-	} else if (x == +1.0 / 0.0) {
-		/* positive infinity */
-		const char *str;
-
-		if (flags & FLAG_EXPLICITSIGN) {
-			str = flags & FLAG_CAPS ? "+INF" : "+inf";
-		} else if (flags & FLAG_PADSIGN) {
-			str = flags & FLAG_CAPS ? " INF" : " inf";
-		} else {
-			str = flags & FLAG_CAPS ? "INF" : "inf";
-		}
-
-		append_padded(bld, str, width);
-	} else if (x == -1.0 / 0.0) {
-		/* negative infinity */
-		const char *str = flags & FLAG_CAPS ? "-INF" : "-inf";
-		append_padded(bld, str, width);
-	}
-}
-
-/* this takes only non-negative (except -0) numbers that are not NaN or inf */
-static char *double2str(
-	char *end,
-	double x,
-	int width,
-	int prec,
-	enum format_flags flags
-)
-{
-	char *begin = end;
-	double frac, whole;
-	frac = modf(x, &whole);
-
-	if (prec > 0) {
-		/* round fractional part */
-		int i;
-
-		for (i = 0; i < prec; i++) {
-			frac *= 10.0;
-		}
-
-		frac = floor(frac + 0.5);
-
-		for (i = 0; i < prec; i++) {
-			int digit = fmod(frac, 10.0);
-			*--begin = '0' + digit;
-			frac /= 10.0;
-		}
-
-		*--begin = '.';
-
-		whole += frac;
-	} else {
-		/* round to integers */
-		whole = floor(x + 0.5);
-	}
-
-	do {
-		int digit = fmod(whole, 10.0);
-		*--begin = '0' + digit;
-		whole /= 10.0;
-	} while (whole >= 1.0);
-
-	if (flags & FLAG_ZEROPAD) {
-		while (width >= 0 && width > end - begin + 1) {
-			*--begin = '0';
-		}
-
-		if (flags & FLAG_NEGATIVE) {
-			*--begin = '-';
-		} else if (flags & FLAG_EXPLICITSIGN) {
-			*--begin = '+';
-		} else if (flags & FLAG_PADSIGN) {
-			*--begin = ' ';
-		} else {
-			*--begin = '0';
-		}
-	} else {
-		if (flags & FLAG_NEGATIVE) {
-			*--begin = '-';
-		} else if (flags & FLAG_EXPLICITSIGN) {
-			*--begin = '+';
-		} else if (flags & FLAG_PADSIGN) {
-			*--begin = ' ';
-		}
-
-		while (width >= 0 && width > end - begin) {
-			*--begin = ' ';
-		}
-	}
-
-	return begin;
-}
-
 
 enum format_error_kind {
 	TYPE_MISMATCH,
@@ -503,12 +395,12 @@ static void format_errmsg(char **msg, enum format_error_kind kind, int argidx, .
 		break;
 	}
 	case INVALID_SPECIFIER: {
-		long ch = va_arg(args, int); /* `char' is promoted to `int' */
+		long ch = va_arg(args, int); /* 'char' is promoted to 'int' */
 
 		const void *argv[2];
 		argv[0] = &ch;
 		argv[1] = &argidx;
-		*msg = spn_string_format_cstr("invalid format specifier `%%%c' at index %i", NULL, argv);
+		*msg = spn_string_format_cstr("invalid format specifier '%%%c' at index %i", NULL, argv);
 		break;
 	}
 	case OUT_OF_ARGUMENTS: {
@@ -610,11 +502,12 @@ static int append_format(
 				return -1;
 			}
 
-			if (isint(val)) {
-				n = intvalue(val);
-			} else {
-				n = floatvalue(val); /* truncate */
+			if (isfloat(val)) {
+				format_errmsg(errmsg, EXPECT_INTEGER, *argidx);
+				return -1;
 			}
+
+			n = intvalue(val);
 		} else {
 			/* "%i" expects an int, others expect a long */
 			if (args->spec == 'i') {
@@ -628,7 +521,10 @@ static int append_format(
 			/* signed conversion specifiers */
 			if (n < 0) {
 				flags |= FLAG_NEGATIVE;
-				u = -n;
+				/* cast to 'unsigned long' needed for the case
+				 * where n == LONG_MIN and thus -n would be UB.
+				 */
+				u = -(unsigned long)(n);
 			} else {
 				u = n;
 			}
@@ -698,13 +594,30 @@ static int append_format(
 
 		break;
 	}
-	case 'f':
-	case 'F': {
-		char *buf, *end, *begin;
-		size_t len;
-		int prec;
-		double x;
+	case 'e':
+	case 'f': {
+		char buf[
+			DBL_MAX_10_EXP + /* number of decimal digits in exponent */
+			DBL_DIG +        /* number of decimal digits in mantissa */
+			1 +              /* sign, 1 character                    */
+			1 +              /* sign of exponent, 1 character        */
+			1 +              /* exponent ('e' or 'E'), 1 character   */
+			1 +              /* decimal point, 1 character           */
+			1 +              /* terminating NUL byte                 */
+			32               /* and some additional space for safety */
+		];
+
+		/* '%', '+', ' ', '0', '*', '.', '*', 'e' or 'f', '\0',
+		 * that's 9 characters, and some extra space for safety
+		 */
+		char fmtspec[16] = { 0 };
+
 		enum format_flags flags = args->flags;
+		int width = args->width;
+		int prec = args->precision;
+		int i = 0;
+		int written;
+		double x;
 
 		if (isval) {
 			SpnValue *val = getarg_val(argv, argidx);
@@ -728,51 +641,38 @@ static int append_format(
 			x = *(const double *)getarg_raw(argv, argidx);
 		}
 
-		if (args->spec == 'F') {
-			flags |= FLAG_CAPS;
+		/* set up format string */
+		fmtspec[i++] = '%';
+
+		if (flags & FLAG_EXPLICITSIGN) {
+			fmtspec[i++] = '+';
 		}
 
-		/* handle special cases */
-		if (+1.0 / x == +1.0 / -0.0) {
-			/* negative zero: set sign flag and carry on */
-			flags |= FLAG_NEGATIVE;
-		} else if (
-			x != x		/*  NaN */
-		     || x == +1.0 / 0.0	/* +inf */
-		     || x == -1.0 / 0.0	/* -inf */
-		) {
-			print_special_fp(bld, flags, args->width, x);
-			break;
+		if (flags & FLAG_PADSIGN) {
+			fmtspec[i++] = ' ';
 		}
 
-		if (x < 0.0) {
-			flags |= FLAG_NEGATIVE;
-			x = -x;
+		if (flags & FLAG_ZEROPAD) {
+			fmtspec[i++] = '0';
 		}
 
-		/* at this point, `x' is non-negative or -0 */
-
-		if (x >= 1.0) {
-			len = ceil(log10(x)) + 1; /* 10 ^ n is n + 1 digits long */
-		} else {
-			len = 1; /* leading zero needs exactly one character */
+		if (width < 0) {
+			width = 0;
+		} else if (width > sizeof buf - 32 - 1) {
+			width = sizeof buf - 32 - 1;
 		}
 
-		prec = args->precision < 0 ? DBL_DIG : args->precision;
-
-		len += prec + 3; /* decimal point, sign, leading zero */
-
-		if (args->width >= 0 && args->width > len) {
-			len = args->width;
+		if (prec < 0 || prec > DBL_DIG) {
+			prec = DBL_DIG;
 		}
 
-		buf = spn_malloc(len);
-		end = buf + len;
-		begin = double2str(end, x, args->width, prec, flags);
+		fmtspec[i++] = '*';
+		fmtspec[i++] = '.';
+		fmtspec[i++] = '*';
+		fmtspec[i++] = args->spec;
 
-		assert(buf <= begin);
-		append_string(bld, begin, end - begin);
-		free(buf);
+		written = sprintf(buf, fmtspec, width, prec, x);
+		append_string(bld, buf, written);
 
 		break;
 	}
@@ -829,13 +729,13 @@ static int append_format(
 
 
 /* the actual string format parser
- * Although it's not in the documentation of `printf()`, but in addition to the
- * `%d` conversion specifier, this supports `%i`, which takes an `int` argument
- * instead of a `long`. It is used only for formatting error messages (since
- * Sparkling integers are all `long`s), but feel free to use it yourself.
+ * Although it's not in the documentation of 'printf()', but in addition to the
+ * '%d' conversion specifier, this supports '%i', which takes an 'int' argument
+ * instead of a 'long'. It is used only for formatting error messages (since
+ * Sparkling integers are all 'long's), but feel free to use it yourself.
  *
- * if `errmsg' is not a NULL pointer, and an error occurred while creating the
- * format string, then on return, `*errmsg' will point to a string containing
+ * if 'errmsg' is not a NULL pointer, and an error occurred while creating the
+ * format string, then on return, '*errmsg' will point to a string containing
  * a message that describes the error.
  */
 static char *make_format_string(
@@ -857,53 +757,111 @@ static char *make_format_string(
 	init_builder(&bld);
 
 	while (*s) {
-		if (*s == '%') {
-			struct format_args args;
-			init_format_args(&args);
+		struct format_args args;
 
-			/* append preceding non-format string chunk */
-			if (s > p) {
-				append_string(&bld, p, s - p);
+		if (*s != '%') {
+			s++;
+			continue;
+		}
+
+		init_format_args(&args);
+
+		/* append preceding non-format string chunk */
+		if (s > p) {
+			append_string(&bld, p, s - p);
+		}
+
+		s++;
+
+		/* Actually parse the format string.
+		 * '#' flag: prepend base prefix (0b, 0, 0x)
+		 */
+		if (*s == '#') {
+			args.flags |= FLAG_BASEPREFIX;
+			s++;
+		}
+
+		/* ' ' (space) flag: prepend space if non-negative
+		 * '+' flag: always prepend explicit + or - sign
+		 */
+		if (*s == ' ') {
+			args.flags |= FLAG_PADSIGN;
+			s++;
+		} else if (*s == '+') {
+			args.flags |= FLAG_EXPLICITSIGN;
+			s++;
+		}
+
+		/* leading 0 flag: pad field with zeroes */
+		if (*s == '0') {
+			args.flags |= FLAG_ZEROPAD;
+			s++;
+		}
+
+		/* field width specifier */
+		if (isdigit(*s)) {
+			args.width = 0;
+			while (isdigit(*s)) {
+				args.width *= 10;
+				args.width += *s++ - '0';
 			}
+		} else if (*s == '*') {
+			s++;
+			if (isval) {
+				SpnValue *widthptr;
 
+				/* check argc if the caller wants us to do so */
+				if (argc >= 0 && argidx >= argc) {
+					format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
+					free(bld.buf);
+					return NULL;
+				}
+
+				/* width specifier must be an integer */
+				widthptr = getarg_val(argv, &argidx);
+				if (!isnum(widthptr)) {
+					format_errmsg(
+						errmsg,
+						TYPE_MISMATCH,
+						argidx,
+						SPN_TTAG_NUMBER,
+						widthptr->type
+					);
+					free(bld.buf);
+					return NULL;
+				}
+
+				if (isfloat(widthptr)) {
+					format_errmsg(
+						errmsg,
+						EXPECT_INTEGER,
+						argidx
+					);
+					free(bld.buf);
+					return NULL;
+				}
+
+				args.width = intvalue(widthptr);
+			} else {
+				const int *widthptr = getarg_raw(argv, &argidx);
+				args.width = *widthptr;
+			}
+		}
+
+		/* precision/maximal length specifier */
+		if (*s == '.') {
 			s++;
 
-			/* Actually parse the format string.
-			 * '#' flag: prepend base prefix (0b, 0, 0x)
-			 */
-			if (*s == '#') {
-				args.flags |= FLAG_BASEPREFIX;
-				s++;
-			}
-
-			/* ' ' (space) flag: prepend space if non-negative
-			 * '+' flag: always prepend explicit + or - sign
-			 */
-			if (*s == ' ') {
-				args.flags |= FLAG_PADSIGN;
-				s++;
-			} else if (*s == '+') {
-				args.flags |= FLAG_EXPLICITSIGN;
-				s++;
-			}
-
-			/* leading 0 flag: pad field with zeroes */
-			if (*s == '0') {
-				args.flags |= FLAG_ZEROPAD;
-				s++;
-			}
-
-			/* field width specifier */
+			args.precision = 0;
 			if (isdigit(*s)) {
-				args.width = 0;
 				while (isdigit(*s)) {
-					args.width *= 10;
-					args.width += *s++ - '0';
+					args.precision *= 10;
+					args.precision += *s++ - '0';
 				}
 			} else if (*s == '*') {
 				s++;
 				if (isval) {
-					SpnValue *widthptr;
+					SpnValue *precptr;
 
 					/* check argc if the caller wants us to do so */
 					if (argc >= 0 && argidx >= argc) {
@@ -912,21 +870,22 @@ static char *make_format_string(
 						return NULL;
 					}
 
-					/* width specifier must be an integer */
-					widthptr = getarg_val(argv, &argidx);
-					if (!isnum(widthptr)) {
-					 	format_errmsg(
-					 		errmsg,
-					 		TYPE_MISMATCH,
-					 		argidx,
-					 		SPN_TTAG_NUMBER,
-					 		widthptr->type
-					 	);
+					/* precision must be an integer too */
+					precptr = getarg_val(argv, &argidx);
+
+					if (!isnum(precptr)) {
+						format_errmsg(
+							errmsg,
+							TYPE_MISMATCH,
+							argidx,
+							SPN_TTAG_NUMBER,
+							precptr->type
+						);
 						free(bld.buf);
 						return NULL;
 					}
 
-					if (isfloat(widthptr)) {
+					if (isfloat(precptr)) {
 				 		format_errmsg(
 				 			errmsg,
 				 			EXPECT_INTEGER,
@@ -936,96 +895,34 @@ static char *make_format_string(
 						return NULL;
 					}
 
-					args.width = intvalue(widthptr);
+					args.precision = intvalue(precptr);
 				} else {
-					const int *widthptr = getarg_raw(argv, &argidx);
-					args.width = *widthptr;
+					const int *precptr = getarg_raw(argv, &argidx);
+					args.precision = *precptr;
 				}
 			}
-
-			/* precision/maximal length specifier */
-			if (*s == '.') {
-				s++;
-
-				if (*s == '+') {
-					args.flags |= FLAG_EXPONENTSIGN;
-					s++;
-				}
-
-				args.precision = 0;
-				if (isdigit(*s)) {
-					while (isdigit(*s)) {
-						args.precision *= 10;
-						args.precision += *s++ - '0';
-					}
-				} else if (*s == '*') {
-					s++;
-					if (isval) {
-						SpnValue *precptr;
-
-						/* check argc if the caller wants us to do so */
-						if (argc >= 0 && argidx >= argc) {
-							format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
-							free(bld.buf);
-							return NULL;
-						}
-
-						/* precision must be an integer too */
-						precptr = getarg_val(argv, &argidx);
-
-						if (!isnum(precptr)) {
-							format_errmsg(
-								errmsg,
-								TYPE_MISMATCH,
-								argidx,
-								SPN_TTAG_NUMBER,
-								precptr->type
-							);
-							free(bld.buf);
-							return NULL;
-						}
-
-						if (isfloat(precptr)) {
-					 		format_errmsg(
-					 			errmsg,
-					 			EXPECT_INTEGER,
-					 			argidx
-					 		);
-							free(bld.buf);
-							return NULL;
-						}
-
-						args.precision = intvalue(precptr);
-					} else {
-						const int *precptr = getarg_raw(argv, &argidx);
-						args.precision = *precptr;
-					}
-				}
-			}
-
-			args.spec = *s++;
-
-			/* check argc if the caller wants us to do so.
-			 * Note: the '%%' format specifier does not require
-			 * a corresponding argument; take this into account.
-			 */
-			if (argc >= 0 && argidx >= argc && args.spec != '%') {
-				format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
-				free(bld.buf);
-				return NULL;
-			}
-
-			/* append parsed format string */
-			if (append_format(&bld, &args, argv, &argidx, isval, errmsg) != 0) {
-				free(bld.buf);
-				return NULL;
-			}
-
-			/* update non-format chunk base pointer */
-			p = s;
-		} else {
-			s++;
 		}
+
+		args.spec = *s++;
+
+		/* check argc if the caller wants us to do so.
+		 * Note: the '%%' format specifier does not require
+		 * a corresponding argument; take this into account.
+		 */
+		if (argc >= 0 && argidx >= argc && args.spec != '%') {
+			format_errmsg(errmsg, OUT_OF_ARGUMENTS, argidx);
+			free(bld.buf);
+			return NULL;
+		}
+
+		/* append parsed format string */
+		if (append_format(&bld, &args, argv, &argidx, isval, errmsg) != 0) {
+			free(bld.buf);
+			return NULL;
+		}
+
+		/* update non-format chunk base pointer */
+		p = s;
 	}
 
 	/* if the format string doesn't end with a conversion specifier,

@@ -26,13 +26,31 @@ typedef struct SpnString {
 
 /* these create an SpnString object. "nocopy" versions don't copy the
  * buffer passed in, others do. "len" versions don't need a 0-terminated
- * string, others do. The `dealloc` flag should be non-zero if you want the
+ * string, others do. The 'dealloc' flag should be non-zero if you want the
  * backing buffer to be freed when the destructor runs.
  */
 SPN_API	SpnString *spn_string_new(const char *cstr);
 SPN_API	SpnString *spn_string_new_nocopy(const char *cstr, int dealloc);
 SPN_API	SpnString *spn_string_new_len(const char *cstr, size_t len);
 SPN_API	SpnString *spn_string_new_nocopy_len(const char *cstr, size_t len, int dealloc);
+
+/*************** WARNING ***************
+ *
+ * This constructor only exists so that 'spn_hashmap_get_strkey()'
+ * does not need to allocate a new string each time it is called,
+ * because it is superfluous and wasteful, and can lead to serious
+ * degradation of performance due to the memory fragmentation it
+ * may potentially cause.
+ *
+ * This function takes a pointer to a C string, and returns a string
+ * object initialized with it, without allocating it dynamically.
+ * The reference count of the returned object is set to the special
+ * value UINT_MAX to indicate that it should not be released or retained.
+ *
+ * In other words, HERE BE DRAGONS. This function should ONLY EVER
+ * BE USED by 'spn_hashmap_get_strkey()'. DO NOT USE IT yourself!
+ */
+SPN_API SpnString spn_string_emplace_nonretained_for_hashmap(const char *cstr);
 
 /* appends rhs to the end of lhs and returns the result.
  * the original strings aren't modified.
@@ -58,7 +76,7 @@ SPN_API char *spn_string_format_cstr(
 
 /* this function is used for creating format strings in the Sparkling standard
  * runtime library. It fills in the error message argument if an error is
- * encountered. In this case, `*errmsg' must be free()'d after use.
+ * encountered. In this case, '*errmsg' must be free()'d after use.
  * It is strongly encouraged that you use this function only with user-supplied
  * format strings (because the two functions above are inherently unsafe when
  * there's no reliable way to determine the number of arguments a particular

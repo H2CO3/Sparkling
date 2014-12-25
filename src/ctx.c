@@ -54,9 +54,15 @@ const char *spn_ctx_geterrmsg(SpnContext *ctx)
 	}
 }
 
-void spn_ctx_clearerror(SpnContext *ctx)
+SpnSourceLocation spn_ctx_geterrloc(SpnContext *ctx)
 {
-	ctx->errtype = SPN_ERROR_OK;
+	SpnSourceLocation zero_loc = { 0, 0 };
+
+	switch (ctx->errtype) {
+	case SPN_ERROR_SYNTAX:   return spn_parser_get_error_location(&ctx->parser);
+	case SPN_ERROR_SEMANTIC: return spn_compiler_errloc(ctx->cmp);
+	default:                 return zero_loc; /* runtime; generic; no error */
+	}
 }
 
 SpnArray *spn_ctx_getprograms(SpnContext *ctx)
@@ -89,30 +95,18 @@ static void add_to_programs(SpnContext *ctx, SpnFunction *fn)
 
 SpnFunction *spn_ctx_loadstring(SpnContext *ctx, const char *str)
 {
-	SpnAST *ast;
 	SpnFunction *result;
 
-	ctx->errtype = SPN_ERROR_OK;
-
 	/* attempt parsing, handle error */
-	ast = spn_parser_parse(&ctx->parser, str);
+	SpnHashMap *ast = spn_ctx_parse(ctx, str);
 	if (ast == NULL) {
-		ctx->errtype = SPN_ERROR_SYNTAX;
 		return NULL;
 	}
 
-	/* attempt compilation, handle error */
-	result = spn_compiler_compile(ctx->cmp, ast);
-	spn_ast_free(ast);
+	/* attempt compilation, add function to context */
+	result = spn_ctx_compile_ast(ctx, ast);
+	spn_object_release(ast);
 
-	if (result == NULL) {
-		ctx->errtype = SPN_ERROR_SEMANTIC;
-		return NULL;
-	}
-
-	/* add compiled bytecode to program list */
-	add_to_programs(ctx, result);
-	spn_object_release(result); /* still alive, retained by array */
 	return result;
 }
 
@@ -249,34 +243,67 @@ void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
 
 SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr)
 {
-	SpnAST *ast;
 	SpnFunction *result;
 
-	ctx->errtype = SPN_ERROR_OK;
-
 	/* parse as expression */
-	ast = spn_parser_parse_expression(&ctx->parser, expr);
+	SpnHashMap *ast = spn_ctx_parse_expr(ctx, expr);
 	if (ast == NULL) {
-		ctx->errtype = SPN_ERROR_SYNTAX;
 		return NULL;
 	}
 
-	/* compile */
-	result = spn_compiler_compile(ctx->cmp, ast);
-	spn_ast_free(ast);
-
-	if (result == NULL) {
-		ctx->errtype = SPN_ERROR_SEMANTIC;
-		return NULL;
-	}
-
-	/* add program to list of programs, balance reference count */
-	add_to_programs(ctx, result);
-	spn_object_release(result);
+	/* compile AST and add resulting function to context */
+	result = spn_ctx_compile_ast(ctx, ast);
+	spn_object_release(ast);
 
 	return result;
 }
 
+SpnHashMap *spn_ctx_parse(SpnContext *ctx, const char *src)
+{
+	SpnHashMap *ast = spn_parser_parse(&ctx->parser, src);
+
+	if (ast == NULL) {
+		ctx->errtype = SPN_ERROR_SYNTAX;
+	} else {
+		ctx->errtype = SPN_ERROR_OK;
+	}
+
+	return ast;
+}
+
+SpnHashMap *spn_ctx_parse_expr(SpnContext *ctx, const char *src)
+{
+	SpnHashMap *ast = spn_parser_parse_expression(&ctx->parser, src);
+
+	if (ast == NULL) {
+		ctx->errtype = SPN_ERROR_SYNTAX;
+	} else {
+		ctx->errtype = SPN_ERROR_OK;
+	}
+
+	return ast;
+}
+
+SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast)
+{
+	SpnFunction *fn = spn_compiler_compile(ctx->cmp, ast);
+
+	if (fn == NULL) {
+		ctx->errtype = SPN_ERROR_SEMANTIC;
+		return NULL;
+	}
+
+	ctx->errtype = SPN_ERROR_OK;
+
+	/* add program to list of programs, balance reference count */
+	add_to_programs(ctx, fn);
+	spn_object_release(fn);
+
+	return fn;
+}
+
+
+/* Virtual Machine accessors */
 const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
 {
 	return spn_vm_stacktrace(ctx->vm, size);

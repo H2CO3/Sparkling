@@ -17,6 +17,7 @@
 #include "api.h"
 #include "parser.h"
 #include "compiler.h"
+#include "str.h"
 #include "vm.h"
 #include "private.h"
 #include "array.h"
@@ -358,12 +359,10 @@ static void print_array(SpnArray *array, int level)
 	printf("[\n");
 
 	for (i = 0; i < n; i++) {
-		SpnValue val;
+		SpnValue val = spn_array_get(array, i);
+
 		print_indent(level + 1);
-
-		spn_array_get(array, i, &val);
 		inner_aux_print(&val, level + 1);
-
 		printf("\n");
 	}
 

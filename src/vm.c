@@ -51,14 +51,14 @@
  * a quite nasty bug: it was overwriting *half* of the global symbol table,
  * and I was wondering why the otherwise correct SpnArray implementation
  * crashed upon deallocation. It turned out that the array and hash count of
- * the object have been changed to bogus values, but the `isa` field and the
+ * the object have been changed to bogus values, but the 'isa' field and the
  * allocsize members stayed intact. Welp.
  *
  * So, unless I either stop generating bytecode by hand or I'm entirely sure
  * that the compiler is perfect, I'd better stick to asserting that the
  * register indices are within the bounds of the stack frame...
  *
- * arguments: `s` - stack pointer; `r`: register index
+ * arguments: 's' - stack pointer; 'r': register index
  */
 #ifndef NDEBUG
 #define VALPTR(s, r) (assert((r) < (s)[IDX_FRMHDR].h.size - EXTRA_SLOTS), &(s)[(-(int)(r) + REG_OFFSET)].v)
@@ -71,7 +71,7 @@
 
 /* An index into the array of local symbol tables is used instead of a
  * pointer to the symtab struct itself because that array may be
- * `realloc()`ated, and then we have an invalid pointer once again
+ * 'realloc()'ated, and then we have an invalid pointer once again
  */
 typedef struct TFrame {
 	size_t       size;       /* no. of slots, including EXTRA_SLOTS */
@@ -107,7 +107,7 @@ struct SpnVMachine {
 	void       *ctx;        /* context info, use at will    */
 };
 
-/* this is the structure used by `push_and_copy_args()' */
+/* this is the structure used by 'push_and_copy_args()' */
 struct args_copy_descriptor {
 	int caller_is_native;
 	union {
@@ -155,7 +155,7 @@ static void pop_frame(SpnVMachine *vm);
 /* this function helps including native functions' names in the stack trace */
 static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee);
 
-/* reads/creates the local symbol table of `program` if necessary,
+/* reads/creates the local symbol table of 'program' if necessary,
  * then stores it back into the function object.
  */
 static void read_local_symtab(SpnFunction *program);
@@ -383,8 +383,7 @@ void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
-		SpnValue libval;
-		spn_hashmap_get_strkey(vm->glbsymtab, libname, &libval);
+		SpnValue libval = spn_hashmap_get_strkey(vm->glbsymtab, libname);
 
 		if (notnil(&libval) && !ishashmap(&libval)) {
 			spn_die(
@@ -420,8 +419,7 @@ void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValu
 
 	/* a NULL libname means that the functions will be global */
 	if (libname != NULL) {
-		SpnValue libval;
-		spn_hashmap_get_strkey(vm->glbsymtab, libname, &libval);
+		SpnValue libval = spn_hashmap_get_strkey(vm->glbsymtab, libname);
 
 		if (notnil(&libval) && !ishashmap(&libval)) {
 			spn_die(
@@ -450,7 +448,7 @@ void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValu
 
 /* ip == NULL indicates an error in native code
  * Apart from creating an error message, this function also sets
- * the `haserror` flag, which is essential for the stack trace
+ * the 'haserror' flag, which is essential for the stack trace
  * and function calling mechanisms to work.
  */
 static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const void *args[])
@@ -516,7 +514,7 @@ void spn_vm_setcontext(SpnVMachine *vm, void *ctx)
 	vm->ctx = ctx;
 }
 
-/* because `NULL - NULL` is UB */
+/* because 'NULL - NULL' is UB */
 static size_t stacksize(SpnVMachine *vm)
 {
 	return vm->stackallsz != 0 ? vm->sp - vm->stack : 0;
@@ -564,7 +562,7 @@ static void push_frame(
 	int real_nregs = nregs + extra_argc + EXTRA_SLOTS;
 
 	/* just a bit of sanity check in case someone misinterprets how
-	 * `extra_argc` is computed...
+	 * 'extra_argc' is computed...
 	 */
 	assert(extra_argc >= 0);
 
@@ -623,8 +621,8 @@ static void pop_frame(SpnVMachine *vm)
 	vm->sp -= nregs;
 }
 
-/* retrieve a pointer to the register denoted by the `idx`th octet
- * of an array of `spn_uword`s (which is the instruction pointer)
+/* retrieve a pointer to the register denoted by the 'idx'th octet
+ * of an array of 'spn_uword's (which is the instruction pointer)
  */
 static SpnValue *nth_call_arg(TSlot *sp, spn_uword *ip, int idx)
 {
@@ -632,9 +630,9 @@ static SpnValue *nth_call_arg(TSlot *sp, spn_uword *ip, int idx)
 	return VALPTR(sp, regidx);
 }
 
-/* get the `idx`th unnamed argument from a stack frame
+/* get the 'idx'th unnamed argument from a stack frame
  * XXX: this does **NOT** check for an out-of-bounds error in release
- * mode, that's why `argidx < hdr->extra_argc` is checked in SPN_INS_ARGV.
+ * mode, that's why 'argidx < hdr->extra_argc' is checked in SPN_INS_ARGV.
  */
 static SpnValue *nth_vararg(TSlot *sp, int idx)
 {
@@ -677,7 +675,7 @@ static void push_and_copy_args(
 	/* if there are less call arguments than formal
 	 * parameters, we set extra_argc to 0 (and all
 	 * the unspecified arguments are implicitly set
-	 * to `nil` by push_frame)
+	 * to 'nil' by push_frame)
 	 */
 	extra_argc = argc > decl_argc ? argc - decl_argc : 0;
 
@@ -687,7 +685,7 @@ static void push_and_copy_args(
 	assert(decl_argc <= nregs);
 
 	/* push a new stack frame - after that,
-	 * `&vm->sp[IDX_FRMHDR].h` is a pointer to
+	 * '&vm->sp[IDX_FRMHDR].h' is a pointer to
 	 * the stack frame of the *called* function.
 	 */
 	push_frame(
@@ -702,11 +700,11 @@ static void push_and_copy_args(
 	);
 
 	/* first, fill in arguments that fit into the
-	 * first `decl_argc` registers (i. e. those
+	 * first 'decl_argc' registers (i. e. those
 	 * that are declared as formal parameters). The
 	 * number of call arguments may be less than
 	 * the number of formal parameters; handle that
-	 * case too (`&& i < argc`).
+	 * case too ('&& i < argc').
 	 *
 	 * The values in the source registers
 	 * should be retained, since pop_frame()
@@ -768,7 +766,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 *
 			 * offsets insetad of pointers are used here because
 			 * a function call (in particular, push_frame()) may
-			 * `realloc()` the stack, thus rendering saved pointers
+			 * 'realloc()' the stack, thus rendering saved pointers
 			 * invalid.
 			 */
 			TSlot *retslot = SLOTPTR(vm->sp, OPA(ins));
@@ -780,7 +778,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			int argc = OPC(ins);
 
-			/* this is the minimal number of `spn_uword`s needed
+			/* this is the minimal number of 'spn_uword's needed
 			 * to store the register numbers representing
 			 * call-time arguments
 			 */
@@ -878,8 +876,8 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				pop_frame(vm);
 
 				/* advance IP past the argument indices (round
-				 * up to nearest number of `spn_uword`s that
-				 * can accomodate `argc` octets)
+				 * up to nearest number of 'spn_uword's that
+				 * can accomodate 'argc' octets)
 				 */
 				ip += narggroups;
 			} else {
@@ -987,7 +985,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			/* XXX: if offset is supposed to be negative, the
 			 * implicit unsigned -> signed conversion is
-			 * implementation-defined. Should `memcpy()` be used
+			 * implementation-defined. Should 'memcpy()' be used
 			 * here instead of an assignment?
 			 */
 			spn_sword offset = *ip++;
@@ -996,9 +994,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				runtime_error(
 					vm,
 					ip - 2,
-					"register does not contain Boolean value in conditional jump "
-					"(are you trying to use non-Booleans with logical operators "
-					"or in the condition of an 'if', 'while' or 'for' statement?)",
+					"non-Boolean value used as condition or logical expression",
 					NULL
 				);
 				return -1;
@@ -1285,9 +1281,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			TFrame *frmhdr = &vm->sp[IDX_FRMHDR].h;
 			SpnArray *symtab = frmhdr->callee->symtab;
-			SpnValue sym;
-
-			spn_array_get(symtab, symidx, &sym);
+			SpnValue sym = spn_array_get(symtab, symidx);
 			assert(notnil(&sym)); /* must not be nil */
 
 			/* if the symbol is an unresolved reference
@@ -1380,18 +1374,18 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
 
 			if (ishashmap(b)) {
-				SpnValue val;
-				spn_hashmap_get(hashmapvalue(b), c, &val);
+				SpnValue val = spn_hashmap_get(hashmapvalue(b), c);
 				spn_value_retain(&val);
 				spn_value_release(a);
 				*a = val;
 			} else if (isarray(b)) {
 				SpnValue val;
+
 				if (indexing_array_check(vm, ip - 1, b, c) != 0) {
 					return -1;
 				}
 
-				spn_array_get(arrayvalue(b), intvalue(c), &val);
+				val = spn_array_get(arrayvalue(b), intvalue(c));
 				spn_value_retain(&val);
 				spn_value_release(a);
 				*a = val;
@@ -1464,7 +1458,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			size_t bodylen = hdr[SPN_FUNCHDR_IDX_BODYLEN];
 
 			/* sanity check: argc <= nregs is a must (else how
-			 * could arguments fit in the first `argc` registers?)
+			 * could arguments fit in the first 'argc' registers?)
 			 */
 			assert(hdr[SPN_FUNCHDR_IDX_ARGC] <= hdr[SPN_FUNCHDR_IDX_NREGS]);
 
@@ -1484,7 +1478,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			size_t namelen = OPMID(ins);
 			size_t nwords = ROUNDUP(namelen + 1, sizeof(spn_uword));
 			const char *symname = (const char *)(ip);
-			SpnValue auxval;
+			SpnValue auxval = spn_hashmap_get_strkey(vm->glbsymtab, symname);
 
 #ifndef NDEBUG
 			size_t reallen = strlen(symname);
@@ -1497,7 +1491,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* attempt adding value to global symtab.
 			 * Raise a runtime error if the name is taken.
 			 */
-			spn_hashmap_get_strkey(vm->glbsymtab, symname, &auxval);
 			if (notnil(&auxval)) {
 				const void *args[1];
 				args[0] = symname;
@@ -1566,7 +1559,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 					/* upvalue is in the closure of enclosing function */
 					SpnValue upval;
 					assert(enclosing_fn->upvalues);
-					spn_array_get(enclosing_fn->upvalues, upval_index, &upval);
+					upval = spn_array_get(enclosing_fn->upvalues, upval_index);
 					spn_array_push(closure->upvalues, &upval);
 					break;
 				}
@@ -1589,12 +1582,12 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* grab a reference to the currently executing function */
 			SpnFunction *current_fn = vm->sp[IDX_FRMHDR].h.callee;
 
-			/* release previous content of `reg_index`-th register */
+			/* release previous content of 'reg_index'-th register */
 			SpnValue *reg = VALPTR(vm->sp, reg_index);
 			spn_value_release(reg);
 
 			/* store upvalue into register and retain it */
-			spn_array_get(current_fn->upvalues, upval_index, reg);
+			*reg = spn_array_get(current_fn->upvalues, upval_index);
 			spn_value_retain(reg);
 
 			break;
@@ -1640,7 +1633,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (lookup_member(vm, &accval, pself, prname)) {
 				if (ishashmap(&accval)) {
 					SpnHashMap *accessors = hashmapvalue(&accval);
-					spn_hashmap_get(accessors, &vm->getname, &gval);
+					gval = spn_hashmap_get(accessors, &vm->getname);
 
 					if (isfunc(&gval)) {
 						/* copy the arguments because calling the getter may
@@ -1697,7 +1690,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (lookup_member(vm, &accval, pself, prname)) {
 				if (ishashmap(&accval)) {
 					SpnHashMap *accessors = hashmapvalue(&accval);
-					spn_hashmap_get(accessors, &vm->setname, &sval);
+					sval = spn_hashmap_get(accessors, &vm->setname);
 
 					if (isfunc(&sval)) {
 						SpnFunction *setter = funcvalue(&sval);
@@ -1786,7 +1779,7 @@ static void read_local_symtab(SpnFunction *program)
 #ifndef NDEBUG
 			/* sanity check: the string length recorded in the
 			 * bytecode and the actual length
-			 * reported by `strlen()` shall match.
+			 * reported by 'strlen()' shall match.
 			 */
 
 			size_t reallen = strlen(cstr);
@@ -1814,7 +1807,7 @@ static void read_local_symtab(SpnFunction *program)
 #ifndef NDEBUG
 			/* sanity check: the symbol name length recorded in
 			 * the bytecode and the actual length
-			 * reported by `strlen()` shall match.
+			 * reported by 'strlen()' shall match.
 			 */
 
 			size_t reallen = strlen(symname);
@@ -1849,7 +1842,7 @@ static void read_local_symtab(SpnFunction *program)
 
 			/* functions are implemented in the same translation
 			 * unit in which their local symtab entry is defined.
-			 * So we *can* (and should) fill in the `env'
+			 * So we *can* (and should) fill in the 'env'
 			 * member of the SpnValue while reading the symtab.
 			 */
 
@@ -1946,7 +1939,7 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 	assert(is_symstub(symp));
 
 	symstub = symstubvalue(symp);
-	spn_hashmap_get_strkey(vm->glbsymtab, symstub->name, &res);
+	res = spn_hashmap_get_strkey(vm->glbsymtab, symstub->name);
 
 	if (isnil(&res)) {
 		const void *args[1];
@@ -2110,9 +2103,8 @@ static int lookup_member_chained(SpnVMachine *vm, SpnValue *result, SpnValue roo
 	assert(ishashmap(&root));
 
 	do {
-		SpnValue tmp;
 		SpnHashMap *roothm = hashmapvalue(&root);
-		spn_hashmap_get(roothm, name, &tmp);
+		SpnValue tmp = spn_hashmap_get(roothm, name);
 
 		/* found something non-nil? return it! */
 		if (notnil(&tmp)) {
@@ -2121,7 +2113,7 @@ static int lookup_member_chained(SpnVMachine *vm, SpnValue *result, SpnValue roo
 		}
 
 		/* else, try super object/class */
-		spn_hashmap_get(roothm, &vm->supername, &root);
+		root = spn_hashmap_get(roothm, &vm->supername);
 	} while (ishashmap(&root));
 
 	/* not found anywhere in the chain */
@@ -2143,11 +2135,11 @@ static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, Spn
 		break;
 	case SPN_TTAG_USERINFO:
 		/* user info values have a per-instance class lookup mechanism */
-		spn_hashmap_get(vm->classes, pself, &root);
+		root = spn_hashmap_get(vm->classes, pself);
 		break;
 	default:
 		/* and other values share a per-type class descriptor */
-		spn_hashmap_get(vm->classes, &tagval, &root);
+		root = spn_hashmap_get(vm->classes, &tagval);
 		break;
 	}
 
@@ -2165,7 +2157,7 @@ static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, Spn
 	 * and only if it is a hashmap, try looking it up in the hashmap class
 	 */
 	if (ishashmap(pself)) {
-		spn_hashmap_get(vm->classes, &tagval, &root);
+		root = spn_hashmap_get(vm->classes, &tagval);
 
 		/* if hashmaps have a class (this is normally the case), _and_ the
 		 * class or any of the superclasses thereof contains the method,

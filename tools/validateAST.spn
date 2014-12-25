@@ -1,0 +1,413 @@
+// Bracket subscripting with strings is used throughout the code
+// so that we do a raw key lookup. This is important because the
+// compiler does the same thing, so an attacker could in principle
+// hijack our validation mechanism by using carefully hand-crafted
+// property getter functions.
+// Then the interpreter could be crashed or otherwise exploited.
+
+let validators = {};
+
+let validateNode = function (node) {
+	if typeof node != "hashmap" {
+		return false;
+	}
+
+	if not isint(node["line"]) or not isint(node["column"]) {
+		return false;
+	}
+
+	let nodeType = node["type"];
+
+	if typeof nodeType != "string" {
+		return false;
+	}
+
+	let validatorFunc = validators["validators"][nodeType];
+
+	if typeof validatorFunc == "function" {
+		return validatorFunc(node);
+	}
+
+	return false;
+};
+
+let validateCompound = function (node) {
+	let children = node["children"];
+
+	if typeof children != "array" {
+		return false;
+	}
+
+	// Here I do *NOT* use Array::all().
+	// I *explicitly avoid* this standard library function,
+	// since it could be used to hijack the validation process.
+	// Like this:
+	//
+	//   Array["all"] = function () { return true; };
+	//   compile(myInvalidMaliciousAST); /* crash compiler */
+	//
+	// Instead, I use the built-in '.length' property of the children
+	// array, of which the implementation is hard-coded into the VM,
+	// so it cannot be altered without messing the VM itself.
+	//
+	// return children.all(function (child) {
+	// 	 return typeof child == "hashmap" and validateNode(child);
+	// });
+	for (var i = 0; i < children.length; i++) {
+		if not validateNode(children[i]) {
+			return false;
+		}
+	}
+
+	return true;
+};
+
+let validateSimpleLoop = function (node) {
+	if not validateNode(node["cond"]) {
+		return false;
+	}
+
+	if not validateNode(node["body"]) {
+		return false;
+	}
+
+	return node["body"]["type"] == "block";
+};
+
+let validateBinOp = function (node) {
+	return validateNode(node["left"]) and validateNode(node["right"]);
+};
+
+let validatePrefix = function (node) {
+	return validateNode(node["right"]);
+};
+
+let validatePostIncDec = function (node) {
+	return validateNode(node["left"]);
+};
+
+validators["validators"] = {
+	// Statements
+	"program": validateCompound,
+
+	"block": validateCompound,
+
+	"return": function (node) {
+		if node["expr"] == nil {
+			return true;
+		}
+
+		return validateNode(node["expr"]);
+	},
+
+	"if": function (node) {
+		if not validateNode(node["cond"]) {
+			return false;
+		}
+
+		if not validateNode(node["then"]) {
+			return false;
+		}
+
+		if node["then"]["type"] != "block" {
+			return false;
+		}
+
+		if node["else"] == nil {
+			return true;
+		}
+
+		if not validateNode(node["else"]) {
+			return false;
+		}
+
+		let elseType = node["else"]["type"];
+		return elseType == "block" or elseType == "if";
+	},
+
+	"while": validateSimpleLoop,
+
+	"do": validateSimpleLoop,
+
+	"for": function (node) {
+		if not validateNode(node["init"]) {
+			return false;
+		}
+
+		if not validateNode(node["cond"]) {
+			return false;
+		}
+
+		if not validateNode(node["increment"]) {
+			return false;
+		}
+
+		if not validateNode(node["body"]) {
+			return false;
+		}
+
+		return node["body"]["type"] == "block";
+	},
+
+	"break": function (node) {
+		return true;
+	},
+
+	"continue": function (node) {
+		return true;
+	},
+
+	"vardecl": function (node) {
+		let children = node["children"];
+
+		if typeof children != "array" {
+			return false;
+		}
+
+		for (var i = 0; i < children.length; i++) {
+			let child = children[i];
+
+			if typeof child != "hashmap" {
+				return false;
+			}
+
+			if child["type"] != "variable" {
+				return false;
+			}
+
+			if typeof child["name"] != "string" {
+				return false;
+			}
+
+			if child["init"] != nil and not validateNode(child["init"]) {
+				return false;
+			}
+		}
+
+		return true;
+	},
+
+	"constdecl": function (node) {
+		let children = node["children"];
+
+		if typeof children != "array" {
+			return false;
+		}
+
+		for (var i = 0; i < children.length; i++) {
+			let child = children[i];
+
+			if typeof child != "hashmap" {
+				return false;
+			}
+
+			if child["type"] != "constant" {
+				return false;
+			}
+
+			if typeof child["name"] != "string" {
+				return false;
+			}
+
+			if not validateNode(child["init"]) {
+				return false;
+			}
+		}
+
+		return true;
+	},
+
+	"empty": function (node) {
+		return true;
+	},
+
+	// Binary expressions
+	"assign":  validateBinOp,
+	"+=":      validateBinOp,
+	"-=":      validateBinOp,
+	"*=":      validateBinOp,
+	"/=":      validateBinOp,
+	"%=":      validateBinOp,
+	"|=":      validateBinOp,
+	"^=":      validateBinOp,
+	"&=":      validateBinOp,
+	"<<=":     validateBinOp,
+	">>=":     validateBinOp,
+	"..=":     validateBinOp,
+	"concat":  validateBinOp,
+	"or":      validateBinOp,
+	"and":     validateBinOp,
+	"==":      validateBinOp,
+	"!=":      validateBinOp,
+	"<":       validateBinOp,
+	">":       validateBinOp,
+	"<=":      validateBinOp,
+	">=":      validateBinOp,
+	"bit_or":  validateBinOp,
+	"bit_xor": validateBinOp,
+	"bit_and": validateBinOp,
+	"<<":      validateBinOp,
+	">>":      validateBinOp,
+	"+":       validateBinOp,
+	"-":       validateBinOp,
+	"*":       validateBinOp,
+	"/":       validateBinOp,
+	"mod":     validateBinOp,
+
+	// Conditional expression
+	"condexpr": function (node) {
+		return validateNode(node["cond"])
+		   and validateNode(node["true"])
+		   and validateNode(node["false"]);
+	},
+
+	// Prefix expressions
+	"pre_inc":  validatePrefix,
+	"pre_dec":  validatePrefix,
+	"un_plus":  validatePrefix,
+	"un_minus": validatePrefix,
+	"not":      validatePrefix,
+	"bit_not":  validatePrefix,
+	"typeof":   validatePrefix,
+
+	// Postfix expressions
+	"post_inc": validatePostIncDec,
+	"post_dec": validatePostIncDec,
+
+	"subscript": function (node) {
+		return validateNode(node["object"]) and validateNode(node["index"]);
+	},
+
+	"memberof" : function (node) {
+		return validateNode(node["object"]) and typeof node["name"] == "string";
+	},
+
+	"call": function (node) {
+		if not validateNode(node["func"]) {
+			return false;
+		}
+
+		let children = node["children"];
+
+		if typeof children != "array" {
+			return false;
+		}
+
+		for (var i = 0; i < children.length; i++) {
+			if not validateNode(children[i]) {
+				return false;
+			}
+		}
+
+		return true;
+	},
+
+	// Terms, primitives, literals
+	"literal": function (node) {
+		let valueType = typeof node["value"];
+		let types = [ "nil", "bool", "number", "string" ];
+
+		for (var i = 0; i < types.length; i++) {
+			if valueType == types[i] {
+				return true;
+			}
+		}
+
+		return false;
+	},
+
+	"ident": function (node) {
+		return typeof node["name"] == "string";
+	},
+
+	"argv": function (node) {
+		return true;
+	},
+
+	"array": function (node) {
+		let children = node["children"];
+
+		if typeof children != "array" {
+			return false;
+		}
+
+		for (var i = 0; i < children.length; i++) {
+			if not validateNode(children[i]) {
+				return false;
+			}
+		}
+
+		return true;
+	},
+
+	"hashmap": function (node) {
+		let children = node["children"];
+
+		if typeof children != "array" {
+			return false;
+		}
+
+		for (var i = 0; i < children.length; i++) {
+			let child = children[i];
+
+			if typeof child != "hashmap" {
+				return false;
+			}
+
+			if child["type"] != "kvpair" {
+				return false;
+			}
+
+			if not validateNode(child["key"]) {
+				return false;
+			}
+
+			if not validateNode(child["value"]) {
+				return false;
+			}
+		}
+
+		return true;
+	},
+
+	"function": function (node) {
+		if node["name"] != nil and typeof node["name"] != "string" {
+			return false;
+		}
+
+		if not validateNode(node["body"]) {
+			return false;
+		}
+
+		if node["body"]["type"] != "block" {
+			return false;
+		}
+
+		let declargs = node["declargs"];
+
+		if typeof declargs != "array" {
+			return false;
+		}
+
+		for (var i = 0; i < declargs.length; i++) {
+			if typeof declargs[i] != "string" {
+				return false;
+			}
+		}
+
+		return true;
+	}
+};
+
+return function validateAST(node) {
+	if typeof node != "hashmap" {
+		return false;
+	}
+
+	// too of the AST must be a top-level program object
+	if node["type"] != "program" {
+		return false;
+	}
+
+	return validateNode(node);
+};

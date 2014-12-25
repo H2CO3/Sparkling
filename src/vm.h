@@ -26,7 +26,7 @@
  * use. The return value (in the script) of the function should be set through
  * the pointer to it. The actual C return value of the function should be zero
  * if it succeeded, or nonzero to signal an error.
- * `name` should be a non-NULL pointer, it will be used as the name of the
+ * 'name' should be a non-NULL pointer, it will be used as the name of the
  * function visible to the script. It is not copied, so it should be valid
  * while you want the function to be available to the script.
  */
@@ -74,14 +74,14 @@ SPN_API const char *spn_vm_geterrmsg(SpnVMachine *vm);
 SPN_API void        spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const void *args[]);
 
 /* returns an array of strings containing a symbolicated stack trace.
- * Must be `free()`'d when you're done with it.
+ * Must be free()'d when you're done with it.
  */
 SPN_API const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
 
 /* this returns a hashmap that contains the global constants and functions.
  * the keys are symbol names (SpnString instances).
  * The returned pointer is non-owning: the result of a call to this function
- * is only valid as long as the virtual machine `vm' is itself alive as well.
+ * is only valid as long as the virtual machine 'vm' is itself alive as well.
  */
 SPN_API SpnHashMap *spn_vm_getglobals(SpnVMachine *vm);
 
@@ -169,17 +169,17 @@ enum spn_const_kind {
  *
  * the format of each symbol table entry is as follows:
  *
- * SPN_LOCSYM_STRCONST: the long `a` operand of the instruction is the length
+ * SPN_LOCSYM_STRCONST: the long 'a' operand of the instruction is the length
  * in bytes of the string literal. The bytes following the instruction are
  * the bytes of the string literal including a 0-terminator. (as usually, the
- * number of `spn_uword`s overlaying the bytes is
+ * number of 'spn_uword's overlaying the bytes is
  * length / sizeof(spn_uword) + 1)
  *
  * SPN_LOCSYM_SYMSTUB: the layout is the same as that of STRCONST, it's just
  * that SYMSTUB represents a named, unresolved global, not a string literal.
- * (the long `a` operand contains the length of the symbol name.)
+ * (the long 'a' operand contains the length of the symbol name.)
  *
- * SPN_LOCSYM_FUNCDEF: the `spn_uword`s following the instruction are:
+ * SPN_LOCSYM_FUNCDEF: the 'spn_uword's following the instruction are:
  * 1. the offset of the entry point of the function in the bytecode;
  * 2. the length of the name of the function.
  * The following bytes contain the actual name string in the usual format.
@@ -254,7 +254,7 @@ enum spn_vm_ins {
  * (I): the CALL instruction must know and fill in the number of arguments and
  * the return address in the next (to-be-pushed) stack frame. Arguments:
  * a: return value; b: function to call; c: number of call-time arguments
- * (the following `c' octets are register indices which point to the
+ * (the following 'c' octets are register indices which point to the
  * call arguments of the function)
  *
  * (II): the caller stores the return value from the called frame
@@ -268,7 +268,7 @@ enum spn_vm_ins {
  * result beforehand, store it in a temporary variable, and only after all
  * calculations are done, should the destination register be updated.
  *
- * (IV): constants include `nil`, boolean literals, integer and floating-point
+ * (IV): constants include 'nil', boolean literals, integer and floating-point
  * literals. integer and floating-point literals take up one or more additional
  * machine word, so they need special treatment (namely, the instruction
  * pointer is to be increased appropriately when loading such constants)
@@ -280,8 +280,8 @@ enum spn_vm_ins {
  * (VI): the data following the instruction is the header of the function
  * followed by the actual bytecode. The instruction itself has no parameters.
  *
- * Here's some visualisation for `function foobar(x, y) { return x + y; }`.
- * The vertical bars are boundaries of `spn_uword`s.
+ * Here's some visualisation for 'function foobar(x, y) { return x + y; }'.
+ * The vertical bars are boundaries of 'spn_uword's.
  *
  *                    | <-- header -> |
  * +-----------------------------------------------------------+
@@ -301,7 +301,7 @@ enum spn_vm_ins {
  *
  * (VII): SPN_INS_CLOSURE takes two parameters, the index of the register
  * in which a free function resides (operand A), and the number of upvalues
- * (operand B). After the opcode follow as many `spn_uword`s as there are
+ * (operand B). After the opcode follow as many 'spn_uword's as there are
  * upvalues (B). Each spn_uword describes an upvalue (a local variable in an
  * enclosing  function, captured by the closure) using the following format:
  *
@@ -309,7 +309,7 @@ enum spn_vm_ins {
  * | Upvalue type (OPCODE, 8 bits) | Upvalue index (OPA), 8 bits) |
  * +-------------------------------+------------------------------+
  *
- * The upvalue type is one of the members of the `spn_upval_type` enum:
+ * The upvalue type is one of the members of the 'spn_upval_type' enum:
  *
  * - SPN_UPVAL_LOCAL represents an upvalue which is a local variable of the
  * immediately enclosing function.

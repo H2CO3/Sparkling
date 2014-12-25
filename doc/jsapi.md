@@ -28,10 +28,20 @@ The workflow in JavaScript is similar to the usage of the C API:
    of which the text is the error message as returned by **`lastErrorMessage()`**.
  - Should a parser or compiler error occur, an error message is available by
    calling **`Sparkling.lastErrorMessage()`**.
+ - The function **`Sparkling.lastErrorLocation()`** returns an object in the
+   format `{ line: X, column: Y }` which contains the line and character number
+   of the source where the last parser/compiler error occurred.
  - **`Sparkling.lastErrorType()`** returns the type of the last error
    as a string: one of `"OK"`, `"syntax"`, `"semantic"`, `"runtime"`,
    `"generic"` or `"unknown"`.
-
+ - There are facilities for examining, transforming and compiling Sparkling
+   Abstract Syntax Trees: **`Sparkling.parse()`** parses a string and returns
+   a tree of objects representing its AST. **`Sparkling.parseExpr()`** does
+   the same but it expects the string to be an expression, not a top-level
+   program.
+ - An AST object can be compiled to bytecode using **`Sparkling.compileAST`**,
+   which takes an AST as its parameter and returns a JavaScript function,
+   which, when called, will execute the compiled bytecode (Sparkling function).
 
 Mapping between Sparkling and JavaScript types:
 

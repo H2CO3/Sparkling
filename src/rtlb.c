@@ -58,8 +58,7 @@ static SpnHashMap *get_class_for_typetag(SpnVMachine *vm, int typetag)
 	SpnHashMap *classes = spn_vm_getclasses(vm);
 
 	SpnValue indexval = makeint(typetag);
-	SpnValue classval;
-	spn_hashmap_get(classes, &indexval, &classval);
+	SpnValue classval = spn_hashmap_get(classes, &indexval);
 
 	assert(ishashmap(&classval));
 	return hashmapvalue(&classval);
@@ -165,9 +164,7 @@ static void fhandle_free(void *obj)
 /* The key with which the file handle user info object
  * is associated in a file descriptor hashmap
  */
-enum {
-	FILE_HANDLE_INDEX = 1
-};
+#define FILE_HANDLE_KEY "file"
 
 /* the name of the global hashmap that contains file methods */
 #define FILE_LIB_NAME "File"
@@ -180,15 +177,12 @@ static SpnValue make_fhandle_hashmap(SpnHashMap *globals, FILE *f, int close)
 
 	SpnFileHandle *hndl = fhandle_new(f, close);
 	SpnValue hval = makestrguserinfo(hndl);
-	SpnValue fclass;
+	SpnValue fclass = spn_hashmap_get_strkey(globals, FILE_LIB_NAME);
 
-	SpnValue file_idx = makeint(FILE_HANDLE_INDEX);
-
-	spn_hashmap_set(hm, &file_idx, &hval);
+	spn_hashmap_set_strkey(hm, FILE_HANDLE_KEY, &hval);
 	spn_object_release(hndl);
 
 	/* set the "prototype" of our file object to the global File class */
-	spn_hashmap_get_strkey(globals, FILE_LIB_NAME, &fclass);
 	spn_hashmap_set_strkey(hm, "super", &fclass);
 
 	return ret;
@@ -199,18 +193,16 @@ static SpnValue make_fhandle_hashmap(SpnHashMap *globals, FILE *f, int close)
  * if it wasn't found or if it isn't a valid file handle.
  * 'hmv' must always point to an SpnValue of type hashmap.
  */
-static SpnFileHandle *fhandle_from_hashmap(SpnContext *ctx, SpnValue *hmv)
+static SpnFileHandle *fhandle_from_hashmap(SpnValue *hmv)
 {
-	SpnValue key = makeint(FILE_HANDLE_INDEX);
 	SpnValue val;
-
 	SpnHashMap *hm;
 	SpnObject *obj;
 
 	assert(ishashmap(hmv));
 	hm = hashmapvalue(hmv);
 
-	spn_hashmap_get(hm, &key, &val);
+	val = spn_hashmap_get_strkey(hm, FILE_HANDLE_KEY);
 
 	if (!isstrguserinfo(&val)) {
 		return NULL;
@@ -292,7 +284,7 @@ static int rtlb_fclose(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	if (hndl == NULL) {
 		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
 		return -3;
@@ -325,7 +317,7 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	fmt = stringvalue(&argv[1]);
 
 	if (hndl == NULL) {
@@ -369,7 +361,7 @@ static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	if (hndl == NULL) {
 		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
 		return -3;
@@ -405,7 +397,7 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	n = intvalue(&argv[1]);
 
 	if (hndl == NULL) {
@@ -452,7 +444,7 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	str = stringvalue(&argv[1]);
 
 	if (hndl == NULL) {
@@ -486,7 +478,7 @@ static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	if (hndl == NULL) {
 		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
 		return -3;
@@ -516,7 +508,7 @@ static int rtlb_ftell(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	if (hndl == NULL) {
 		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
 		return -3;
@@ -559,7 +551,7 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	off = intvalue(&argv[1]);
 	whence = stringvalue(&argv[2]);
 
@@ -607,7 +599,7 @@ static int rtlb_feof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(ctx, &argv[0]);
+	hndl = fhandle_from_hashmap(&argv[0]);
 	if (hndl == NULL) {
 		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
 		return -3;
@@ -1159,9 +1151,8 @@ static void loadlib_string(SpnVMachine *vm)
  */
 static void rtlb_aux_swap(SpnArray *a, int i, int j)
 {
-	SpnValue x, y;
-	spn_array_get(a, i, &x);
-	spn_array_get(a, j, &y);
+	SpnValue x = spn_array_get(a, i);
+	SpnValue y = spn_array_get(a, j);
 
 	spn_value_retain(&x);
 	spn_array_set(a, i, &y);
@@ -1176,16 +1167,13 @@ static int rtlb_aux_partition(SpnArray *a, int left, int right,
 	int pivot_idx = left + (right - left) / 2;
 	int i;
 
-	SpnValue pivot;
-	spn_array_get(a, pivot_idx, &pivot);
+	SpnValue pivot = spn_array_get(a, pivot_idx);
 
 	rtlb_aux_swap(a, pivot_idx, right);
 
 	for (i = left; i < right; i++) {
 		int lessthan;
-
-		SpnValue ith_elem;
-		spn_array_get(a, i, &ith_elem);
+		SpnValue ith_elem = spn_array_get(a, i);
 
 		/* compare pivot to i-th element */
 		if (comp != NULL) {
@@ -1320,10 +1308,8 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	for (i = 0; i < n; i++) {
 		size_t addlen;
 		SpnString *str;
+		SpnValue val = spn_array_get(arr, i);
 
-		SpnValue val;
-
-		spn_array_get(arr, i, &val);
 		if (!isstring(&val)) {
 			free(buf);
 			spn_ctx_runtime_error(ctx, "array must contain strings only", NULL);
@@ -1360,7 +1346,7 @@ static int rtlb_join(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		assert(buf == NULL);
 
 		/* if there were no items to concatenate, return empty string
-		 * (this is necessary because `buf` is now NULL,
+		 * (this is necessary because 'buf' is now NULL,
 		 * and we definitely don't want this to segfault)
 		 */
 		*ret = makestring_nocopy_len("", 0, 0);
@@ -1405,7 +1391,7 @@ static int rtlb_array_foreach(SpnValue *ret, int argc, SpnValue *argv, void *ctx
 		SpnValue cbret;
 		SpnValue args[2]; /* value and index */
 
-		spn_array_get(arr, i, &args[0]);
+		args[0] = spn_array_get(arr, i);
 		args[1] = makeint(i);
 
 		err = spn_ctx_callfunc(ctx, predicate, &cbret, COUNT(args), args);
@@ -1469,7 +1455,7 @@ static int rtlb_reduce(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		/* args[1] needn't be released: values returned by array getter
 		 * functions are non-owning
 		 */
-		spn_array_get(arr, i, &args[1]);
+		args[1] = spn_array_get(arr, i);
 
 		err = spn_ctx_callfunc(ctx, func, &tmp, COUNT(args), args);
 		spn_value_release(&args[0]);
@@ -1514,7 +1500,7 @@ static int rtlb_array_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		SpnValue args[2];
 		SpnValue cond;
 
-		spn_array_get(orig, i, &args[0]);
+		args[0] = spn_array_get(orig, i);
 		args[1] = makeint(i);
 
 		if (spn_ctx_callfunc(ctx, predicate, &cond, COUNT(args), args) != 0) {
@@ -1569,7 +1555,7 @@ static int rtlb_array_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		SpnValue result;
 		SpnValue args[2];
 
-		spn_array_get(orig, i, &args[0]);
+		args[0] = spn_array_get(orig, i);
 		args[1] = makeint(i);
 
 		if (spn_ctx_callfunc(ctx, predicate, &result, COUNT(args), args) != 0) {
@@ -1630,7 +1616,7 @@ static int rtlb_pop(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	/* return last element */
-	spn_array_get(arr, n - 1, ret);
+	*ret = spn_array_get(arr, n - 1);
 	spn_value_retain(ret);
 
 	/* remove it from array */
@@ -1662,7 +1648,7 @@ static int rtlb_last(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	spn_array_get(arr, n - 1, ret);
+	*ret = spn_array_get(arr, n - 1);
 	spn_value_retain(ret);
 
 	return 0;
@@ -1706,8 +1692,8 @@ static int rtlb_swap(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	spn_array_get(arr, idx_a, &tmp_a);
-	spn_array_get(arr, idx_b, &tmp_b);
+	tmp_a = spn_array_get(arr, idx_a);
+	tmp_b = spn_array_get(arr, idx_b);
 
 	/* retain the original value of A, because it may
 	 * be released, causing premature deallocation:
@@ -1749,8 +1735,7 @@ static int rtlb_reverse(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	/* copy elements of 'arr' into 'result' in reverse order */
 	for (i = n; i > 0; i--) {
-		SpnValue tmp;
-		spn_array_get(arr, i - 1, &tmp);
+		SpnValue tmp = spn_array_get(arr, i - 1);
 		spn_array_push(result, &tmp);
 	}
 
@@ -1794,7 +1779,7 @@ static int rtlb_aux_anyall(SpnValue *ret, int argc, SpnValue *argv, void *ctx, i
 		SpnValue keyval[2]; /* item 0: value, item 1: index */
 		SpnValue result;
 
-		spn_array_get(arr, i, &keyval[0]);
+		keyval[0] = spn_array_get(arr, i);
 		keyval[1] = makeint(i);
 
 		if (spn_ctx_callfunc(ctx, predicate, &result, COUNT(keyval), keyval) != 0) {
@@ -1848,8 +1833,8 @@ static int rtlb_arr_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	n = spn_array_count(arr);
 
 	for (i = 0; i < n; i++) {
-		SpnValue tmp;
-		spn_array_get(arr, i, &tmp);
+		SpnValue tmp = spn_array_get(arr, i);
+
 		if (spn_value_equal(&tmp, &argv[1])) {
 			*ret = makeint(i);
 			return 0;
@@ -1886,8 +1871,8 @@ static int rtlb_pfind(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	n = spn_array_count(arr);
 
 	for (i = 0; i < n; i++) {
-		SpnValue tmp, pret;
-		spn_array_get(arr, i, &tmp);
+		SpnValue pret;
+		SpnValue tmp = spn_array_get(arr, i);
 
 		if (spn_ctx_callfunc(ctx, predicate, &pret, 1, &tmp) != 0) {
 			return -4;
@@ -1948,19 +1933,17 @@ static int rtlb_aux_bsearch_compare(SpnValue vals[2], SpnFunction *predicate, Sp
 
 /* searches for elements in the range [lower, upper) */
 static int rtlb_aux_bsearch(SpnValue *ret, SpnArray *arr, const SpnValue *elem,
-	SpnFunction *predicate, SpnContext *ctx) {
+	SpnFunction *predicate, SpnContext *ctx)
+{
 	size_t lower = 0;
 	size_t upper = spn_array_count(arr);
 
 	while (lower < upper) {
-		SpnValue vals[2];
-		SpnValue tmp;
-
 		/* this is never out of bounds since integer division truncates */
 		size_t middle = lower + (upper - lower) / 2;
 		int is_smaller, is_greater;
-
-		spn_array_get(arr, middle, &tmp);
+		SpnValue tmp = spn_array_get(arr, middle);
+		SpnValue vals[2];
 
 		/* first, check if elem < middle */
 		vals[0] = *elem;
@@ -2101,8 +2084,7 @@ static int rtlb_slice(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	result = arrayvalue(ret);
 
 	for (i = 0; i < len; i++) {
-		SpnValue tmp;
-		spn_array_get(arr, idx + i, &tmp);
+		SpnValue tmp = spn_array_get(arr, idx + i);
 		spn_array_push(result, &tmp);
 	}
 
@@ -2247,8 +2229,7 @@ static int rtlb_concat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		n = spn_array_count(arr);
 
 		for (j = 0; j < n; j++) {
-			SpnValue tmp;
-			spn_array_get(arr, j, &tmp);
+			SpnValue tmp = spn_array_get(arr, j);
 			spn_array_push(result, &tmp);
 		}
 	}
@@ -2256,8 +2237,66 @@ static int rtlb_concat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_zipwith(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	size_t n, i;
+	SpnArray *seq_1, *seq_2, *result;
+	SpnFunction *transform;
+
+	if (argc != 3) {
+		spn_ctx_runtime_error(ctx, "expecting three arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0]) || !isarray(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "first two arguments must be arrays", NULL);
+		return -2;
+	}
+
+	if (!isfunc(&argv[2])) {
+		spn_ctx_runtime_error(ctx, "third argument must be a function", NULL);
+		return -3;
+	}
+
+	seq_1 = arrayvalue(&argv[0]);
+	seq_2 = arrayvalue(&argv[1]);
+	transform = funcvalue(&argv[2]);
+
+	n = spn_array_count(seq_1);
+
+	if (spn_array_count(seq_2) != n) {
+		spn_ctx_runtime_error(ctx, "length of the sequences must be equal", NULL);
+		return -4;
+	}
+
+	*ret = makearray();
+	result = arrayvalue(ret);
+
+	for (i = 0; i < n; i++) {
+		SpnValue tooth; /* one of the teeth of the zipper */
+		SpnValue args[2];
+
+		args[0] = spn_array_get(seq_1, i);
+		args[1] = spn_array_get(seq_2, i);
+
+		if (spn_ctx_callfunc(ctx, transform, &tooth, COUNT(args), args) != 0) {
+			spn_object_release(result);
+			return -5;
+		}
+
+		spn_array_push(result, &tooth);
+		spn_value_release(&tooth);
+	}
+
+	return 0;
+}
+
 static void loadlib_array(SpnVMachine *vm)
 {
+	static const SpnExtFunc F[] = {
+		{ "zipwith", rtlb_zipwith }
+	};
+
 	/* Methods */
 	static const SpnExtFunc M[] = {
 		{ "sort",       rtlb_sort          },
@@ -2283,6 +2322,7 @@ static void loadlib_array(SpnVMachine *vm)
 		{ "reverse",    rtlb_reverse       }
 	};
 
+	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
 	load_methods(vm, SPN_TTAG_ARRAY, M, COUNT(M));
 }
 
@@ -2464,7 +2504,7 @@ static int rtlb_values(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return rtlb_aux_keyval(ret, argc, argv, ctx, 1);
 }
 
-static int rtlb_combine(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+static int rtlb_zip(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t n, i;
 	SpnArray *keys, *vals;
@@ -2493,9 +2533,8 @@ static int rtlb_combine(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	for (i = 0; i < n; i++) {
-		SpnValue key, val;
-		spn_array_get(keys, i, &key);
-		spn_array_get(vals, i, &val);
+		SpnValue key = spn_array_get(keys, i);
+		SpnValue val = spn_array_get(vals, i);
 		spn_hashmap_set(result, &key, &val);
 	}
 
@@ -2506,7 +2545,7 @@ static void loadlib_hashmap(SpnVMachine *vm)
 {
 	/* Free functions */
 	static const SpnExtFunc F[] = {
-		{ "combine", rtlb_combine }
+		{ "zip",     rtlb_zip }
 	};
 
 	static const SpnExtFunc M[] = {
@@ -2840,7 +2879,7 @@ static int rtlb_rad2deg(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_random(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	/* I am sorry for the skew, but no way I am putting an unbounded loop
-	 * into this function. `rand()` is already pretty bad on its own, so
+	 * into this function. 'rand()' is already pretty bad on its own, so
 	 * it's pointless to try improving it for simple use cases. If one
 	 * needs a decent PRNG, one will use a dedicated library anyway.
 	 */
@@ -3275,15 +3314,13 @@ static int rtlb_binom(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int polar, SpnContext *ctx)
 {
-	SpnValue re_r_val, im_theta_val;
 	SpnHashMap *hm = hashmapvalue(num);
-	const char *re_r_key, *im_theta_key;
 
-	re_r_key     = polar ? "r"     : "re";
-	im_theta_key = polar ? "theta" : "im";
+	const char *re_r_key     = polar ? "r"     : "re";
+	const char *im_theta_key = polar ? "theta" : "im";
 
-	spn_hashmap_get_strkey(hm, re_r_key, &re_r_val);
-	spn_hashmap_get_strkey(hm, im_theta_key, &im_theta_val);
+	SpnValue re_r_val = spn_hashmap_get_strkey(hm, re_r_key);
+	SpnValue im_theta_val = spn_hashmap_get_strkey(hm, im_theta_key);
 
 	if (!isnum(&re_r_val) || !isnum(&im_theta_val)) {
 		spn_ctx_runtime_error(ctx, "keys 're' and 'im' or 'r' and 'theta' should correspond to numbers", NULL);
@@ -3701,8 +3738,8 @@ static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	if (argc != 2) {
-		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
+	if (argc < 1 || argc > 2) {
+		spn_ctx_runtime_error(ctx, "expecting 1 or 2 arguments", NULL);
 		return -1;
 	}
 
@@ -3711,17 +3748,22 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	if (!isstring(&argv[1])) {
+	if (argc >= 2 && !isstring(&argv[1])) {
 		spn_ctx_runtime_error(ctx, "error message must be a string", NULL);
 		return -2;
 	}
 
 	/* actual assertion */
 	if (boolvalue(&argv[0]) == 0) {
-		SpnString *msg = stringvalue(&argv[1]);
-		const void *args[1];
-		args[0] = msg->cstr;
-		spn_ctx_runtime_error(ctx, "assertion failed: %s", args);
+		if (argc >= 2) {
+			const void *args[1];
+			SpnString *msg = stringvalue(&argv[1]);
+			args[0] = msg->cstr;
+			spn_ctx_runtime_error(ctx, "assertion failed: %s", args);
+		} else {
+			spn_ctx_runtime_error(ctx, "assertion failed", NULL);
+		}
+
 		return -3;
 	}
 
@@ -3737,8 +3779,89 @@ static int rtlb_time(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+/* CLOCKS_PER_SEC is the preferred macro, but it may not
+ * be available, in which case we try falling back to the
+ * now-obsolete CLK_TCK.
+ */
+#if defined(CLOCKS_PER_SEC)
+	#define SPN_CLOCK_TICK_COUNT CLOCKS_PER_SEC
+#elif defined(CLK_TCK)
+	#define SPN_CLOCK_TICK_COUNT CLK_TCK
+#else
+	#error "Cannot find CLOCKS_PER_SEC or CLK_TCK"
+#endif
+
+static int rtlb_clock(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	clock_t t = clock();
+	*ret = makefloat(t * 1.0 / SPN_CLOCK_TICK_COUNT);
+	return 0;
+}
+
+static void rtlb_aux_sleep(double dt_sec)
+{
+#if defined(__linux__) || defined(__APPLE__) || defined(__sun) || defined(__unix__) || defined(__GNUC__)
+	struct timespec req, rem; /* requested and remaining time */
+	double p_int;
+	double p_frac = modf(dt_sec, &p_int);
+
+	rem.tv_sec = p_int;
+	rem.tv_nsec = p_frac * 1.0e9; /* nanoseconds per second */
+
+	/* if sleeping was interrupted by a signal, retry */
+	do {
+		errno = 0;
+		req = rem;
+	} while (nanosleep(&req, &rem) != 0 && errno == EINTR);
+#elif defined(_WIN32)
+	Sleep(dt_sec * 1000);
+#else
+	/* if neither the POSIX nanosleep(), nor Windows's Sleep() is
+	 * available, then fall back to a (pretty bad) approximation
+	 * that busy-waits and uses CPU time rather than real time.
+	 */
+	clock_t t_start = clock();
+	clock_t dt_tick = dt_sec * SPN_CLOCK_TICK_COUNT;
+	clock_t t_end = t_start + dt_tick;
+
+	while (clock() < t_end) {
+		/* NOP */
+	}
+#endif
+}
+
+static int rtlb_sleep(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	double dt;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "expecting exactly one argument", NULL);
+		return -1;
+	}
+
+	if (!isnum(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a number", NULL);
+		return -2;
+	}
+
+	dt = isfloat(&argv[0]) ? floatvalue(&argv[0]) : intvalue(&argv[0]);
+
+	/* we check for a negative argument, since clock_t may be unsigned,
+	 * in which case integer promotion and unsigned overflow could do
+	 * funny things (e. g. an unexpectedly long sleeping time).
+	 * In addition, we can just return if the sleep time is 0 seconds.
+	 */
+	if (dt <= 0.0) {
+		return 0;
+	}
+
+	/* call platform-specific sleeping function */
+	rtlb_aux_sleep(dt);
+	return 0;
+}
+
 /* helper function that does the actual job filling the array from a struct tm.
- * `islocal` is a flag which is nonzero if localtime() is to be called, and
+ * 'islocal' is a flag which is nonzero if localtime() is to be called, and
  * zero if gmtime() should be called. The other arguments and the return value
  * correspond exactly to that of the rtlb_gmtime() and rtlb_localtime().
  */
@@ -3814,13 +3937,11 @@ static int rtlb_localtime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 #define RTLB_STRFTIME_BUFSIZE 0x100
 
 /* helper function for converting an SpnArray representing the time
- * to a `struct tm'
+ * to a 'struct tm'
  */
 static int rtlb_aux_extract_time(SpnHashMap *hm, const char *str, int *outval, SpnContext *ctx)
 {
-	SpnValue val;
-
-	spn_hashmap_get_strkey(hm, str, &val);
+	SpnValue val = spn_hashmap_get_strkey(hm, str);
 
 	if (!isint(&val)) {
 		spn_ctx_runtime_error(ctx, "time components should be integers", NULL);
@@ -3875,7 +3996,7 @@ static int rtlb_fmtdate(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	/* treat isdst specially, since it's a boolean */
-	spn_hashmap_get_strkey(hm, "isdst", &isdst);
+	isdst = spn_hashmap_get_strkey(hm, "isdst");
 	if (!isbool(&isdst)) {
 		spn_ctx_runtime_error(ctx, "isdst must be a boolean", NULL);
 		return -4;
@@ -3911,10 +4032,29 @@ static int rtlb_difftime(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+/* Helper for 'parse[expr]()', 'compilestr()', 'exprtofn()', etc.
+ * To be called immediately after a parser or compiler error occurred.
+ * This function will extract the error location and error message and
+ * transform it into a runtime error.
+ */
+static void parser_or_compiler_error_to_runtime(SpnContext *ctx)
 {
-	SpnFunction *fn;
-	const char *src;
+	const void *args[3];
+	const char *msg = spn_ctx_geterrmsg(ctx);
+	SpnSourceLocation loc = spn_ctx_geterrloc(ctx);
+
+	/* signed int vs. unsigned int is OK with strict aliasing */
+	args[0] = &loc.line;
+	args[1] = &loc.column;
+	args[2] = msg;
+
+	spn_ctx_runtime_error(ctx, "near line %i, char %i: %s", args);
+}
+
+static int rtlb_aux_parse(SpnValue *ret, int argc, SpnValue *argv, void *ctx, int is_expr)
+{
+	SpnString *src;
+	SpnHashMap *ast;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
@@ -3926,25 +4066,68 @@ static int rtlb_compile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	src = stringvalue(&argv[0])->cstr;
-	fn = spn_ctx_loadstring(ctx, src);
+	src = stringvalue(&argv[0]);
 
-	if (fn == NULL) {    /* return parser/compiler error message */
-		const char *errmsg = spn_ctx_geterrmsg(ctx);
-		*ret = makestring(errmsg);
-		spn_ctx_clearerror(ctx);
-	} else {             /* return function, make it owning */
-		ret->type = SPN_TYPE_FUNC;
-		ret->v.o = fn;
-		spn_value_retain(ret);
+	if (is_expr) {
+		ast = spn_ctx_parse_expr(ctx, src->cstr);
+	} else {
+		ast = spn_ctx_parse(ctx, src->cstr);
 	}
+
+	if (ast == NULL) {
+		parser_or_compiler_error_to_runtime(ctx);
+		return -1;
+	}
+
+	ret->type = SPN_TYPE_HASHMAP;
+	ret->v.o = ast;
+	return 0;
+}
+
+static int rtlb_parse(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_parse(ret, argc, argv, ctx, 0);
+}
+
+static int rtlb_parseexpr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_parse(ret, argc, argv, ctx, 1);
+}
+
+static int rtlb_compilestr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnFunction *fn;
+	SpnString *src;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		return -2;
+	}
+
+	src = stringvalue(&argv[0]);
+	fn = spn_ctx_loadstring(ctx, src->cstr);
+
+	if (fn == NULL) {
+		parser_or_compiler_error_to_runtime(ctx);
+		return -3;
+	}
+
+	/* return function, make it owning */
+	ret->type = SPN_TYPE_FUNC;
+	ret->v.o = fn;
+	spn_value_retain(ret);
 
 	return 0;
 }
 
 static int rtlb_require(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	const char *fname;
+	SpnString *fname;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
@@ -3956,14 +4139,20 @@ static int rtlb_require(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	fname = stringvalue(&argv[0])->cstr;
+	fname = stringvalue(&argv[0]);
 
-	return spn_ctx_execsrcfile(ctx, fname, ret);
+	if (spn_ctx_execsrcfile(ctx, fname->cstr, ret) != 0) {
+		parser_or_compiler_error_to_runtime(ctx);
+		return -1;
+	}
+
+	return 0;
 }
 
 static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnFunction *fn;
+	SpnString *str;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "requiring exactly one argument", NULL);
@@ -3975,17 +4164,46 @@ static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	fn = spn_ctx_compile_expr(ctx, stringvalue(&argv[0])->cstr);
+	str = stringvalue(&argv[0]);
+	fn = spn_ctx_compile_expr(ctx, str->cstr);
+
 	if (fn == NULL) {
-		const char *errmsg = spn_ctx_geterrmsg(ctx);
-		*ret = makestring(errmsg);
-		spn_ctx_clearerror(ctx);
-	} else {
-		ret->type = SPN_TYPE_FUNC;
-		ret->v.o = fn;
-		spn_value_retain(ret);
+		parser_or_compiler_error_to_runtime(ctx);
+		return -3;
 	}
 
+	ret->type = SPN_TYPE_FUNC;
+	ret->v.o = fn;
+	spn_value_retain(ret);
+
+	return 0;
+}
+
+static int rtlb_compileast(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnFunction *fn;
+	SpnHashMap *ast;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "requiring exactly one argument", NULL);
+		return -1;
+	}
+
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be an AST node hashmap", NULL);
+		return -2;
+	}
+
+	ast = hashmapvalue(&argv[0]);
+	fn = spn_ctx_compile_ast(ctx, ast);
+
+	if (fn == NULL) {
+		parser_or_compiler_error_to_runtime(ctx);
+		return -3;
+	}
+
+	ret->type = SPN_TYPE_FUNC;
+	ret->v.o = fn;
 	return 0;
 }
 
@@ -4110,7 +4328,7 @@ static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	/* copy arguments */
 	for (i = 0; i < callee_argc; i++) {
-		spn_array_get(arguments, i, &callee_argv[i]);
+		callee_argv[i] = spn_array_get(arguments, i);
 	}
 
 	/* perform actual call */
@@ -4153,12 +4371,17 @@ static void loadlib_sysutil(SpnVMachine *vm)
 		{ "system",     rtlb_system     },
 		{ "assert",     rtlb_assert     },
 		{ "time",       rtlb_time       },
+		{ "clock",      rtlb_clock      },
+		{ "sleep",      rtlb_sleep      },
 		{ "utctime",    rtlb_utctime    },
 		{ "localtime",  rtlb_localtime  },
 		{ "fmtdate",    rtlb_fmtdate    },
 		{ "difftime",   rtlb_difftime   },
-		{ "compile",    rtlb_compile    },
+		{ "parse",      rtlb_parse      },
+		{ "parseexpr",  rtlb_parseexpr  },
+		{ "compilestr", rtlb_compilestr },
 		{ "exprtofn",   rtlb_exprtofn   },
+		{ "compileast", rtlb_compileast },
 		{ "toint",      rtlb_toint      },
 		{ "tofloat",    rtlb_tofloat    },
 		{ "tonumber",   rtlb_tonumber   },
@@ -4181,16 +4404,16 @@ static void loadlib_sysutil(SpnVMachine *vm)
 	         funcindex    = makeint(SPN_TTAG_FUNC);
 
 	C[0].name = "String";
-	spn_hashmap_get(classes, &stringindex, &C[0].value);
+	C[0].value = spn_hashmap_get(classes, &stringindex);
 
 	C[1].name = "Array";
-	spn_hashmap_get(classes, &arrayindex, &C[1].value);
+	C[1].value = spn_hashmap_get(classes, &arrayindex);
 
 	C[2].name = "HashMap";
-	spn_hashmap_get(classes, &hashmapindex, &C[2].value);
+	C[2].value = spn_hashmap_get(classes, &hashmapindex);
 
 	C[3].name = "Function";
-	spn_hashmap_get(classes, &funcindex, &C[3].value);
+	C[3].value = spn_hashmap_get(classes, &funcindex);
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
 	spn_vm_addlib_values(vm, NULL, C, COUNT(C));

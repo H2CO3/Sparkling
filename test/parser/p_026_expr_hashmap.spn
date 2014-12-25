@@ -1,0 +1,7 @@
+let empty = {};
+let single = { "key": value };
+let multi = {
+	"key1": "value1",
+	"key2": value2,
+	"key3": 1337
+};

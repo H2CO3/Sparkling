@@ -1,0 +1,31 @@
+# Assignments, multiple assignments
+
+var a, b, c, d, e, f;
+a = 0;
+b = 1;
+c = 2;
+d = 3;
+e = 4;
+f = 5;
+
+a += b;
+b -= c;
+c *= d;
+d /= e;
+e %= f;
+
+a &= b |= c;
+e ^= f;
+a <<= (b <<= c >>= 16);
+f ..= "hello world";
+
+# Other binary operators
+
+a + b;
+c - d;
+e * f;
+a / c;
+b % d;
+"foo" .. "bar" .. "baz";
+a | b & c << d ^ e >> f;
+a < b and c < d or a >= c && (e <= f || f != a && c == d);

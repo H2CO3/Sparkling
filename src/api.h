@@ -21,7 +21,6 @@
 #define SPN_API extern
 #endif	/* __cplusplus */
 
-
 /* a VM word is the smallest integer type which is at least 32 bits wide */
 #if UINT_MAX >= 0xffffffffu
 typedef unsigned int spn_uword;
@@ -37,7 +36,7 @@ typedef signed long spn_sword;
 #define SPN_UWORD_FMT_HEX "lx"
 #endif
 
-/* it is guaranteed that at least this many octets fit into an `spn_uword` */
+/* it is guaranteed that at least this many octets fit into an 'spn_uword' */
 #define SPN_WORD_OCTETS 4
 
 
@@ -59,15 +58,15 @@ typedef struct SpnObject {
 	unsigned refcnt;
 } SpnObject;
 
-/* allocates a partially initialized (only the `isa` and `refcount` members
- * are set up) object of class `isa`. The returned instance should go through
+/* allocates a partially initialized (only the 'isa' and 'refcount' members
+ * are set up) object of class 'isa'. The returned instance should go through
  * a dedicated constructor (see e. g. spn_string_new()).
  */
 SPN_API void *spn_object_new(const SpnClass *isa);
 
 /* tests objects for equality. two objects are considered equal if they are
  * of the same class, and either their pointers compare equal or they have
- * a non-NULL `compare` member function which returns nonzero.
+ * a non-NULL 'compare' member function which returns nonzero.
  */
 SPN_API int spn_object_equal(void *lp, void *rp);
 
@@ -78,7 +77,7 @@ SPN_API int spn_object_cmp(void *lp, void *rp);
 
 /* these reference counting functions are called quite often.
  * for the sake of speed, they should probably be inlined. C89 doesn't have
- * `inline`, though, so we rely on the link-time optimizer to inline them.
+ * inline', though, so we rely on the link-time optimizer to inline them.
  */
 
 /* increments the reference count of an object */
@@ -112,12 +111,12 @@ SPN_API void spn_object_release(void *o);
 enum {
 	SPN_TTAG_NIL,
 	SPN_TTAG_BOOL,
-	SPN_TTAG_NUMBER,	 /* floating-point if `FLOAT' flag is set */
+	SPN_TTAG_NUMBER,	 /* floating-point if 'FLOAT' flag is set */
 	SPN_TTAG_STRING,
 	SPN_TTAG_ARRAY,
 	SPN_TTAG_HASHMAP,
 	SPN_TTAG_FUNC,
-	SPN_TTAG_USERINFO /* strong pointer when `OBJECT' flag is set	 */
+	SPN_TTAG_USERINFO /* strong pointer when 'OBJECT' flag is set	 */
 };
 
 /* additional type information flags */
@@ -237,7 +236,7 @@ SPN_API const char *spn_type_name(int type);
 SPN_API char *spn_read_text_file(const char *name);
 
 /* another convenience function for reading binary files.
- * WARNING: `sz' represents the file size in bytes. If you are using
+ * WARNING: 'sz' represents the file size in bytes. If you are using
  * this function to read compiled Sparkling object files, make sure to
  * divide the returned size by sizeof(spn_uword) in order to obtain
  * the code length in machine words.
