@@ -97,8 +97,9 @@ Constants are globally available once declared.
 You can write integers or floats in the same manner as in C:
 
  * `10` (decimal integer)
- * `0x3f` (hecadecimal integer)
- * `0755` (octal integer)
+ * `0x3f` (hexadecimal integer)
+ * `0o755` (octal integer)
+ * `0b01001011` (binary integer)
  * `2.0` (decimal floating-point)
  * `1.1e-2` (decimal floating-point in scientific notation)
 
@@ -155,8 +156,8 @@ starts with zero.
 It is also possible to modify an element in the array by assigning to it:
 
     > var a = ["baz"];
-    > empty[0] = "bar";
-    > print(empty[0]);
+    > a[0] = "bar";
+    > print(a[0]);
     bar
 
 To get the number of elements in an array, use the `length` property –
@@ -327,7 +328,7 @@ This is a short list of the most important operators:
 assignments
  * `?:` - conditional operator
  * `typeof` - type information, yields a type string
- * `.`: property access (calls getter or setter)
+ * `.`: property access (calls getter or setter if exists)
  * `&&`, `||`: logical AND and OR
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators
  * `&`, `|`, `^`: bitwise AND, OR and XOR
@@ -509,7 +510,7 @@ resulting code with the help of the `spn_ctx_callfunc()` function.
     if (main_func == NULL) {
         /* handle parser or syntax error */
     } else {
-        /* `main_func' contains a function describing the main program */
+        /* 'main_func' contains a function describing the main program */
         int i;
         for (i = 0; i < 1000000; i++) { /* run the program a lot of times */
             SpnValue retval;
