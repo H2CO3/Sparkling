@@ -93,7 +93,7 @@ static void add_to_programs(SpnContext *ctx, SpnFunction *fn)
 
 /* the essence */
 
-SpnFunction *spn_ctx_loadstring(SpnContext *ctx, const char *str)
+SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str)
 {
 	SpnFunction *result;
 
@@ -110,7 +110,7 @@ SpnFunction *spn_ctx_loadstring(SpnContext *ctx, const char *str)
 	return result;
 }
 
-SpnFunction *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname)
+SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname)
 {
 	char *src;
 	SpnFunction *result;
@@ -124,7 +124,7 @@ SpnFunction *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname)
 		return NULL;
 	}
 
-	result = spn_ctx_loadstring(ctx, src);
+	result = spn_ctx_compile_string(ctx, src);
 	free(src);
 
 	return result;
@@ -178,7 +178,7 @@ SpnFunction *spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t ob
 
 int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret)
 {
-	SpnFunction *fn = spn_ctx_loadstring(ctx, str);
+	SpnFunction *fn = spn_ctx_compile_string(ctx, str);
 
 	if (fn == NULL) {
 		return -1;
@@ -189,7 +189,7 @@ int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret)
 
 int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
-	SpnFunction *fn = spn_ctx_loadsrcfile(ctx, fname);
+	SpnFunction *fn = spn_ctx_compile_srcfile(ctx, fname);
 
 	if (fn == NULL) {
 		return -1;

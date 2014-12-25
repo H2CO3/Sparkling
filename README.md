@@ -18,9 +18,7 @@ Sparkling is influenced by other programming languages, namely:
    lot of languages inherit some of C's design patterns, especially syntax.
  - **Lua.** Being small, compact, fast and embeddable was a primary goal while
    I have been designing Sparkling. In addition, having a separate operator
-   for concatenation is *just inevitable.* Furthermore, making a strict
-   distinction between arrays and dictionaries is something I always wanted to
-   avoid, and Lua confirmed that it's a viable concept in production.
+   for concatenation is *just inevitable.*
  - **Python.** Python has dynamic *and* strong typing. That's good because it's
    convenient and safe at the same time. Following this pattern, Sparkling has
    a strict strong type sytem, but variables don't have types, only values do,
@@ -103,6 +101,18 @@ To make a release build (runs fast, hard to debug):
 
 	make BUILD=release
 	sudo make install
+
+To build the JavaScript language bindings:
+
+	make -f Makefile.emscripten
+
+To run the unit tests:
+
+	make test
+
+To run the unit tests and examine the interpreter using Valgrind:
+
+	make test-valgrind
 
 How do I hack on it?
 ====================

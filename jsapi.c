@@ -107,7 +107,7 @@ extern void jspn_freeAll(void)
 
 extern int jspn_compile(const char *src)
 {
-	SpnFunction *fn = spn_ctx_loadstring(get_global_context(), src);
+	SpnFunction *fn = spn_ctx_compile_string(get_global_context(), src);
 	if (fn == NULL) {
 		return ERROR_INDEX;
 	}
@@ -408,7 +408,7 @@ extern const char *jspn_getString(int index)
 extern int jspn_addWrapperFunction(int funcIndex)
 {
 	if (wrapperGenerator == NULL) {
-		wrapperGenerator = spn_ctx_loadstring(
+		wrapperGenerator = spn_ctx_compile_string(
 			get_global_context(),
 			"let funcIndex = argv[0];"
 			"return function() {"

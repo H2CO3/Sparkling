@@ -4110,7 +4110,7 @@ static int rtlb_compilestr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	src = stringvalue(&argv[0]);
-	fn = spn_ctx_loadstring(ctx, src->cstr);
+	fn = spn_ctx_compile_string(ctx, src->cstr);
 
 	if (fn == NULL) {
 		parser_or_compiler_error_to_runtime(ctx);

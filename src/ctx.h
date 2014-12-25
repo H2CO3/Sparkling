@@ -54,8 +54,8 @@ SPN_API void spn_ctx_setuserinfo(SpnContext *ctx, void *info);
  * It will be deallocated automatically when you free the context.
  * These functions return NULL on error.
  */
-SPN_API SpnFunction *spn_ctx_loadstring(SpnContext *ctx, const char *str);
-SPN_API SpnFunction *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname);
+SPN_API SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str);
+SPN_API SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname);
 SPN_API SpnFunction *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname);
 SPN_API SpnFunction *spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t objsize);
 

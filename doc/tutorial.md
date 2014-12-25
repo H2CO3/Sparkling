@@ -501,11 +501,11 @@ The type of the last error is provided by `spn_ctx_geterrtype()`.
 
 It is also possible that you want to run a program multiple times. Then, for
 performance reasons, you may want to avoid parsing and compiling it repeatedly.
-In that case, you can use `spn_ctx_loadstring()` and `spn_ctx_loadsrcfile()`
+In that case, you can use `spn_ctx_compile_string()` and `spn_ctx_compile_srcfile()`
 for parsing and compiling the source once. Once compiled, you can run the
 resulting code with the help of the `spn_ctx_callfunc()` function.
 
-    SpnFunction *main_func = spn_ctx_loadstring(&ctx, "print(42);")
+    SpnFunction *main_func = spn_ctx_compile_string(&ctx, "print(42);")
     if (main_func == NULL) {
         /* handle parser or syntax error */
     } else {
@@ -522,6 +522,10 @@ resulting code with the help of the `spn_ctx_callfunc()` function.
             }
         }
     }
+
+If you don't want to run a full program, you can just compile a single
+expression using `spn_ctx_compile_expr()` and call the returned function
+with `spn_ctx_callfunc()`, as described above.
 
 When you no longer need access to the Sparkling engine, you must free the
 context object in order to reclaim all resources:

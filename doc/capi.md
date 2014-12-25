@@ -200,19 +200,26 @@ If you need user info (e. g. from within an extension function), use the
 
     enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx);
     const char *spn_ctx_geterrmsg(SpnContext *ctx);
+    SpnSourceLocation spn_ctx_geterrloc(SpnContext *ctx);
 
-These functions return the type and description of the last error that occurred
-in the context. If no error occurred, the error type is `SPN_ERROR_OK`, and
-in this case, the description is a `NULL` pointer.
+These functions return the type, description and location in the source code
+of the last error that occurred in the context. If no error occurred, the error
+type is `SPN_ERROR_OK`, and in this case, the description is a `NULL` pointer,
+and the location is `{ line: 0, colum: 0 }`.
 
-    SpnFunction *spn_ctx_loadstring(SpnContext *ctx, const char *str);
-    SpnFunction *spn_ctx_loadsrcfile(SpnContext *ctx, const char *fname);
+    SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str);
+    SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname);
+    SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr);
 
 These functions attempt to parse and compile a source string. If an error is
 encountered during either phase, they set an error message and they return
 `NULL`. Else they return a function pointing to the compiled bytecode.
 This value is non-owning -- it should not be released explicitly,
 because it is deallocated when you free the context object.
+
+The first two functions expect the source string or the contents of the source
+file to be a full top-level program (i. e. zero or more statements), while
+`spn_ctx_compile_expr()` waits for a single **expression.**
 
 The bytecode objects are accumulated inside the context object, in the form of
 an `SpnArray`. This array can be accessed through `spn_ctx_getprograms()`.

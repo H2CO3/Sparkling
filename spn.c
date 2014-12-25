@@ -168,7 +168,7 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 	int err, i;
 
 	/* compile */
-	SpnFunction *fn = spn_ctx_loadsrcfile(ctx, fname);
+	SpnFunction *fn = spn_ctx_compile_srcfile(ctx, fname);
 
 	if (fn == NULL) {
 		enum spn_error_type errtype = spn_ctx_geterrtype(ctx);
@@ -514,7 +514,7 @@ static int compile_files(int argc, char *argv[])
 		fflush(stdout);
 		fflush(stderr);
 
-		fn = spn_ctx_loadsrcfile(&ctx, argv[i]);
+		fn = spn_ctx_compile_srcfile(&ctx, argv[i]);
 		if (fn == NULL) {
 			SpnSourceLocation loc = spn_ctx_geterrloc(&ctx);
 			const char *errmsg = spn_ctx_geterrmsg(&ctx);
