@@ -84,6 +84,13 @@ static SpnHashMap *parse_binexpr_leftassoc(
 	SpnHashMap *(*subexpr)(SpnParser *)
 );
 
+static SpnHashMap *parse_binexpr_noassoc(
+	SpnParser *p,
+	const TokenAndNode tokens[],
+	size_t n,
+	SpnHashMap *(*subexpr)(SpnParser *)
+);
+
 /* Miscellaneous helpers */
 
 static int is_at_eof(SpnParser *p)
@@ -698,7 +705,7 @@ static SpnHashMap *parse_comparison(SpnParser *p)
 		{ ">=", ">=" }
 	};
 
-	return parse_binexpr_leftassoc(p, tokens, COUNT(tokens), parse_bitwise_or);
+	return parse_binexpr_noassoc(p, tokens, COUNT(tokens), parse_bitwise_or);
 }
 
 static SpnHashMap *parse_bitwise_or(SpnParser *p)
@@ -1004,6 +1011,7 @@ static SpnHashMap *parse_term(SpnParser *p)
 		return ast;
 	}
 
+	/* string literal */
 	if ((token = accept_token_type(p, SPN_TOKEN_STRING)) != NULL) {
 		size_t len;
 		char *unescaped = spn_unescape_string_literal(token->value, &len);
@@ -1243,6 +1251,40 @@ static SpnHashMap *parse_binexpr_leftassoc(
 	}
 
 	return ast;
+}
+
+static SpnHashMap *parse_binexpr_noassoc(
+	SpnParser *p,
+	const TokenAndNode tokens[],
+	size_t n,
+	SpnHashMap *(*subexpr)(SpnParser *)
+)
+{
+	size_t index;
+	SpnToken *op;
+	SpnHashMap *left, *right, *top;
+
+	left = subexpr(p);
+	if (left == NULL) { /* error */
+		return NULL;
+	}
+
+	op = accept_multi(p, tokens, n, &index);
+	if (op == NULL) {
+		return left;
+	}
+
+	right = subexpr(p);
+	if (right == NULL) { /* error */
+		spn_object_release(left);
+		return NULL;
+	}
+
+	top = ast_new(tokens[index].node, op->location);
+	ast_set_child_xfer(top, "left", left);
+	ast_set_child_xfer(top, "right", right);
+
+	return top;
 }
 
 /**************

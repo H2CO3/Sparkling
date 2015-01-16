@@ -58,7 +58,9 @@ argument-declaration-list	= ( IDENT ( ',' IDENT )(*) )(?)
 
 statement = empty-statement              |
             if-statement                 |
-            loop-statement               |
+            for-statement                |
+            while-statement              |
+            do-while-statement           |
             return-statement             |
             loop-control-flow-statement  |
             expression-statement         |
@@ -73,10 +75,6 @@ empty-statement     = ';'
 
 if-statement        = 'if' expression block-statement ( 'else' block-statement | if-statement )(?)
 
-loop-statement      = for-statement      |
-                      while-statement    |
-                      do-while-statement
-
 for-statement       = 'for' for-header | ( '(' for-header ')' ) block-statement
 for-header          = ( variable-declaration | expression ';' ) expression ';' expression
 
@@ -88,7 +86,7 @@ return-statement    = 'return' [ expression ] ';'
 
 block-statement     = '{' statement (*) '}'
 
-loop-control-flow-statement = 'break' | 'continue' ';'
+loop-control-flow-statement = ( 'break' | 'continue' ) ';'
 
 variable-declaration  = 'var' | 'let' IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
 
@@ -110,27 +108,27 @@ assignment-expr       = concat-expr [
                        '>>=' )
                         assignment-expr ] /* right-assoc */
 
-concat-expr           = [cond-expr '..' ] cond-expr /* left-assoc */
+concat-expr           = [ concat-expr '..' ] cond-expr /* left-assoc */
 
 cond-expr             = logical-or-expr [ '?' expression ':' cond-expr ] /* right-assoc */
 
-logical-or-expr       = [ logical-and-expr '||' ] logical-and-expr /* left-assoc */
+logical-or-expr       = [ logical-or-expr '||' | 'or' ] logical-and-expr /* left-assoc */
 
-logical-and-expr      = [ comparison-expr '&&' ] comparison-expr 
+logical-and-expr      = [ logical-and-expr '&&' | 'and' ] comparison-expr /* left-assoc */
 
-comparison-expr       = [ bitwise-or-expr '<' | '>' | '<=' | '>=' | '==' | '!=' ] bitwise-or-expr
+comparison-expr       = bitwise-or-expr [ '<' | '>' | '<=' | '>=' | '==' | '!=' bitwise-or-expr ] /* no-assoc */
 
-bitwise-or-expr       = [ bitwise-xor-expr '|' ] bitwise-xor-expr
+bitwise-or-expr       = [ bitwise-or-expr '|' ] bitwise-xor-expr /* left assoc */
 
-bitwise-xor-expr      = [ bitwise-and-expr '^' ] bitwise-and-expr
+bitwise-xor-expr      = [ bitwise-xor-expr '^' ] bitwise-and-expr /* left assoc */
 
-bitwise-and-expr      = [ shift-expr '&' ] shift-expr
+bitwise-and-expr      = [ bitwise-and-expr '&' ] shift-expr /* left assoc */
 
-shift-expr            = [ additive-expr '<<' | '>>' ] additive-expr
+shift-expr            = [ shift-expr '<<' | '>>' ] additive-expr /* left assoc */
 
-additive-expr         = [ multplicative-expr '+' | '-' ] multiplicative-expr
+additive-expr         = [ additive-expr '+' | '-' ] multiplicative-expr /* left assoc */
 
-multiplicative-expr   = [ prefix-expr '*' | '/' | '%' ] prefix-expr
+multiplicative-expr   = [ multiplicative-expr '*' | '/' | '%' ] prefix-expr /* left-assoc */
 
 prefix-expr           = (
                       ( '+'       |
@@ -138,18 +136,20 @@ prefix-expr           = (
                         '++'      |
                         '--'      |
                         '!'       |
+                        'not'     |
                         '~'       |
                         'typeof'  )
                       prefix-expr ) | postfix-expr /* right-assoc */
 
-postfix-expr = term
-        (
+postfix-expr = (
+      postfix-expr [
           ( '[' expression ']' )              |
           ( '(' [ argument-call-list ] ')' )  |
           '++'                                |
           '--'                                |
           ( '.' IDENT )                       |
-        )(*) /* left-assoc */
+      ]
+    ) | term /* left-assoc */
 
 term         = IDENT                   |
                literal                 |

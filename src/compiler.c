@@ -2774,7 +2774,7 @@ static int compile_incdec_arr(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 	int is_subscript = type_equal(op_type, "subscript");
 
 	/* select appropriate opcodes:
-	 * increment vs. decrement;  array subscript vs. property accessor
+	 * increment vs. decrement; array subscript vs. property accessor
 	 */
 	enum spn_vm_ins arith_opcode = is_incrmt ? SPN_INS_INC : SPN_INS_DEC;
 	enum spn_vm_ins getter_opcode = is_subscript ? SPN_INS_IDX_GET : SPN_INS_PROPGET;
