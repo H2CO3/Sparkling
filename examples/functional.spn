@@ -1,4 +1,4 @@
-#!/usr/local/bin/spn
+#!/usr/bin/env spn
 
 # demonstrating the functional capabilities of Sparkling using
 # higher-order functions, closures, partial application, etc.

@@ -1,4 +1,4 @@
-#!/usr/local/bin/spn
+#!/usr/bin/env spn
 
 /* Complex number demo for Sparkling
  * Also happens to demonstrate how to create and use classes

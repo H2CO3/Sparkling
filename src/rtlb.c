@@ -4135,7 +4135,7 @@ static int rtlb_require(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	if (!isstring(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a string (a filename)", NULL);
+		spn_ctx_runtime_error(ctx, "argument must be a string (a module name)", NULL);
 		return -2;
 	}
 

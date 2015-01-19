@@ -266,7 +266,7 @@ These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_seterrmsg()`,
 `spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()`, `spn_vm_addlib_values()` and
 `spn_vm_getglobals()`, respectively, on `ctx->vm`.
 
-   SpnArray *spn_ctx_getprograms(SpnContext *ctx);
+    SpnArray *spn_ctx_getprograms(SpnContext *ctx);
 
 Returns an array of SpnValue objects, which are functions representing the
 top-level programs that have been added to the context. **You must not modify
