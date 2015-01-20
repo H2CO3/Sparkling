@@ -258,7 +258,7 @@ const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 	}
 
 	/* allocate buffer */
-	buf = spn_malloc(i * sizeof(*buf));
+	buf = spn_malloc(i * sizeof buf[0]);
 
 	*size = i;
 
@@ -534,7 +534,7 @@ static void expand_stack(SpnVMachine *vm, size_t nregs)
 		vm->stackallsz *= 2;
 	}
 
-	vm->stack = spn_realloc(vm->stack, vm->stackallsz * sizeof(vm->stack[0]));
+	vm->stack = spn_realloc(vm->stack, vm->stackallsz * sizeof vm->stack[0]);
 
 	/* re-initialize stack pointer because we realloc()'d the stack */
 	vm->sp = vm->stack + oldsize;
@@ -809,7 +809,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 				/* allocate a big enough array for the arguments */
 				if (argc > MAX_AUTO_ARGC) {
-					argv = spn_malloc(argc * sizeof(argv[0]));
+					argv = spn_malloc(argc * sizeof argv[0]);
 				} else {
 					argv = auto_argv;
 				}

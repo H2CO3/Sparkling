@@ -148,7 +148,7 @@ SpnFunction *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
 	/* the size of the object file is not the same
 	 * as the number of machine words in the bytecode
 	 */
-	nwords = filesize / sizeof(*bc);
+	nwords = filesize / sizeof bc[0];
 	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords);
 
 	add_to_programs(ctx, result);
@@ -168,7 +168,7 @@ SpnFunction *spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t ob
 	/* the size of the object file is not the same
 	 * as the number of machine words in the bytecode
 	 */
-	nwords = objsize / sizeof(*bc);
+	nwords = objsize / sizeof bc[0];
 	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords);
 
 	add_to_programs(ctx, result);
