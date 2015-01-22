@@ -124,8 +124,12 @@
   "*Indentation offset for `sparkling-mode'.")
 
 (set (make-local-variable 'font-lock-defaults) '(sparkling-font-lock-keywords))
-
 (set (make-local-variable 'indent-line-function) 'sparkling-indent-line)
+
+(font-lock-add-keywords
+  'sparkling-mode `(("\\(function\\) *("
+    (0 (progn (compose-region (match-beginning 1) (match-end 1) "ƒ")
+      nil)))))
 
 (setq major-mode 'sparkling-mode)
 (setq mode-name "Sparkling")
