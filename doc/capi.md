@@ -118,7 +118,7 @@ Sets the context info of `vm` to the user-supplied `ctx`.
 
 If a runtime error occurred, returns the last error message.
 
-    void spn_vm_seterrmsg(SonVMachhine *, const char *, const void *[]);
+    void spn_vm_seterrmsg(SpnVMachhine *, const char *, const void *[]);
 
 This function should only be called from within a native extension function,
 in case of erroneous termination (before returning a non-zero status code).
@@ -384,11 +384,11 @@ This is how it should have been done:
 Use the convenience value constructor functions in `api.h`, `str.h`, `array.h`,
 `hashmap.h` and `func.h` in order to create value structs of any type.
 
-3. Sparkling API functions typically copy and retain input values, and return
-   non-owning pointers when giving output to the caller. Thus, if you want to
-   use a value longer than an immediate operation, you typically retain **and**
-   copy the structure too. In the other direction, when you supply a value to a
-   function, you can pass the address of an automatic local (block-scope)
-   variable -- it will be safely copied, and the value inside will also be
-   retained if it's an object.
+Sparkling API functions typically copy and retain input values, and return
+non-owning pointers when giving output to the caller. Thus, if you want to
+use a value longer than an immediate operation, you typically retain **and**
+copy the structure too. In the other direction, when you supply a value to a
+function, you can pass the address of an automatic local (block-scope)
+variable -- it will be safely copied, and the value inside will also be
+retained if it's an object.
 
