@@ -294,7 +294,7 @@ extern const char *jspn_backtrace(void)
 
 	size_t len = 0;
 	size_t n;
-	const char **bt = spn_ctx_stacktrace(get_global_context(), &n);
+	SpnStackFrame *bt = spn_ctx_stacktrace(get_global_context(), &n);
 
 	if (n == 0) {
 		free(bt);
@@ -303,12 +303,12 @@ extern const char *jspn_backtrace(void)
 
 	for (size_t i = 0; i < n; i++) {
 		size_t oldlen = len;
-		size_t slen = strlen(bt[i]);
+		size_t slen = strlen(bt[i].function->name);
 		len += slen + 1; // +1 for newline
 		// I assume realloc()'ing in the Emscripten heap, which
 		// itself is heap-allocated anyway, should not fail...
 		buf = realloc(buf, len);
-		memcpy(buf + oldlen, bt[i], slen);
+		memcpy(buf + oldlen, bt[i].function->name, slen);
 		buf[oldlen + slen] = '\n';
 	}
 

@@ -4346,17 +4346,17 @@ static int rtlb_call(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t n, i;
-	const char **cnames = spn_ctx_stacktrace(ctx, &n);
+	SpnStackFrame *bt = spn_ctx_stacktrace(ctx, &n);
 	SpnArray *fnames = spn_array_new();
 
 	/* 'i' starts at 1: exclude own stack frame */
 	for (i = 1; i < n; i++) {
-		SpnValue name = makestring(cnames[i]);
+		SpnValue name = makestring(bt[i].function->name);
 		spn_array_push(fnames, &name);
 		spn_value_release(&name);
 	}
 
-	free(cnames);
+	free(bt);
 
 	ret->type = SPN_TYPE_ARRAY;
 	ret->v.o = fnames;

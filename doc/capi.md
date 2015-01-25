@@ -122,8 +122,57 @@ If a runtime error occurred, returns the last error message.
 
 This function should only be called from within a native extension function,
 in case of erroneous termination (before returning a non-zero status code).
-It sets a custom - formatted - error message that will be embedded inside
-the string that `spn_vm_geterrmsg()` returns.
+It sets a custom - formatted - error message that will be returned by
+`spn_vm_geterrmsg()`.
+
+    SpnStackFrame *spn_vm_stacktrace(SpnVMachine *vm, size_t *n);
+
+Returns an array of stack frame descriptor structures (`SpnStackFrame`).
+The return value must be `free()`d after use.
+On return, `*n` contains the number of stack frames.
+
+The `SpnStackFrame` structure has the following fields:
+
+    SpnFunction *function;
+    ptrdiff_t return_address;
+    void *sp;
+
+The `function` member is an `SpnFunction` pointer that points to the
+function object corresponding to the stack frame. You can use its `name`
+member to generate a symbolicated stack trace.
+
+The `return_address` member contains the offset into the bytecode of the
+caller of `function` where control flow would have been transferred if the
+function had returned normally. If `return_address` is negative, then the
+caller of the function is a native C function, and not a Sparkling script
+function.
+
+`sp` is an opaque pointer. It holds information about the registers in
+the given stack frame. It is used by `spn_vm_get_register()`.
+
+    SpnValue spn_vm_get_register(SpnStackFrame *frame, size_t index);
+
+If `frame` corresponds to a Sparkling function (top-level program, closure
+or non-closure script function), then returns the value of the `index`th
+register in the stack frame. Along with the debug information, this can
+be useful for e. g. inspecting the value of certain variables or other
+expressions.
+
+If `frame` corresponds to a native (C) extension function, or `index`
+is too high (>= the number of registers in the stack frame), then the
+behavior is undefined.
+
+**The returned value handle is non-owning,** i. e. it is invalidated
+by a subsequent function call initiated on the corresponding virtual
+machine object or by the decallocation of the virtual machine object.
+
+    ptrdiff_t spn_vm_exception_addr(SpnVMachine *vm);
+
+If the last runtime error has been thrown by Sparkling code (a script
+function or top-level program), then returns the offset into the bytecode
+of the offending VM instruction. Otherwise (when the last error has been
+caused by a native extension function, or when there hasn't been any
+run-time exceptions so far), this function returns a negative value.
 
     int spn_vm_callfunc(
         SpnVMachine *vm,
@@ -252,7 +301,9 @@ On error, they set an appropriate error type and error message.
 
     void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[]);
 
-    const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
+    SpnStackFrame *spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
+
+    ptrdiff_t spn_ctx_exception_addr(SpnContext *ctx);
 
     void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname,
         const SpnExtFunc fns[], size_t n);
@@ -263,8 +314,8 @@ On error, they set an appropriate error type and error message.
     SpnHashMap *spn_ctx_getglobals(SpnContext *ctx);
 
 These are equivalent with calling `spn_vm_callfunc()`, `spn_vm_seterrmsg()`,
-`spn_vm_stacktrace()`, `spn_vm_addlib_cfuncs()`, `spn_vm_addlib_values()` and
-`spn_vm_getglobals()`, respectively, on `ctx->vm`.
+`spn_vm_stacktrace()`, `spn_vm_exception_addr()`, `spn_vm_addlib_cfuncs()`,
+`spn_vm_addlib_values()` and `spn_vm_getglobals()`, respectively, on `ctx->vm`.
 
     SpnArray *spn_ctx_getprograms(SpnContext *ctx);
 

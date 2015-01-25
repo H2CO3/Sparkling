@@ -143,12 +143,19 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 	if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
 		size_t n;
 		unsigned i;
-		const char **bt = spn_ctx_stacktrace(ctx, &n);
+		long addr = spn_ctx_exception_addr(ctx);
+		SpnStackFrame *bt = spn_ctx_stacktrace(ctx, &n);
 
-		fprintf(stderr, "Call stack:\n\n");
+		if (addr < 0) {
+			fprintf(stderr, "Runtime error in native code");
+		} else {
+			fprintf(stderr, "Runtime error @ %#08lx", addr);
+		}
+
+		fprintf(stderr, " - Call stack:\n\n");
 
 		for (i = 0; i < n; i++) {
-			fprintf(stderr, "\t[%-4u]\tin %s\n", i, bt[i]);
+			fprintf(stderr, "\t[%-4u]\tin %s\n", i, bt[i].function->name);
 		}
 
 		fprintf(stderr, "\n");

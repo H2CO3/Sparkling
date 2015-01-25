@@ -44,6 +44,32 @@ typedef struct SpnExtValue {
 /* the virtual machine */
 typedef struct SpnVMachine SpnVMachine;
 
+/* A structure representing a frame of the call stack.
+ * An array of this structure is returned by 'spn_vm_stacktrace()'.
+ *
+ * The 'function' member is the function object that corresponds
+ * to the stack frame.
+ *
+ * Meanwhile, 'return_address' is an offset into the bytecode of
+ * the _caller_ of 'function'. This address is where control flow
+ * would have been transferred, had the function returned.
+ * Hence, with the help of the debug information, 'return_address'
+ * can be used to infer the instruction/location from where 'function'
+ * has been called (the last machine word of that SPN_INS_CALL
+ * instruction is located at address 'return_address - 1').
+ *
+ * A negative 'return_address' indicates that the caller
+ * was a native (C) function and not a Sparkling function/script.
+ *
+ * 'sp' is an opaque pointer that stores the stack pointer of
+ * the frame. It is used by 'spn_vm_get_register()'.
+ */
+typedef struct SpnStackFrame {
+	SpnFunction *function;
+	ptrdiff_t return_address;
+	void *sp;
+} SpnStackFrame;
+
 SPN_API SpnVMachine *spn_vm_new(void);
 SPN_API void         spn_vm_free(SpnVMachine *vm);
 
@@ -73,10 +99,20 @@ SPN_API void  spn_vm_setcontext(SpnVMachine *vm, void *ctx);
 SPN_API const char *spn_vm_geterrmsg(SpnVMachine *vm);
 SPN_API void        spn_vm_seterrmsg(SpnVMachine *vm, const char *fmt, const void *args[]);
 
-/* returns an array of strings containing a symbolicated stack trace.
- * Must be free()'d when you're done with it.
+/* returns an array of stack frame descriptors forming a symbolicated stack trace.
+ * Return value must be free()'d when you're done with it.
  */
-SPN_API const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
+SPN_API SpnStackFrame *spn_vm_stacktrace(SpnVMachine *vm, size_t *size);
+
+/* returns the value of the register at index 'index' within
+ * the stack frame represented by 'frame'.
+ */
+SPN_API SpnValue spn_vm_get_register(SpnStackFrame *frame, size_t index);
+
+/* returns the immediate address where a runtime error occurred.
+ * Returns a negative value if the top-most function is a native C function.
+ */
+SPN_API ptrdiff_t spn_vm_exception_addr(SpnVMachine *vm);
 
 /* this returns a hashmap that contains the global constants and functions.
  * the keys are symbol names (SpnString instances).

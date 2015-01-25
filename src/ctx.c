@@ -304,9 +304,14 @@ SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast)
 
 
 /* Virtual Machine accessors */
-const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
+SpnStackFrame *spn_ctx_stacktrace(SpnContext *ctx, size_t *size)
 {
 	return spn_vm_stacktrace(ctx->vm, size);
+}
+
+ptrdiff_t spn_ctx_exception_addr(SpnContext *ctx)
+{
+	return spn_vm_exception_addr(ctx->vm);
 }
 
 void spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc fns[], size_t n)

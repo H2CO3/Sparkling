@@ -71,7 +71,8 @@ SPN_API int spn_ctx_execobjdata(SpnContext *ctx, const void *objdata, size_t obj
 /* direct access to the virtual machine */
 SPN_API int spn_ctx_callfunc(SpnContext *ctx, SpnFunction *func, SpnValue *ret, int argc, SpnValue argv[]);
 SPN_API void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[]);
-SPN_API const char **spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
+SPN_API SpnStackFrame *spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
+SPN_API ptrdiff_t spn_ctx_exception_addr(SpnContext *ctx);
 
 /* compile and evaluate expressions */
 SPN_API SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr);

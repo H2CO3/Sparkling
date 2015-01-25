@@ -95,6 +95,8 @@ struct SpnVMachine {
 	TSlot      *sp;         /* stack pointer                */
 	size_t      stackallsz; /* stack alloc size in frames   */
 
+	ptrdiff_t   exc_addr;   /* address of last exception    */
+
 	SpnHashMap *glbsymtab;  /* global symbol table          */
 	SpnHashMap *classes;    /* class descriptors            */
 
@@ -200,6 +202,11 @@ SpnVMachine *spn_vm_new(void)
 	vm->stack = NULL;
 	vm->sp = NULL;
 
+	/* address of instruction that threw an exception.
+	 * if negative: no exception, or occurred in a C function
+	 */
+	vm->exc_addr = -1;
+
 	/* initialize the global symbol table and class descriptors */
 	vm->glbsymtab = spn_hashmap_new();
 	vm->classes   = spn_hashmap_new();
@@ -237,10 +244,30 @@ void spn_vm_free(SpnVMachine *vm)
 	free(vm);
 }
 
-const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
+static ptrdiff_t return_address_from_stack_ptr(TSlot *sp)
+{
+	TFrame *frmhdr = &sp[IDX_FRMHDR].h;
+
+	if (frmhdr->retaddr != NULL) {
+		/* get stack frame info of caller (previous stack frame) */
+		TSlot *caller_sp = sp - frmhdr->size;
+		TFrame *caller_frmhdr = &caller_sp[IDX_FRMHDR].h;
+
+		/* return the offset into the bytecode of the top-level
+		 * program in which the caller is defined
+		 */
+		assert(caller_frmhdr->callee->native == 0);
+		return frmhdr->retaddr - caller_frmhdr->callee->env->repr.bc;
+	}
+
+	/* if no Sparkling address to return to: caller is a C function */
+	return -1;
+}
+
+SpnStackFrame *spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 {
 	size_t i = 0;
-	const char **buf;
+	SpnStackFrame *buf;
 
 	TSlot *sp = vm->sp;
 
@@ -264,13 +291,31 @@ const char **spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 
 	i = 0;
 	sp = vm->sp;
+
 	while (sp > vm->stack) {
 		TFrame *frmhdr = &sp[IDX_FRMHDR].h;
-		buf[i++] = frmhdr->callee->name;
+		SpnStackFrame *frame = &buf[i++];
+
+		frame->function = frmhdr->callee;
+		frame->return_address = return_address_from_stack_ptr(sp);
+		frame->sp = sp;
+
 		sp -= frmhdr->size;
 	}
 
 	return buf;
+}
+
+SpnValue spn_vm_get_register(SpnStackFrame *frame, size_t index)
+{
+	TSlot *sp = frame->sp;
+	SpnValue *regptr = VALPTR(sp, index);
+	return *regptr;
+}
+
+ptrdiff_t spn_vm_exception_addr(SpnVMachine *vm)
+{
+	return vm->exc_addr;
 }
 
 SpnHashMap *spn_vm_getglobals(SpnVMachine *vm)
@@ -453,42 +498,24 @@ void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValu
  */
 static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const void *args[])
 {
-	char *prefix, *msg;
-	size_t prefix_len, msg_len;
-
-	/* self-protection: don't overwrite previous error message */
+	/* self-protection: do not overwrite previous error message */
 	if (vm->haserror) {
 		return;
 	}
 
+	/* a non-NULL pointer means that a Sparkling VM instruction threw */
 	if (ip != NULL) {
+		/* store address of runtime error */
 		spn_uword *prog_bc = vm->sp[IDX_FRMHDR].h.callee->env->repr.bc;
-		unsigned long addr = ip - prog_bc;
-		const void *prefix_args[1];
-		prefix_args[0] = &addr;
-		prefix = spn_string_format_cstr(
-			"runtime error at address 0x%08x: ",
-			&prefix_len,
-			prefix_args
-		);
+		vm->exc_addr = ip - prog_bc;
 	} else {
-		prefix = spn_string_format_cstr( /* glorified strdup() */
-			"runtime error in native code: ",
-			&prefix_len,
-			NULL
-		);
+		/* indicate the fact that error was caused by native code */
+		vm->exc_addr = -1;
 	}
 
-	msg = spn_string_format_cstr(fmt, &msg_len, args);
-
+	/* build and store new error message */
 	free(vm->errmsg);
-	vm->errmsg = spn_malloc(prefix_len + msg_len + 1);
-
-	strcpy(vm->errmsg, prefix);
-	strcpy(vm->errmsg + prefix_len, msg);
-
-	free(prefix);
-	free(msg);
+	vm->errmsg = spn_string_format_cstr(fmt, NULL, args);
 
 	/* self-protection */
 	vm->haserror = 1;
