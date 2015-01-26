@@ -1120,6 +1120,11 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				return -1;
 			}
 
+			if (isint(b) && isint(c) && intvalue(c) == 0) {
+				runtime_error(vm, ip - 1, "division by zero", NULL);
+				return -1;
+			}
+
 			/* compute result */
 			res = arith_op(b, c, opcode);
 
@@ -1137,6 +1142,11 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (!isint(b) || !isint(c)) {
 				runtime_error(vm, ip - 1, "modulo division on non-integers", NULL);
+				return -1;
+			}
+
+			if (intvalue(c) == 0) {
+				runtime_error(vm, ip - 1, "modulo division by zero", NULL);
 				return -1;
 			}
 
