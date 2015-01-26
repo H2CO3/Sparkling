@@ -155,7 +155,7 @@ static void push_frame(
 static void pop_frame(SpnVMachine *vm);
 
 /* this function helps including native functions' names in the stack trace */
-static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee);
+static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee, spn_uword *retaddr);
 
 /* reads/creates the local symbol table of 'program' if necessary,
  * then stores it back into the function object.
@@ -377,8 +377,10 @@ int spn_vm_callfunc(
 		/* "return nothing" should mean "implicitly return nil" */
 		SpnValue tmpret = spn_nilval;
 
-		/* push pseudo-frame to include function name in stack trace */
-		push_native_pseudoframe(vm, fn);
+		/* push pseudo-frame to include function name in stack trace
+		 * NULL return address -> return to native code
+		 */
+		push_native_pseudoframe(vm, fn, NULL);
 
 		err = fn->repr.fn(&tmpret, argc, argv, vm->ctx);
 		if (err != 0) {
@@ -613,14 +615,14 @@ static void push_frame(
 	vm->sp[IDX_FRMHDR].h.extra_argc = extra_argc;
 	vm->sp[IDX_FRMHDR].h.real_argc = real_argc;
 	vm->sp[IDX_FRMHDR].h.retaddr = retaddr; /* if NULL, return to C-land */
-	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if negative, return to C-land */
+	vm->sp[IDX_FRMHDR].h.retidx = retidx; /* if >= 0, return _directly_ to VM stack */
 	vm->sp[IDX_FRMHDR].h.callee = callee;
 	vm->sp[IDX_FRMHDR].h.argv = NULL;
 }
 
-static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee)
+static void push_native_pseudoframe(SpnVMachine *vm, SpnFunction *callee, spn_uword *retaddr)
 {
-	push_frame(vm, 0, 0, 0, 0, NULL, -1, callee);
+	push_frame(vm, 0, 0, 0, 0, retaddr, -1, callee);
 }
 
 static void pop_frame(SpnVMachine *vm)
@@ -828,6 +830,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (fnobj->native) {	/* native function */
 				int i, err;
+				spn_uword *retaddr = ip + narggroups;
 				SpnValue tmpret = spn_nilval;
 				SpnValue *argv;
 
@@ -851,8 +854,19 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				 * this should be done *after* having copied
 				 * the arguments, since those arguments are
 				 * taken from the topmost stack frame.
+				 * XXX: here, 'retaddr' is not NULL (since the
+				 * function will return to Sparkling code),
+				 * but 'push_native_pseudoframe()' sets the
+				 * return register index to -1. That simply
+				 * means that the return value is not placed
+				 * _directly_ into the VM's stack (for safety
+				 * and correctness reasons). This would be an
+				 * inconsistency when returning from Sparkling
+				 * code (using SPN_INS_RET), but since in this
+				 * case, we have complete control over the
+				 * return mechanism, this is just fine.
 				 */
-				push_native_pseudoframe(vm, fnobj);
+				push_native_pseudoframe(vm, fnobj, retaddr);
 
 				/* then call the native function. its return
 				 * value must have a reference count of one.
@@ -959,8 +973,12 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * not what we want.
 			 */
 
-			/* transfer return value to caller */
+			/* transfer return value to caller: */
 			SpnValue *res = VALPTR(vm->sp, OPA(ins));
+
+			/* check return info consistency */
+			assert(callee->retidx <  0 && callee->retaddr == NULL
+			    || callee->retidx >= 0 && callee->retaddr != NULL);
 
 			if (callee->retidx < 0) {
 				/* return to C-land */
