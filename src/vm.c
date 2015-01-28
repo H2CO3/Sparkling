@@ -828,7 +828,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			fnobj = funcvalue(&func);
 
-			if (fnobj->native) {	/* native function */
+			if (fnobj->native) { /* native function */
 				int i, err;
 				spn_uword *retaddr = ip + narggroups;
 				SpnValue tmpret = spn_nilval;
@@ -1120,9 +1120,11 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				return -1;
 			}
 
-			if (isint(b) && isint(c) && intvalue(c) == 0) {
-				runtime_error(vm, ip - 1, "division by zero", NULL);
-				return -1;
+			if (opcode == SPN_INS_DIV) {
+				if (isint(b) && isint(c) && intvalue(c) == 0) {
+					runtime_error(vm, ip - 1, "division by zero", NULL);
+					return -1;
+				}
 			}
 
 			/* compute result */
