@@ -61,7 +61,7 @@
 
 (defvar sparkling-font-lock-keywords
   (list
-   '("\\<\\(a\\(nd\\|rgv\\)\\|break\\|con\\(st\\|tinue\\)\\|do\\|else\\|f\\(or\\|unction\\)\\|global\\|if\\|let\\|not\\|or\\|return\\|sizeof\\|typeof\\|var\\|while\\)\\>" . font-lock-keyword-face)
+   '("\\<\\(a\\(nd\\|rgv\\)\\|break\\|continue\\|do\\|e\\(lse\\|xtern\\)\\|f\\(n\\|or\\)\\|if\\|let\\|not\\|or\\|return\\|sizeof\\|typeof\\|var\\|while\\)\\>" . font-lock-keyword-face)
    '("\\('\\w*'\\)" . font-lock-variable-name-face)
    '("\\(\\\"\\(\\\\\"\\|[^\\\"]\\)*\\\"\\)" . font-lock-string-face)
 	 '("\\(nil\\|null\\|true\\|false\\)" . font-lock-constant-face)
@@ -125,11 +125,6 @@
 
 (set (make-local-variable 'font-lock-defaults) '(sparkling-font-lock-keywords))
 (set (make-local-variable 'indent-line-function) 'sparkling-indent-line)
-
-(font-lock-add-keywords
-  'sparkling-mode `(("\\(function\\) *("
-    (0 (progn (compose-region (match-beginning 1) (match-end 1) "ƒ")
-      nil)))))
 
 (setq major-mode 'sparkling-mode)
 (setq mode-name "Sparkling")

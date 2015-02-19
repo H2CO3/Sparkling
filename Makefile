@@ -64,9 +64,9 @@ ifeq ($(BUILD), debug)
 	LDFLAGS += -O0 -g -pg
 	DYNLDFLAGS += -O0 -g -pg
 else
-	CFLAGS += -O2 -DNDEBUG $(LTO_FLAG)
-	LDFLAGS += -O2 $(LTO_FLAG)
-	DYNLDFLAGS += -O2 $(LTO_FLAG)
+	CFLAGS += -O3 -DNDEBUG $(LTO_FLAG)
+	LDFLAGS += -O3 $(LTO_FLAG)
+	DYNLDFLAGS += -O3 $(LTO_FLAG)
 endif
 
 OBJECTS = $(patsubst $(SRCDIR)/%.c, $(OBJDIR)/%.o, $(wildcard $(SRCDIR)/*.c))

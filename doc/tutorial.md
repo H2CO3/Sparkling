@@ -31,14 +31,13 @@ other tokens):
 - `and`
 - `argv`
 - `break`
-- `const`
 - `continue`
 - `do`
 - `else`
+- `extern`
 - `false`
+- `fn`
 - `for`
-- `function`
-- `global`
 - `if`
 - `let`
 - `nil`
@@ -73,19 +72,21 @@ Variable names and other identifiers can begin with a lowercase or capital
 English letter  (`a...z`, `A...Z`) or with an underscore (`_`), then any of
 `a...z`, `A...Z`, `0...9`, or `_` follows.
 
-## Constants
+By convention, variables declared with `let` are usually considered constants.
 
-Constants can be declared and initialized at file scope only, using the `const`
-or `global` keyword. It is obligatory to initialize a constant. It is also
-obligatory for the initializer expression to be non-`nil` (initializing a
-constant to `nil` will result in a runtime error).
+## Global Constants
 
-    const E_SQUARED = exp(2);
+Constants can be declared and initialized at file scope only, using the `extern`
+keyword. It is obligatory to initialize a constant. It is also obligatory for
+the initializer expression to be non-`nil` (initializing a constant to `nil`
+will result in a runtime error).
+
+    extern E_SQUARED = exp(2);
     
-    const my_number = 1 + 2, my_string = "foobar";
+    extern my_number = 1 + 2, my_string = "foobar";
 
-    global myLibrary = {
-        "foo": function() {
+    extern myLibrary = {
+        "foo": fn {
                    print("foo");
                }
     };
@@ -257,14 +258,14 @@ cannot be found on a particular object, then its ancestors are searched
 recursively, by means of the `"super"` key:
 
 	var superObj = {
-		"foo": function(self, n) {
+		"foo": fn (self, n) {
 			print("n = ", n);
 		}
 	};
 
 	var other = {
 		"super": superObj,
-		"bar": function(self, k) {
+		"bar": fn (self, k) {
 			print("k = ", k);
 		}
 	};
@@ -279,10 +280,10 @@ thousand words:
 
     var anObject = {
         "awesumProperty": {
-            "get": function(self /*, name */) {
+            "get": fn (self /*, name */) {
                 return self["backingMember"];
             },
-            "set": function(self, newValue /*, name */) {
+            "set": fn (self, newValue /*, name */) {
                 self["backingMember"] = newValue;
             }
         }
@@ -391,32 +392,37 @@ Trying to use an expression of any other type will cause a runtime error.
 
 ## Functions
 
-You can create named and anonymous functions with the `function` keyword:
+You can create named and anonymous functions with the `fn` keyword.
+If you initialize a local variable or a global constant with a function
+expression, then the function name will be deduced from the name of the
+variable or constant:
 
-    /* functions created by a function statement are globally accessible */
-    function square(x) {
+    let square = fn (x) {
         return x * x;
     }
 
-    /* in contrast, lambda functions (function expressions) have local scope */
-    var fn = function(x) {
+    extern f = fn (x) {
         return x + 1;
     };
 
-    /* lambda function with name */
-    var foo = function bar(x) {
-        return x >= 0 ? x : -x;
+Parentheses around function parameters are optional; if they are omitted,
+then parameter names are not separated by commas; otherwise, they are:
+
+    let multiple_params_1 = fn (a, b) {
+        return a + b;
     };
 
-Function statements are only allowed at file scope. Lambda functions are
-allowed everywhere, but due to an ambiguity in the grammar, at program scope,
-a statement starting with the `function` keyword will always be assumed to
-introduce a global function (function statement). If you want named or unnamed
-function _expressions_ at program scope, put them inside parentheses:
+    let multiple_params_2 = fn x y {
+        return x * y;
+    };
 
-    (function (x) {
-        return x * x;
-    }(42));
+    let no_params_1 = fn () {
+        print("Look, I have no params");
+    };
+
+    let no_params_2 = fn {
+        print("Me neither");
+    };
 
 If you don't explicitly return anything from a function, it will implicitly
 return `nil`. The same applies to the entire translation unit itself (since
@@ -430,7 +436,7 @@ To invoke a function, use the `()` operator:
 To get the number of arguments with which a function has been called, use
 `argv.length`:
 
-    > function bar() { print(argv.length); }
+    > extern bar = fn () { print(argv.length); }
     > bar();
     0
     > bar("foo");
@@ -488,10 +494,10 @@ runtime error by calling the `spn_ctx_stacktrace()` function.
         if (spn_ctx_geterrtype(&ctx) == SPN_ERROR_RUNTIME) {
             size_t i, n;
 
-            const char **bt = spn_ctx_stacktrace(&ctx, &n);
+            SpnStackFrame *bt = spn_ctx_stacktrace(&ctx, &n);
 
             for (i = 0; i < n; i++) {
-                printf("frame %zu: %s\n", i, bt[i]);
+                printf("frame %zu: %s\n", i, bt[i].function->name);
             }
 
             free(bt);

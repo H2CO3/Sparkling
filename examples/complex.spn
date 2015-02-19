@@ -9,46 +9,46 @@
 var class = {};
 
 // Constructor for complex numbers
-function Cplx(self) {
+let Cplx = fn (self) {
 	self["super"] = class;
 	return self;
-}
+};
 
-class["cfmt"] = function cfmt(self) {
+class["cfmt"] = fn (self) {
 	return "(%.3f %+.3fi)".format(self.re, self.im);
 };
 
-class["pfmt"] = function pfmt(self) {
+class["pfmt"] = fn (self) {
 	let r = self.r;
 	let theta = self.theta;
 	return "%.3f * (cos %.3f + i sin %.3f)".format(r, theta, theta);
 };
 
-class["add"] = function (self, z) {
+class["add"] = fn (self, z) {
 	return Cplx(cplx_add(self, z));
 };
 
-class["sub"] = function (self, z) {
+class["sub"] = fn (self, z) {
 	return Cplx(cplx_sub(self, z));
 };
 
-class["mul"] = function (self, z) {
+class["mul"] = fn (self, z) {
 	return Cplx(cplx_mul(self, z));
 };
 
-class["div"] = function (self, z) {
+class["div"] = fn (self, z) {
 	return Cplx(cplx_div(self, z));
 };
 
-class["conj"] = function (self) {
+class["conj"] = fn (self) {
 	return Cplx(cplx_conj(self));
 };
 
-class["toCartesian"] = function (self) {
+class["toCartesian"] = fn (self) {
 	return Cplx(pol2can(self));
 };
 
-class["toPolar"] = function (self) {
+class["toPolar"] = fn (self) {
 	return Cplx(can2pol(self));
 };
 

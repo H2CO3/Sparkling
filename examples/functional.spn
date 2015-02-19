@@ -3,13 +3,13 @@
 # demonstrating the functional capabilities of Sparkling using
 # higher-order functions, closures, partial application, etc.
 
-let flip = function (f) {
-	return function () {
+let flip = fn (f) {
+	return fn {
 		return f.call(argv.reverse());
 	};
 };
 
-let lessThan = function (a, b) {
+let lessThan = fn (a, b) {
 	return a < b;
 };
 
@@ -22,15 +22,15 @@ stdout.printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
 # takes a function 'f' and returns a new function which calls 'f'
 # with the rest of the arguments of 'curry()' and its own arguments.
 # (again, assuming that no nil parameters will be passed to 'f'.)
-let curry = function (f) {
+let curry = fn (f) {
 	let rest = argv.slice(1, argv.length - 1);
-	return function () {
+	return fn {
 		return f.call(rest.concat(argv));
 	};
 };
 
-let adder = function () {
-	return argv.reduce(0, function(a, b) { return a + b; });
+let adder = fn () {
+	return argv.reduce(0, fn a b { return a + b; });
 };
 
 let addsix = curry(adder, 1, 2, 3);
@@ -41,15 +41,19 @@ print("(1 + 2 + 3) + (4 + 5 + 6 + 7) = ", addsix(4, 5, 6, 7));
 # 'Maybe' is the 'return()' or 'unit()' function itself
 # (just a constructor)
 
-function Maybe(val) {
+let Maybe = fn (val) {
 	return {
 		// 'lift()' is more convenient than 'bind()'
-		"lift": function (self, f) {
-			return self.bind(function (arg) {
+		// (but here, it's only used because Sparkling's
+		// type system already has the expressive power of Maybe.
+		// If we didn't have 'nil' in the language, we would
+		// _have to_ use 'bind()'.
+		"lift": fn (self, f) {
+			return self.bind(fn arg {
 				return Maybe(f(arg));
 			});
 		},
-		"bind": function (self, f) {
+		"bind": fn (self, f) {
 			if self["value"] == nil {
 				return self;
 			}
@@ -58,7 +62,7 @@ function Maybe(val) {
 		},
 		"value": val
 	};
-}
+};
 
 # Some sample data: my family tree... or something like that.
 # 'Maybe' is the classic example of looking up stuff in an
@@ -106,24 +110,23 @@ let me = {
 let Me = Maybe(me);
 
 # Find my grandma's age
-let grandmaAge = Me.lift(function (person) {
+let grandmaAge = Me.lift(fn person {
 	return person["mom"];
-}).lift(function (person) {
+}).lift(fn person {
 	return person["mom"];
-}).lift(function (person) {
+}).lift(fn person {
 	return person["age"];
 });
 
 # Find the age of my mom's cousin.
 # But there's no such person in the tree...!
-let momsCousinAge = Me.lift(function (person) {
+let momsCousinAge = Me.lift(fn person {
 	return person["mom"];
-}).lift(function (person) {
+}).lift(fn person {
 	return person["cousin"];
-}).lift(function (person) {
+}).lift(fn person {
 	return person["age"];
 });
 
 print("Grandma's age: ", grandmaAge["value"]);
 print("Mom's cousin's age: ", momsCousinAge["value"]);
-

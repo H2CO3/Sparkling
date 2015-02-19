@@ -34,18 +34,22 @@
 	// Given a JavaScript value, converts it to a Sparkling value
 	// and returns its referencing index
 	var addJSValue = function (val) {
-		if (val === undefined || val === null) {
-			return addNil();
-		}
+		var typeMap = {
+			'undefined': addNil,
+			'boolean':   addBool,
+			'number':    addNumber,
+			'string':    addString,
+			'object':    addObject,
+			'function':  addFunction
+		};
 
-		switch (typeof val) {
-		case 'boolean':    return addBool(val);
-		case 'number':     return addNumber(val);
-		case 'string':     return addString(val);
-		case 'object':     return addObject(val);
-		case 'function':   return addFunction(val);
-		default:           throw "Unrecognized type: " + typeof val;
-		}
+		var typeErrorFn = function () {
+			throw "Unrecognized type: " + typeof val;
+		};
+
+		var conversionFn = typeMap[typeof val] || typeErrorFn;
+
+		return conversionFn(val);
 	};
 
 	// Private helpers for addJSValue
@@ -55,7 +59,10 @@
 	var addString = Module.cwrap('jspn_addString', 'number', ['string']);
 
 	var addObject = function (val) {
-		if (val instanceof Array) {
+		// unfortunately, typeof null === 'object'...
+		if (val === null) {
+			return addNil();
+		} else if (val instanceof Array) {
 			return addArray(val);
 		} else if (val instanceof SparklingUserInfo) {
 			return addUserInfo(val);
@@ -132,8 +139,7 @@
 		// Else, i. e. if 'val' is a naked JavaScript function,
 		// then create a wrapper around it
 		var wrapIndex = wrappedFunctions.length;
-		wrappedFunctions[wrapIndex] = val;
-
+		wrappedFunctions.push(val);
 		return addWrapperFunction(wrapIndex);
 	};
 
@@ -146,11 +152,7 @@
 	// referencing index, pulls out the corresponding SpnValue
 	// and converts it into a JavaScript value.
 	var valueAtIndex = function (index) {
-		if (index < 0) {
-			// error
-			throw "Cannot get value at error index";
-		}
-
+		/*
 		var TYPE_NIL      = 0,
 		    TYPE_BOOL     = 1,
 		    TYPE_NUMBER   = 2,
@@ -159,18 +161,27 @@
 		    TYPE_HASHMAP  = 5,
 		    TYPE_FUNC     = 6,
 		    TYPE_USERINFO = 7;
+		*/
 
-		switch (typeAtIndex(index)) {
-		case TYPE_NIL:        return undefined;
-		case TYPE_BOOL:       return getBool(index);
-		case TYPE_NUMBER:     return getNumber(index);
-		case TYPE_STRING:     return getString(index);
-		case TYPE_ARRAY:      return getArray(index);
-		case TYPE_HASHMAP:    return getHashmap(index);
-		case TYPE_FUNC:       return getFunction(index);
-		case TYPE_USERINFO:   return getUserInfo(index);
-		default: /* error */  throw "unknown type tag";
-		}
+		var conversionFunctions = [
+			function () { return undefined; },
+			getBool,
+			getNumber,
+			getString,
+			getArray,
+			getHashmap,
+			getFunction,
+			getUserInfo
+		];
+
+		var typeErrorFn = function () {
+			throw "unknown type tag";
+		};
+
+		var typeIndex = typeAtIndex(index);
+		var conversionFn = conversionFunctions[typeIndex] || typeErrorFn;
+
+		return conversionFn(index);
 	};
 
 	var typeAtIndex = Module.cwrap('jspn_typeAtIndex', 'number', ['number']);
@@ -233,8 +244,8 @@
 			value = valueAtIndex(valueIndex);
 
 			if (typeof key !== 'string') {
-					Module._free(indexBuffer);
-					throw "keys must be strings";
+				Module._free(indexBuffer);
+				throw "keys must be strings";
 			}
 
 			object[key] = value;

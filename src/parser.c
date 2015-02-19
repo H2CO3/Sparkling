@@ -29,7 +29,7 @@ typedef struct TokenAndNode {
 
 static SpnHashMap *parse_program(SpnParser *p);
 static SpnHashMap *parse_stmt(SpnParser *p, int is_global);
-static SpnHashMap *parse_function(SpnParser *p, int is_stmt);
+static SpnHashMap *parse_function(SpnParser *p);
 static SpnHashMap *parse_expr(SpnParser *p);
 
 static SpnHashMap *parse_assignment(SpnParser *p);
@@ -54,6 +54,8 @@ static SpnHashMap *parse_term(SpnParser *p);
 static SpnHashMap *parse_array_literal(SpnParser *p);
 static SpnHashMap *parse_hashmap_literal(SpnParser *p);
 static SpnArray *parse_decl_args(SpnParser *p);
+static SpnArray *parse_decl_args_oldstyle(SpnParser *p);
+static SpnArray *parse_decl_args_newstyle(SpnParser *p);
 
 static SpnHashMap *parse_if(SpnParser *p);
 static SpnHashMap *parse_while(SpnParser *p);
@@ -346,6 +348,21 @@ static int ast_type_needs_children(const char *type)
 	return 0;
 }
 
+/* If 'expr' is a function expression, then sets its name to 'name'. */
+static void set_name_if_is_function(SpnHashMap *expr, SpnValue name)
+{
+	SpnString *type;
+	SpnValue typeval = spn_hashmap_get_strkey(expr, "type");
+
+	assert(isstring(&typeval));
+	type = stringvalue(&typeval);
+
+	if (strcmp(type->cstr, "function") == 0) {
+		ast_set_property(expr, "name", &name);
+	}
+}
+
+
 /* re-initialize the parser object (so that it can be reused for parsing
  * multiple translation units), then kick off the actual recursive descent
  * parser to process the source text
@@ -440,21 +457,11 @@ static SpnHashMap *parse_stmt(SpnParser *p, int is_global)
 	}
 
 	/* special cases follow */
-	if (is_at_token(p, "function")) {
-		if (is_global) {
-			/* assume function statement at file scope... */
-			return parse_function(p, 1);
-		} else {
-			/* ...and a function expression at local scope */
-			return parse_expr_stmt(p);
-		}
-	}
-
-	if (is_at_token(p, "const") || is_at_token(p, "global")) {
+	if (is_at_token(p, "extern")) {
 		if (is_global) {
 			return parse_const(p);
 		} else {
-			parser_error(p, "'const' declarations are only allowed at file scope", NULL);
+			parser_error(p, "'extern' declarations are only allowed at file scope", NULL);
 			return NULL;
 		}
 	}
@@ -463,32 +470,13 @@ static SpnHashMap *parse_stmt(SpnParser *p, int is_global)
 	return parse_expr_stmt(p);
 }
 
-static SpnHashMap *parse_function(SpnParser *p, int is_stmt)
+static SpnHashMap *parse_function(SpnParser *p)
 {
 	SpnHashMap *ast, *body;
 	SpnArray *declargs;
 	SpnValue declargsval;
-	SpnValue nameval = spn_nilval;
-
-	SpnToken *token = accept_token_string(p, "function");
-	SpnToken *funcname = accept_token_type(p, SPN_TOKEN_WORD);
+	SpnToken *token = accept_token_string(p, "fn");
 	assert(token != NULL);
-
-	/* named global function statement: a global constant,
-	 * initialized with a _named_ function expression.
-	 * The name is obligatory. (for expressions, it's optional.)
-	 */
-	if (is_stmt && funcname == NULL) {
-			parser_error(p, "expecting function name in function statement", NULL);
-			return NULL;
-	}
-
-	if (funcname && spn_token_is_reserved(funcname->value)) {
-		const void *args[1];
-		args[0] = funcname->value;
-		parser_error(p, "'%s' is a keyword and cannot be a function name", args);
-		return NULL;
-	}
 
 	/* Parse formal parameters (declaration-time arguments) */
 	declargs = parse_decl_args(p);
@@ -506,41 +494,14 @@ static SpnHashMap *parse_function(SpnParser *p, int is_stmt)
 		return NULL;
 	}
 
-	if (funcname) {
-		nameval = makestring(funcname->value);
-	}
-
+	/* this "function" is not the (now-nonexistent) "function"
+	 * keyword, but the node type of the function definition AST.
+	 */
 	ast = ast_new("function", token->location);
 
-	ast_set_property(ast, "name", &nameval);
 	ast_set_property(ast, "declargs", &declargsval);
 	ast_set_child_xfer(ast, "body", body);
 
-	/* if we are parsing a function statement, then we need to
-	 * return a node for a global constant, initialized with a
-	 * function _expression_.
-	 * Else we can just return the function expression itself.
-	 */
-	if (is_stmt) {
-		SpnHashMap *global = ast_new("constdecl", token->location);
-		SpnHashMap *constant = ast_new("constant", token->location);
-		/* The name of the global is the same as the function name.
-		 * (we have to retain the name string because the AST assumes
-		 * that it's a strong pointer, so if we add it to another
-		 * node, we don't want it to be released twice if it doesn't
-		 * have a reference count of two.)
-		 */
-		assert(funcname != NULL);
-
-		ast_set_property(constant, "name", &nameval);
-		ast_set_child_xfer(constant, "init", ast);
-
-		ast_push_child_xfer(global, constant);
-
-		ast = global;
-	}
-
-	spn_value_release(&nameval);
 	spn_value_release(&declargsval);
 
 	return ast;
@@ -940,8 +901,8 @@ static SpnHashMap *parse_term(SpnParser *p)
 	}
 
 	/* Function expression */
-	if (is_at_token(p, "function")) {
-		return parse_function(p, 0); /* parse function expression */
+	if (is_at_token(p, "fn")) {
+		return parse_function(p); /* parse function expression */
 	}
 
 	/* 'argv', argument vector */
@@ -968,7 +929,7 @@ static SpnHashMap *parse_term(SpnParser *p)
 		return ast;
 	}
 
-	/* Identifiers/names for variables, global and functions
+	/* Identifiers/names for variables, globals and functions
 	 * This needs to come after we have tested for each valid
 	 * word (i. e. nil, boolean and function literals; argv),
 	 * since this 'jolly joker' call catches *all* word-like tokens.
@@ -1133,50 +1094,83 @@ static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 
 static SpnArray *parse_decl_args(SpnParser *p)
 {
-	SpnArray *array;
+	if (is_at_token(p, "(")) {
+		return parse_decl_args_oldstyle(p);
+	} else {
+		return parse_decl_args_newstyle(p);
+	}
+}
 
-	if (accept_token_string(p, "(") == NULL) {
-		parser_error(p, "expecting '(' in function definition", NULL);
+static void emit_param_name_reserved_error(SpnParser *p, SpnToken *argname)
+{
+	const void *args[1];
+	args[0] = argname->value;
+	parser_error(p, "'%s' is a keyword and cannot be a parameter name", args);
+}
+
+static void push_param_name(SpnArray *array, SpnToken *argname)
+{
+	SpnValue argname_val = makestring(argname->value);
+	spn_array_push(array, &argname_val);
+	spn_value_release(&argname_val);
+}
+
+static SpnArray *parse_decl_args_oldstyle(SpnParser *p)
+{
+	SpnToken *param_name;
+	SpnArray *array = spn_array_new();
+	SpnToken *rparen;
+	SpnToken *comma = NULL;
+
+	assert(is_at_token(p, "("));
+	accept_token_string(p, "(");
+
+	while ((param_name = accept_token_type(p, SPN_TOKEN_WORD)) != NULL) {
+		if (spn_token_is_reserved(param_name->value)) {
+			emit_param_name_reserved_error(p, param_name);
+			spn_object_release(array);
+			return NULL;
+		}
+
+		push_param_name(array, param_name);
+
+		/* comma ',' or closing parenthesis ')' must follow */
+		comma = accept_token_string(p, ",");
+		if (comma == NULL) {
+			break;
+		}
+	}
+
+	rparen = accept_token_string(p, ")");
+
+	if (rparen == NULL) {
+		parser_error(p, "expecting ')' or ',' after function argument", NULL);
+		spn_object_release(array);
 		return NULL;
 	}
 
-	array = spn_array_new();
+	if (comma != NULL) {
+		parser_error(p, "trailing comma after last function argument", NULL);
+		spn_object_release(array);
+		return NULL;
+	}
 
-	while (!accept_token_string(p, ")")) {
-		SpnValue param_name_val;
+	return array;
+}
 
-		SpnToken *param_name = accept_token_type(p, SPN_TOKEN_WORD);
+static SpnArray *parse_decl_args_newstyle(SpnParser *p)
+{
+	SpnArray *array = spn_array_new();
+	SpnToken *argname;
 
-		if (param_name == NULL) {
-			parser_error(p, "expecting name of function parameter", NULL);
+	while ((argname = accept_token_type(p, SPN_TOKEN_WORD)) != NULL) {
+		if (spn_token_is_reserved(argname->value)) {
+			emit_param_name_reserved_error(p, argname);
 			spn_object_release(array);
 			return NULL;
 		}
 
-		if (spn_token_is_reserved(param_name->value)) {
-			const void *args[1];
-			args[0] = param_name->value;
-			parser_error(p, "'%s' is a keyword and cannot be a parameter name", args);
-			spn_object_release(array);
-			return NULL;
-		}
-
-		param_name_val = makestring(param_name->value);
-		spn_array_push(array, &param_name_val);
-		spn_value_release(&param_name_val);
-
-		/* comma ',' or closing parenthesis ')' must follow */
-		if (accept_token_string(p, ",")) {
-			if (is_at_token(p, ")")) {
-				parser_error(p, "trailing comma after last function argument", NULL);
-				spn_object_release(array);
-				return NULL;
-			}
-		} else if (!is_at_token(p, ")")) {
-			parser_error(p, "expecting ',' or ')' after function argument", NULL);
-			spn_object_release(array); /* this frees ast and param */
-			return NULL;
-		}
+		push_param_name(array, argname);
 	}
 
 	return array;
@@ -1587,21 +1581,28 @@ static SpnHashMap *parse_vardecl(SpnParser *p)
 			return NULL;
 		}
 
+		identval = makestring(ident->value);
+
 		/* the initializer expression is optional */
 		if (accept_token_string(p, "=")) {
 			expr = parse_expr(p);
 
 			if (expr == NULL) {
+				spn_value_release(&identval);
 				spn_object_release(ast);
 				return NULL;
 			}
+
+			/* if the initializer expression is a function,
+			 * then its name should be the name of the variable
+			 */
+			set_name_if_is_function(expr, identval);
 		}
 
 		/* set up single variable declaration node... */
 		child = ast_new("variable", ident->location);
-
-		identval = makestring(ident->value);
 		ast_set_property(child, "name", &identval);
+
 		spn_value_release(&identval);
 
 		if (expr) {
@@ -1625,9 +1626,8 @@ static SpnHashMap *parse_const(SpnParser *p)
 {
 	SpnHashMap *ast;
 
-	/* skip "const" or "global" keyword */
-	int is_at_const = is_at_token(p, "const");
-	SpnToken *token = accept_token_string(p, is_at_const ? "const" : "global");
+	/* skip "extern" keyword */
+	SpnToken *token = accept_token_string(p, "extern");
 	assert(token != NULL);
 
 	ast = ast_new("constdecl", token->location);
@@ -1638,7 +1638,7 @@ static SpnHashMap *parse_const(SpnParser *p)
 		SpnToken *ident = accept_token_type(p, SPN_TOKEN_WORD);
 
 		if (ident == NULL) {
-			parser_error(p, "expected identifier in const declaration", NULL);
+			parser_error(p, "expected identifier in extern declaration", NULL);
 			spn_object_release(ast);
 			return NULL;
 		}
@@ -1646,13 +1646,13 @@ static SpnHashMap *parse_const(SpnParser *p)
 		if (spn_token_is_reserved(ident->value)) {
 			const void *args[1];
 			args[0] = ident->value;
-			parser_error(p, "'%s' is a keyword and cannot be the name of a constant", args);
+			parser_error(p, "'%s' is a keyword and cannot be the name of a global", args);
 			spn_object_release(ast);
 			return NULL;
 		}
 
 		if (accept_token_string(p, "=") == NULL) {
-			parser_error(p, "expected '=' after name of const declaration", NULL);
+			parser_error(p, "expected '=' after name of extern declaration", NULL);
 			spn_object_release(ast);
 			return NULL;
 		}
@@ -1663,19 +1663,19 @@ static SpnHashMap *parse_const(SpnParser *p)
 			return NULL;
 		}
 
+		identval = makestring(ident->value);
 		child = ast_new("constant", ident->location);
 
-		identval = makestring(ident->value);
+		set_name_if_is_function(expr, identval);
 		ast_set_property(child, "name", &identval);
-		spn_value_release(&identval);
-
 		ast_set_child_xfer(child, "init", expr);
-
 		ast_push_child_xfer(ast, child);
+
+		spn_value_release(&identval);
 	} while (accept_token_string(p, ","));
 
 	if (accept_token_string(p, ";") == NULL) {
-		parser_error(p, "expected ';' after constant initialization", NULL);
+		parser_error(p, "expected ';' after global initialization", NULL);
 		spn_object_release(ast);
 		return NULL;
 	}

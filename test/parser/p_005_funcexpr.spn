@@ -1,0 +1,26 @@
+fn () {};
+
+fn (param) {
+	return 42;
+};
+
+fn (param1, param2) {
+	return param1 + param2;
+};
+
+let new_syntax_1 = fn {
+	// look, no args!
+};
+
+let new_syntax_2 = fn arg {
+	// one argument
+};
+
+let new_syntax_3 = fn x y {
+	return x + y;
+};
+
+// Functions can be globals too!
+extern foo = fn (bar) {
+	return bar + 1337;
+};

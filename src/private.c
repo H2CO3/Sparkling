@@ -29,7 +29,7 @@ void *spn_malloc(size_t n)
 {
 	void *ptr = malloc(n);
 
-	if (ptr == NULL) {
+	if (ptr == NULL && n > 0) {
 		unsigned long uln = n;
 		spn_die("memory allocation of %lu bytes failed", uln);
 	}
@@ -41,12 +41,24 @@ void *spn_realloc(void *ptr, size_t n)
 {
 	void *ret = realloc(ptr, n);
 
-	if (ret == NULL) {
+	if (ret == NULL && n > 0) {
 		unsigned long uln = n;
 		spn_die("reallocation of pointer %p to size %lu failed", ptr, uln);
 	}
 
 	return ret;
+}
+
+void *spn_calloc(size_t nelem, size_t elsize)
+{
+	void *ptr = calloc(nelem, elsize);
+
+	if (ptr == NULL && nelem * elsize > 0) {
+		unsigned long uln = nelem * elsize;
+		spn_die("allocation of %lu zero-init'ed bytes failed", uln);
+	}
+
+	return ptr;
 }
 
 void spn_die(const char *fmt, ...)

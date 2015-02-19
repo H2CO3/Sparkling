@@ -30,8 +30,7 @@ signed, i. e. they can represent positive and negative numbers as well as zero.
 They can be either integers or floating-point numbers.
 
 §1.4.4. The function type represents a piece of executable code, either named
-or unnamed. Global functions and lambda functions have function type.
-A top-level Sparkling program is also a function.
+or unnamed. A top-level Sparkling program is also a function.
 
 §1.4.5. The string type encloses an array of bytes that represent either text
 or binary data. They also have a size, which is an integer number, the number
@@ -66,8 +65,6 @@ identifiers, although they satisfy the above conditions.
 
 §1.7. Scope.
 Scope is the set of places in the code from where an identifier is visible.
-All functions defined using a function statement have global visibility
-(i. e., they are visible across all source files).
 
 §1.7.1. Function bodies and the top level program have separate scope:
 a variable declared in a function is not visible at program (file) scope.
@@ -76,11 +73,11 @@ not visible in the body of another function at the same syntactic level.
 
 E. g.:
 
-    function foo() {
+    let foo = fn () {
         let a = 42;
     }
 
-    function bar() {
+    let bar = fn {
         let b = 1337;
     }
 
@@ -93,14 +90,14 @@ the variable is in the closure of said function, in contrast with its local
 variables), then the inner function has read-only access to the variable.
 The value of the aforementioned variable is bound to the function: it is copied
 at the moment the closure is created. As a consequence, if the value of the
-variable changes subsequently (i. e. after the creation of the closure), it
+variable changes subsequently (i. e. after the creation of the closure),
 the change will not be reflected inside the closure.
 
 Example:
 
     let n = 1;
 
-    function foo() {
+    let foo = fn () {
         print(n); // OK: `n' is visible inside `foo()' because it's in its closure
         n++; // compilation error, because, `n' is read-only inside `foo()'
     }
@@ -111,7 +108,7 @@ Example:
     var i;
 
     for i = 0; i < 2; i++ {
-        a.push(function() {
+        a.push(fn () {
             print(i);
         });
     }
@@ -122,38 +119,14 @@ Example:
 
 §2. Statements
 --------------
-§2.1. The function statement (`function-statement`).
-§2.1.1. A function statement defines a named function with zero or more
-arguments. A function is an individual piece of code representing an operation.
-It can be called with or without arguments and may or may not return a value.
-In a function call expression, call arguments are evaluated and bound to formal
-parameters, and the code in the function operates on its arguments accordingly.
-The type of a function is function.
-
-The function statement is syntactically equivalent to a `const-statement` that
-initializes a global constant with a named lambda function expression. Both
-the name of the global constant and the name of the lamda expression are the
-same as the name of the function defined using the function statement.
-
-§2.1.2. Formal parameters act as variables local to the function. As such, all
-formal parameters must have a distinct name within the same function.
-
-§2.1.3. Functions defined using a function statement are visible at global
-scope. They're just like other global constants. As such, it is illegal to
-define a function with the name of an already existing global and vice versa.
-Doing so results in a runtime error.
-
-(remark: as a consequence, translation units that define global functions or
-other globals can only be run once on a certain virtual machine.)
-
-§2.2. The if statement (`if-statement`).
+§2.1. The if statement (`if-statement`).
 The if statement implements run-time decision and branching. The condition of
 the if statement has to be of type boolean. If it is true, the statement in
 the block following the condition ("then-branch") is evaluated. Otherwise, if
 the condition is false, and the statement has an "else" branch, then the
 statement in the "else" branch is evaluated.
 
-§2.3. The for statement (`for-statement`).
+§2.2. The for statement (`for-statement`).
 The for statement evaluates its initializer statement once, then it executes
 its body as long as its condition evaluates to true. (Thus, the condition must
 be an expression of type boolean). The "incrementing" expression is evaluated
@@ -163,56 +136,56 @@ declaration, then the scope of the declared identifiers is limited to the loop:
 they are only visible in the initialization, in the condition, in the increment
 expression and inside the block of the loop body.
 
-§2.4. The while statement (`while-statement`).
+§2.3. The while statement (`while-statement`).
 The while statement is another loop statement that executes its body repeatedly
 as long as its condition is true. The condition must be an expression of type
 boolean.
 
-§2.5. The do-while statement (`do-while-statement`).
+§2.4. The do-while statement (`do-while-statement`).
 The do-while loop statement evaluates its body, then it evaluates its condition.
 The condition must be a boolean expression. If the condition is true, it starts
 over (transfers control flow back to the beginning of the loop body).
 
-§2.6. The return statement (`return-statement`).
+§2.5. The return statement (`return-statement`).
 The return statement transfers control flow to the calling context, optionally
 handing a value to it.
 
-§2.6.1. If the return statement is inside a function, then the
+§2.5.1. If the return statement is inside a function, then the
 calling context is either the caller function (if the called function was
 called from within another function) or the top-level program (if the called
 function was called from the top-level program scope), and the return value of
 the called function will be the value of the expression specified in the return
 statement.
 
-§2.6.2. Otherwise (if the return statement is at program scope), the calling
+§2.5.2. Otherwise (if the return statement is at program scope), the calling
 context is the native runtime environment, and the execution of a return
 statement causes the termination of the Sparkling program. The C API function
 `spn_vm_callfunc()` will copy over into C-land the value of the expression
 specified in the return statement, and it will return zero.
 
-§2.6.3. If there is no expression in the return statement, returning `nil` is
+§2.5.3. If there is no expression in the return statement, returning `nil` is
 implicitly assumed.
 
-§2.7. The block statement (`block-statement`).
+§2.6. The block statement (`block-statement`).
 The block statement is a compound statement (one that encloses multiple sub-
 -statements). Executing a block statement means that all its sub-statements are
 executed in order. Block statements open a new scope.
 
-§2.8. The break statement.
+§2.7. The break statement.
 The break statement causes the execution of the innermost loop to terminate
 immediately. It is an error to place a break statement outside a loop.
 
-§2.9. The continue statement.
+§2.8. The continue statement.
 The continue statement causes the execution of the innermost loop to continue
 from the beginning of the loop body with the next iteration. Before jumping
 to the beginning of the loop body, in a for loop, the increment expression is
 evaluated. It is illegal to place a continue statement outside a loop.
 
-§2.10. The empty statement (`empty-statement`).
+§2.9. The empty statement (`empty-statement`).
 The empty statement is a no-op, it does nothing.
 
-§2.11. The variable declaration statement (`variable-declaration`).
-§2.11.1. The variable declaration statement brings a variable in scope. The
+§2.10. The variable declaration statement (`variable-declaration`).
+§2.10.1. The variable declaration statement brings a variable in scope. The
 variable can be accessed inside the current scope and enclosing scopes (as
 described in §1.6), but only in statements and expressions following the
 declaration. The variable is alive from the point where its identifier appears,
@@ -223,21 +196,21 @@ An alternate form of the variable declaration statement is using the `let`
 keyword, which is synonymous with `var`. An example of the alternate form is
 `let x = 3, y = 2;`
 
-§2.11.2. It is illegal to declare a variable that has the name of a variable
+§2.10.2. It is illegal to declare a variable that has the name of a variable
 which already exists (which is already visible) in a scope inside the same
 function. If, however, within a certain function body, a variable is declared
 with the same name as one of the variables in the closure of the function, then
 the newly declared variable - which has narrower scope - shadows (hides) the
 original variable in the closure.
 
-§2.11.3. Comma-separated variable declarations happen in their syntactic order
+§2.10.3. Comma-separated variable declarations happen in their syntactic order
 (i. e. the first declaration is compiled first, then the second, etc.)
 
-§2.12. The global constant declaration statement (`const-statement`). The
-constant declaration statement defines a named global value. The value that is
+§2.11. The external declaration statement (`extern-statement`). The
+external declaration statement defines a named global value. The value that is
 associated with the name cannot be changed after its initialization.
 
-§2.13. The expression statement (`expression-statement`).
+§2.12. The expression statement (`expression-statement`).
 The expression statement is a statement of which the only purpose is evaluating
 an expression. As a general advice, for clarity's sake, the top-level
 expression of an expression statement should only be a function call, an
@@ -433,10 +406,10 @@ laid out in the following specific structure:
 
     self = {
         "P": {
-            "get": function(self, name) {
+            "get": fn (self, name) {
                 return <result of property>;
             },
-            "set": function(self, newValue, name) {
+            "set": fn (self, newValue, name) {
                 // manipulate 'self' according to newValue
                 // return value is ignored
             }
@@ -469,10 +442,15 @@ equivalent with
 except that `<expr>` is only evaluated once.
 
 §3.10. Function expressions (`function-expression`).
-Function expressions create named or unnamed functions (lambda) on the fly.
-A lambda function behaves in the same manner as a global function, except that
-it might be anonymous and it isn't at global scope (that is, a lambda
-function is not visible outside its translation unit).
+§3.10.1. A function expression defines a function with zero or more
+arguments. A function is an individual piece of code representing an operation.
+It can be called with or without arguments and may or may not return a value.
+In a function call expression, call arguments are evaluated and bound to formal
+parameters, and the code in the function operates on its arguments accordingly.
+The type of a function is function.
+
+§3.10.2. Formal parameters act as variables local to the function. As such, all
+formal parameters must have a distinct name within the same function.
 
 §3.11. Literals
 

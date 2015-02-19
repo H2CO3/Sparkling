@@ -52,9 +52,13 @@ and they don't nest.
 T h e   g r a m m a r
 ~~~~~~~~~~~~~~~~~~~~~
 
-program				= ( statement | function-statement | const-statement )(*)
+program				= ( statement | extern-statement )(*)
 
-argument-declaration-list	= ( IDENT ( ',' IDENT )(*) )(?)
+argument-declaration-list = old-style-argument-declaration-list
+                          | new-style-argument-declaration-list
+
+old-style-declaration-argument-list = '(' ( IDENT ( ',' IDENT )(*) )(?) ')'
+new-style-declaration-argument-list = IDENT *
 
 statement = empty-statement              |
             if-statement                 |
@@ -67,9 +71,7 @@ statement = empty-statement              |
             block-statement              |
             variable-declaration
 
-function-statement  = 'function' IDENT '(' argument-declaration-list ')' block-statement
-
-const-statement     = 'const' | 'global' IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
+extern-statement     = 'extern' IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
 
 empty-statement     = ';'
 
@@ -159,7 +161,7 @@ term         = IDENT                   |
                array-literal           |
                hashmap-literal
 
-function-expr   = 'function' [ IDENT ] '(' argument-declaration-list ')' block-statement
+function-expr   = 'fn' argument-declaration-list block-statement
 
 array-literal   = '[' [ expression ( ',' expression )(*) ] ']'
 
@@ -181,17 +183,16 @@ literal  =   STRING   |
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
-and         else        if        return
-argv        false       let       true
-break       for         nil       typeof
-const       function    not       var
-continue    global      null      while
-do                      return
+and         else       if         return
+argv        extern     let        true
+break       false      nil        typeof
+continue    fn         not        var
+do          for        null       while
 
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
-tokens, respectively. Furthermore, 'null' is the same as 'nil'; 'global' is
-the same as 'const'; and 'let' is the same as 'var'.
+tokens, respectively. Furthermore, 'null' is the same as 'nil' and 'let' is
+the same as 'var'.
 
 Literal tokens:
 ~~~~~~~~~~~~~~~

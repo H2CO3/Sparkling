@@ -49,8 +49,7 @@
       <keyword>or</keyword>
       <keyword>var</keyword>
       <keyword>let</keyword>
-      <keyword>const</keyword>
-      <keyword>global</keyword>
+      <keyword>extern</keyword>
       <keyword>break</keyword>
       <keyword>continue</keyword>
       <keyword>return</keyword>
@@ -59,7 +58,7 @@
       <keyword>for</keyword>
       <keyword>if</keyword>
       <keyword>else</keyword>
-      <keyword>function</keyword>
+      <keyword>fn</keyword>
       <keyword>typeof</keyword>
       <keyword>sizeof</keyword>
       <keyword>argv</keyword>

@@ -1,17 +1,17 @@
 #!/usr/bin/env spn
 
-/* 
+/*
  * fibfact.spn
  * recursive and iterative Fibonacci and factorial functions
- * 
+ *
  * created by Árpád Goretity on 30/09/2013
  */
 
-function fib_rec(n) {
+let fib_rec = fn (n) {
 	return n < 2 ? 1 : fib_rec(n - 1) + fib_rec(n - 2);
-}
+};
 
-function fib_iter(n) {
+let fib_iter = fn (n) {
 	var f1 = 1, f2 = 1;
 	for (var i = 0; i < n; i++) {
 		f2 += f1;
@@ -19,20 +19,20 @@ function fib_iter(n) {
 	}
 
 	return f1;
-}
+};
 
-function fct_rec(n) {
+let fct_rec = fn (n) {
 	return n < 2 ? 1 : n * fct_rec(n - 1);
-}
+};
 
-function fct_iter(n) {
+let fct_iter = fn (n) {
 	var r = 1;
 	for (var i = 2; i <= n; i++) {
 		r *= i;
 	}
-	
+
 	return r;
-}
+};
 
 let n = toint(argv[1]);
 

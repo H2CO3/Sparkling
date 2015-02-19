@@ -6,11 +6,11 @@ var c = [ 1, 2, 3 ];
 c[0] = c[1];
 
 
-let fn = function (x, y) {
+let func = fn (x, y) {
 	return x * x + y * y;
 };
 
-let twenty_five = fn(3, 4);
+let twenty_five = func(3, 4);
 
 let obj = { "name": "foobar", "ID": 1 };
 let name = obj.name;

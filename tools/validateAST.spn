@@ -7,7 +7,7 @@
 
 let validators = {};
 
-let validateNode = function (node) {
+let validateNode = fn (node) {
 	if typeof node != "hashmap" {
 		return false;
 	}
@@ -31,7 +31,7 @@ let validateNode = function (node) {
 	return false;
 };
 
-let validateCompound = function (node) {
+let validateCompound = fn (node) {
 	let children = node["children"];
 
 	if typeof children != "array" {
@@ -43,14 +43,14 @@ let validateCompound = function (node) {
 	// since it could be used to hijack the validation process.
 	// Like this:
 	//
-	//   Array["all"] = function () { return true; };
+	//   Array["all"] = fn { return true; };
 	//   compile(myInvalidMaliciousAST); /* crash compiler */
 	//
 	// Instead, I use the built-in '.length' property of the children
 	// array, of which the implementation is hard-coded into the VM,
 	// so it cannot be altered without messing the VM itself.
 	//
-	// return children.all(function (child) {
+	// return children.all(fn (child) {
 	// 	 return typeof child == "hashmap" and validateNode(child);
 	// });
 	for (var i = 0; i < children.length; i++) {
@@ -62,7 +62,7 @@ let validateCompound = function (node) {
 	return true;
 };
 
-let validateSimpleLoop = function (node) {
+let validateSimpleLoop = fn (node) {
 	if not validateNode(node["cond"]) {
 		return false;
 	}
@@ -74,15 +74,15 @@ let validateSimpleLoop = function (node) {
 	return node["body"]["type"] == "block";
 };
 
-let validateBinOp = function (node) {
+let validateBinOp = fn (node) {
 	return validateNode(node["left"]) and validateNode(node["right"]);
 };
 
-let validatePrefix = function (node) {
+let validatePrefix = fn (node) {
 	return validateNode(node["right"]);
 };
 
-let validatePostIncDec = function (node) {
+let validatePostIncDec = fn (node) {
 	return validateNode(node["left"]);
 };
 
@@ -92,7 +92,7 @@ validators["validators"] = {
 
 	"block": validateCompound,
 
-	"return": function (node) {
+	"return": fn (node) {
 		if node["expr"] == nil {
 			return true;
 		}
@@ -100,7 +100,7 @@ validators["validators"] = {
 		return validateNode(node["expr"]);
 	},
 
-	"if": function (node) {
+	"if": fn (node) {
 		if not validateNode(node["cond"]) {
 			return false;
 		}
@@ -129,7 +129,7 @@ validators["validators"] = {
 
 	"do": validateSimpleLoop,
 
-	"for": function (node) {
+	"for": fn (node) {
 		if not validateNode(node["init"]) {
 			return false;
 		}
@@ -149,15 +149,15 @@ validators["validators"] = {
 		return node["body"]["type"] == "block";
 	},
 
-	"break": function (node) {
+	"break": fn (node) {
 		return true;
 	},
 
-	"continue": function (node) {
+	"continue": fn (node) {
 		return true;
 	},
 
-	"vardecl": function (node) {
+	"vardecl": fn (node) {
 		let children = node["children"];
 
 		if typeof children != "array" {
@@ -187,7 +187,7 @@ validators["validators"] = {
 		return true;
 	},
 
-	"constdecl": function (node) {
+	"constdecl": fn (node) {
 		let children = node["children"];
 
 		if typeof children != "array" {
@@ -217,7 +217,7 @@ validators["validators"] = {
 		return true;
 	},
 
-	"empty": function (node) {
+	"empty": fn (node) {
 		return true;
 	},
 
@@ -255,7 +255,7 @@ validators["validators"] = {
 	"mod":     validateBinOp,
 
 	// Conditional expression
-	"condexpr": function (node) {
+	"condexpr": fn (node) {
 		return validateNode(node["cond"])
 		   and validateNode(node["true"])
 		   and validateNode(node["false"]);
@@ -274,15 +274,15 @@ validators["validators"] = {
 	"post_inc": validatePostIncDec,
 	"post_dec": validatePostIncDec,
 
-	"subscript": function (node) {
+	"subscript": fn (node) {
 		return validateNode(node["object"]) and validateNode(node["index"]);
 	},
 
-	"memberof" : function (node) {
+	"memberof" : fn (node) {
 		return validateNode(node["object"]) and typeof node["name"] == "string";
 	},
 
-	"call": function (node) {
+	"call": fn (node) {
 		if not validateNode(node["func"]) {
 			return false;
 		}
@@ -303,7 +303,7 @@ validators["validators"] = {
 	},
 
 	// Terms, primitives, literals
-	"literal": function (node) {
+	"literal": fn (node) {
 		let valueType = typeof node["value"];
 		let types = [ "nil", "bool", "number", "string" ];
 
@@ -316,15 +316,15 @@ validators["validators"] = {
 		return false;
 	},
 
-	"ident": function (node) {
+	"ident": fn (node) {
 		return typeof node["name"] == "string";
 	},
 
-	"argv": function (node) {
+	"argv": fn (node) {
 		return true;
 	},
 
-	"array": function (node) {
+	"array": fn (node) {
 		let children = node["children"];
 
 		if typeof children != "array" {
@@ -340,7 +340,7 @@ validators["validators"] = {
 		return true;
 	},
 
-	"hashmap": function (node) {
+	"hashmap": fn (node) {
 		let children = node["children"];
 
 		if typeof children != "array" {
@@ -370,7 +370,7 @@ validators["validators"] = {
 		return true;
 	},
 
-	"function": function (node) {
+	"function": fn (node) {
 		if node["name"] != nil and typeof node["name"] != "string" {
 			return false;
 		}
@@ -399,7 +399,7 @@ validators["validators"] = {
 	}
 };
 
-return function validateAST(node) {
+let validateAST = fn (node) {
 	if typeof node != "hashmap" {
 		return false;
 	}
@@ -411,3 +411,5 @@ return function validateAST(node) {
 
 	return validateNode(node);
 };
+
+return validateAST;

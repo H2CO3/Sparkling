@@ -105,6 +105,7 @@ SPN_API int nth_arg_idx(spn_uword *ip, int idx);
 /* "safe" allocator functions */
 SPN_API void *spn_malloc(size_t n);
 SPN_API void *spn_realloc(void *p, size_t n);
+SPN_API void *spn_calloc(size_t nelem, size_t elsize);
 
 /* fatal failure: prints formatted error message and 'abort()'s */
 #ifdef __GNUC__

@@ -6,7 +6,7 @@
 // ordinary differential equations
 //
 
-function solvede(a, b, y0, yprime) {
+let solvede = fn (a, b, y0, yprime) {
 	let N = 10000;
 	let dx = (b - a) * 1.0 / N;
 	var xv = [], yv = [];
@@ -20,15 +20,70 @@ function solvede(a, b, y0, yprime) {
 	}
 
 	return { "x": xv, "y": yv };
-}
+};
 
 let a  = tofloat(argv[1]),
     b  = tofloat(argv[2]),
     y0 = tofloat(argv[3]);
 
-// XXX: DO NOT do this at home!
-let src = "var x = argv[0], y = argv[1]; return " .. argv[4] .. ";";
-let yprime = compile(src);
+// The 'return' statement that returns the user-supplied expression.
+let return_expr_stmt = parseexpr(argv[4])["children"][0];
+
+// AST of a program that just returns the user-supplied expression
+// Names ("x" and "y") are given to the first two arguments.
+let ast = {
+	"type": "program",
+	"line": 0, "column": 0,
+	"children": [
+		{
+			"line": 0, "column": 0,
+			"type": "vardecl",
+			"children": [
+				{
+					"line": 0, "column": 0,
+					"type": "variable",
+					"name": "x",
+					"init": {
+						"line": 0, "column": 0,
+						"type": "subscript",
+						"object": {
+							"line": 0, "column": 0,
+							"type": "argv"
+						},
+						"index": {
+							"line": 0, "column": 0,
+							"type": "literal",
+							"value": 0
+						}
+					}
+				},
+				{
+					"line": 0, "column": 0,
+					"type": "variable",
+					"name": "y",
+					"init": {
+						"line": 0, "column": 0,
+						"type": "subscript",
+						"object": {
+							"line": 0, "column": 0,
+							"type": "argv"
+						},
+						"index": {
+							"line": 0, "column": 0,
+							"type": "literal",
+							"value": 1
+						}
+					}
+				}
+			]
+		},
+		return_expr_stmt
+	]
+};
+
+// compile the expression, rhe RHS of the differential equation
+// of the form y' = RHS
+let yprime = compileast(ast);
 
 if typeof yprime != "function" {
 	stderr.printf("%s\n", yprime);
@@ -41,4 +96,3 @@ stdout.printf("x\ty\n");
 for (var i = 0; i < sol.x.length; i++) {
 	stdout.printf("%f\t%f\n", sol.x[i], sol.y[i]);
 }
-

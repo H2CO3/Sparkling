@@ -9,7 +9,7 @@
 //
 
 // a tracing printf()
-File.tracingPrintf = function () {
+File.tracingPrintf = fn {
 	// print custom message
 	print("You called printf!");
 
@@ -19,14 +19,13 @@ File.tracingPrintf = function () {
 
 stdout.tracingPrintf("%d %s\n", 1337, "Hello world!");
 
-// a `max()` function that operates on arrays
-function arrayMax(arr) {
+// a 'max()' function that operates on arrays
+let arrayMax = fn (arr) {
 	return max.call(arr);
-}
+};
 
 print(arrayMax([ 3, 9, 2, 3, 1, 5, 4 ])); // 9
 
 // Arguments can even be 'nil'!
 var args = [ 1, 2, nil, 4 ];
 print.call(args); // prints "12nil4"
-

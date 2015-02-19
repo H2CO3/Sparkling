@@ -2521,13 +2521,10 @@ static spn_uword *compile_callargs(SpnCompiler *cmp, SpnArray *arguments, int is
 {
 	size_t explicit_argc = spn_array_count(arguments);
 	size_t total_argc = is_method_call ? explicit_argc + 1 : explicit_argc;
+	size_t nelem = ROUNDUP(total_argc, SPN_WORD_OCTETS);
 	size_t i;
-	spn_uword *indices = calloc(ROUNDUP(total_argc, SPN_WORD_OCTETS), sizeof indices[0]);
 
-	/* calloc(0) may return NULL, hence the extra check */
-	if (total_argc > 0 && indices == NULL) {
-		spn_die("calloc() failed");
-	}
+	spn_uword *indices = spn_calloc(nelem, sizeof indices[0]);
 
 	if (is_method_call) {
 		/* 'self' is always argument #0 if present. So we can safely

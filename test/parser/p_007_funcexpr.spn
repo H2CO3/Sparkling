@@ -1,9 +1,0 @@
-(function do_stuff() {});
-
-(function do_something_else(param) {
-	return 42;
-});
-
-(function multiple_arguments(param1, param2) {
-	return param1 + param2;
-});
