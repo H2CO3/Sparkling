@@ -86,6 +86,7 @@ static void free_func(void *obj)
 
 static const SpnClass spn_class_func = {
 	sizeof(SpnFunction),
+	SPN_CLASS_UID_FUNCTION,
 	equal_func,
 	NULL,
 	hash_func,

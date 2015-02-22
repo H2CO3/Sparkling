@@ -11,6 +11,12 @@ READLINE ?= 1
 # (khm, Windows, khm...)
 ANSI_COLORS ?= 1
 
+# if your operating system supports dynamic loading
+# (most modern operating systems and Windows), then
+# this flag enables the Sparkling engine to load
+# modules defined as a dynamic library.
+DYNAMIC_LOADING ?= 1
+
 OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
 ARCH = $(shell uname -p | tr '[[:upper:]]' '[[:lower:]]')
 
@@ -46,6 +52,7 @@ DSTDIR ?= /usr/local
 WARNINGS = -Wall -Wextra -Werror $(EXTRA_WARNINGS)
 CFLAGS += -c -std=c89 -pedantic -pedantic-errors -fpic -fstrict-aliasing $(WARNINGS) $(DEFINES)
 
+# Enable/disable user-defined features
 ifneq ($(READLINE), 0)
 	DEFINES += -DUSE_READLINE=1
 	LIBS += -lreadline
@@ -57,6 +64,12 @@ ifneq ($(ANSI_COLORS), 0)
 	DEFINES += -DUSE_ANSI_COLORS=1
 else
 	DEFINES += -DUSE_ANSI_COLORS=0
+endif
+
+ifneq ($(DYNAMIC_LOADING), 0)
+	DEFINES += -DUSE_DYNAMIC_LOADING=1
+else
+	DEFINES += -DUSE_DYNAMIC_LOADING=0
 endif
 
 ifeq ($(BUILD), debug)

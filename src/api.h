@@ -45,8 +45,30 @@ typedef signed long spn_sword;
  * Reference-counted objects: construction, memory management, etc.
  */
 
+/* lowest Unique ID available for use to user code
+ * Values higher than this are guaranteed not to be
+ * used by classes in the Sparkling engine's core.
+ */
+enum {
+	SPN_USER_CLASS_UID_BASE = 0x10000
+};
+
+/* A (potentially non-exhaustive) list of class UIDs
+ * defined (and used) in the Sparkling core.
+ */
+enum {
+	SPN_CLASS_UID_STRING      = 1,
+	SPN_CLASS_UID_ARRAY       = 2,
+	SPN_CLASS_UID_HASHMAP     = 3,
+	SPN_CLASS_UID_FUNCTION    = 4,
+	SPN_CLASS_UID_FILEHANDLE  = 5,
+	SPN_CLASS_UID_SYMTABENTRY = 6,
+	SPN_CLASS_UID_SYMBOLSTUB  = 7
+};
+
 typedef struct SpnClass {
 	size_t instsz;                   /* sizeof(instance)                    */
+	unsigned long UID;               /* unique identifier of the class      */
 	int (*equal)(void *, void *);    /* non-zero: equal, zero: different    */
 	int (*compare)(void *, void *);  /* -1, +1, 0: lhs is <, >, == to rhs   */
 	unsigned long (*hashfn)(void *); /* cache the hash if immutable!        */
@@ -57,6 +79,9 @@ typedef struct SpnObject {
 	const SpnClass *isa;
 	unsigned refcnt;
 } SpnObject;
+
+/* class membership test */
+SPN_API int spn_object_member_of_class(void *obj, const SpnClass *cls);
 
 /* allocates a partially initialized (only the 'isa' and 'refcount' members
  * are set up) object of class 'isa'. The returned instance should go through

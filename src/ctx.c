@@ -24,9 +24,40 @@ void spn_ctx_init(SpnContext *ctx)
 	ctx->errmsg   = NULL;
 	ctx->info     = NULL;
 
+#if USE_DYNAMIC_LOADING
+	ctx->dynmods  = spn_array_new();
+#else /* USE_DYNAMIC_LOADING */
+	ctx->dynmods  = NULL;
+#endif /* USE_DYNAMIC_LOADING */
+
 	spn_vm_setcontext(ctx->vm, ctx);
 	spn_load_stdlib(ctx->vm);
 }
+
+#if USE_DYNAMIC_LOADING
+static void close_dynmod_handles(SpnContext *ctx)
+{
+	size_t i;
+	size_t n = spn_array_count(ctx->dynmods);
+
+	for (i = 0; i < n; i++) {
+		SpnValue val = spn_array_get(ctx->dynmods, i);
+		void *handle = ptrvalue(&val);
+
+		/* call destructor, if any */
+		SpnLibCloseFunc closefunc;
+		closefunc = (SpnLibCloseFunc)spn_get_symbol(handle, SPN_LIB_CLOSE_FUNC_STR);
+
+		if (closefunc) {
+			closefunc(ctx);
+		}
+
+		spn_close_library(handle);
+	}
+
+	spn_object_release(ctx->dynmods);
+}
+#endif /* USE_DYNAMIC_LOADING */
 
 void spn_ctx_free(SpnContext *ctx)
 {
@@ -35,6 +66,10 @@ void spn_ctx_free(SpnContext *ctx)
 	spn_vm_free(ctx->vm);
 
 	spn_object_release(ctx->programs);
+
+#if USE_DYNAMIC_LOADING
+	close_dynmod_handles(ctx);
+#endif /* USE_DYNAMIC_LOADING */
 }
 
 enum spn_error_type spn_ctx_geterrtype(SpnContext *ctx)
@@ -333,3 +368,11 @@ SpnHashMap *spn_ctx_getclasses(SpnContext *ctx)
 {
 	return spn_vm_getclasses(ctx->vm);
 }
+
+#if USE_DYNAMIC_LOADING
+void spn_ctx_add_dynmod(SpnContext *ctx, void *handle)
+{
+	SpnValue val = makeweakuserinfo(handle);
+	spn_array_push(ctx->dynmods, &val);
+}
+#endif /* USE_DYNAMIC_LOADING */

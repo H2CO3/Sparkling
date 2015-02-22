@@ -85,6 +85,7 @@ static const unsigned long sizes[] = {
 
 static const SpnClass spn_class_hashmap = {
 	sizeof(SpnHashMap),
+	SPN_CLASS_UID_HASHMAP,
 	NULL,
 	NULL,
 	NULL,

@@ -15,6 +15,15 @@
 #include <stdarg.h>
 
 #include "api.h"
+#include "str.h"
+
+#if USE_DYNAMIC_LOADING
+	#ifdef _WIN32
+		#include <Windows.h>
+	#else /* _WIN32 */
+		#include <dlfcn.h>
+	#endif /* _WIN32 */
+#endif /* USE_DYNAMIC_LOADING */
 
 
 /* convenience SpnValue-related re-defines. For internal use only! */
@@ -136,5 +145,22 @@ SPN_API int is_symstub(const SpnValue *val);
 
 /* yields the symbol stub object of an SpnValue */
 #define symstubvalue(val) ((SymbolStub *)((val)->v.o))
+
+/* Dynamic loading support */
+
+#if USE_DYNAMIC_LOADING
+	#if defined(_WIN32)
+		#define LIBRARY_EXTENSION ".dll"
+	#elif defined(__APPLE__)
+		#define LIBRARY_EXTENSION ".dylib"
+	#else /* GNU/Linux and others use "so" */
+		#define LIBRARY_EXTENSION ".so"
+	#endif
+
+SPN_API void *spn_open_library(SpnString *modname);
+SPN_API void  spn_close_library(void *handle);
+SPN_API void *spn_get_symbol(void *handle, const char *symname);
+
+#endif /* USE_DYNAMIC_LOADING */
 
 #endif /* SPN_PRIVATE_H */

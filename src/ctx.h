@@ -32,6 +32,7 @@ typedef struct SpnContext {
 	SpnCompiler *cmp;
 	SpnVMachine *vm;
 	SpnArray *programs; /* holds all programs ever compiled */
+	SpnArray *dynmods;  /* dynamically loaded modules */
 
 	enum spn_error_type errtype; /* type of the last error */
 	const char *errmsg; /* last error message */
@@ -102,5 +103,29 @@ SPN_API void        spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, 
 SPN_API void        spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtValue vals[], size_t n);
 SPN_API SpnHashMap *spn_ctx_getglobals(SpnContext *ctx);
 SPN_API SpnHashMap *spn_ctx_getclasses(SpnContext *ctx);
+
+#if USE_DYNAMIC_LOADING
+
+/* helper for adding a dynamic library to the context,
+ * so that it will be closed correctly upon destuction.
+ */
+SPN_API void spn_ctx_add_dynmod(SpnContext *ctx, void *handle);
+
+#define SPN_STRINGIFY_2(x) #x
+#define SPN_STRINGIFY_(x) SPN_STRINGIFY_2(x)
+
+#define SPN_LIB_OPEN_FUNC_NAME  spnlib_open
+#define SPN_LIB_CLOSE_FUNC_NAME spnlib_close
+
+#define SPN_LIB_OPEN_FUNC_STR   SPN_STRINGIFY_(SPN_LIB_OPEN_FUNC_NAME)
+#define SPN_LIB_CLOSE_FUNC_STR  SPN_STRINGIFY_(SPN_LIB_CLOSE_FUNC_NAME)
+
+#define SPN_LIB_OPEN_FUNC(arg)  SpnValue SPN_LIB_OPEN_FUNC_NAME(SpnContext *arg)
+#define SPN_LIB_CLOSE_FUNC(arg) void SPN_LIB_CLOSE_FUNC_NAME(SpnContext *arg)
+
+typedef SpnValue (*SpnLibOpenFunc)(SpnContext *);
+typedef void (*SpnLibCloseFunc)(SpnContext *);
+
+#endif /* USE_DYNAMIC_LOADING */
 
 #endif /* SPN_CTX_H */

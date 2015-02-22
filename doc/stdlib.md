@@ -605,10 +605,19 @@ array. This function is implemented as a method on function objects.
 The arguments of the called function `fn` will be the values in `argv`
 in sequence.
 
-    function require(string filename)
+    any require(string filename)
 
 Loads, compiles and executes the given file. Returns the result of running the
 file. Throws a runtime error upon failure.
+
+    any dynld(string modname)
+
+Tries to open and load the dynamic library module defined in a file called
+`modname.EXT`, where `EXT` is a platform-specific filename extension.
+Returns the result of calling the constructor of the module.
+The destructor of the module will be called and the library will be unloaded
+when the `SpnContext` object in which the interpreter runs is destroyed.
+This function throws a runtime error upon failure.
 
     array backtrace()
 

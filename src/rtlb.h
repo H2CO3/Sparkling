@@ -131,6 +131,7 @@
  * tofloat()
  * tonumber()
  * require()
+ * dynld()
  * backtrace()
  *
  * Methods:
@@ -142,6 +143,7 @@
  * String: the default class for strings
  * Array: the default class for arrays
  * HashMap: the default class for hashmaps
+ * Function: the default class for functions
  */
 
 /* A convenience function that loads the entire standard library.

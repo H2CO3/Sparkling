@@ -404,7 +404,7 @@ let validateAST = fn (node) {
 		return false;
 	}
 
-	// too of the AST must be a top-level program object
+	// root of the AST must be a top-level program object
 	if node["type"] != "program" {
 		return false;
 	}

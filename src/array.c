@@ -31,6 +31,7 @@ static void free_array(void *obj);
 
 static const SpnClass spn_class_array = {
 	sizeof(SpnArray),
+	SPN_CLASS_UID_ARRAY,
 	NULL,
 	NULL,
 	NULL,

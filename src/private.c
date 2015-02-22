@@ -96,6 +96,7 @@ static unsigned long symstub_hash(void *obj)
 
 static const SpnClass SymbolStub_class = {
 	sizeof(SymbolStub),
+	SPN_CLASS_UID_SYMBOLSTUB,
 	symstub_equal,
 	NULL,
 	symstub_hash,
@@ -115,8 +116,50 @@ int is_symstub(const SpnValue *val)
 {
 	if (isstrguserinfo(val)) {
 		SpnObject *obj = objvalue(val);
-		return obj->isa == &SymbolStub_class;
+		return spn_object_member_of_class(obj, &SymbolStub_class);
 	}
 
 	return 0;
 }
+
+/* Dynamic loading support */
+#if USE_DYNAMIC_LOADING
+void *spn_open_library(SpnString *modname)
+{
+	void *handle;
+	char *libname = spn_malloc(modname->len + strlen(LIBRARY_EXTENSION) + 1);
+
+	/* construct platform-specific file name */
+	memcpy(libname, modname->cstr, modname->len);
+	strcpy(libname + modname->len, LIBRARY_EXTENSION);
+
+#ifdef _WIN32
+	handle = LoadLibrary(libname);
+#else /* _WIN32 */
+	handle = dlopen(libname, RTLD_LAZY | RTLD_GLOBAL);
+#endif /* _WIN32 */
+
+	free(libname);
+
+	return handle;
+}
+
+void spn_close_library(void *handle)
+{
+#ifdef _WIN32
+	FreeLibrary(handle);
+#else /* _WIN32 */
+	dlclose(handle);
+#endif /* _WIN32 */
+}
+
+void *spn_get_symbol(void *handle, const char *symname)
+{
+#ifdef _WIN32
+	return GetProcAddress(handle, symname);
+#else /* _WIN32 */
+	return dlsym(handle, symname);
+#endif /* _WIN32 */
+}
+
+#endif /* USE_DYNAMIC_LOADING */

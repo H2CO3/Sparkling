@@ -229,6 +229,7 @@ static void symtabentry_free(void *obj)
 
 static const SpnClass SymtabEntry_class = {
 	sizeof(SymtabEntry),
+	SPN_CLASS_UID_SYMTABENTRY,
 	symtabentry_equal,
 	NULL,
 	symtabentry_hash,

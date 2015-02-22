@@ -129,6 +129,7 @@ static void fhandle_free(void *obj);
 
 static const SpnClass spn_class_fhandle = {
 	sizeof(SpnFileHandle),
+	SPN_CLASS_UID_FILEHANDLE,
 	NULL, /* pointer-wise identity */
 	NULL, /* <, > not applicable   */
 	NULL, /* hash = object address */
@@ -210,7 +211,7 @@ static SpnFileHandle *fhandle_from_hashmap(SpnValue *hmv)
 
 	obj = objvalue(&val);
 
-	if (obj->isa != &spn_class_fhandle) {
+	if (!spn_object_member_of_class(obj, &spn_class_fhandle)) {
 		return NULL;
 	}
 
@@ -3800,7 +3801,7 @@ static int rtlb_clock(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static void rtlb_aux_sleep(double dt_sec)
 {
-#if defined(__linux__) || defined(__APPLE__) || defined(__sun) || defined(__unix__) || defined(__GNUC__)
+#if defined(__linux__) || defined(__APPLE__) || defined(__sun) || defined(__unix__)
 	struct timespec req, rem; /* requested and remaining time */
 	double p_int;
 	double p_frac = modf(dt_sec, &p_int);
@@ -4363,6 +4364,58 @@ static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+/*
+ * Dynamic loading support
+ */
+
+static int rtlb_dynld(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+#if USE_DYNAMIC_LOADING
+	void *handle;
+	SpnString *modname;
+	SpnLibOpenFunc openfunc;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "expecting 1 argument", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a module name", NULL);
+		return -2;
+	}
+
+	modname = stringvalue(&argv[0]);
+
+	handle = spn_open_library(modname);
+	if (handle == NULL) {
+		const void *args[1];
+		args[0] = modname->cstr;
+		spn_ctx_runtime_error(ctx, "couldn't load module '%s'", args);
+		return -3;
+	}
+
+	/* explicit cast to silence compiler error */
+	openfunc = (SpnLibOpenFunc)spn_get_symbol(handle, SPN_LIB_OPEN_FUNC_STR);
+	if (openfunc == NULL) {
+		const void *args[1];
+		args[0] = modname->cstr;
+		spn_ctx_runtime_error(ctx, "couldn't find open function of '%s'", args);
+
+		spn_close_library(handle);
+		return -4;
+	}
+
+	spn_ctx_add_dynmod(ctx, handle);
+	*ret = openfunc(ctx);
+
+	return 0;
+#else /* USE_DYNAMIC_LOADING */
+	spn_ctx_runtime_error(ctx, "dynamic loading is not supported", NULL);
+	return -5;
+#endif /* USE_DYNAMIC_LOADING */
+}
+
 static void loadlib_sysutil(SpnVMachine *vm)
 {
 	/* Free functions */
@@ -4386,6 +4439,7 @@ static void loadlib_sysutil(SpnVMachine *vm)
 		{ "tofloat",    rtlb_tofloat    },
 		{ "tonumber",   rtlb_tonumber   },
 		{ "require",    rtlb_require    },
+		{ "dynld",      rtlb_dynld      },
 		{ "backtrace",  rtlb_backtrace  }
 	};
 

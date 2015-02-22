@@ -29,11 +29,22 @@
  * Object API
  */
 
+static int class_equal(const SpnClass *clsA, const SpnClass *clsB)
+{
+	return clsA->UID == clsB->UID;
+}
+
+int spn_object_member_of_class(void *obj, const SpnClass *cls)
+{
+	SpnObject *object = obj;
+	return class_equal(object->isa, cls);
+}
+
 int spn_object_equal(void *lp, void *rp)
 {
 	SpnObject *lhs = lp, *rhs = rp;
 
-	if (lhs->isa != rhs->isa) {
+	if (!class_equal(lhs->isa, rhs->isa)) {
 		return 0;
 	}
 
@@ -48,7 +59,7 @@ int spn_object_cmp(void *lp, void *rp)
 {
 	SpnObject *lhs = lp, *rhs = rp;
 
-	assert(lhs->isa == rhs->isa);
+	assert(class_equal(lhs->isa, rhs->isa));
 	assert(lhs->isa->compare != NULL);
 
 	return lhs->isa->compare(lhs, rhs);
@@ -261,7 +272,7 @@ int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs)
 
 	if (isobject(lhs) && isobject(rhs)) {
 		SpnObject *obl = objvalue(lhs), *obr = objvalue(rhs);
-		if (obl->isa != obr->isa) {
+		if (!class_equal(obl->isa, obr->isa)) {
 			return 0;
 		}
 
