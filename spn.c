@@ -319,11 +319,11 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 }
 
 #if USE_READLINE
-static FILE *open_history_file(const char *mode)
+static char *history_file_name(void)
 {
-	FILE *history_file;
 	char *history_path;
 	size_t homedir_len, fname_len;
+
 	const char *history_filename = ".spn_history";
 	const char *homedir = getenv("HOME");
 
@@ -334,53 +334,31 @@ static FILE *open_history_file(const char *mode)
 	/* construct history file name */
 	homedir_len = strlen(homedir);
 	fname_len = strlen(history_filename);
+
 	/* +1 for '/', +1 for terminating NUL */
 	history_path = spn_malloc(homedir_len + 1 + fname_len + 1);
 	strcpy(history_path, homedir);
 	strcat(history_path, "/");
 	strcat(history_path, history_filename);
 
-	history_file = fopen(history_path, mode);
-	free(history_path);
-
-	return history_file;
-}
-
-static void read_history_if_exists(void)
-{
-	char buf[LINE_MAX];
-
-	FILE *history_file = open_history_file("r");
-	if (history_file == NULL) {
-		return;
-	}
-
-	while (fgets(buf, sizeof buf, history_file)) {
-		/* remove trailing newline */
-		char *p = strchr(buf, '\n');
-		if (p) {
-			*p = 0;
-		}
-
-		add_history(buf);
-	}
-
-	fclose(history_file);
+	return history_path;
 }
 #endif /* USE_READLINE */
 
 static int enter_repl(enum cmd_args args)
 {
 	int session_no = 1;
-	FILE *history_file = NULL;
+
+#if USE_READLINE
+	char *fhistory = history_file_name();
+#endif
 
 	SpnContext ctx;
 	spn_ctx_init(&ctx);
 
 #if USE_READLINE
 	/* try reading the history file */
-	read_history_if_exists();
-	history_file = open_history_file("a");
+	read_history(fhistory);
 #endif
 
 	while (1) {
@@ -410,11 +388,6 @@ static int enter_repl(enum cmd_args args)
 		/* only add non-empty lines to the history */
 		if (buf[0] != 0) {
 			add_history(buf);
-
-			/* append to history file if possible */
-			if (history_file != NULL) {
-				fprintf(history_file, "%s\n", buf);
-			}
 		}
 #else
 		printf("spn:%d> ", session_no);
@@ -493,9 +466,10 @@ static int enter_repl(enum cmd_args args)
 
 	spn_ctx_free(&ctx);
 
-	if (history_file != NULL) {
-		fclose(history_file);
-	}
+#if USE_READLINE
+	write_history(fhistory);
+	free(fhistory);
+#endif
 
 	return EXIT_SUCCESS;
 }
