@@ -4180,6 +4180,32 @@ static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_aux_verify_ast(SpnContext *ctx, SpnValue astval)
+{
+	static const char verifyast_src[] = {
+#include "verifyast.inc"
+	};
+
+	SpnValue ret;
+
+	SpnFunction *fn;
+	SpnHashMap *ast;
+
+	/* Parse, compile and execute AST verifier */
+	ast = spn_parser_parse(&ctx->parser, verifyast_src);
+	assert(ast != NULL);
+
+	fn = spn_compiler_compile(ctx->cmp, ast);
+	spn_object_release(ast);
+	assert(fn != NULL);
+
+	spn_ctx_callfunc(ctx, fn, &ret, 1, &astval);
+	spn_object_release(fn);
+	assert(isbool(&ret));
+
+	return boolvalue(&ret);
+}
+
 static int rtlb_compileast(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnFunction *fn;
@@ -4190,10 +4216,13 @@ static int rtlb_compileast(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be an AST node hashmap", NULL);
+	if (rtlb_aux_verify_ast(ctx, argv[0]) == 0) {
+		spn_ctx_runtime_error(ctx, "AST is invalid", NULL);
 		return -2;
 	}
+
+	/* a valid AST node must be a hashmap */
+	assert(ishashmap(&argv[0]));
 
 	ast = hashmapvalue(&argv[0]);
 	fn = spn_ctx_compile_ast(ctx, ast);

@@ -5,7 +5,7 @@
 // property getter functions.
 // Then the interpreter could be crashed or otherwise exploited.
 
-let validators = {};
+var validators = {};
 
 let validateNode = fn (node) {
 	if typeof node != "hashmap" {
@@ -305,15 +305,14 @@ validators["validators"] = {
 	// Terms, primitives, literals
 	"literal": fn (node) {
 		let valueType = typeof node["value"];
-		let types = [ "nil", "bool", "number", "string" ];
+		let types = {
+			"nil":    true,
+			"bool":   true,
+			"number": true,
+			"string": true
+		};
 
-		for (var i = 0; i < types.length; i++) {
-			if valueType == types[i] {
-				return true;
-			}
-		}
-
-		return false;
+		return types[valueType] != nil;
 	},
 
 	"ident": fn (node) {
@@ -399,7 +398,7 @@ validators["validators"] = {
 	}
 };
 
-let validateAST = fn (node) {
+let verifyAST = fn (node) {
 	if typeof node != "hashmap" {
 		return false;
 	}
@@ -412,4 +411,4 @@ let validateAST = fn (node) {
 	return validateNode(node);
 };
 
-return validateAST;
+return verifyAST(argv[0]);

@@ -118,8 +118,23 @@ spn.o: spn.c
 dump.o: dump.c
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
+# AST validator
+src/rtlb.c: src/verifyast.inc
+
+src/verifyast.inc: tools/verifyAST.spn
+	hexdump -v -e '1/1 "0x%.2x, "' $< > $@
+	echo "0x00" >> $@
+
 clean:
-	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) spn.o spn.h dump.o gmon.out .DS_Store $(SRCDIR)/.DS_Store $(OBJDIR)/.DS_Store doc/.DS_Store examples/.DS_Store *~ src/*~
+	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) \
+		spn.o spn.h dump.o gmon.out \
+		src/verifyast.inc \
+		.DS_Store \
+		$(SRCDIR)/.DS_Store \
+		$(OBJDIR)/.DS_Store \
+		doc/.DS_Store \
+		examples/.DS_Store \
+		*~ src/*~
 
 test:
 	VALGRIND="" ./runtests.sh

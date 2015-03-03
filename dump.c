@@ -46,7 +46,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 
 		/* if we reached a function's end, we print some newlines
 		 * and "pop" an index off the function end address "stack"
-		 * (`ip - 1` is used because we already incremented `ip`)
+		 * ('ip - 1' is used because we already incremented 'ip')
 		 */
 		if (ip - 1 == fnend[fnlevel - 1]) {
 			fnlevel--;
@@ -61,7 +61,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			fnlevel++;
 		}
 
-		/* print address (`ip - 1` for the same reason as above) */
+		/* print address ('ip - 1' for the same reason as above) */
 		printf("%#08lx", addr);
 
 		/* print indentation */
@@ -335,7 +335,7 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 				return -1;
 			}
 
-			/* we only skip the header -- then `ip` will point to
+			/* we only skip the header -- then 'ip' will point to
 			 * the actual instruction stream of the function body
 			 */
 			ip += SPN_FUNCHDR_LEN;
@@ -498,7 +498,7 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 				return -1;
 			}
 
-			printf("global `%s'\n", symname);
+			printf("global '%s'\n", symname);
 
 			ip += nwords;
 			break;
@@ -513,7 +513,7 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 			if (namelen != reallen) {
 				spn_die(
 					"error disassembling bytecode: "
-					"definition of function `%s' at %#08lx: "
+					"definition of function '%s' at %#08lx: "
 					"actual name length (%lu) does not match "
 					"expected (%lu)\n",
 					name,
