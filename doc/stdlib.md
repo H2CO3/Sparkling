@@ -549,6 +549,8 @@ or the local zone time. The keys are strings:
  - "isdst" is a boolean which is true if DST is in effect, and false if DST
  is not currently in effect or if DST information is unavailable.
 
+<!-- comments are still necessary in places like this... -->
+
     string fmtdate(string fmt, array timespec)
 
 Returns a formatted date/time string from an array returned by `utctime()` or
@@ -582,10 +584,6 @@ Throws a runtime error upon failure.
 
 Compiles the AST representation of some already-parsed source code down to
 bytecode, returns the generated Sparkling function.
-
-***WARNING:*** Currently **this function does no error checking whatsoever,**
-so supplying an incorrect AST may even crash the interpreter.
-This problem is to be fixed very soon.
 
     int toint(string str)
     float tofloat(string str)

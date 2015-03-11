@@ -399,7 +399,7 @@ variable or constant:
 
     let square = fn (x) {
         return x * x;
-    }
+    };
 
     extern f = fn (x) {
         return x + 1;
