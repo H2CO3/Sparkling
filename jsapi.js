@@ -27,10 +27,6 @@
 	// takes the name of a global value, returns its referencing index
 	var getGlobal = Module.cwrap('jspn_getGlobal', 'number', ['string']);
 
-	// takes a name and a value index, sets the given value
-	// as a global with the specified name
-	var setGlobal = Module.cwrap('jspn_setGlobal', null, ['string', 'number']);
-
 	// Given a JavaScript value, converts it to a Sparkling value
 	// and returns its referencing index
 	var addJSValue = function (val) {
@@ -341,11 +337,6 @@
 
 		getGlobal: function (name) {
 			return valueAtIndex(getGlobal(name));
-		},
-
-		setGlobal: function (name, value) {
-			var valIndex = addJSValue(value);
-			setGlobal(name, valIndex);
 		},
 
 		// Frees all memory used by Sparkling values generated

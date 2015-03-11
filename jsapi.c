@@ -79,7 +79,6 @@ static SpnValue value_by_index(int index)
 // As they're owned by a particular context, they need to be re-created
 // when the context is deallocated.
 static SpnFunction *wrapperGenerator = NULL;
-static SpnFunction *validateAST = NULL;
 
 extern void jspn_reset(void)
 {
@@ -94,7 +93,6 @@ extern void jspn_reset(void)
 	}
 
 	wrapperGenerator = NULL;
-	validateAST = NULL;
 	next_value_index = FIRST_VALUE_INDEX;
 }
 
@@ -153,39 +151,8 @@ extern int jspn_parseExpr(const char *src)
 
 extern int jspn_compileAST(int astIndex)
 {
-	if (validateAST == NULL) {
-		char *src = spn_read_text_file("tools/validateAST.spn");
-		if (src == NULL) {
-			spn_die("cannot read validateAST.spn");
-		}
-
-		SpnValue ret;
-		int error = spn_ctx_execstring(get_global_context(), src, &ret);
-		free(src);
-
-		if (error != 0) {
-			spn_die("cannot execute validateAST.spn");
-		}
-
-		assert(isfunc(&ret));
-		validateAST = funcvalue(&ret);
-	}
-
 	SpnValue astVal = value_by_index(astIndex);
 	assert(ishashmap(&astVal));
-
-	SpnValue ret;
-	int error = spn_ctx_callfunc(get_global_context(), validateAST, &ret, 1, &astVal);
-	if (error != 0) {
-		spn_die("cannot call validateAST()");
-	}
-
-	assert(isbool(&ret));
-	if (boolvalue(&ret) == 0) {
-		get_global_context()->errtype = SPN_ERROR_GENERIC;
-		get_global_context()->errmsg = "AST is invalid";
-		return ERROR_INDEX; /* invalid AST */
-	}
 
 	SpnHashMap *ast = hashmapvalue(&astVal);
 	SpnFunction *fn = spn_ctx_compile_ast(get_global_context(), ast);
@@ -272,13 +239,6 @@ extern int jspn_getGlobal(const char *name)
 	SpnHashMap *globals = spn_ctx_getglobals(get_global_context());
 	SpnValue global = spn_hashmap_get_strkey(globals, name);
 	return add_to_values(global);
-}
-
-extern void jspn_setGlobal(const char *name, int index)
-{
-	SpnValue val = value_by_index(index);
-	SpnHashMap *globals = spn_ctx_getglobals(get_global_context());
-	spn_hashmap_set_strkey(globals, name, &val);
 }
 
 extern const char *jspn_backtrace(void)

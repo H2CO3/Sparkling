@@ -10,7 +10,7 @@ EXPORT = "['_jspn_freeAll','_jspn_compile','_jspn_compileExpr','_jspn_parse','_j
 
 CORE_CFLAGS = -c -std=c89 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(CORE_DEFINES)
 JSAPI_CFLAGS = -c -std=c99 -pedantic -fpic $(WARNINGS) $(OPTIMIZE) $(JSAPI_DEFINES) 
-LDFLAGS = $(OPTIMIZE) -dynamiclib -flto --post-js jsapi.js --js-library auxlib.js --memory-init-file 0 --embed-file tools/validateAST.spn -s EXPORTED_FUNCTIONS=$(EXPORT)
+LDFLAGS = $(OPTIMIZE) -dynamiclib -flto --post-js jsapi.js --js-library auxlib.js --memory-init-file 0 -s EXPORTED_FUNCTIONS=$(EXPORT)
 
 OBJECTS = $(patsubst src/%.c, bld/%.bc, $(wildcard src/*.c)) jsapi.bc
 PAGE = libspn.html
@@ -30,8 +30,15 @@ bld/%.bc: src/%.c
 jsapi.bc: jsapi.c
 	$(CC) $(JSAPI_CFLAGS) -Isrc -o $@ $<
 
+# AST validator
+src/rtlb.c: src/verifyast.inc
+
+src/verifyast.inc: tools/verifyAST.spn
+	hexdump -v -e '1/1 "0x%.2x, "' $< > $@
+	echo "0x00" >> $@
+
 clean:
-	rm -f $(OBJECTS) $(PAGE) $(LIB)
+	rm -f $(OBJECTS) $(PAGE) $(LIB) src/verifyast.inc
 
 .PHONY: all clean
 
