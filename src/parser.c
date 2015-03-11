@@ -357,6 +357,8 @@ static void set_name_if_is_function(SpnHashMap *expr, SpnValue name)
 	assert(isstring(&typeval));
 	type = stringvalue(&typeval);
 
+	assert(isstring(&name));
+
 	if (strcmp(type->cstr, "function") == 0) {
 		ast_set_property(expr, "name", &name);
 	}
@@ -1035,6 +1037,35 @@ static SpnHashMap *parse_array_literal(SpnParser *p)
 	return ast;
 }
 
+static void set_object_member_name_if_function(SpnHashMap *key, SpnHashMap *val)
+{
+	/* first, check if the key is a string literal */
+	const char *keytype;
+	SpnValue keyval;
+	SpnValue keytype_val = spn_hashmap_get_strkey(key, "type");
+
+	assert(isstring(&keytype_val));
+	keytype = stringvalue(&keytype_val)->cstr;
+
+	/* if key is not a literal, it can't be a string literal */
+	if (strcmp(keytype, "literal") != 0) {
+		return;
+	}
+
+	/* if the value of the literal is not a string,
+	 * then the value is not a string literal either
+	 */
+	keyval = spn_hashmap_get_strkey(key, "value");
+	if (!isstring(&keyval)) {
+		return;
+	}
+
+	/* but if it is a string literal, _and_ the value
+	 * is a function literal, then lets set its name.
+	 */
+	set_name_if_is_function(val, keyval);
+}
+
 static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 {
 	SpnHashMap *ast;
@@ -1068,6 +1099,9 @@ static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 			spn_object_release(ast);
 			return NULL;
 		}
+
+		/* add name to function literal if it's a method */
+		set_object_member_name_if_function(key, val);
 
 		/* construct key-value pair */
 		pair = ast_new("kvpair", colon->location);

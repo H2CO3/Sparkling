@@ -1,0 +1,8 @@
+let obj = {
+	"method_one": fn (self) { },
+	"method with spaces in its name": fn (self) {},
+	"method with funky name swag $$$ #yolo": fn (self) {},
+	// methods without name
+	true: fn (self) {},
+	1337: fn (self) {}
+};
