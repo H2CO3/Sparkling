@@ -13,6 +13,7 @@
 
 #include "api.h"
 #include "array.h"
+#include "hashmap.h"
 
 typedef struct SpnFunction {
 	SpnObject base;
@@ -29,6 +30,7 @@ typedef struct SpnFunction {
 		spn_uword *bc;
 		int (*fn)(SpnValue *, int, SpnValue *, void *);
 	} repr;                  /* representation                      */
+	SpnHashMap *debug_info;  /* optional debug info if top-level    */
 } SpnFunction;
 
 /* 'name' is always a weak pointer, regardless of whether
@@ -63,13 +65,18 @@ typedef struct SpnFunction {
  */
 
 SPN_API SpnFunction *spn_func_new_script(const char *name, spn_uword *bc, SpnFunction *env);
-SPN_API SpnFunction *spn_func_new_topprg(const char *name, spn_uword *bc, size_t nwords); /* transfers ownership */
+
+/* transfers ownership of both bytecode and debug information */
+SPN_API SpnFunction *spn_func_new_topprg(const char *name, spn_uword *bc, size_t nwords, SpnHashMap *debug);
+
 SPN_API SpnFunction *spn_func_new_native(const char *name, int (*fn)(SpnValue *, int, SpnValue *, void *));
 SPN_API SpnFunction *spn_func_new_closure(SpnFunction *prototype);
 
 /* convenience value constructors and an accessor */
 SPN_API SpnValue spn_makescriptfunc(const char *name, spn_uword *bc, SpnFunction *env);
-SPN_API SpnValue spn_maketopprgfunc(const char *name, spn_uword *bc, size_t nwords); /* transfers ownership */
+
+ /* this one transfers ownerships too */
+SPN_API SpnValue spn_maketopprgfunc(const char *name, spn_uword *bc, size_t nwords, SpnHashMap *debug);
 SPN_API SpnValue spn_makenativefunc(const char *name, int (*fn)(SpnValue *, int, SpnValue *, void *));
 SPN_API SpnValue spn_makeclosure(SpnFunction *prototype);
 

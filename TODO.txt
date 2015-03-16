@@ -13,7 +13,13 @@ Code:
 	- and make the functions in there print meaningful error messages when			done
 		they encounter an error condition)
 	- Related: native functions should be able to set a custom error message		done
-	
+
+	- add variable names <-> register mapping to debug information
+	- expose rich debug info to JavaScript API
+	- smarter algorithm in `spn_dbg_get_raw_source_location()` (no linear search)
+	- add and interactive debugger function to the standard library
+
+
 Language, syntax:
 	- Implement "switch" statement.
 	- is the context-free grammar in grammar.txt correct? especially with

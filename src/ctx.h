@@ -55,8 +55,8 @@ SPN_API void spn_ctx_setuserinfo(SpnContext *ctx, void *info);
  * It will be deallocated automatically when you free the context.
  * These functions return NULL on error.
  */
-SPN_API SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str);
-SPN_API SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname);
+SPN_API SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str, int debug);
+SPN_API SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname, int debug);
 SPN_API SpnFunction *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname);
 SPN_API SpnFunction *spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t objsize);
 
@@ -76,7 +76,7 @@ SPN_API SpnStackFrame *spn_ctx_stacktrace(SpnContext *ctx, size_t *size);
 SPN_API ptrdiff_t spn_ctx_exception_addr(SpnContext *ctx);
 
 /* compile and evaluate expressions */
-SPN_API SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr);
+SPN_API SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr, int debug);
 
 /* The following functions give users access to the parser
  * and the compiler separately.
@@ -96,7 +96,7 @@ SPN_API SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr);
  */
 SPN_API SpnHashMap *spn_ctx_parse(SpnContext *ctx, const char *src);
 SPN_API SpnHashMap *spn_ctx_parse_expr(SpnContext *ctx, const char *src);
-SPN_API SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast);
+SPN_API SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast, int debug);
 
 /* accessors for library functions, other globals and class descriptors */
 SPN_API void        spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc  fns[],  size_t n);

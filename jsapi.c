@@ -105,7 +105,7 @@ extern void jspn_freeAll(void)
 
 extern int jspn_compile(const char *src)
 {
-	SpnFunction *fn = spn_ctx_compile_string(get_global_context(), src);
+	SpnFunction *fn = spn_ctx_compile_string(get_global_context(), src, 1);
 	if (fn == NULL) {
 		return ERROR_INDEX;
 	}
@@ -115,7 +115,7 @@ extern int jspn_compile(const char *src)
 
 extern int jspn_compileExpr(const char *src)
 {
-	SpnFunction *fn = spn_ctx_compile_expr(get_global_context(), src);
+	SpnFunction *fn = spn_ctx_compile_expr(get_global_context(), src, 1);
 	if (fn == NULL) {
 		return ERROR_INDEX;
 	}
@@ -155,7 +155,7 @@ extern int jspn_compileAST(int astIndex)
 	assert(ishashmap(&astVal));
 
 	SpnHashMap *ast = hashmapvalue(&astVal);
-	SpnFunction *fn = spn_ctx_compile_ast(get_global_context(), ast);
+	SpnFunction *fn = spn_ctx_compile_ast(get_global_context(), ast, 1);
 	if (fn == NULL) {
 		return ERROR_INDEX;
 	}
@@ -374,7 +374,8 @@ extern int jspn_addWrapperFunction(int funcIndex)
 			"return fn {"
 			"	let args = argv.map(jspn_valueToIndex);"
 			"	return jspn_callWrappedFunc(funcIndex, args);"
-			"};"
+			"};",
+			0 /* no need to debug this function */
 		);
 		assert(wrapperGenerator != NULL);
 	}

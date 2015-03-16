@@ -68,11 +68,18 @@ static void free_func(void *obj)
 	SpnFunction *func = obj;
 
 	/* if the function represents a top-level program,
-	 * the free the array containing the local symbol table
+	 * then free the array containing the local symbol table,
+	 * the bytecode buffer and the optional debug information.
 	 */
 	if (func->topprg) {
 		free(func->repr.bc);
 		spn_object_release(func->symtab);
+	}
+
+	if (func->debug_info) {
+		/* only top-level programs should have debug info */
+		assert(func->topprg);
+		spn_object_release(func->debug_info);
 	}
 
 	/* if the function is a closure,
@@ -111,11 +118,12 @@ SpnFunction *spn_func_new_script(const char *name, spn_uword *bc, SpnFunction *e
 	func->symtab = env->symtab; /* weak pointer */
 	func->upvalues = NULL;      /* unused       */
 	func->repr.bc = bc;         /* weak pointer */
+	func->debug_info = NULL;    /* unused       */
 
 	return func;
 }
 
-SpnFunction *spn_func_new_topprg(const char *name, spn_uword *bc, size_t nwords)
+SpnFunction *spn_func_new_topprg(const char *name, spn_uword *bc, size_t nwords, SpnHashMap *debug)
 {
 	SpnFunction *func = spn_object_new(&spn_class_func);
 
@@ -130,6 +138,7 @@ SpnFunction *spn_func_new_topprg(const char *name, spn_uword *bc, size_t nwords)
 	func->symtab = spn_array_new();
 	func->upvalues = NULL; /* unused */
 	func->repr.bc = bc; /* strong pointer */
+	func->debug_info = debug; /* strong pointer */
 
 	return func;
 }
@@ -141,14 +150,15 @@ SpnFunction *spn_func_new_native(const char *name, int (*fn)(SpnValue *, int, Sp
 	func->native = 1;
 	func->topprg = 0;
 	func->is_closure = 0;
-	func->nwords = 0;       /* unused */
+	func->nwords = 0;        /* unused */
 
 	func->name = name;
-	func->env = NULL;       /* unused */
-	func->readsymtab = 0;   /* unused */
-	func->symtab = NULL;    /* unused */
-	func->upvalues = NULL;  /* unused */
+	func->env = NULL;        /* unused */
+	func->readsymtab = 0;    /* unused */
+	func->symtab = NULL;     /* unused */
+	func->upvalues = NULL;   /* unused */
 	func->repr.fn = fn;
+	func->debug_info = NULL; /* unused */
 
 	return func;
 }
@@ -178,10 +188,11 @@ SpnFunction *spn_func_new_closure(SpnFunction *prototype)
 
 	func->name = prototype->name;       /* weak pointer */
 	func->env = prototype->env;         /* weak pointer */
-	func->readsymtab = 0;               /* unused */
+	func->readsymtab = 0;               /* unused       */
 	func->symtab = prototype->symtab;   /* weak pointer */
 	func->upvalues = spn_array_new();
 	func->repr = prototype->repr;
+	func->debug_info = NULL;            /* unused       */
 
 	return func;
 }
@@ -202,9 +213,9 @@ SpnValue spn_makescriptfunc(const char *name, spn_uword *bc, SpnFunction *env)
 	return func_to_val(func);
 }
 
-SpnValue spn_maketopprgfunc(const char *name, spn_uword *bc, size_t nwords)
+SpnValue spn_maketopprgfunc(const char *name, spn_uword *bc, size_t nwords, SpnHashMap *debug)
 {
-	SpnFunction *func = spn_func_new_topprg(name, bc, nwords);
+	SpnFunction *func = spn_func_new_topprg(name, bc, nwords, debug);
 	return func_to_val(func);
 }
 

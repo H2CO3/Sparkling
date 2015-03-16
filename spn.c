@@ -17,12 +17,14 @@
 #endif
 
 #if USE_ANSI_COLORS
-#define CLR_ERR "\x1b[1;31m"
-#define CLR_VAL "\x1b[1;32m"
-#define CLR_RST "\x1b[0m"
+#define CLR_ERR "\x1b[1;31m" /* error            */
+#define CLR_VAL "\x1b[1;32m" /* result, value    */
+#define CLR_HGL "\x1b[1;36m" /* highlighted      */
+#define CLR_RST "\x1b[0m"    /* reset to default */
 #else
 #define CLR_ERR ""
 #define CLR_VAL ""
+#define CLR_HGL ""
 #define CLR_RST ""
 #endif
 
@@ -31,6 +33,7 @@
 #include "str.h"
 #include "func.h"
 #include "ctx.h"
+#include "debug.h"
 #include "private.h"
 #include "dump.h"
 
@@ -143,19 +146,46 @@ static void print_stacktrace_if_needed(SpnContext *ctx)
 	if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
 		size_t n;
 		unsigned i;
-		long addr = spn_ctx_exception_addr(ctx);
+
 		SpnStackFrame *bt = spn_ctx_stacktrace(ctx, &n);
 
-		if (addr < 0) {
-			fprintf(stderr, "Runtime error in native code");
-		} else {
-			fprintf(stderr, "Runtime error @ %#08lx", addr);
-		}
-
-		fprintf(stderr, " - Call stack:\n\n");
+		fprintf(stderr, "Runtime error, call stack:\n\n");
 
 		for (i = 0; i < n; i++) {
-			fprintf(stderr, "\t[%-4u]\tin %s\n", i, bt[i].function->name);
+			SpnFunction *function = bt[i].function;
+			fprintf(stderr, "\t[%-4u] " CLR_HGL "%s" CLR_RST " in ", i, function->name);
+
+			/* if the function has an "environment" parent function,
+			 * then that environment is a top-level Sparkling program,
+			 * and the function itself is a script function.
+			 * Else, it's a native extension function.
+			 */
+			if (function->env) {
+				const char *fname = spn_dbg_get_filename(function->env->debug_info);
+				fprintf(stderr, CLR_HGL "%s" CLR_RST, fname);
+
+				/* the exception address is only applicable
+				 * for script functions (not for native ones)
+				 */
+				if (function->env->debug_info) {
+					if (bt[i].exc_address >= 0) {
+						SpnSourceLocation loc = spn_dbg_get_frame_source_location(bt[i]);
+
+						fprintf(
+							stderr,
+							": line " CLR_VAL "%u" CLR_RST
+							" char " CLR_VAL "%u" CLR_RST
+							" near " CLR_VAL "%#lx" CLR_RST,
+							loc.line, loc.column,
+							(long)bt[i].exc_address
+						);
+					}
+				}
+			} else {
+				fprintf(stderr, CLR_HGL "C code" CLR_RST);
+			}
+
+			fprintf(stderr, "\n");
 		}
 
 		fprintf(stderr, "\n");
@@ -175,7 +205,7 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 	int err, i;
 
 	/* compile */
-	SpnFunction *fn = spn_ctx_compile_srcfile(ctx, fname);
+	SpnFunction *fn = spn_ctx_compile_srcfile(ctx, fname, 1);
 
 	if (fn == NULL) {
 		enum spn_error_type errtype = spn_ctx_geterrtype(ctx);
@@ -209,7 +239,7 @@ static int run_script_file(SpnContext *ctx, const char *fname, int argc, char *a
 
 	if (err != 0) {
 		/* this can only mean a runtime error */
-		fprintf(stderr, "%s\n", spn_ctx_geterrmsg(ctx));
+		fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(ctx));
 		print_stacktrace_if_needed(ctx);
 	}
 
@@ -224,19 +254,16 @@ static int run_file(const char *fname, int argc, char *argv[])
 	spn_ctx_init(&ctx);
 
 	/* check if file is a binary object or source text */
-	if (endswith(fname, ".spn")) {
-		if (run_script_file(&ctx, fname, argc, argv) != 0) {
-			status = EXIT_FAILURE;
-		}
-	} else if (endswith(fname, ".spo")) {
+	if (endswith(fname, ".spo")) {
 		if (spn_ctx_execobjfile(&ctx, fname, NULL) != 0) {
-			fprintf(stderr, "%s\n", spn_ctx_geterrmsg(&ctx));
+			fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(&ctx));
 			print_stacktrace_if_needed(&ctx);
 			status = EXIT_FAILURE;
 		}
 	} else {
-		fputs("generic error: invalid file extension\n", stderr);
-		status = EXIT_FAILURE;
+		if (run_script_file(&ctx, fname, argc, argv) != 0) {
+			status = EXIT_FAILURE;
+		}
 	}
 
 	spn_ctx_free(&ctx);
@@ -253,7 +280,7 @@ static int eval_args(int argc, char *argv[])
 
 	for (i = 0; i < argc; i++) {
 		SpnValue val;
-		SpnFunction *fn = spn_ctx_compile_expr(&ctx, argv[i]);
+		SpnFunction *fn = spn_ctx_compile_expr(&ctx, argv[i], 1);
 		if (fn == NULL) {
 			SpnSourceLocation loc = spn_ctx_geterrloc(&ctx);
 			const char *errmsg = spn_ctx_geterrmsg(&ctx);
@@ -264,7 +291,7 @@ static int eval_args(int argc, char *argv[])
 		}
 
 		if (spn_ctx_callfunc(&ctx, fn, &val, 0, NULL) != 0) {
-			printf("%s\n", spn_ctx_geterrmsg(&ctx));
+			printf(CLR_ERR "%s" CLR_RST "\n", spn_ctx_geterrmsg(&ctx));
 			print_stacktrace_if_needed(&ctx);
 
 			status = EXIT_FAILURE;
@@ -298,7 +325,7 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 				SpnSourceLocation loc = spn_ctx_geterrloc(&ctx);
 				print_location_and_errmsg(loc, errmsg);
 			} else {
-				fprintf(stderr, "%s\n", errmsg);
+				fprintf(stderr, CLR_ERR "%s" CLR_RST "\n", errmsg);
 				print_stacktrace_if_needed(&ctx);
 			}
 
@@ -426,7 +453,7 @@ static int enter_repl(enum cmd_args args)
 				 * we managed to parse and compile the string as an
 				 * expression, so it's the new error message that is relevant.
 				 */
-				fn = spn_ctx_compile_expr(&ctx, buf);
+				fn = spn_ctx_compile_expr(&ctx, buf, 1);
 				if (fn == NULL) {
 					/* this is a parser or compiler error */
 					fprintf(stderr, CLR_ERR);
@@ -495,7 +522,8 @@ static int compile_files(int argc, char *argv[])
 		fflush(stdout);
 		fflush(stderr);
 
-		fn = spn_ctx_compile_srcfile(&ctx, argv[i]);
+		/* no need for debug info when writing a bytecode file */
+		fn = spn_ctx_compile_srcfile(&ctx, argv[i], 0);
 		if (fn == NULL) {
 			SpnSourceLocation loc = spn_ctx_geterrloc(&ctx);
 			const char *errmsg = spn_ctx_geterrmsg(&ctx);

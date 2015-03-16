@@ -20,6 +20,7 @@
 #include "hashmap.h"
 #include "private.h"
 #include "func.h"
+#include "debug.h"
 
 
 typedef struct Bytecode {
@@ -74,6 +75,7 @@ struct SpnCompiler {
 	int                    is_in_loop;  /* (VI)   */
 	UpvalChain            *upval_chain; /* (VII)  */
 	SpnSourceLocation      error_loc;   /* (VIII) */
+	SpnHashMap            *debug_info;  /* (IX)   */
 };
 
 /* Remarks:
@@ -111,6 +113,10 @@ struct SpnCompiler {
  *
  * (VIII): error_loc is the location information for the AST node for which
  * a compiler error occurred.
+ *
+ * (IX): the debug information maps bytecode addresses to line and character
+ * numbers, and register numbers to variable names.
+ * This member may be NULL, in which case no debug information is emitted.
  */
 
 /* information describing the state of the global scope or a function scope.
@@ -444,20 +450,28 @@ void spn_compiler_free(SpnCompiler *cmp)
 	free(cmp);
 }
 
-SpnFunction *spn_compiler_compile(SpnCompiler *cmp, SpnHashMap *ast)
+SpnFunction *spn_compiler_compile(SpnCompiler *cmp, SpnHashMap *ast, int debug)
 {
 	bytecode_init(&cmp->bc);
+	cmp->debug_info = debug ? spn_dbg_new() : NULL;
 
 	if (compile_program(cmp, ast)) {
 		/* should be at global scope when compilation is done */
 		assert(cmp->upval_chain == NULL);
 
-		/* success. transfer ownership of cmp->bc.insns to the result */
-		return spn_func_new_topprg(SPN_TOPFN, cmp->bc.insns, cmp->bc.len);
+		/* success. transfer ownership of cmp->bc.insns
+		 * and that of cmp->debug_info to the result.
+		 */
+		return spn_func_new_topprg(SPN_TOPFN, cmp->bc.insns, cmp->bc.len, cmp->debug_info);
 	}
 
-	/* error */
+	/* error, clean up */
 	free(cmp->bc.insns);
+
+	if (cmp->debug_info) {
+		spn_object_release(cmp->debug_info);
+	}
+
 	return NULL;
 }
 
@@ -1021,7 +1035,7 @@ static int compile_block(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	/* block -> new lexical scope, "push" a new set of variable names on
 	 * the stack. This is done by keeping track of the current length of
-	 * the variable stack, then removing the last names when compilation
+	 * the variable stack and removing the topmost names when compilation
 	 * of the block is complete, until only the originally present names
 	 * remain in the stack.
 	 */
@@ -2955,7 +2969,16 @@ static int compile_expr(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 	size_t i;
 	for (i = 0; i < COUNT(compilers); i++) {
 		if (type_equal(compilers[i].node, type)) {
-			return compilers[i].fn(cmp, ast, dst);
+			size_t begin = cmp->bc.len;
+			int status = compilers[i].fn(cmp, ast, dst);
+			size_t end = cmp->bc.len;
+
+			/* add debug info mapping bytecode addresses to source
+			 * lines, columns and registers.
+			 */
+			spn_dbg_emit_source_location(cmp->debug_info, begin, end, ast, *dst);
+
+			return status;
 		}
 	}
 

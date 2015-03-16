@@ -11,6 +11,7 @@
 #include "ctx.h"
 #include "func.h"
 #include "private.h"
+#include "debug.h"
 
 
 void spn_ctx_init(SpnContext *ctx)
@@ -128,7 +129,7 @@ static void add_to_programs(SpnContext *ctx, SpnFunction *fn)
 
 /* the essence */
 
-SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str)
+SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str, int debug)
 {
 	SpnFunction *result;
 
@@ -139,13 +140,13 @@ SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str)
 	}
 
 	/* attempt compilation, add function to context */
-	result = spn_ctx_compile_ast(ctx, ast);
+	result = spn_ctx_compile_ast(ctx, ast, debug);
 	spn_object_release(ast);
 
 	return result;
 }
 
-SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname)
+SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname, int debug)
 {
 	char *src;
 	SpnFunction *result;
@@ -159,8 +160,10 @@ SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname)
 		return NULL;
 	}
 
-	result = spn_ctx_compile_string(ctx, src);
+	result = spn_ctx_compile_string(ctx, src, debug);
 	free(src);
+
+	spn_dbg_set_filename(result->debug_info, fname);
 
 	return result;
 }
@@ -184,7 +187,7 @@ SpnFunction *spn_ctx_loadobjfile(SpnContext *ctx, const char *fname)
 	 * as the number of machine words in the bytecode
 	 */
 	nwords = filesize / sizeof bc[0];
-	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords);
+	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords, NULL);
 
 	add_to_programs(ctx, result);
 	spn_object_release(result); /* still alive, retained by array */
@@ -204,7 +207,7 @@ SpnFunction *spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t ob
 	 * as the number of machine words in the bytecode
 	 */
 	nwords = objsize / sizeof bc[0];
-	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords);
+	result = spn_func_new_topprg(SPN_TOPFN, bc, nwords, NULL);
 
 	add_to_programs(ctx, result);
 	spn_object_release(result); /* still alive, retained by array */
@@ -213,7 +216,7 @@ SpnFunction *spn_ctx_loadobjdata(SpnContext *ctx, const void *objdata, size_t ob
 
 int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret)
 {
-	SpnFunction *fn = spn_ctx_compile_string(ctx, str);
+	SpnFunction *fn = spn_ctx_compile_string(ctx, str, 1); /* debug */
 
 	if (fn == NULL) {
 		return -1;
@@ -224,7 +227,7 @@ int spn_ctx_execstring(SpnContext *ctx, const char *str, SpnValue *ret)
 
 int spn_ctx_execsrcfile(SpnContext *ctx, const char *fname, SpnValue *ret)
 {
-	SpnFunction *fn = spn_ctx_compile_srcfile(ctx, fname);
+	SpnFunction *fn = spn_ctx_compile_srcfile(ctx, fname, 1); /* debug */
 
 	if (fn == NULL) {
 		return -1;
@@ -276,7 +279,7 @@ void spn_ctx_runtime_error(SpnContext *ctx, const char *fmt, const void *args[])
 	spn_vm_seterrmsg(ctx->vm, fmt, args);
 }
 
-SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr)
+SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr, int debug)
 {
 	SpnFunction *result;
 
@@ -287,7 +290,7 @@ SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr)
 	}
 
 	/* compile AST and add resulting function to context */
-	result = spn_ctx_compile_ast(ctx, ast);
+	result = spn_ctx_compile_ast(ctx, ast, debug);
 	spn_object_release(ast);
 
 	return result;
@@ -319,9 +322,9 @@ SpnHashMap *spn_ctx_parse_expr(SpnContext *ctx, const char *src)
 	return ast;
 }
 
-SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast)
+SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast, int debug)
 {
-	SpnFunction *fn = spn_compiler_compile(ctx->cmp, ast);
+	SpnFunction *fn = spn_compiler_compile(ctx->cmp, ast, debug);
 
 	if (fn == NULL) {
 		ctx->errtype = SPN_ERROR_SEMANTIC;

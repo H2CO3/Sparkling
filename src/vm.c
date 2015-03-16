@@ -294,13 +294,24 @@ SpnStackFrame *spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 
 	while (sp > vm->stack) {
 		TFrame *frmhdr = &sp[IDX_FRMHDR].h;
-		SpnStackFrame *frame = &buf[i++];
+		SpnStackFrame *frame = &buf[i];
 
 		frame->function = frmhdr->callee;
 		frame->return_address = return_address_from_stack_ptr(sp);
 		frame->sp = sp;
 
+		/* see the comment before the declaration of SpnStackFrame
+		 * for an explanation of the way the exception address is
+		 * computed.
+		 */
+		if (i > 0) {
+			frame->exc_address = buf[i - 1].return_address - 1;
+		} else {
+			frame->exc_address = spn_vm_exception_addr(vm);
+		}
+
 		sp -= frmhdr->size;
+		i++;
 	}
 
 	return buf;

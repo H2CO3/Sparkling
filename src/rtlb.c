@@ -4111,7 +4111,7 @@ static int rtlb_compilestr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	src = stringvalue(&argv[0]);
-	fn = spn_ctx_compile_string(ctx, src->cstr);
+	fn = spn_ctx_compile_string(ctx, src->cstr, 1); /* always debug */
 
 	if (fn == NULL) {
 		parser_or_compiler_error_to_runtime(ctx);
@@ -4166,7 +4166,7 @@ static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	str = stringvalue(&argv[0]);
-	fn = spn_ctx_compile_expr(ctx, str->cstr);
+	fn = spn_ctx_compile_expr(ctx, str->cstr, 1); /* always debug */
 
 	if (fn == NULL) {
 		parser_or_compiler_error_to_runtime(ctx);
@@ -4195,7 +4195,8 @@ static int rtlb_aux_verify_ast(SpnContext *ctx, SpnValue astval)
 	ast = spn_parser_parse(&ctx->parser, verifyast_src);
 	assert(ast != NULL);
 
-	fn = spn_compiler_compile(ctx->cmp, ast);
+	/* no need to debug the verifier function */
+	fn = spn_compiler_compile(ctx->cmp, ast, 0);
 	spn_object_release(ast);
 	assert(fn != NULL);
 
@@ -4225,7 +4226,7 @@ static int rtlb_compileast(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	assert(ishashmap(&argv[0]));
 
 	ast = hashmapvalue(&argv[0]);
-	fn = spn_ctx_compile_ast(ctx, ast);
+	fn = spn_ctx_compile_ast(ctx, ast, 1); /* always debug */
 
 	if (fn == NULL) {
 		parser_or_compiler_error_to_runtime(ctx);

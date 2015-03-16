@@ -61,11 +61,30 @@ typedef struct SpnVMachine SpnVMachine;
  * A negative 'return_address' indicates that the caller
  * was a native (C) function and not a Sparkling function/script.
  *
+ * 'exc_address' is an approximation of the address where
+ * the actual runtime error has occurred:
+ *
+ *  - for frame #0, this is the same as the return value of
+ *    'spn_vm_exception_addr()'.
+ *  - for frames #1 and higher, it is computed by subtracting one
+ *    from the return adddress of the previous (calling) frame.
+ *    Actually, this will be the address of the last parameter
+ *    passed to the function (or the call instruction itself if
+ *    there were no parameters), since the return address always
+ *    immediately follows the call instruction. So the debug info
+ *    will correctly map it to the source location of the call.
+ *
+ * (if the caller is a native function, then the return address
+ * of the frame will be negative, and so will be the return
+ * address minus one, so this computation doesn't mess up the
+ * indication of whether the callee returns to C or Sparkling.)
+ *
  * 'sp' is an opaque pointer that stores the stack pointer of
  * the frame. It is used by 'spn_vm_get_register()'.
  */
 typedef struct SpnStackFrame {
 	SpnFunction *function;
+	ptrdiff_t exc_address;
 	ptrdiff_t return_address;
 	void *sp;
 } SpnStackFrame;
