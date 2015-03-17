@@ -163,7 +163,9 @@ SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname, int deb
 	result = spn_ctx_compile_string(ctx, src, debug);
 	free(src);
 
-	spn_dbg_set_filename(result->debug_info, fname);
+	if (result) {
+		spn_dbg_set_filename(result->debug_info, fname);
+	}
 
 	return result;
 }
