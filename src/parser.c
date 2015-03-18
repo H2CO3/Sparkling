@@ -763,7 +763,8 @@ static SpnHashMap *parse_postfix(SpnParser *p)
 		{ "--", "post_dec"  },
 		{ "[",  "subscript" },
 		{ ".",  "memberof"  },
-		{ "(",  "call"      }
+		{ "(",  "call"      },
+		{ "::", "subscript" }
 	};
 
 	size_t index;
@@ -859,6 +860,31 @@ static SpnHashMap *parse_postfix(SpnParser *p)
 					return NULL;
 				}
 			}
+
+			break;
+		}
+		case 5: {
+			/* sugar for raw indexing with string literal */
+			SpnToken *ident;
+			SpnValue namestring;
+			SpnHashMap *index;
+
+			if ((ident = accept_token_type(p, SPN_TOKEN_WORD)) == NULL) {
+				/* error: expected identifier as member */
+				parser_error(p, "expecting member name after '::' operator", NULL);
+				spn_object_release(ast);
+				spn_object_release(tmp);
+				return NULL;
+			}
+
+			/* build index which is a string literal */
+			index = ast_new("literal", ident->location);
+			namestring = makestring(ident->value);
+			ast_set_property(index, "value", &namestring);
+			spn_value_release(&namestring);
+
+			ast_set_child_xfer(tmp, "object", ast);
+			ast_set_child_xfer(tmp, "index", index);
 
 			break;
 		}

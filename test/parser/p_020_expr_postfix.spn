@@ -12,5 +12,8 @@ let func = fn (x, y) {
 
 let twenty_five = func(3, 4);
 
-let obj = { "name": "foobar", "ID": 1 };
+let obj = { "name": "foobar", "ID": 1, "fn": fn {} };
 let name = obj.name;
+let sugared = obj::name;
+let keywd = obj::fn;
+let notamethod = obj::fn();

@@ -401,6 +401,7 @@ static int lex_op(SpnLexer *lexer, SpnToken *token)
 		RESERVED_ENTRY("^="),
 		RESERVED_ENTRY("^"),
 		RESERVED_ENTRY("?"),
+		RESERVED_ENTRY("::"),
 		RESERVED_ENTRY(":"),
 		RESERVED_ENTRY("~")
 	};
