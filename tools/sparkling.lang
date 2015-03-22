@@ -61,7 +61,6 @@
       <keyword>fn</keyword>
       <keyword>typeof</keyword>
       <keyword>sizeof</keyword>
-      <keyword>argv</keyword>
     </context>
 
     <context id="sparkling" class="no-spell-check">

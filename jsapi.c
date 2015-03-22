@@ -370,9 +370,9 @@ extern int jspn_addWrapperFunction(int funcIndex)
 	if (wrapperGenerator == NULL) {
 		wrapperGenerator = spn_ctx_compile_string(
 			get_global_context(),
-			"let funcIndex = argv[0];"
+			"let funcIndex = $[0];"
 			"return fn {"
-			"	let args = argv.map(jspn_valueToIndex);"
+			"	let args = $.map(jspn_valueToIndex);"
 			"	return jspn_callWrappedFunc(funcIndex, args);"
 			"};",
 			0 /* no need to debug this function */

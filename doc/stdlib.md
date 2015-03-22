@@ -601,7 +601,8 @@ returning the return value of `fn` itself. Throws an error if `argv` is not an
 array. This function is implemented as a method on function objects.
 
 The arguments of the called function `fn` will be the values in `argv`
-in sequence.
+in sequence. (In other words, the `$` argument vector will contain the
+elements of `argv`.)
 
     any require(string filename)
 

@@ -34,7 +34,7 @@ let fct_iter = fn (n) {
 	return r;
 };
 
-let n = toint(argv[1]);
+let n = toint($[1]);
 
 print(fib_iter(n));
 print(fib_rec(n));

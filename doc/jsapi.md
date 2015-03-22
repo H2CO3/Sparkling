@@ -123,13 +123,13 @@ Usage example:
 Type the following lines into a JavaScript console on `libspn.html`, or open a
 Node.JS / JavaScriptCode / SpiderMonkey / etc. shell and import `libspn.js`:
 
-    > var fn = Sparkling.compile('return "Hello, " .. argv[0] .. "!";');
+    > var fn = Sparkling.compile('return "Hello, " .. $[0] .. "!";');
     undefined
     > var greetMe = fn("H2CO3");
     undefined
     > greetMe
     "Hello, H2CO3!"
-    > var acc = Sparkling.compile('return argv[0] + argv[1];');
+    > var acc = Sparkling.compileExpr('$[0] + $[1]');
     undefined
     > [1, 2, 3, 4, 5].reduce(acc, 0)
     15

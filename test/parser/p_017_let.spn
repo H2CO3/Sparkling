@@ -1,1 +1,3 @@
 let a = 13, b = 37, c, d = 42;
+// make sure 'argv' is not a reserved keyword anymore
+let argv = $;

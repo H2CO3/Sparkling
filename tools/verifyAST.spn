@@ -411,4 +411,4 @@ let verifyAST = fn (node) {
 	return validateNode(node);
 };
 
-return verifyAST(argv[0]);
+return verifyAST($[0]);

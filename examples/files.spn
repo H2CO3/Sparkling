@@ -1,17 +1,20 @@
 #!/usr/bin/env spn
 
-/* 
+/*
  * files.spn
  * File management using the standard library
- * 
+ *
  * created by Árpád Goretity on 30/09/2013
  */
 
 var f = fopen("stuff.txt", "wb");
 f.write("hello world");
-f.close();
+
+# when the file object is destroyed, it's closed automatically
+f = nil;
 
 f = fopen("stuff.txt", "rb");
 var l = f.getline();
 print(l);
-f.close();
+
+# so it's also closed upon exit

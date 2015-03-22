@@ -29,7 +29,6 @@ This is a list of all reserved words (keywords and names corresponding to
 other tokens):
 
 - `and`
-- `argv`
 - `break`
 - `continue`
 - `do`
@@ -434,9 +433,9 @@ To invoke a function, use the `()` operator:
     100
 
 To get the number of arguments with which a function has been called, use
-`argv.length`:
+`$.length`:
 
-    > extern bar = fn () { print(argv.length); }
+    > extern bar = fn () { print($.length); }
     > bar();
     0
     > bar("foo");
@@ -445,8 +444,9 @@ To get the number of arguments with which a function has been called, use
     3
     >
 
-To access the variadic (unnamed) arguments of a function, use the `argv` array,
+To access the variadic (unnamed) arguments of a function, use the `$` array,
 which contains all the call arguments of the function.
+This array is also referred to as the "argument vector" or simply `argv`.
 
 ## The standard library
 

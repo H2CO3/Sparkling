@@ -10,6 +10,6 @@
 /* loop through command line arguments,
  * treat each entry as the name of an environment variable
  */
-for (var i = 1; i < argv.length; i++) {
-	stdout.printf("%s = %s\n", argv[i], getenv(argv[i]));
+for (var i = 1; i < $.length; i++) {
+	stdout.printf("%s = %s\n", $[i], getenv($[i]));
 }

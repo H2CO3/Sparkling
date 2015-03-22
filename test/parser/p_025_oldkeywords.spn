@@ -1,9 +1,11 @@
-// 'const', 'global' and 'function' are no longer keywords
+// 'const', 'global', 'function' and 'argv' are no longer keywords
 // so they can be used as variable names
 var const = "but please don't do this anyway";
 var global = "that's slightly better";
 var function = fn () { return 1337; };
+var argv = [ "fake", "argv", 42 ];
 
 extern const = "why would you call a global 'const'?";
 extern global = "welcome to the tautology club";
 extern function = fn () { return 13 + 37; };
+extern argv = fn { "look, not even an array"; };

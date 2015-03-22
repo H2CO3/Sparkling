@@ -22,12 +22,12 @@ let solvede = fn (a, b, y0, yprime) {
 	return { "x": xv, "y": yv };
 };
 
-let a  = tofloat(argv[1]),
-    b  = tofloat(argv[2]),
-    y0 = tofloat(argv[3]);
+let a  = tofloat($[1]),
+    b  = tofloat($[2]),
+    y0 = tofloat($[3]);
 
 // The 'return' statement that returns the user-supplied expression.
-let return_expr_stmt = parseexpr(argv[4])["children"][0];
+let return_expr_stmt = parseexpr($[4])["children"][0];
 
 // AST of a program that just returns the user-supplied expression
 // Names ("x" and "y") are given to the first two arguments.

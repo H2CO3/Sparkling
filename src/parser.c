@@ -933,8 +933,8 @@ static SpnHashMap *parse_term(SpnParser *p)
 		return parse_function(p); /* parse function expression */
 	}
 
-	/* 'argv', argument vector */
-	if ((token = accept_token_string(p, "argv")) != NULL) {
+	/* '$': argv, the argument vector */
+	if ((token = accept_token_string(p, "$")) != NULL) {
 		return ast_new("argv", token->location);
 	}
 
@@ -959,7 +959,7 @@ static SpnHashMap *parse_term(SpnParser *p)
 
 	/* Identifiers/names for variables, globals and functions
 	 * This needs to come after we have tested for each valid
-	 * word (i. e. nil, boolean and function literals; argv),
+	 * word (i. e. nil, boolean and function literals),
 	 * since this 'jolly joker' call catches *all* word-like tokens.
 	 */
 	if ((token = accept_token_type(p, SPN_TOKEN_WORD)) != NULL) {

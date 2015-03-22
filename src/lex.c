@@ -60,6 +60,7 @@ static int is_special(char c)
 	case '|':
 	case '^':
 	case '~':
+	case '$':
 	case '(':
 	case ')':
 	case '[':
@@ -403,6 +404,7 @@ static int lex_op(SpnLexer *lexer, SpnToken *token)
 		RESERVED_ENTRY("?"),
 		RESERVED_ENTRY("::"),
 		RESERVED_ENTRY(":"),
+		RESERVED_ENTRY("$"),
 		RESERVED_ENTRY("~")
 	};
 
@@ -729,7 +731,6 @@ int spn_token_is_reserved(const char *str)
 {
 	static const char *const kwds[] = {
 		"and",
-		"argv",
 		"break",
 		"continue",
 		"do",

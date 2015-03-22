@@ -378,7 +378,7 @@ side), which will become the arguments of the function. The LHS must be a
 function. The `()` operator calls the function, binding the call-time arguments
 to its formal parameters, keeping their order. Any excess arguments (i. e.
 those which do not correspond to a formal parameter) remain accessible through
-the `argv` array. If the function declares more formal parameters than it is
+the `$` array. If the function declares more formal parameters than it is
 called with, the unbound parameters will be implicitly initialized to `nil`.
 The expressions passed as arguments are evaluated from left to right. The
 operator yields the return value of the function. Function arguments are passed
@@ -478,11 +478,11 @@ integer number composed using the bytes of its characters), floating-point
 numbers, strings (enclosed between double quotation marks), and the Boolean
 literals `true` and `false`.
 
-§3.13. The `argv` keyword
+§3.13. The `$` array (argument vector, "argv")
 
-`argv` yields an array of which the n-th element is the n-th call-time argument
+`$` yields an array of which the n-th element is the n-th call-time argument
 of the function in which it is used. Array and argument indexing starts from 0.
-The `argv` array contains the declared, named arguments of the function,
+The `$` array contains the declared, named arguments of the function,
 as well as any extra variadic arguments.
 
 §4. Classes

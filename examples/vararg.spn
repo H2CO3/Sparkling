@@ -14,7 +14,7 @@ File.tracingPrintf = fn {
 	print("You called printf!");
 
 	// forward variadic arguments to printf()
-	return stdout.printf.call(argv);
+	return stdout.printf.call($);
 };
 
 stdout.tracingPrintf("%d %s\n", 1337, "Hello world!");

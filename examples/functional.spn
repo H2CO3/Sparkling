@@ -5,7 +5,7 @@
 
 let flip = fn (f) {
 	return fn {
-		return f.call(argv.reverse());
+		return f.call($.reverse());
 	};
 };
 
@@ -21,16 +21,15 @@ stdout.printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
 
 # takes a function 'f' and returns a new function which calls 'f'
 # with the rest of the arguments of 'curry()' and its own arguments.
-# (again, assuming that no nil parameters will be passed to 'f'.)
 let curry = fn (f) {
-	let rest = argv.slice(1, argv.length - 1);
+	let rest = $.slice(1, $.length - 1);
 	return fn {
-		return f.call(rest.concat(argv));
+		return f.call(rest.concat($));
 	};
 };
 
 let adder = fn () {
-	return argv.reduce(0, fn a b { return a + b; });
+	return $.reduce(0, fn a b { return a + b; });
 };
 
 let addsix = curry(adder, 1, 2, 3);

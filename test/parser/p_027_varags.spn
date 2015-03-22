@@ -1,0 +1,7 @@
+let add = fn {
+	return $[0] + $[1];
+};
+
+let countArgs = fn {
+	return $.length;
+};

@@ -155,7 +155,7 @@ postfix-expr = (
 
 term         = IDENT                   |
                literal                 |
-               'argv'                  |
+               '$'                     |
                ( '(' expression ')' )  |
                function-expr           |
                array-literal           |
@@ -184,7 +184,7 @@ Reserved keywords
 ~~~~~~~~~~~~~~~~~
 
 and         else       if         return
-argv        extern     let        true
+            extern     let        true
 break       false      nil        typeof
 continue    fn         not        var
 do          for        null       while
