@@ -7,9 +7,7 @@
  * created by Árpád Goretity on 30/09/2013
  */
 
-let fib_rec = fn (n) {
-	return n < 2 ? 1 : fib_rec(n - 1) + fib_rec(n - 2);
-};
+let fib_rec = fn (n) -> n < 2 ? 1 : fib_rec(n - 1) + fib_rec(n - 2);
 
 let fib_iter = fn (n) {
 	var f1 = 1, f2 = 1;
@@ -21,9 +19,7 @@ let fib_iter = fn (n) {
 	return f1;
 };
 
-let fct_rec = fn (n) {
-	return n < 2 ? 1 : n * fct_rec(n - 1);
-};
+let fct_rec = fn (n) -> n < 2 ? 1 : n * fct_rec(n - 1);
 
 let fct_iter = fn (n) {
 	var r = 1;

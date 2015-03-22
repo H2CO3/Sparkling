@@ -25,12 +25,12 @@ hm.foreach(fn value key {
 
 // Mapping a function over an array
 let arr2 = range(10);
-let mapped = arr2.map(fn value { return value * value; });
+let mapped = arr2.map(fn x -> x * x);
 
 print("mapped: ", mapped);
 
 // flattening an array using 'reduce()'
 let arr3 = [ 1, 3, 5, 7, 9 ];
-let sum = arr3.reduce(0, fn { return $[0] + $[1]; });
+let sum = arr3.reduce(0, fn -> $[0] + $[1]);
 
 print("sum = ", sum);

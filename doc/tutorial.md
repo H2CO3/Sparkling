@@ -136,7 +136,6 @@ that can be used in string and character literals:
     \n		->		LF
     \r		->		CR
     \t		->		TAB
-    \0		->		NUL, char code 0
     \xHH	->		the character with code HH, where HH denotes
     two hexadecimal digits
 
@@ -404,6 +403,16 @@ variable or constant:
         return x + 1;
     };
 
+Similarly, if you use a function expression to initialize a value
+in a hash table where the key is a string literal, the function name
+will be deduced from the key:
+
+    let object = {
+        "foo": fn (self) {
+            print("hello world");
+        }
+    };
+
 Parentheses around function parameters are optional; if they are omitted,
 then parameter names are not separated by commas; otherwise, they are:
 
@@ -426,6 +435,27 @@ then parameter names are not separated by commas; otherwise, they are:
 If you don't explicitly return anything from a function, it will implicitly
 return `nil`. The same applies to the entire translation unit itself (since
 it is represented by a function too).
+
+If a function body consists of only one "return" statement, you can use
+the `->` syntactic sugar to define the function body more concisely.
+The following two definitions:
+
+    fn x y -> x + y
+
+    fn (x, y) -> x + y
+
+are both syntactically equivalent with
+
+    fn (x, y) { return x + y; }
+
+Consequently, `fn {}` is the same as `fn -> nil`.
+
+Naturally, such "one-expression" functions can also be declared without
+explicit arguments; in this case, you can refer to the arguments using
+the `$` argument array. This can be useful when writing short helper
+functions:
+
+    let fortyFive = range(10).reduce(0, fn -> $[0] + $[1]);
 
 To invoke a function, use the `()` operator:
 

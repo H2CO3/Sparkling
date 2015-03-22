@@ -472,12 +472,37 @@ static SpnHashMap *parse_stmt(SpnParser *p, int is_global)
 	return parse_expr_stmt(p);
 }
 
+/* Helper for 'parse_function()':
+ * This parser attempts to parse an expression, it
+ * then constructs a block statement containing only
+ * a return statement which returns that expression.
+ * Hence, this block statement will be a valid function body.
+ */
+static SpnHashMap *parse_function_body_expression(SpnParser *p, SpnSourceLocation loc)
+{
+	SpnHashMap *return_stmt;
+	SpnHashMap *block;
+	SpnHashMap *expr = parse_expr(p);
+
+	if (expr == NULL) {
+		return NULL;
+	}
+
+	block = ast_new("block", loc);
+	return_stmt = ast_append_child(block, "return", loc);
+	ast_set_child_xfer(return_stmt, "expr", expr);
+
+	return block;
+}
+
 static SpnHashMap *parse_function(SpnParser *p)
 {
 	SpnHashMap *ast, *body;
 	SpnArray *declargs;
 	SpnValue declargsval;
 	SpnToken *token = accept_token_string(p, "fn");
+	SpnToken *arrow; /* non-NULL if we have a one-expression function */
+
 	assert(token != NULL);
 
 	/* Parse formal parameters (declaration-time arguments) */
@@ -490,7 +515,13 @@ static SpnHashMap *parse_function(SpnParser *p)
 	declargsval.v.o = declargs;
 
 	/* Parse function body */
-	body = parse_block_expecting(p, "function body");
+	arrow = accept_token_string(p, "->");
+	if (arrow) {
+		body = parse_function_body_expression(p, arrow->location);
+	} else {
+		body = parse_block_expecting(p, "function body");
+	}
+
 	if (body == NULL) {
 		spn_object_release(declargs);
 		return NULL;

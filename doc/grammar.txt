@@ -161,7 +161,9 @@ term         = IDENT                   |
                array-literal           |
                hashmap-literal
 
-function-expr   = 'fn' argument-declaration-list block-statement
+function-expr   = 'fn' argument-declaration-list function-body
+
+function-body   = block-statement | '->' expression
 
 array-literal   = '[' [ expression ( ',' expression )(*) ] ']'
 

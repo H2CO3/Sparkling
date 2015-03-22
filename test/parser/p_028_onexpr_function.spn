@@ -1,0 +1,20 @@
+# Testing syntactic sugar for functions that
+# consist of only one expression.
+
+# no explicit arguments, old style
+let foo = fn () -> "foo";
+
+# no explicit arguments, new style
+let bar = fn -> "bar";
+
+# one explicit argument, old style
+let baz = fn (x) -> x + 1;
+
+# one explicit argument, new style
+let qux = fn x -> x + 1;
+
+# multiple arguments, old style
+let lol = fn (x, y) -> x * x + y * y;
+
+# multiple arguments, new style
+let wut = fn x y -> x * x + y * y;
