@@ -23,6 +23,7 @@
 typedef struct TokenAndNode {
 	const char *token;
 	const char *node;
+	int (*fn)(SpnParser *, SpnHashMap *, SpnHashMap *); /* for parse_postfix() */
 } TokenAndNode;
 
 /* Parsers (productions/nonterminals, terminals) */
@@ -784,25 +785,145 @@ static SpnHashMap *parse_prefix(SpnParser *p)
 	return ast;
 }
 
+/* Helper functions for 'parse_postfix()'.
+ * They return an error code: 0 on success, non-0 on error.
+ * Upon encountering an error, they clean up after themselves:
+ * they free 'ast' and 'tmp'.
+ *
+ * 'ast' is the last parsed node; it will become a child of 'tmp'.
+ * 'tmp' represents the node currently being parsed.
+ */
+
+static int parse_postfix_incdec(SpnParser *p, SpnHashMap *ast, SpnHashMap *tmp)
+{
+	ast_set_child_xfer(tmp, "left", ast);
+	return 0;
+}
+
+static int parse_subscript(SpnParser *p, SpnHashMap *ast, SpnHashMap *tmp)
+{
+	/* Array or hashmap indexing */
+	SpnHashMap *expr = parse_expr(p);
+	if (expr == NULL) { /* error  */
+		spn_object_release(ast);
+		spn_object_release(tmp);
+		return -1;
+	}
+
+	ast_set_child_xfer(tmp, "object", ast);
+	ast_set_child_xfer(tmp, "index", expr);
+
+	if (accept_token_string(p, "]") == NULL) {
+		/* error: expected closing bracket */
+		parser_error(p, "expected ']' after index in array subscript", NULL);
+		spn_object_release(tmp);
+		return -1;
+	}
+
+	return 0;
+}
+
+static int parse_memberof(SpnParser *p, SpnHashMap *ast, SpnHashMap *tmp)
+{
+	/* Property accessor, dot notation */
+	SpnToken *ident;
+	SpnValue namestring;
+
+	if ((ident = accept_token_type(p, SPN_TOKEN_WORD)) == NULL) {
+		/* error: expected identifier as member */
+		parser_error(p, "expecting property name after '.' operator", NULL);
+		spn_object_release(ast);
+		spn_object_release(tmp);
+		return -1;
+	}
+
+	/* do not check for reserved words explicitly
+	 * -- they are allowed in property names.
+	 */
+	ast_set_child_xfer(tmp, "object", ast);
+
+	namestring = makestring(ident->value);
+	ast_set_property(tmp, "name", &namestring);
+	spn_value_release(&namestring);
+
+	return 0;
+}
+
+static int parse_call(SpnParser *p, SpnHashMap *ast, SpnHashMap *tmp)
+{
+	/* Function call */
+	ast_set_child_xfer(tmp, "func", ast);
+
+	while (!accept_token_string(p, ")")) {
+		SpnHashMap *param = parse_expr(p);
+
+		if (param == NULL) {
+			spn_object_release(tmp); /* this frees 'ast' too */
+			return -1;
+		}
+
+		ast_push_child_xfer(tmp, param);
+
+		/* comma ',' or closing parenthesis ')' must follow */
+		if (accept_token_string(p, ",")) {
+			if (is_at_token(p, ")")) {
+				parser_error(p, "trailing comma after last function argument", NULL);
+				spn_object_release(tmp);
+				return -1;
+			}
+		} else if (!is_at_token(p, ")")) {
+			parser_error(p, "expecting ',' or ')' after function argument", NULL);
+			spn_object_release(tmp); /* this frees ast and param */
+			return -1;
+		}
+	}
+
+	return 0;
+}
+
+static int parse_sugared_subscript(SpnParser *p, SpnHashMap *ast, SpnHashMap *tmp)
+{
+	/* syntactic sugar for raw indexing with string literal */
+	SpnToken *ident;
+	SpnValue namestring;
+	SpnHashMap *index;
+
+	if ((ident = accept_token_type(p, SPN_TOKEN_WORD)) == NULL) {
+		/* error: expected identifier as member */
+		parser_error(p, "expecting member name after '::' operator", NULL);
+		spn_object_release(ast);
+		spn_object_release(tmp);
+		return -1;
+	}
+
+	/* build index which is a string literal */
+	index = ast_new("literal", ident->location);
+	namestring = makestring(ident->value);
+	ast_set_property(index, "value", &namestring);
+	spn_value_release(&namestring);
+
+	ast_set_child_xfer(tmp, "object", ast);
+	ast_set_child_xfer(tmp, "index", index);
+
+	return 0;
+}
+
 static SpnHashMap *parse_postfix(SpnParser *p)
 {
-	/* XXX: beware of the order of these tokens and nodes!
-	 * their index is used later on to distinguish between them
-	 */
 	static const TokenAndNode tokens[] = {
-		{ "++", "post_inc"  },
-		{ "--", "post_dec"  },
-		{ "[",  "subscript" },
-		{ ".",  "memberof"  },
-		{ "(",  "call"      },
-		{ "::", "subscript" }
+		{ "++", "post_inc",  parse_postfix_incdec    },
+		{ "--", "post_dec",  parse_postfix_incdec    },
+		{ "[",  "subscript", parse_subscript         },
+		{ ".",  "memberof",  parse_memberof          },
+		{ "(",  "call",      parse_call              },
+		{ "::", "subscript", parse_sugared_subscript }
 	};
 
 	size_t index;
 	SpnToken *op;
 
 	SpnHashMap *ast = parse_term(p);
-	if (ast == NULL) {	/* error */
+	if (ast == NULL) { /* error */
 		return NULL;
 	}
 
@@ -810,119 +931,14 @@ static SpnHashMap *parse_postfix(SpnParser *p)
 	while ((op = accept_multi(p, tokens, COUNT(tokens), &index)) != NULL) {
 		SpnHashMap *tmp = ast_new(tokens[index].node, op->location);
 
-		/* XXX - here be dragons - evil magic number 'index' is used! It's
-		 * just the index of the token in the above set of postfix operators.
+		/* we can just return NULL since the parser functions
+		 * clean up after themselves if they find an error.
 		 */
-		switch (index) {
-		case 0: /* postincrement */
-		case 1: /* postdecrement */
-			ast_set_child_xfer(tmp, "left", ast);
-			break;
-		case 2: {
-			/* Array or hashmap indexing */
-			SpnHashMap *expr = parse_expr(p);
-			if (expr == NULL) { /* error  */
-				spn_object_release(ast);
-				spn_object_release(tmp);
-				return NULL;
-			}
-
-			ast_set_child_xfer(tmp, "object", ast);
-			ast_set_child_xfer(tmp, "index", expr);
-
-			if (accept_token_string(p, "]") == NULL) {
-				/* error: expected closing bracket */
-				parser_error(p, "expected ']' after index in array subscript", NULL);
-				spn_object_release(tmp);
-				return NULL;
-			}
-
-			break;
-		}
-		case 3: {
-			/* Property accessor, dot notation */
-			SpnToken *ident;
-			SpnValue namestring;
-
-			if ((ident = accept_token_type(p, SPN_TOKEN_WORD)) == NULL) {
-				/* error: expected identifier as member */
-				parser_error(p, "expecting property name after '.' operator", NULL);
-				spn_object_release(ast);
-				spn_object_release(tmp);
-				return NULL;
-			}
-
-			/* do not check for reserved words explicitly
-			 * -- in property names, they are allowed.
-			 */
-
-			ast_set_child_xfer(tmp, "object", ast);
-
-			namestring = makestring(ident->value);
-			ast_set_property(tmp, "name", &namestring);
-			spn_value_release(&namestring);
-
-			break;
-		}
-		case 4: {
-			/* Function call */
-			ast_set_child_xfer(tmp, "func", ast);
-
-			while (!accept_token_string(p, ")")) {
-				SpnHashMap *param = parse_expr(p);
-
-				if (param == NULL) {
-					spn_object_release(tmp); /* this frees 'ast' too */
-					return NULL;
-				}
-
-				ast_push_child_xfer(tmp, param);
-
-				/* comma ',' or closing parenthesis ')' must follow */
-				if (accept_token_string(p, ",")) {
-					if (is_at_token(p, ")")) {
-						parser_error(p, "trailing comma after last function argument", NULL);
-						spn_object_release(tmp);
-						return NULL;
-					}
-				} else if (!is_at_token(p, ")")) {
-					parser_error(p, "expecting ',' or ')' after function argument", NULL);
-					spn_object_release(tmp); /* this frees ast and param */
-					return NULL;
-				}
-			}
-
-			break;
-		}
-		case 5: {
-			/* sugar for raw indexing with string literal */
-			SpnToken *ident;
-			SpnValue namestring;
-			SpnHashMap *index;
-
-			if ((ident = accept_token_type(p, SPN_TOKEN_WORD)) == NULL) {
-				/* error: expected identifier as member */
-				parser_error(p, "expecting member name after '::' operator", NULL);
-				spn_object_release(ast);
-				spn_object_release(tmp);
-				return NULL;
-			}
-
-			/* build index which is a string literal */
-			index = ast_new("literal", ident->location);
-			namestring = makestring(ident->value);
-			ast_set_property(index, "value", &namestring);
-			spn_value_release(&namestring);
-
-			ast_set_child_xfer(tmp, "object", ast);
-			ast_set_child_xfer(tmp, "index", index);
-
-			break;
-		}
-		default:
-			SHANT_BE_REACHED();
+		if (tokens[index].fn(p, ast, tmp) != 0) {
+			return NULL;
 		}
 
+		/* update hierarchy - child node is the new parent */
 		ast = tmp;
 	}
 
