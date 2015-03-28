@@ -120,8 +120,8 @@ SPN_API void spn_ctx_add_dynmod(SpnContext *ctx, void *handle);
 #define SPN_LIB_OPEN_FUNC_STR   SPN_STRINGIFY_(SPN_LIB_OPEN_FUNC_NAME)
 #define SPN_LIB_CLOSE_FUNC_STR  SPN_STRINGIFY_(SPN_LIB_CLOSE_FUNC_NAME)
 
-#define SPN_LIB_OPEN_FUNC(arg)  SpnValue SPN_LIB_OPEN_FUNC_NAME(SpnContext *arg)
-#define SPN_LIB_CLOSE_FUNC(arg) void SPN_LIB_CLOSE_FUNC_NAME(SpnContext *arg)
+#define SPN_LIB_OPEN_FUNC(arg)  SPN_API SpnValue SPN_LIB_OPEN_FUNC_NAME(SpnContext *arg)
+#define SPN_LIB_CLOSE_FUNC(arg) SPN_API void SPN_LIB_CLOSE_FUNC_NAME(SpnContext *arg)
 
 typedef SpnValue (*SpnLibOpenFunc)(SpnContext *);
 typedef void (*SpnLibCloseFunc)(SpnContext *);
