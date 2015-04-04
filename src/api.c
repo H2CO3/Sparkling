@@ -96,6 +96,23 @@ void spn_object_release(void *o)
 /*
  * Value API
  */
+long spn_intvalue_f(SpnValue *val)
+{
+	if (spn_isint(val)) {
+		return spn_intvalue(val);
+	}
+
+	return spn_floatvalue(val);
+}
+
+double spn_floatvalue_f(SpnValue *val)
+{
+	if (spn_isfloat(val)) {
+		return spn_floatvalue(val);
+	}
+
+	return spn_intvalue(val);
+}
 
 SpnValue spn_makebool(int b)
 {

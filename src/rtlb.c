@@ -2566,15 +2566,6 @@ static void loadlib_hashmap(SpnVMachine *vm)
  * Maths library *
  *****************/
 
-/* this is a little helper function to get a floating-point value
- * out of an SpnValue, even if it contains an integer.
- */
-static double val2float(SpnValue *val)
-{
-	assert(isnum(val));
-	return isfloat(val) ? floatvalue(val) : intvalue(val);
-}
-
 /* cube root function, because c89 doesn't define it */
 static double rtlb_aux_cbrt(double x)
 {
@@ -2633,7 +2624,7 @@ static int rtlb_aux_intize(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 		return -2;
 	}
 
-	x = val2float(&argv[0]);
+	x = spn_floatvalue_f(&argv[0]);
 
 	if (x < LONG_MIN || x > LONG_MAX) {
 		spn_ctx_runtime_error(ctx, "argument is out of range of integers", NULL);
@@ -2706,7 +2697,7 @@ static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 		return -2;
 	}
 
-	x = val2float(&argv[0]);
+	x = spn_floatvalue_f(&argv[0]);
 
 	*ret = makefloat(fn(x));
 
@@ -2814,8 +2805,8 @@ static int rtlb_atan2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	y = val2float(&argv[0]);
-	x = val2float(&argv[1]);
+	y = spn_floatvalue_f(&argv[0]);
+	x = spn_floatvalue_f(&argv[1]);
 	*ret = makefloat(atan2(y, x));
 
 	return 0;
@@ -2834,7 +2825,7 @@ static int rtlb_hypot(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			return -1;
 		}
 
-		x = val2float(&argv[i]);
+		x = spn_floatvalue_f(&argv[i]);
 		h += x * x;
 	}
 
@@ -2855,7 +2846,7 @@ static int rtlb_deg2rad(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	*ret = makefloat(val2float(&argv[0]) / 180.0 * M_PI);
+	*ret = makefloat(spn_floatvalue_f(&argv[0]) / 180.0 * M_PI);
 
 	return 0;
 }
@@ -2872,7 +2863,7 @@ static int rtlb_rad2deg(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	*ret = makefloat(val2float(&argv[0]) / M_PI * 180.0);
+	*ret = makefloat(spn_floatvalue_f(&argv[0]) / M_PI * 180.0);
 
 	return 0;
 }
@@ -2940,7 +2931,7 @@ static int rtlb_aux_fltclass(SpnValue *ret, int argc, SpnValue *argv, SpnContext
 		return -2;
 	}
 
-	*ret = makebool(fn(val2float(&argv[0])));
+	*ret = makebool(fn(spn_floatvalue_f(&argv[0])));
 
 	return 0;
 }
@@ -3003,8 +2994,8 @@ static int rtlb_pow(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	 * the exponent is a non-negative integer at the same time.
 	 */
 	if (isfloat(&argv[0]) || isfloat(&argv[1]) || intvalue(&argv[1]) < 0) {
-		double x = val2float(&argv[0]);
-		double y = val2float(&argv[1]);
+		double x = spn_floatvalue_f(&argv[0]);
+		double y = spn_floatvalue_f(&argv[1]);
 		*ret = makefloat(pow(x, y));
 	} else {
 		/* base, exponent, result */
@@ -3328,8 +3319,8 @@ static int rtlb_cplx_get(SpnValue *num, double *re_r, double *im_theta, int pola
 		return -1;
 	}
 
-	*re_r     = val2float(&re_r_val);
-	*im_theta = val2float(&im_theta_val);
+	*re_r     = spn_floatvalue_f(&re_r_val);
+	*im_theta = spn_floatvalue_f(&im_theta_val);
 
 	return 0;
 }
