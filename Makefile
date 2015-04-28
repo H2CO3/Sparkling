@@ -36,7 +36,7 @@ ifeq ($(OPSYS), darwin)
 	DYNEXT = dylib
 else
 	CC = gcc
-	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter -Wno-error=missing-field-initializers
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter -Wno-error=missing-field-initializers -Wno-error=pedantic
 	LIBS = -lm
 	LDFLAGS = -lrt -ldl
 	DYNLDFLAGS = -lm -lrt -ldl -shared
