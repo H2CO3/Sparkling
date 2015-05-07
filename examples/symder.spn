@@ -34,7 +34,7 @@ let diff = fn node {
 		"+": linearop,
 		"-": linearop,
 		"*": fn node {
-			// if either or both term is a constant, we can simplify
+			// if at least one of the terms is a constant, we can simplify
 			if is_constant(node.left) and is_constant(node.right) {
 				return literal_zero;
 			}
