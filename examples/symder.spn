@@ -1,0 +1,187 @@
+let diff = fn node {
+	let literal_zero = {
+		"type": "literal",
+		"line": 0,
+		"column": 0,
+		"value": 0.0
+	};
+	let linearop = fn node -> {
+		"type": node.type,
+		"line": node.line,
+		"column": node.column,
+		"left": diff(node.left),
+		"right": diff(node.right)
+	};
+	let is_constant = fn node ->
+		node.type == "literal" or node.type == "ident" and node.name != "x";
+
+	let derivative_func = fn node {
+		let dfdx = {
+			"sin":  { "line": 0, "column": 0, "type": "ident", "name": "cos"  },
+			"exp":  { "line": 0, "column": 0, "type": "ident", "name": "exp"  },
+			"sinh": { "line": 0, "column": 0, "type": "ident", "name": "cosh" },
+			"cosh": { "line": 0, "column": 0, "type": "ident", "name": "sinh" }
+		}[node.name];
+		return {
+			"type": "call",
+			"line": node.line,
+			"column": node.column,
+			"func": dfdx,
+			"children": []
+		};
+	};
+	let nodetypes = {
+		"+": linearop,
+		"-": linearop,
+		"*": fn node {
+			// if either or both term is a constant, we can simplify
+			if is_constant(node.left) and is_constant(node.right) {
+				return literal_zero;
+			}
+
+			if is_constant(node.left) {
+				return {
+					"type": "*",
+					"line": node.line,
+					"column": node.column,
+					"left": node.left,
+					"right": diff(node.right)
+				};
+			}
+
+			if is_constant(node.right) {
+				return {
+					"type": "*",
+					"line": node.line,
+					"column": node.column,
+					"left": diff(node.left),
+					"right": node.right
+				};
+			}
+
+			return {
+				"type": "+",
+				"line": node.line,
+				"column": node.column,
+				"left": {
+					"type": "*",
+					"line": node.line,
+					"column": node.column,
+					"left": diff(node.left),
+					"right": node.right
+				},
+				"right": {
+					"type": "*",
+					"line": node.line,
+					"column": node.column,
+					"left": node.left,
+					"right": diff(node.right)
+				}
+			};
+		},
+		"/": fn node {
+			// can simplify only when denominator is constant
+			if is_constant(node.right) {
+				if is_constant(node.left) {
+					return literal_zero;
+				}
+
+				return {
+					"type": "/",
+					"line": node.line,
+					"column": node.column,
+					"left": diff(node.left),
+					"right": node.right
+				};
+			}
+
+			// g^2
+			let gsq = {
+				"type": "*",
+				"line": node.line,
+				"column": node.column,
+				"left": node.right,
+				"right": node.right
+			};
+			// f'g
+			let dfg = {
+				"type": "*",
+				"line": node.line,
+				"column": node.column,
+				"left": diff(node.left),
+				"right": node.right
+			};
+			// fg'
+			let fdg = {
+				"type": "*",
+				"line": node.line,
+				"column": node.column,
+				"left": node.left,
+				"right": diff(node.right)
+			};
+
+			return {
+				"type": "/",
+				"line": node.line,
+				"column": node.column,
+				"left": {
+					"type": "-",
+					"line": node.line,
+					"column": node.column,
+					"left": dfg,
+					"right": fdg
+				},
+				"right": gsq
+			};
+		},
+		"un_plus": fn node -> diff(node.right),
+		"un_minus": fn node -> {
+			"type": "un_minus",
+			"line": node.line,
+			"column": node.column,
+			"right": diff(node.right)
+		},
+		"call": fn node {
+			let inner = node.children[0];
+			let douter = derivative_func(node.func);
+			douter.children.push(inner);
+
+			// don't treat f'(x) as f'(x) * dx/dx...
+			if inner.type == "ident" and inner.name == "x" {
+				return douter;
+			}
+
+			let dinner = diff(inner); // bon appetite !
+			return {
+				"type": "*",
+				"line": 0,
+				"column": 0,
+				"left": douter,
+				"right": dinner
+			};
+		},
+		"literal": fn node -> literal_zero,
+		"ident": fn node -> {
+			"type": "literal",
+			"line": node.line,
+			"column": node.column,
+			"value": node.name == "x" ? 1.0 : 0.0
+		}
+	};
+	return nodetypes[node.type](node);
+};
+
+let derivative = fn src {
+	let ast = parseexpr(src);
+	let dast = diff(ast.children[0].expr);
+	let ret = parse("let x = $[0]; return nil;");
+	ret.children[1].expr = dast;
+	return compileast(ret);
+};
+
+
+let f = derivative("exp(sin(x)) + x * cosh(x)");
+// reference function: fcheck ought to be the same as f
+let fcheck = fn x -> exp(sin(x)) * cos(x) + x * sinh(x) + cosh(x);
+let x = 1;
+print(f(x), " ", fcheck(x)); // these should be equal

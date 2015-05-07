@@ -142,7 +142,7 @@ static int endswith(const char *haystack, const char *needle)
 
 static void print_stacktrace_if_needed(SpnContext *ctx)
 {
-	 /* if a runtime error occurred, we print a stack trace. */
+	/* if a runtime error occurred, we print a stack trace. */
 	if (spn_ctx_geterrtype(ctx) == SPN_ERROR_RUNTIME) {
 		size_t n;
 		unsigned i;

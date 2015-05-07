@@ -71,7 +71,7 @@ statement = empty-statement              |
             block-statement              |
             variable-declaration
 
-extern-statement     = 'extern' IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
+extern-statement    = 'extern' IDENT '=' expression ( ',' IDENT '=' expression )(*) ';'
 
 empty-statement     = ';'
 
