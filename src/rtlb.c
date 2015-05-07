@@ -4410,9 +4410,10 @@ static int rtlb_dynld(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	handle = spn_open_library(modname);
 	if (handle == NULL) {
-		const void *args[1];
+		const void *args[2];
 		args[0] = modname->cstr;
-		spn_ctx_runtime_error(ctx, "couldn't load module '%s'", args);
+		args[1] = spn_dynamic_load_error();
+		spn_ctx_runtime_error(ctx, "couldn't load module '%s' (%s)", args);
 		return -3;
 	}
 

@@ -160,6 +160,7 @@ SPN_API int is_symstub(const SpnValue *val);
 SPN_API void *spn_open_library(SpnString *modname);
 SPN_API void  spn_close_library(void *handle);
 SPN_API void *spn_get_symbol(void *handle, const char *symname);
+SPN_API const char *spn_dynamic_load_error(void);
 
 #endif /* USE_DYNAMIC_LOADING */
 

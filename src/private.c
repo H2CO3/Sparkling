@@ -162,4 +162,14 @@ void *spn_get_symbol(void *handle, const char *symname)
 #endif /* _WIN32 */
 }
 
+const char *spn_dynamic_load_error(void)
+{
+#ifdef _WIN32
+	/* getting an error message on Windows is a pain */
+	return "dynamic loading error";
+#else /* _WIN32 */
+	return dlerror();
+#endif /* _WIN32 */
+}
+
 #endif /* USE_DYNAMIC_LOADING */

@@ -36,11 +36,12 @@ ifeq ($(OPSYS), darwin)
 	DYNEXT = dylib
 else
 	CC = gcc
-	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter -Wno-error=missing-field-initializers -Wno-error=pedantic
 	LIBS = -lm
-	LDFLAGS = -lrt
-	DYNLDFLAGS = -lm -lrt -shared
+	LDFLAGS = -lrt -ldl
+	DYNLDFLAGS = -lm -lrt -ldl -shared
 	DYNEXT = so
+	DEFINES += -D_XOPEN_SOURCE=700
 endif
 
 LD = $(CC)
@@ -50,7 +51,7 @@ OBJDIR = bld
 DSTDIR ?= /usr/local
 
 WARNINGS = -Wall -Wextra -Werror $(EXTRA_WARNINGS)
-CFLAGS += -c -std=c89 -pedantic -pedantic-errors -fpic -fstrict-aliasing $(WARNINGS) $(DEFINES)
+CFLAGS += -c -std=c89 -pedantic -fpic -fstrict-aliasing $(WARNINGS) $(DEFINES)
 
 # Enable/disable user-defined features
 ifneq ($(READLINE), 0)
@@ -144,4 +145,3 @@ test-valgrind:
 
 
 .PHONY: all install clean test test-valgrind
-
