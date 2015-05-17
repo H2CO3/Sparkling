@@ -524,7 +524,7 @@ static int disasm_symtab(spn_uword *bc, size_t offset, size_t datalen, int nsyms
 				return -1;
 			}
 
-			printf("function %s <start: %#08lx>\n", name, offset);
+			printf("function %s <start: %#08lx>\n", name, (unsigned long)(offset));
 
 			ip += nwords;
 			break;

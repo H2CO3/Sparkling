@@ -28,6 +28,10 @@
 #define LINE_MAX 0x1000
 #endif
 
+#ifdef _WIN32
+#include <windows.h>
+#endif /* _WIN32 */
+
 /* definitions for maths library and others */
 
 #ifndef M_E

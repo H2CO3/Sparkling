@@ -50,7 +50,7 @@ typedef struct Bucket {
 
 struct SpnHashMap {
 	SpnObject   base;
-	int         sizeindex;   /* index into 'sizes' array (see below)   */
+	unsigned    sizeindex;   /* index into 'sizes' array (see below)   */
 	size_t      keycount;    /* number of keys in the table            */
 	size_t      valcount;    /* number of non-nil values. <= keycount. */
 	Bucket     *buckets;     /* actual array for key-value pairs       */

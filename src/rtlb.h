@@ -74,7 +74,7 @@
  *
  * Free functions:
  * ---------------
- * combine()
+ * zip()
  *
  * Properties:
  * -----------

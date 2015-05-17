@@ -1,0 +1,9 @@
+# Object files
+*.o
+*.inc
+
+# Build directory
+bld/
+
+# Specific header created upon build
+spn.h
