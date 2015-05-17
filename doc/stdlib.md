@@ -261,10 +261,12 @@ of `all` is an empty array, then `true` is returned. `predicate` is called
 with an item in `arr` as its first parameter and the corresponding key as the
 second one.
 
-    array slice(array arr, number start, number length)
+    array slice(array arr, number start [, number length])
 
 Returns a subarray of `arr` by copying its elements in the range
 `[start, start + length)`.
+
+If `length` is omitted, returns the subarray in the range `[start, array.length)`.
 
     string join(array arr, string sep)
 

@@ -15,7 +15,7 @@ stdout.printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
 # takes a function 'f' and returns a new function which calls 'f'
 # with the rest of the arguments of 'curry()' and its own arguments.
 let curry = fn (f) {
-	let rest = $.slice(1, $.length - 1);
+	let rest = $.slice(1);
 	return fn -> f.call(rest.concat($));
 };
 

@@ -2035,8 +2035,8 @@ static int rtlb_slice(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	SpnArray *arr, *result;
 	long i, idx, len, n;
 
-	if (argc != 3) {
-		spn_ctx_runtime_error(ctx, "expecting 3 arguments", NULL);
+	if (argc < 2 || argc > 3) {
+		spn_ctx_runtime_error(ctx, "expecting 2 or 3 arguments", NULL);
 		return -1;
 	}
 
@@ -2050,15 +2050,16 @@ static int rtlb_slice(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	if (!isint(&argv[2])) {
+	if (argc >= 3 && !isint(&argv[2])) {
 		spn_ctx_runtime_error(ctx, "third argument must be an integer length", NULL);
 		return -4;
 	}
 
-	idx = intvalue(&argv[1]);
-	len = intvalue(&argv[2]);
 	arr = arrayvalue(&argv[0]);
 	n = spn_array_count(arr);
+
+	idx = intvalue(&argv[1]);
+	len = argc < 3 ? n - idx : intvalue(&argv[2]);
 
 	if (idx < 0 || idx > n) {
 		const void *args[2];
