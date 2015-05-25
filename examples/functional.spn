@@ -36,15 +36,15 @@ let Maybe = fn (val) {
 		// type system already has the expressive power of Maybe.
 		// If we didn't have 'nil' in the language, we would
 		// _have to_ use 'bind()'.
-		"lift": fn self f -> self.bind(fn arg -> Maybe(f(arg))),
-		"bind": fn (self, f) {
+		lift: fn self f -> self.bind(fn arg -> Maybe(f(arg))),
+		bind: fn (self, f) {
 			if self["value"] == nil {
 				return self;
 			}
 
 			return f(self["value"]);
 		},
-		"value": val
+		value: val
 	};
 };
 
@@ -53,40 +53,40 @@ let Maybe = fn (val) {
 # associative container, since it's possible that a key
 # simply does not exist in which case we get 'nil'.
 let me = {
-	"name": "Arpad",
-	"age": 20,
-	"mom": {
-		"name": "N...",
-		"mom": {
-			"name": "I...",
-			"age": 75
+	name: "Arpad",
+	age: 20,
+	mom: {
+		name: "N...",
+		mom: {
+			name: "I...",
+			age: 75
 		},
-		"dad": {
-			"name": "K..."
+		dad: {
+			name: "K..."
 		},
-		"siblings": []
+		siblings: []
 	},
-	"dad": {
-		"name": "F...",
-		"age": 37,
-		"mom": {
-			"name": "H..."
+	dad: {
+		name: "F...",
+		age: 37,
+		mom: {
+			name: "H..."
 		},
-		"dad": {
-			"name": "K...",
-			"age": 56
+		dad: {
+			name: "K...",
+			age: 56
 		},
-		"siblings": [
+		siblings: [
 			{
-				"name": "K...",
-				"age": 29
+				name: "K...",
+				age: 29
 			}
 		]
 	},
-	"siblings": [
+	siblings: [
 		{
-			"name": "J...",
-			"age": 7
+			name: "J...",
+			age: 7
 		}
 	]
 };

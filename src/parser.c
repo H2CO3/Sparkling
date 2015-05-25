@@ -110,6 +110,15 @@ static int is_at_token(SpnParser *p, const char *str)
 	return strcmp(p->tokens[p->cursor].value, str) == 0;
 }
 
+static SpnToken *lookahead(SpnParser *p, size_t offset)
+{
+	if (p->cursor + offset >= p->num_toks) {
+		return NULL;
+	}
+
+	return &p->tokens[p->cursor + offset];
+}
+
 static SpnToken *accept_token_string(SpnParser *p, const char *str)
 {
 	if (is_at_token(p, str)) {
@@ -363,6 +372,25 @@ static void set_name_if_is_function(SpnHashMap *expr, SpnValue name)
 	if (strcmp(type->cstr, "function") == 0) {
 		ast_set_property(expr, "name", &name);
 	}
+}
+
+/* returns a string literal with the name
+ * of the identifier token as its value.
+ */
+static SpnHashMap *ident_to_string(SpnToken *ident)
+{
+	SpnValue namestring;
+	SpnHashMap *ast;
+
+	assert(ident != NULL);
+	assert(ident->type == SPN_TOKEN_WORD);
+
+	ast = ast_new("literal", ident->location);
+	namestring = makestring(ident->value);
+	ast_set_property(ast, "value", &namestring);
+	spn_value_release(&namestring);
+
+	return ast;
 }
 
 
@@ -885,7 +913,6 @@ static int parse_sugared_subscript(SpnParser *p, SpnHashMap *ast, SpnHashMap *tm
 {
 	/* syntactic sugar for raw indexing with string literal */
 	SpnToken *ident;
-	SpnValue namestring;
 	SpnHashMap *index;
 
 	if ((ident = accept_token_type(p, SPN_TOKEN_WORD)) == NULL) {
@@ -897,10 +924,7 @@ static int parse_sugared_subscript(SpnParser *p, SpnHashMap *ast, SpnHashMap *tm
 	}
 
 	/* build index which is a string literal */
-	index = ast_new("literal", ident->location);
-	namestring = makestring(ident->value);
-	ast_set_property(index, "value", &namestring);
-	spn_value_release(&namestring);
+	index = ident_to_string(ident);
 
 	ast_set_child_xfer(tmp, "object", ast);
 	ast_set_child_xfer(tmp, "index", index);
@@ -1139,6 +1163,30 @@ static void set_object_member_name_if_function(SpnHashMap *key, SpnHashMap *val)
 	set_name_if_is_function(val, keyval);
 }
 
+/* parse a key in a hashmap literal */
+static SpnHashMap *parse_hashmap_key(SpnParser *p)
+{
+	/* first, check if it's a single identifier;
+	 * if so, transform it into a string literal.
+	 */
+	SpnToken *ident = lookahead(p, 0);
+	SpnToken *colon = lookahead(p, 1);
+
+	if (ident && colon
+	 && ident->type == SPN_TOKEN_WORD
+	 && colon->type == SPN_TOKEN_PUNCT
+	 && strcmp(colon->value, ":") == 0) {
+		/* skip identifier */
+		accept_token_type(p, SPN_TOKEN_WORD);
+
+		/* extract identifier into string literal */
+		return ident_to_string(ident);
+	}
+
+	/* otherwise, fall back to parsing a generic expression */
+	return parse_expr(p);
+}
+
 static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 {
 	SpnHashMap *ast;
@@ -1153,12 +1201,13 @@ static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 		SpnToken *colon;
 
 		/* parse key */
-		key = parse_expr(p);
+		key = parse_hashmap_key(p);
 		if (key == NULL) {
 			spn_object_release(ast);
 			return NULL;
 		}
 
+		/* expect key-value delimiter */
 		if ((colon = accept_token_string(p, ":")) == NULL) {
 			parser_error(p, "expecting ':' between hashmap key and value", NULL);
 			spn_object_release(key);
@@ -1166,6 +1215,7 @@ static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 			return NULL;
 		}
 
+		/* parse value */
 		val = parse_expr(p);
 		if (val == NULL) {
 			spn_object_release(key);

@@ -209,9 +209,42 @@ It is even possible to intermix multiple types:
 Here, `"foo"` will have the key 0, `"baz"` corresponds to `"bar"`, `"quirk"` to
 2, and 1337 to `"lol"`.
 
+Hashmap keys and values can be arbitrarily complex expressions (as long as
+the keys obey the "not nil or NaN" rule). However, if a key is a single
+identifier ("word", "name"), then it's replaced by a string literal of
+which the value is the identifier itself. This aims to make the definition
+of objects using hashmap literals easier to read.
+
+The following code:
+
+    let hm = {
+        foo: "hello",
+        bar: 42
+    };
+
+is thus the same as
+
+    let hm = {
+        "foo": "hello",
+        "bar": 42
+    };
+
 By the way, this is one idiomatic way of implementing and using modules or
 libraries in Sparkling: one assigns functions as members to a global hashmap
 and accesses them using the bracket notation.
+
+If you really want to use the value of a variable as a key in a hashmap
+literal, you can parenthesize it (or, for numbers, prefix it with `+`):
+
+    let str = "the key";
+    let num = 1337;
+
+    let hm = {
+        (str): "a value",
+        +num: "yet another"
+    };
+
+Generally though, this shouldn't be needed very frequently.
 
 Use the `keys` and `values` methods of hashmaps to retrieve an array of
 all keys and all values, respectively. The following code snippet:

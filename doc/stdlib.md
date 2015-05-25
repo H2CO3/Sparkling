@@ -290,13 +290,13 @@ iteration, and the return value of the previous call to the function otherwise.
 The second argument is the next value in the `arr` array. `reduce()` returns
 the result of the last call to `callback()`. Here's a possible implementation:
 
-    function reduce(arr, identity, callback) {
+    let reduce = fn (arr, identity, callback) {
         var x = identity;
         for (var i = 0; i < arr.length; i++) {
             x = callback(x, arr[i]);
         }
         return x;
-    }
+    };
 
 **Warning:** Just like in the case of `foreach()`, you must not mutate the
 array while it is being `reduce()`d.
@@ -304,35 +304,35 @@ array while it is being `reduce()`d.
     array filter(array arr, bool predicate(any value, integer index))
 
 Returns the elements in `arr` for which `predicate()` returns
-true. The implementation may look something like this:
+true. The implementation is equivalent with:
 
-    function filter(arr, predicate) {
+    let filter = fn (arr, predicate) {
         var res = [];
-        foreach(arr, function(val, index) {
+        arr.foreach(fn (val, index) {
             if predicate(val, index) {
                 res.push(val);
             }
         });
         return res;
-    }
+    };
 
 You must not mutate the array while it is being `filter()`ed.
 
-    array map(array arr, any callback(any val, integer index))
+    array map(array arr, any transform(any val, integer index))
 
-Calls `callback()` with each key-value pair of `arr` (in an unspecified order).
+Calls `transform()` with each key-value pair of `arr` (in an unspecified order).
 Returns a new array that contains the same keys as `arr`, and of which the
-values correspond to the return values of `callback()` called with the
+values correspond to the return values of `transform()` called with the
 appropriate key-value pair. In short, the effect of this function is roughly
 equivalent with the following pseudo-code:
 
-    function map(arr, callback) {
+    let map = fn (arr, transform) {
         var res = [];
-        foreach(arr, function(val, index) {
-            res.push(callback(val, index));
+        arr.foreach(fn (val, index) {
+            res.push(transform(val, index));
         });
         return res;
-    }
+    };
 
 Again, you must not modify `arr` while it is being `map()`ped over.
 
@@ -643,4 +643,3 @@ The default class for hashmap objects.
     hashmap Function
 
 The default class for function objects.
-

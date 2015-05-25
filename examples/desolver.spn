@@ -19,7 +19,7 @@ let solvede = fn (a, b, y0, yprime) {
 		s += dx * yprime(x, s);
 	}
 
-	return { "x": xv, "y": yv };
+	return { x: xv, y: yv };
 };
 
 let a  = tofloat($[1]),
@@ -32,46 +32,46 @@ let return_expr_stmt = parseexpr($[4])["children"][0];
 // AST of a program that just returns the user-supplied expression
 // Names ("x" and "y") are given to the first two arguments.
 let ast = {
-	"type": "program",
-	"line": 0, "column": 0,
-	"children": [
+	type: "program",
+	line: 0, "column": 0,
+	children: [
 		{
-			"line": 0, "column": 0,
-			"type": "vardecl",
-			"children": [
+			line: 0, column: 0,
+			type: "vardecl",
+			children: [
 				{
-					"line": 0, "column": 0,
-					"type": "variable",
-					"name": "x",
-					"init": {
-						"line": 0, "column": 0,
-						"type": "subscript",
-						"object": {
-							"line": 0, "column": 0,
-							"type": "argv"
+					line: 0, column: 0,
+					type: "variable",
+					name: "x",
+					init: {
+						line: 0, column: 0,
+						type: "subscript",
+						object: {
+							line: 0, column: 0,
+							type: "argv"
 						},
-						"index": {
-							"line": 0, "column": 0,
-							"type": "literal",
-							"value": 0
+						index: {
+							line: 0, column: 0,
+							type: "literal",
+							value: 0
 						}
 					}
 				},
 				{
-					"line": 0, "column": 0,
-					"type": "variable",
-					"name": "y",
-					"init": {
-						"line": 0, "column": 0,
-						"type": "subscript",
-						"object": {
-							"line": 0, "column": 0,
-							"type": "argv"
+					line: 0, column: 0,
+					type: "variable",
+					name: "y",
+					init: {
+						line: 0, column: 0,
+						type: "subscript",
+						object: {
+							line: 0, column: 0,
+							type: "argv"
 						},
-						"index": {
-							"line": 0, "column": 0,
-							"type": "literal",
-							"value": 1
+						index: {
+							line: 0, column: 0,
+							type: "literal",
+							value: 1
 						}
 					}
 				}

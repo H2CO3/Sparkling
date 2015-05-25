@@ -469,6 +469,9 @@ Hashmap literals consist of key-value pairs, where keys are neither `nil` nor
 organized in a hashmap is unspecified and is not determined by the order
 in which those pairs appear in the source text.
 
+If a key is a single identifier, it is replaced by a string literal with
+value identical to that identifier.
+
 §3.11.2. Scalar literals
 
 Non-compound (scalar) literals represent a single constant value. These include
