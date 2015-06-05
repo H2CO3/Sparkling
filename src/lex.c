@@ -620,33 +620,31 @@ static int next_token(SpnLexer *lexer, SpnToken *token)
 	long lc;
 	const void *args[1];
 
+	/* the actual lexer functions */
+	static const struct {
+		int (*predicate)(SpnLexer *);
+		int (*extract)(SpnLexer *, SpnToken *);
+	} fns[] = {
+		{ is_at_space,      lex_space  },
+		{ is_at_punct,      lex_op     },
+		{ is_at_number,     lex_number },
+		{ is_at_word_begin, lex_word   },
+		{ is_at_char,       lex_char   },
+		{ is_at_string,     lex_string }
+	};
+
+	size_t i;
+
 	/* Set up location of lexer and token */
 	lexer->location.column = lexer->cursor - lexer->lastline + 1;
 	token->location = lexer->location;
 	token->offset = lexer->cursor - lexer->source;
 
-	if (is_at_space(lexer)) {
-		return lex_space(lexer, token);
-	}
-
-	if (is_at_punct(lexer)) {
-		return lex_op(lexer, token);
-	}
-
-	if (is_at_number(lexer)) {
-		return lex_number(lexer, token);
-	}
-
-	if (is_at_word_begin(lexer)) {
-		return lex_word(lexer, token);
-	}
-
-	if (is_at_char(lexer)) {
-		return lex_char(lexer, token);
-	}
-
-	if (is_at_string(lexer)) {
-		return lex_string(lexer, token);
+	/* try each lexer function in order */
+	for (i = 0; i < COUNT(fns); i++) {
+		if (fns[i].predicate(lexer)) {
+			return fns[i].extract(lexer, token);
+		}
 	}
 
 	/* end-of-input */
