@@ -123,7 +123,7 @@ To get the number of bytes in a string, use the `length` property:
 
 Character literals are enclosed between apostrophes: `'a'`
 
-This is a list of escape sequances (they are the same as in C)
+This is a list of escape sequences (they are the same as in C)
 that can be used in string and character literals:
 
     \\		->		\
@@ -521,8 +521,8 @@ can be found in `doc/stdlib.md`.
 Typically, you access the Sparkling engine using the Context API. It's quite
 straightforward to use. First, create a new Sparkling context object:
 
-   SpnContext ctx;
-   spn_ctx_init(&ctx);
+    SpnContext ctx;
+    spn_ctx_init(&ctx);
 
 Then you may take different approaches. If you only want to run a program once,
 then use `spn_ctx_execstring()` or `spn_ctx_execsrcfile()`. These are
