@@ -1,0 +1,14 @@
+# break and continue no longer need to be terminated by a semi-colon
+
+while true {
+	break
+}
+
+while false {
+	continue
+}
+
+while true {
+	break
+	continue
+}

@@ -490,6 +490,27 @@ functions:
 
     let fortyFive = range(10).reduce(0, fn -> $[0] + $[1]);
 
+**Function statements** enable you to quickly and cleanly define
+functions bound to local variables. The function statement
+
+    fn add(x, y) {
+        return x + y;
+    }
+
+desugars to:
+
+    let add = fn (x, y) {
+        return x + y;
+    };
+
+A function declared using a function statement **must always
+have a name.**
+
+Function statements can occur in any scope, not just at file
+scope (top level). Please note that a statement beginning with
+the `fn` keyword will always be parsed as a function statement
+(rather than a function expression).
+
 To invoke a function, use the `()` operator:
 
     > print(square(10));

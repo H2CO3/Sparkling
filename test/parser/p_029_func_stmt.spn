@@ -1,0 +1,23 @@
+# function statement with no arguments, old style
+fn foo() {
+}
+
+# function statement with no arguments, new style
+fn bar {
+}
+
+# function statement with one argument, old style
+fn baz(arg) {
+}
+
+# function statement with one argument, new style
+fn qux arg {
+}
+
+# function statement with multiple arguments, old style
+fn ziz(arg, brg) {
+}
+
+# function statement with multiple arguments, new style
+fn wut arg brg {
+}

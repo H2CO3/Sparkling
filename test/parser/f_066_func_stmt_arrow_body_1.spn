@@ -1,0 +1,2 @@
+# a function statement can't have a one-expression arrow body
+fn foo -> 42;

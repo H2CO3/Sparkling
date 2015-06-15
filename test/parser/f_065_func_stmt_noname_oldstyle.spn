@@ -1,0 +1,4 @@
+# ...regardless of whether the function has any arguments
+
+fn (a) {
+}

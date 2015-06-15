@@ -61,6 +61,7 @@ old-style-declaration-argument-list = '(' ( IDENT ( ',' IDENT )(*) )(?) ')'
 new-style-declaration-argument-list = IDENT *
 
 statement = empty-statement              |
+            function-statement           |
             if-statement                 |
             for-statement                |
             while-statement              |
@@ -75,6 +76,8 @@ extern-statement    = 'extern' IDENT '=' expression ( ',' IDENT '=' expression )
 
 empty-statement     = ';'
 
+function-statement  = 'fn' IDENT argument-declaration-list block-statement
+
 if-statement        = 'if' expression block-statement ( 'else' block-statement | if-statement )(?)
 
 for-statement       = 'for' for-header | ( '(' for-header ')' ) block-statement
@@ -88,7 +91,7 @@ return-statement    = 'return' [ expression ] ';'
 
 block-statement     = '{' statement (*) '}'
 
-loop-control-flow-statement = ( 'break' | 'continue' ) ';'
+loop-control-flow-statement = ( 'break' | 'continue' ) [ ';' ]
 
 variable-declaration  = 'var' | 'let' IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
 

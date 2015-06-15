@@ -1,0 +1,3 @@
+# a function statement must contain a function name
+fn () {
+}

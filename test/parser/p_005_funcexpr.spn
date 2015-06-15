@@ -1,12 +1,12 @@
-fn () {};
+(fn () {});
 
-fn (param) {
+(fn (param) {
 	return 42;
-};
+});
 
-fn (param1, param2) {
+(fn (param1, param2) {
 	return param1 + param2;
-};
+});
 
 let new_syntax_1 = fn {
 	// look, no args!

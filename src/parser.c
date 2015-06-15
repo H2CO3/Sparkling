@@ -58,6 +58,7 @@ static SpnArray *parse_decl_args(SpnParser *p);
 static SpnArray *parse_decl_args_oldstyle(SpnParser *p);
 static SpnArray *parse_decl_args_newstyle(SpnParser *p);
 
+static SpnHashMap *parse_fnstmt(SpnParser *p);
 static SpnHashMap *parse_if(SpnParser *p);
 static SpnHashMap *parse_while(SpnParser *p);
 static SpnHashMap *parse_do(SpnParser *p);
@@ -66,7 +67,7 @@ static SpnHashMap *parse_break(SpnParser *p);
 static SpnHashMap *parse_continue(SpnParser *p);
 static SpnHashMap *parse_return(SpnParser *p);
 static SpnHashMap *parse_vardecl(SpnParser *p);
-static SpnHashMap *parse_const(SpnParser *p);
+static SpnHashMap *parse_extern(SpnParser *p);
 static SpnHashMap *parse_expr_stmt(SpnParser *p);
 static SpnHashMap *parse_empty(SpnParser *p);
 static SpnHashMap *parse_block(SpnParser *p);
@@ -469,6 +470,7 @@ static SpnHashMap *parse_stmt(SpnParser *p, int is_global)
 	} parsers[] = {
 		{ "var",      parse_vardecl  },
 		{ "let",      parse_vardecl  },
+		{ "fn",       parse_fnstmt   },
 		{ "if",       parse_if       },
 		{ "while",    parse_while    },
 		{ "for",      parse_for      },
@@ -490,7 +492,7 @@ static SpnHashMap *parse_stmt(SpnParser *p, int is_global)
 	/* special cases follow */
 	if (is_at_token(p, "extern")) {
 		if (is_global) {
-			return parse_const(p);
+			return parse_extern(p);
 		} else {
 			parser_error(p, "'extern' declarations are only allowed at file scope", NULL);
 			return NULL;
@@ -1651,10 +1653,8 @@ static SpnHashMap *parse_break(SpnParser *p)
 	SpnToken *token = accept_token_string(p, "break");
 	assert(token != NULL);
 
-	if (accept_token_string(p, ";") == NULL) {
-		parser_error(p, "expecting ';' after 'break'", NULL);
-		return NULL;
-	}
+	/* eat semicolon, if any */
+	accept_token_string(p, ";");
 
 	return ast_new("break", token->location);
 }
@@ -1665,10 +1665,8 @@ static SpnHashMap *parse_continue(SpnParser *p)
 	SpnToken *token = accept_token_string(p, "continue");
 	assert(token != NULL);
 
-	if (accept_token_string(p, ";") == NULL) {
-		parser_error(p, "expecting ';' after 'continue'", NULL);
-		return NULL;
-	}
+	/* eat semicolon if any */
+	accept_token_string(p, ";");
 
 	return ast_new("continue", token->location);
 }
@@ -1779,7 +1777,7 @@ static SpnHashMap *parse_vardecl(SpnParser *p)
 	return ast;
 }
 
-static SpnHashMap *parse_const(SpnParser *p)
+static SpnHashMap *parse_extern(SpnParser *p)
 {
 	SpnHashMap *ast;
 
@@ -1836,6 +1834,76 @@ static SpnHashMap *parse_const(SpnParser *p)
 		spn_object_release(ast);
 		return NULL;
 	}
+
+	return ast;
+}
+
+/* function statement */
+static SpnHashMap *parse_fnstmt(SpnParser *p)
+{
+	SpnHashMap *fnexpr, *body, *ast, *var;
+	SpnArray *declargs;
+	SpnValue declargsval;
+	SpnToken *token = accept_token_string(p, "fn");
+	SpnToken *name = accept_token_type(p, SPN_TOKEN_WORD);
+	SpnValue nameval;
+
+	assert(token != NULL);
+
+	/* parse function name */
+	if (name == NULL) {
+		parser_error(p, "expecting function name", NULL);
+		return NULL;
+	}
+
+	/* make sure it's not a reserved keyword */
+	if (spn_token_is_reserved(name->value)) {
+		const void *args[1];
+		args[0] = name->value;
+		parser_error(p, "keyword '%s' cannot be used as a function name", args);
+		return NULL;
+	}
+
+	/* parse formal parameters */
+	declargs = parse_decl_args(p);
+	if (declargs == NULL) {
+		return NULL;
+	}
+
+	declargsval.type = SPN_TYPE_ARRAY;
+	declargsval.v.o = declargs;
+
+	/* parse function body */
+	body = parse_block_expecting(p, "function body");
+
+	if (body == NULL) {
+		spn_object_release(declargs);
+		return NULL;
+	}
+
+	nameval = makestring(name->value);
+
+	/* build function expression */
+	fnexpr = ast_new("function", token->location);
+
+	ast_set_property(fnexpr, "declargs", &declargsval);
+	ast_set_property(fnexpr, "name", &nameval);
+	ast_set_child_xfer(fnexpr, "body", body);
+
+	/* variable name is the same as the name of the function */
+	var = ast_new("variable", name->location);
+	ast_set_property(var, "name", &nameval);
+
+	/* relinquish ownership of values */
+	spn_value_release(&declargsval);
+	spn_value_release(&nameval);
+
+	/* initializer of the variable is the function expression */
+	ast_set_child_xfer(var, "init", fnexpr);
+
+	/* the declaration statement has only one child (variable) */
+	ast = ast_new("vardecl", token->location);
+	ast_push_child_xfer(ast, var);
 
 	return ast;
 }
