@@ -137,6 +137,7 @@
  * Methods:
  * --------
  * Function::call
+ * Function::apply
  *
  * Constants:
  * ----------

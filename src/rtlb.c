@@ -4472,7 +4472,8 @@ static void loadlib_sysutil(SpnVMachine *vm)
 
 	/* Methods */
 	static const SpnExtFunc M[] = {
-		{ "call", rtlb_call }
+		{ "call",  rtlb_call },
+		{ "apply", rtlb_call }
 	};
 
 	/* Constants */

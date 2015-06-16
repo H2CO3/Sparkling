@@ -597,6 +597,7 @@ searching for a radix point `.` and/or an exponent (`e` or `E`) in it.
 If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 
     any call(function fn, array argv)
+	any apply(function fn, array argv)
 
 Calls the function `fn` with the elements of the `argv` array as arguments,
 returning the return value of `fn` itself. Throws an error if `argv` is not an
@@ -605,6 +606,8 @@ array. This function is implemented as a method on function objects.
 The arguments of the called function `fn` will be the values in `argv`
 in sequence. (In other words, the `$` argument vector will contain the
 elements of `argv`.)
+
+`apply` is completely synonymous with `call`.
 
     any require(string filename)
 
