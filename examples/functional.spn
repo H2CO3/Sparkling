@@ -14,10 +14,10 @@ stdout.printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
 
 # takes a function 'f' and returns a new function which calls 'f'
 # with the rest of the arguments of 'curry()' and its own arguments.
-let curry = fn (f) {
+fn curry (f) {
 	let rest = $.slice(1);
 	return fn -> f.call(rest.concat($));
-};
+}
 
 let adder = fn -> $.reduce(0, fn a b -> a + b);
 
@@ -93,23 +93,26 @@ let me = {
 
 let Me = Maybe(me);
 
+# helper function for indexing objects
+let getter = fn index -> fn obj -> obj[index];
+
 # Find my grandma's age
 let grandmaAge = Me.lift(
-	fn person -> person["mom"]
+	getter("mom")
 ).lift(
-	fn person -> person["mom"]
+	getter("mom")
 ).lift(
-	fn person -> person["age"]
+	getter("age")
 );
 
 # Find the age of my mom's cousin.
 # But there's no such person in the tree...!
 let momsCousinAge = Me.lift(
-	fn person -> person["mom"]
+	getter("mom")
 ).lift(
-	fn person -> person["cousin"]
+	getter("cousin")
 ).lift(
-	fn person -> person["age"]
+	getter("age")
 );
 
 print("Grandma's age: ", grandmaAge["value"]);

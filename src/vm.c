@@ -175,7 +175,13 @@ static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op);
 static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp);
 
 /* array, hashmap, string indexing validation */
-static int indexing_array_check(SpnVMachine *vm, spn_uword *ip, SpnValue *varr, SpnValue *vidx);
+static int indexing_array_check(
+	SpnVMachine *vm,
+	spn_uword *ip,
+	SpnValue *varr,
+	SpnValue *vidx,
+	int set /* 0 when reading from the array, nonzero when writing */
+);
 static int indexing_string_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vstr, SpnValue *vidx);
 static int indexing_hashmap_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vidx);
 
@@ -1449,7 +1455,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			} else if (isarray(b)) {
 				SpnValue val;
 
-				if (indexing_array_check(vm, ip - 1, b, c) != 0) {
+				if (indexing_array_check(vm, ip - 1, b, c, 0 /* false: get */) != 0) {
 					return -1;
 				}
 
@@ -1493,11 +1499,30 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 				spn_hashmap_set(hashmapvalue(a), b, c);
 			} else if (isarray(a)) {
-				if (indexing_array_check(vm, ip - 1, a, b) != 0) {
+				SpnArray *array;
+				long index;
+				size_t length;
+
+				if (indexing_array_check(vm, ip - 1, a, b, 1 /* true: set */) != 0) {
 					return -1;
 				}
 
-				spn_array_set(arrayvalue(a), intvalue(b), c);
+				/* here, it's guaranteed that a is an array value
+				 * and b is an integer in the range [0, a.length].
+				 * if b, the index, is < a.length, we can simply
+				 * use the array setter function. Else, we need to
+				 * expand the array and push the last element onto it.
+				 */
+				array = arrayvalue(a);
+				index = intvalue(b);
+				length = spn_array_count(array);
+
+				if (index < length) {
+					spn_array_set(array, index, c);
+				} else {
+					assert(index == length);
+					spn_array_push(array, c);
+				}
 			} else {
 				const void *args[1];
 				args[0] = spn_type_name(a->type);
@@ -2032,7 +2057,13 @@ static int resolve_symbol(SpnVMachine *vm, spn_uword *ip, SpnValue *symp)
 }
 
 /* indexing getters and setters */
-static int indexing_array_check(SpnVMachine *vm, spn_uword *ip, SpnValue *varr, SpnValue *vidx)
+static int indexing_array_check(
+	SpnVMachine *vm,
+	spn_uword *ip,
+	SpnValue *varr,
+	SpnValue *vidx,
+	int set /* 0 when reading from the array, nonzero when writing */
+)
 {
 	SpnArray *arr;
 	long index, length;
@@ -2050,7 +2081,9 @@ static int indexing_array_check(SpnVMachine *vm, spn_uword *ip, SpnValue *varr, 
 	index = intvalue(vidx);
 	length = spn_array_count(arr);
 
-	if (index < 0 || index >= length) {
+	if (index < 0
+	 || index > length
+	 || !set && index >= length) {
 		const void *args[2];
 		args[0] = &index;
 		args[1] = &length;

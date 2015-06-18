@@ -178,6 +178,17 @@ To add an element to the array, use `push()`:
 	    2
 	]
 
+Alternatively, assign to the one-past-last element of the array:
+
+    > var a = [];
+    > a[0] = 1;
+    > a[a.length] = 2;
+    > a
+    = [
+        1
+        2
+    ]
+
 To remove the last element of a non-empty array, call `pop()`.
 
 You can remove an element from the middle of an array by calling its `erase`

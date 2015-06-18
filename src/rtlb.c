@@ -4443,6 +4443,19 @@ static int rtlb_dynld(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 #endif /* USE_DYNAMIC_LOADING */
 }
 
+static int rtlb_identity(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	/* if there are arguments, return the first one,
+	 * otherwise just return nil implicitly
+	 */
+	if (argc > 0) {
+		spn_value_retain(&argv[0]);
+		*ret = argv[0];
+	}
+
+	return 0;
+}
+
 static void loadlib_sysutil(SpnVMachine *vm)
 {
 	/* Free functions */
@@ -4467,7 +4480,8 @@ static void loadlib_sysutil(SpnVMachine *vm)
 		{ "tonumber",   rtlb_tonumber   },
 		{ "require",    rtlb_require    },
 		{ "dynld",      rtlb_dynld      },
-		{ "backtrace",  rtlb_backtrace  }
+		{ "backtrace",  rtlb_backtrace  },
+		{ "identity",   rtlb_identity   }
 	};
 
 	/* Methods */

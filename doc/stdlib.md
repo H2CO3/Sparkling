@@ -629,6 +629,10 @@ This function returns the stack trace, as an array of strings, which are
 the names of the currently active functions, at the point of execution
 where it is called.
 
+    any identity([arg])
+
+Returns its unmodified argument, `arg`, if it exists. Returns `nil` otherwise.
+
 The following global symbolic constants are available:
 
     hashmap Array
