@@ -321,10 +321,18 @@ unsigned long spn_hash_value(const SpnValue *key)
 	case SPN_TTAG_NUMBER: {
 		if (isfloat(key)) {
 			double f = floatvalue(key);
-			long i = f; /* truncate */
 
-			if (f == i) {
-				return i; /* it's really an integer */
+			/* only test for integer if it fits into one (anti-UB) */
+			if (LONG_MIN <= f && f <= LONG_MAX) {
+				long i = f; /* truncate */
+
+				if (f == i) {
+					/* it's really an integer.
+					 * This takes care of the +/- 0 problem too
+					 * (since 0 itself is an integer)
+					 */
+					return i;
+				}
 			} else {
 				return spn_hash_bytes(&f, sizeof f);
 			}

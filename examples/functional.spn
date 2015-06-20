@@ -29,7 +29,7 @@ print("(1 + 2 + 3) + (4 + 5 + 6 + 7) = ", addsix(4, 5, 6, 7));
 # 'Maybe' is the 'return()' or 'unit()' function itself
 # (just a constructor)
 
-let Maybe = fn (val) {
+fn Maybe (val) {
 	return {
 		// 'lift()' is more convenient than 'bind()'
 		// (but here, it's only used because Sparkling's
@@ -46,7 +46,7 @@ let Maybe = fn (val) {
 		},
 		value: val
 	};
-};
+}
 
 # Some sample data: my family tree... or something like that.
 # 'Maybe' is the classic example of looking up stuff in an
