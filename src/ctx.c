@@ -32,7 +32,12 @@ void spn_ctx_init(SpnContext *ctx)
 #endif /* USE_DYNAMIC_LOADING */
 
 	spn_vm_setcontext(ctx->vm, ctx);
-	spn_load_stdlib(ctx->vm);
+
+	/* load part of stdlib that is implemented in C */
+	spn_load_native_stdlib(ctx->vm);
+
+	/* ...as well as the Sparkling part */
+	spn_ctx_load_script_stdlib(ctx);
 }
 
 #if USE_DYNAMIC_LOADING
@@ -372,6 +377,28 @@ SpnHashMap *spn_ctx_getglobals(SpnContext *ctx)
 SpnHashMap *spn_ctx_getclasses(SpnContext *ctx)
 {
 	return spn_vm_getclasses(ctx->vm);
+}
+
+/* Load non-native parts of the standard library */
+void spn_ctx_load_script_stdlib(SpnContext *ctx)
+{
+	static const char *const modules[] = {
+#include "stdmodules.inc"
+	};
+
+	size_t i;
+	for (i = 0; i < COUNT(modules); i++) {
+		int error = spn_ctx_execsrcfile(ctx, modules[i], NULL);
+
+		/* being unable to load a standard module is a fatal error */
+		if (error != 0) {
+			spn_die(
+				"cannot load stdlib module %s: %s\n",
+				modules[i],
+				spn_ctx_geterrmsg(ctx)
+			);
+		}
+	}
 }
 
 #if USE_DYNAMIC_LOADING

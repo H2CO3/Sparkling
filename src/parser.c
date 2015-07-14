@@ -1120,13 +1120,7 @@ static SpnHashMap *parse_array_literal(SpnParser *p)
 		ast_push_child_xfer(ast, expr);
 
 		/* comma ',' or closing bracket ']' must follow */
-		if (accept_token_string(p, ",")) {
-			if (is_at_token(p, "]")) {
-				parser_error(p, "trailing comma after last array element", NULL);
-				spn_object_release(ast);
-				return NULL;
-			}
-		} else if (!is_at_token(p, "]")) {
+		if (accept_token_string(p, ",") == NULL && !is_at_token(p, "]")) {
 			parser_error(p, "expecting ',' or ']' after array element", NULL);
 			spn_object_release(ast);
 			return NULL;
@@ -1235,13 +1229,7 @@ static SpnHashMap *parse_hashmap_literal(SpnParser *p)
 		ast_push_child_xfer(ast, pair);
 
 		/* comma ',' or closing brace '}' must follow */
-		if (accept_token_string(p, ",")) {
-			if (is_at_token(p, "}")) {
-				parser_error(p, "trailing comma after last key-value pair", NULL);
-				spn_object_release(ast);
-				return NULL;
-			}
-		} else if (!is_at_token(p, "}")) {
+		if (accept_token_string(p, ",") == NULL && !is_at_token(p, "}")) {
 			parser_error(p, "expecting ',' or '}' after key-value pair", NULL);
 			spn_object_release(ast); /* this frees ast and param */
 			return NULL;

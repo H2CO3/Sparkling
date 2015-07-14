@@ -24,7 +24,6 @@
 #include "hashmap.h"
 #include "func.h"
 
-
 /*
  * Object API
  */

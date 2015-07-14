@@ -17,14 +17,14 @@ ANSI_COLORS ?= 1
 # modules defined as a dynamic library.
 DYNAMIC_LOADING ?= 1
 
-OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]')
+OPSYS = $(shell uname | tr '[[:upper:]]' '[[:lower:]]' | sed 's/.*\(mingw\).*/\1/g')
 ARCH = $(shell uname -p | tr '[[:upper:]]' '[[:lower:]]')
 
 ifeq ($(OPSYS), darwin)
 	ifeq ($(ARCH), arm)
-		SYSROOT = /var/mobile/iPhoneOS6.1.sdk
+		SYSROOT = /var/mobile/iPhoneOS.sdk
 	else
-		SYSROOT = /Applications/Xcode.app/Contents/Developer/Platforms/MacOSX.platform/Developer/SDKs/MacOSX10.9.sdk
+		SYSROOT = $(shell xcrun --show-sdk-path)
 	endif
 
 	CC = clang
@@ -44,10 +44,19 @@ else
 	DEFINES += -D_XOPEN_SOURCE=700
 endif
 
+ifeq ($(OPSYS), mingw)
+	SPARKLING_LIBDIR = $(shell echo "%SystemDrive%/Sparkling/")
+else
+	SPARKLING_LIBDIR = "$(DSTDIR)/lib/sparkling/"
+endif
+
+DEFINES += -DSPARKLING_LIBDIR_RAW=$(SPARKLING_LIBDIR)
+
 LD = $(CC)
 
 SRCDIR = src
 OBJDIR = bld
+LIBDIR = lib
 DSTDIR ?= /usr/local
 
 WARNINGS = -Wall -Wextra -Werror $(EXTRA_WARNINGS)
@@ -102,8 +111,10 @@ $(REPL): spn.o dump.o $(OBJECTS)
 
 install: all
 	mkdir -p $(DSTDIR)/lib/
+	mkdir -p $(SPARKLING_LIBDIR)
 	cp $(LIB) $(DSTDIR)/lib/
 	cp $(DYNLIB) $(DSTDIR)/lib/
+	cp $(LIBDIR)/*.spn $(SPARKLING_LIBDIR)
 	mkdir -p $(DSTDIR)/include/spn/
 	cp $(SRCDIR)/*.h $(DSTDIR)/include/spn/
 	mkdir -p $(DSTDIR)/bin/
@@ -119,17 +130,17 @@ spn.o: spn.c
 dump.o: dump.c
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
-# AST validator
-src/rtlb.c: src/verifyast.inc
+# Script standard library loader
+src/ctx.c: src/stdmodules.inc
 
-src/verifyast.inc: tools/verifyAST.spn
-	hexdump -v -e '1/1 "0x%.2x, "' $< > $@
-	echo "0x00" >> $@
+src/stdmodules.inc:
+	find $(LIBDIR) -name "*.spn" -exec basename {} \; \
+	| awk '{ print "\"" $(SPARKLING_LIBDIR) "/" $$0 "\"," }' > $@
 
 clean:
 	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) \
 		spn.o spn.h dump.o gmon.out \
-		src/verifyast.inc \
+		src/stdmodules.inc \
 		.DS_Store \
 		$(SRCDIR)/.DS_Store \
 		$(OBJDIR)/.DS_Store \

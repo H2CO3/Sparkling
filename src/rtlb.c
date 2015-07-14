@@ -4176,30 +4176,18 @@ static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-static int rtlb_aux_verify_ast(SpnContext *ctx, SpnValue astval)
+static int rtlb_aux_validate_ast(SpnContext *ctx, SpnValue astval)
 {
-	static const char verifyast_src[] = {
-#include "verifyast.inc"
-	};
+	/* Look up 'validate_ast()' function */
+	SpnValue fnval = spn_hashmap_get_strkey(spn_ctx_getglobals(ctx), "validate_ast");
+	SpnFunction *fn = funcvalue(&fnval);
 
+	/* Call it with the AST as its argument */
 	SpnValue ret;
-
-	SpnFunction *fn;
-	SpnHashMap *ast;
-
-	/* Parse, compile and execute AST verifier */
-	ast = spn_parser_parse(&ctx->parser, verifyast_src);
-	assert(ast != NULL);
-
-	/* no need to debug the verifier function */
-	fn = spn_compiler_compile(ctx->cmp, ast, 0);
-	spn_object_release(ast);
-	assert(fn != NULL);
-
 	spn_ctx_callfunc(ctx, fn, &ret, 1, &astval);
-	spn_object_release(fn);
-	assert(isbool(&ret));
 
+	/* it returns true if the AST is valid, false otherwise */
+	assert(isbool(&ret));
 	return boolvalue(&ret);
 }
 
@@ -4213,7 +4201,7 @@ static int rtlb_compileast(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (rtlb_aux_verify_ast(ctx, argv[0]) == 0) {
+	if (rtlb_aux_validate_ast(ctx, argv[0]) == 0) {
 		spn_ctx_runtime_error(ctx, "AST is invalid", NULL);
 		return -2;
 	}
@@ -4443,19 +4431,6 @@ static int rtlb_dynld(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 #endif /* USE_DYNAMIC_LOADING */
 }
 
-static int rtlb_identity(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	/* if there are arguments, return the first one,
-	 * otherwise just return nil implicitly
-	 */
-	if (argc > 0) {
-		spn_value_retain(&argv[0]);
-		*ret = argv[0];
-	}
-
-	return 0;
-}
-
 static void loadlib_sysutil(SpnVMachine *vm)
 {
 	/* Free functions */
@@ -4481,7 +4456,6 @@ static void loadlib_sysutil(SpnVMachine *vm)
 		{ "require",    rtlb_require    },
 		{ "dynld",      rtlb_dynld      },
 		{ "backtrace",  rtlb_backtrace  },
-		{ "identity",   rtlb_identity   }
 	};
 
 	/* Methods */
@@ -4548,7 +4522,7 @@ static void init_stdlib_classes(SpnVMachine *vm)
 	spn_value_release(&funcclass);
 }
 
-void spn_load_stdlib(SpnVMachine *vm)
+void spn_load_native_stdlib(SpnVMachine *vm)
 {
 	/* it is important to initialize the classes _before_
 	 * loading standard libraries so that library loading

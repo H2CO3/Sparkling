@@ -39,6 +39,12 @@ typedef signed long spn_sword;
 /* it is guaranteed that at least this many octets fit into an 'spn_uword' */
 #define SPN_WORD_OCTETS 4
 
+/* The usual 'stringify after macro expansion' trick. */
+#define SPN_STRINGIFY_X(x) #x
+#define SPN_STRINGIFY_(x) SPN_STRINGIFY_X(x)
+
+/* System directory where some standard library modules are installed */
+#define SPN_LIBDIR SPN_STRINGIFY_(SPARKLING_LIBDIR_RAW)
 
 /*
  * Object API
@@ -276,6 +282,5 @@ SPN_API char *spn_read_text_file(const char *name);
  * the code length in machine words.
  */
 SPN_API void *spn_read_binary_file(const char *name, size_t *sz);
-
 
 #endif /* SPN_API_H */

@@ -1,0 +1,57 @@
+//
+// functional.spn
+// This file is part of the Sparkling standard library.
+//
+// Created by Árpád Goretity on 14/07/2015
+// Licensed under the 2-clause BSD License
+//
+
+// Partial function application
+extern curry = fn (f) {
+	let args = $.slice(1);
+	return fn -> f.apply(args.concat($));
+};
+
+// Just a little handy identity function
+extern identity = fn x -> x;
+
+// Operators
+extern op = {
+	concat: fn x y -> x .. y,
+	lt: fn x y -> x <  y,
+	le: fn x y -> x <= y,
+	gt: fn x y -> x >  y,
+	ge: fn x y -> x >= y,
+	eq: fn x y -> x == y,
+	ne: fn x y -> x != y,
+	bit_or:  fn x y -> x | y,
+	bit_xor: fn x y -> x ^ y,
+	bit_and: fn x y -> x & y,
+	lsh: fn x y -> x << y,
+	rsh: fn x y -> x >> y,
+	add: fn x y -> x + y,
+	sub: fn x y -> x - y,
+	mul: fn x y -> x * y,
+	div: fn x y -> x / y,
+	mod: fn x y -> x % y,
+	un_plus:  fn x -> +x,
+	un_minus: fn x -> -x,
+	log_not: fn x -> !x,
+	bit_not: fn x -> ~x,
+	typeof: fn x -> typeof x,
+	index: fn obj index -> obj[index],
+};
+
+// Returns a function which looks up the specified index
+// in an indexable value (string, array or hashmap).
+extern getter = fn index -> fn obj -> obj[index];
+
+// Dual of 'getter()': returns a binary function, which, when
+// called with an indexable and another value, sets the specified
+// field of the indexable object to the given value.
+extern setter = fn index -> fn obj val -> obj[index] = val;
+
+// similar to 'setter()', but requires the new value to be specified too,
+// and returns a unary function which will set the specified
+// field of its argument to the pre-defined value.
+extern setterx = fn index val -> fn obj -> obj[index] = val;

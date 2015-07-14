@@ -103,6 +103,7 @@ SPN_API void        spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, 
 SPN_API void        spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtValue vals[], size_t n);
 SPN_API SpnHashMap *spn_ctx_getglobals(SpnContext *ctx);
 SPN_API SpnHashMap *spn_ctx_getclasses(SpnContext *ctx);
+SPN_API void        spn_ctx_load_script_stdlib(SpnContext *ctx);
 
 #if USE_DYNAMIC_LOADING
 
@@ -110,9 +111,6 @@ SPN_API SpnHashMap *spn_ctx_getclasses(SpnContext *ctx);
  * so that it will be closed correctly upon destuction.
  */
 SPN_API void spn_ctx_add_dynmod(SpnContext *ctx, void *handle);
-
-#define SPN_STRINGIFY_2(x) #x
-#define SPN_STRINGIFY_(x) SPN_STRINGIFY_2(x)
 
 #define SPN_LIB_OPEN_FUNC_NAME  spnlib_open
 #define SPN_LIB_CLOSE_FUNC_NAME spnlib_close

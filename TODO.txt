@@ -6,233 +6,54 @@ Code:
 	- More testing										***Urgent***
 
 	- grep for "TODO", "FIXME" and "XXX" in the source files
-	- Implement a way to pass down variadic arguments! ("..." operator?)			done
 	- REFACTOR (especially in vm.c), and try very hard not to exceed the
 		80-character line length limit.
-	- Implement standard library								mostly done
-	- and make the functions in there print meaningful error messages when			done
-		they encounter an error condition)
-	- Related: native functions should be able to set a custom error message		done
-
 	- add variable names <-> register mapping to debug information
 	- expose rich debug info to JavaScript API
 	- smarter algorithm in `spn_dbg_get_raw_source_location()` (no linear search)
 	- add and interactive debugger function to the standard library
 
+System/integration/installation:
+	- invent a (platform-specific) path to store Sparkling library code in
+	  (e.g. functional stuff, the current contents of verifyAST.spn, etc.)			DONE
+
 
 Language, syntax:
-	- Implement "switch" statement.
-	- is the context-free grammar in grammar.txt correct? especially with
-		regards to expressions (associativity, precedence!)				seems fine
-	- what's a better fit for the 3rd argument of cond-expr?
-		cond-expr (current, as in C) or assignment-expr (as in C++)?			won't change this
-	- write the specification (yeah)							done
-	- OO, classes? anyone wants them? good for performance - fields can be			no, seems contradict language philosophy
-		numbered at compile-time, names thrown away, no need for string
-		hashing (similarly to C `struct`s)
-	- Or at least namespaces?
-	- And how about one-line comments? // Do we need a comment that ends with \r\n?		done
-	- 'concat-equals' (..=) operator							done
-	- named constants, "enum"s (whatever you call them) (How? They can't be
-		referenced across object files unless they are put in the symbol
-		table - but in that case, they would have a significant (?) overhead...)
-		Edit: done, tested, no significant overhead compared to literals.		done
-	- arrays should be able to be indexed by any object (polymorphic hash function
-		based on pointers to an object)							done
-	- switch-case statement (with block syntax instead of labels: `case 0: { }' etc.)
-	- implement concatenation operator (..) in lexer & parser				done
-	- ...and add the `#` variadic argument operator (#0 is the first arg) (*)		done
-	- Do something with strings. How to access single characters in a string?
-		(maybe no built-in approach, only stdlib functions?)
-		Edit: implemented using the [] operator.					done
-	- variable declarations									done
-	- comma-separated variable declarations! `var i = 0, j = 1;`				done
-	- support C99- and C++-style in-loop variable initialization, as in:			done
-		for var i = 0; i < sizeof(arr); i++
 	- optimize chained concatenations (x .. y .. z .. foo .. bar ..quirk)
 		so that they aren't done in separate steps (as specified by the
 		associativity of the .. operator), because creating huge temp
 		strings in O(n ^ 2) is wasteful. Instead, these should be somehow
 		compiled into one great CONCAT_ALL(x, y, z, foo, bar, quirk)
 		instruction (yes, this needs VM support too)
-	- fill in array-expr in the grammar							done
-
-Parser:
-	- Fix source location markers in error reporting: Make the lexer and the
-	  parser report the ACTUAL line numbers, not the line number of the next
-	  token. Furthermore, report the column (character number) in the source too.
-
-	- Is it appropriate to always release the value of the current token if an
-		unexpected token is encountered (compilation error)? If it is not
-		released, then it will leak memory (what if we got an identifier or
-		a string instead of an expected operator or keyword?), right? But
-		what happens if it *is* released? Is this approach correct throughout
-		the implementation of the parser?						it seems correct
-	- array literals (@{}, @[], or something else? --> something else: {})			done
-	- support C99- and C++-style in-loop variable initialization (see above)		done
-	- include line number information in AST						done
-	- check some mistakes that are obvious to detect at compile time,
-		and throw errors (like assignment to rvalues, etc.)
-	- Use top-down operator precedence ("Pratt parser") for parsing expressions
-		instead of the currently purely recursive descent approach
 
 Compiler:
-	- IMPORTANT: FIX COMPILING SYMBOL STUBS. Currently I managed to get away with
-		treating every global symbol as a function (in the `compile_ident()'
-		function), but this is conceptually wrong. Also: use SPN_TYPE_FUNC
-		to represent lambda functions in the local symbol table  instead
-		of the current approach that uses SPN_TYPE_NUMBER and an integer
-		offset to represent the offset of the lambda within the bytecode.		done
-	- Related: add a facility to declare global non-function values (constants
-		only, since global variables are a nightmare.) This involves extending
-		the parser (a new keyword/file-scope statement), the compiler and the
-		virtual machine (a new VM opcode should be used for that, something
-		like SPN_INS_GLBCONST).								done
 	- support for warnings
-	- check for duplicate names in function arguments (issue a diagnostic)			done
 	- Issue a warning if a top-level expression (i. e. an expression statement)
 		is neither a function call, an assignment nor an increment/decrement
 		operation. Nothing else should be used as an expression statement,
 		really.
 	- Issue a warning when an assignment is used in the condition of an if,
 		while, do-while or for statement.
-	- Eliminate expression statements that have no side effects (i. e. check		ignore, too complex
-		the AST recursively for function calls, assignments and increment
-		or decrement operators. If none of them are found, then don't
-		emit code for the expression statement node.) Also, warn about it
-		because this is a potentially dangerous optimization.
-	- Do some basic constant folding on arithmetic and logical expressions and		ignore, too complex
-		on string concatenation as well.
-	- implement ++ and -- operators on array members					done
-	- implement break and continue statements						done
-	- Somehow calculate the total number of registers in `compile_funcdef()`		done
-		as well as in `compile_program()` (grep for "TODO 3" comments!)
-		We do have the number of local variables as
-		`rts_count(&cmp->lvars)`, but there are additional temporary
-		registers used by `compile_expr()` and its subroutines (for
-		computing intermediate results), and we need to take those
-		into account as well.
-	- do something with `if` statements that have no `else` part in order to		ignore, much work, little gain
-		avoid the extra 0-sized unconditional jump
-	- Pass back the symtab index of a just compiled lambda function				done
-		from `compile_funcdef()` to its caller so it can refer to it
-		using that index.
-	- Optimization: if at least one of the children of an expression AST node		done
-		is a temporary (i. e. it's a literal/constant or the result of
-		another sub-operation), then the register which the result of
-		that child resides in can be re-used as the destination register
-		of the current (parent) AST node, no need for an extra "push".
-	- pay attention to name collisions:
-		re-declared variables								done
-		re-defined functions								done
-	- Functions returning nothing should return `nil'.					done
-		(a. k. a., auto-insert `return nil` at the end of function
-		bodies and the main pgrogran too).
-	- recognize `argc` and implement its functionality					done
-	- use scoping (defined by blocks) for variable names					done
-		(idea: use a hashtable in compile_function and compile_block,
-		store variables of which the scope is only the current block,
-		remove them from "global" hash table when the current scope ends)
-	- use line number information in AST							done
 
-VM:
-	- Avoid repeatedly allocating and deallocating memory for arguments of			done
-		native functions (maybe use a stack of lazily allocated SpnValue
-		arrays? (allocate them when first needed, and not deallocate them
-		until the end of the program) --> done using an auto array
-	- Native functions should be included in the stack trace as well			done
-	- !!! EXAMINE AND TEST REFERENCE COUNTING !!! Specifically, does the			seems to work
-		"release(dst); *dst = *retain(src)" idiom work? What if the same
-		object is being assigned onto itself and its refcount is 1?
-		If it's deallocated then the freed pointer is retained, it's wrong.
-	- make strings compute their hash value on-demand and store it:				done
-		strings should be only hashed once, because they are immutable,
-		and it's also superfluous to hash them immediately upon creation
-		if they're never used as a key in an array. Basically, the
-		optimal solution looks like this:
-		
-		unsigned long hash_key(key)
-		{
-			if (is_string(key)) {
-				if (key->is_hashed == false) {
-					key->hash = hash_raw(key->c_string);
-					key->is_hashed = true;
-				}
-				
-				return key->hash;
-			}
-			
-			// etc., do something else with non-strings
-		}
-	
-	- hook object constructor and destructor functions in order to test memory		done
-		leaks and premature deallocation (there must be the same number
-		of calls to ctors and dtors)
-	- add the `#` variadic argument operator (#0 is the first arg)				done
-	- handle variadic arguments								incomplete
-	- Debugging info in the bytecode (to show meaningful information, i. e. line		***Urgent***
-		numbers, to the user instead of VM addresses when a runtime error
-		occurs. XXX: there could be a separate debug symbol file, in order
-		the real bytecode not to be cluttered and slowed down.)
-	- Enable user to get a stack trace while running or after a runtime error		done
-	- Symbol table in the bytecode for functions, lambdas and string constants,		done
-		in order the VM not to have to create a new SpnString
-		every time it reads the name of a function (before each call!)
-		or when it encounters a string constant.
-	- hate str[i|u]ct aliasing...								done
-	- ...and test the VM with various compilers, at various optimization levels,		done
-		with and without strict aliasing and vectorization turned on/off,
-		because **the VM stack needs to be steady and safe!**
-	- make the context API manage command-line arguments					done differently
-		(in order to get rid of those ugly global variables)
-	- in REPL, when a runtime error occurs: fix wrong assumption that it's always		done
-		the last node in the bytecode list that caused the failure
-
-Standard library:
-	- Related: class definition statement (with proper subclasses, properties,
-	  methods, etc.)
-	- Related: "import" statement that loads code (frameworks) dynamically
-
-	- `sort()` function for arrays (and generally array functions)				done
-	- add and/or implement more complex and inverse hyperbolic functions
-	- document the run-time error codes (-1 generally means "bad number			obsolete, we've got error messages
-		of arguments", but not always, etc.)
-	- add the documentation of currently unimplemented standard library			done
-		functions (especially those in libarray) once they are
-		implemented.
-	- provide proper access to the Sparkling engine (compilefile(),				done
-		compilestring(), etc. functions)
-	- check number of arguments in format strings						done
-	- complex mathematical functions (at least basic ones: conversion between		done
-		canonical and trigonometric form, absolute value, etc.)
-
-Miscellaneous:
-	- make convenience SpnValue constructors (spn_makeint, spn_makestring, etc.)		done
-		and use them throughout the code instead of directly setting types
-		and flags and values, for safety's sake.
-		*** Related: type checking functions (spn_isint(), spn_isfloat(),
-		spn_isstring, spn_isarray(), etc.) and convenience getters
-		(spn_getint(), spn_getfloat(), spn_getstring(),
-		spn_getstringlen(), etc.) are also wanted!
-	- add ability to load multiple source files						done
-	- rewrite the parser, compiler and runtime/VM error functions to take			done
-		format strings and variadic arguments
-	- feel sorry for flower boxes in parser.c						done
-	- add possibility to call Sparkling functions from C-land				done
+Standard library and other libs:
+	- more and better string support (e. g. string replacement, pattern
+	  searching, ...)
 	- C99 and POSIX-specific extension APIs (in addition to the "standard"
 		runtime support library)
-	- real error handling when `malloc()` fails instead of just `abort()`ing
-	- support for user info/custom objects							done
-	- remove non-const static variables							done
-	- Bindings for popular and useful C libraries: SQLite3, libxml2, cURL
-		(and perhaps even raw socket access), a graphics and/or GUI
-		library (SDL, GTK+ maybe?), regular expressions (POSIX/PCRE),
-		data compression and decompression (zip, tar, 7z, ...), media
-		metadata handling (ID3 tags!), a JSON parser, etc...
-	- do something with the `&& within ||' warning.						ignore false positives
-		That particular expression is why I have put the
-		`-Wno-error=logical-op-parentheses' flag in the Makefile. I am
-		sorry, but even in maths, AND has higher precedence than OR,
-		and I am not going to insert ((((even ((more) unreadable)
-		(superfluous) ((parentheses)))))) just becase clang is being picky.
-
+		- directory listing ("what files are in directory /X/Y?")
+		- permission (chmod) and user+group (chgroup) handling; + get[e]uid(),
+		  set[e]uid(), ...
+		- better date/time support (date operations; an actual, useful
+		  timer object; formatting and parsing)
+		- getopt (POSIX and C-style)
+		- process management, especially popen(), getpid(), ...
+	- functional stuff that requires closure (a la Python's functools)
+	- 'require()' and 'dynld()' should search SPN_LIBDIR for modules
+	- Bindings for popular and useful C libraries:
+		- cURL
+		- SQLite3
+		- a JSON parser/serializer
+		- SDL2										done
+		- compression (zip, tar, gz, ...)
+		- PCRE (people apparently love regexes)
+		- a UI/widget library (e.g. GTK+)

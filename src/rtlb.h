@@ -147,10 +147,13 @@
  * Function: the default class for functions
  */
 
-/* A convenience function that loads the entire standard library.
- * Please call this at most *once* on each virtual machine instance.
- * This registers all free functions, methods, properties and constants.
+/* A convenience function that loads the part of the standard library
+ * which is implemented in native code, in C.
+ * It registers some free functions, methods, properties and constants.
+ * It also generates the classes of built-in object types such as
+ * String, Array, HashMap and Function.
+ * Call this at most *once* on each virtual machine instance.
  */
-SPN_API void spn_load_stdlib(SpnVMachine *vm);
+SPN_API void spn_load_native_stdlib(SpnVMachine *vm);
 
 #endif /* SPN_RTLB_H */

@@ -8,7 +8,7 @@ Grammar notations:
 - Specifying a production (precedence level 0, lowest):
 
 	production = rule
-    
+
 - Listing compulsory, successive parts of a rule (precedence level 1):
 
 	part1 part2 part3 ... partN
@@ -18,7 +18,7 @@ Grammar notations:
 	rule1 | rule2 | rule3 | ... | ruleN
 
 - Quantifiers:
- 
+
 	? -- 0 or 1 ("optional")
 	* -- 0 or more ("optional, may be repeated")
 	+ -- 1 or more ("obligatory, may be repeated")
@@ -168,9 +168,9 @@ function-expr   = 'fn' argument-declaration-list function-body
 
 function-body   = block-statement | '->' expression
 
-array-literal   = '[' [ expression ( ',' expression )(*) ] ']'
+array-literal   = '[' [ expression ( ',' expression )(*) [ ',' ] ] ']'
 
-hashmap-literal = '{' [ key-val ( ',' key-val )(*) ] '}'
+hashmap-literal = '{' [ key-val ( ',' key-val )(*) [ ',' ] ] '}'
 
 key-val         = expression ':' expression
 
@@ -248,4 +248,3 @@ The same as in C:
 
 Sparkling source files preferably use UTF-8 (or ASCII), but nothing else is prohibited.
 (Read: please facilitate our lives and DO USE UTF-8, unless you really really can't.)
-

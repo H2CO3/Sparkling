@@ -1,3 +1,11 @@
+//
+// ast_validator.spn
+// This file is part of the Sparkling standard library.
+//
+// Created by Árpád Goretity on 03/03/2015
+// Licensed under the 2-clause BSD License
+//
+
 // Bracket subscripting with strings is used throughout the code
 // so that we do a raw key lookup. This is important because the
 // compiler does the same thing, so an attacker could in principle
@@ -7,7 +15,7 @@
 
 var validators = {};
 
-let validateNode = fn (node) {
+fn validateNode (node) {
 	if typeof node != "hashmap" {
 		return false;
 	}
@@ -29,9 +37,9 @@ let validateNode = fn (node) {
 	}
 
 	return false;
-};
+}
 
-let validateCompound = fn (node) {
+fn validateCompound (node) {
 	let children = node["children"];
 
 	if typeof children != "array" {
@@ -60,9 +68,9 @@ let validateCompound = fn (node) {
 	}
 
 	return true;
-};
+}
 
-let validateSimpleLoop = fn (node) {
+fn validateSimpleLoop (node) {
 	if not validateNode(node["cond"]) {
 		return false;
 	}
@@ -72,19 +80,19 @@ let validateSimpleLoop = fn (node) {
 	}
 
 	return node["body"]["type"] == "block";
-};
+}
 
-let validateBinOp = fn (node) {
+fn validateBinOp (node) {
 	return validateNode(node["left"]) and validateNode(node["right"]);
-};
+}
 
-let validatePrefix = fn (node) {
+fn validatePrefix (node) {
 	return validateNode(node["right"]);
-};
+}
 
-let validatePostIncDec = fn (node) {
+fn validatePostIncDec (node) {
 	return validateNode(node["left"]);
-};
+}
 
 validators["validators"] = {
 	// Statements
@@ -398,7 +406,8 @@ validators["validators"] = {
 	}
 };
 
-let verifyAST = fn (node) {
+// Public API
+extern validate_ast = fn (node) {
 	if typeof node != "hashmap" {
 		return false;
 	}
@@ -410,5 +419,3 @@ let verifyAST = fn (node) {
 
 	return validateNode(node);
 };
-
-return verifyAST($[0]);
