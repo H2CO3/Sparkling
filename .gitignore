@@ -3,7 +3,7 @@
 *.inc
 
 # Build directory
-bld/
+bld/*.o
 
 # Specific header created upon build
 spn.h
