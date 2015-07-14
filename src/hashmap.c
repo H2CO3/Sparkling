@@ -18,70 +18,76 @@
 #include "str.h"
 #include "private.h"
 
-/* An attempt to detect sizeof(unsigned long) at compile-time.
- * I'm not much into the C preprocessor, but since it computes
- * every integral expression using the widest integer known to
- * its corresponding C compiler, and that C compiler might not
- * have an integer type wide enough to represent 0x2fffffffffff,
- * the computation may overflow and the comparison will probably fail.
- * Hence we do a little workaround. The idea is this:
- * 1. ULONG_MAX is always >= 0xffffffff (guaranteed by C89).
- * 2. If ULONG_MAX == 0xffffffff, we're most probably on 32-bit.
- * 3. Else it's presumably safe to assume something more than
- *    32-bit and check if all the size primes fit into unsigned
- *    long, with a little bit of extra safety reserve.
- */
-#if ULONG_MAX > 0xffffffffu
-	#if ULONG_MAX >= 0x2fffffffffffu
-		#define ALL_SIZES_FIT 1
-	#else
-		#define ALL_SIZES_FIT 0
-	#endif /* ULONG_MAX >= 0x2fffffffffffu */
-#else
-	#define ALL_SIZES_FIT 0
-#endif /* ULONG_MAX > 0xffffffffu */
 
+typedef enum BucketState {
+	Fresh,
+	Occupied,
+	Recycled
+} BucketState;
 
 typedef struct Bucket {
 	SpnValue key;
 	SpnValue value;
-	struct Bucket *next;
+	BucketState state;
 } Bucket;
 
+static int bucket_is_part_of_cluster(const Bucket *bucket)
+{
+	return bucket->state != Fresh;
+}
+
+static int bucket_is_empty(const Bucket *bucket)
+{
+	return bucket->state != Occupied;
+}
+
+static int bucket_is_occupied(const Bucket *bucket)
+{
+	return bucket->state == Occupied;
+}
+
+/* retains key and value */
+static void insert_into_bucket(Bucket *bucket, const SpnValue *key, const SpnValue *value)
+{
+	assert(bucket_is_empty(bucket));
+
+	spn_value_retain(key);
+	spn_value_retain(value);
+
+	bucket->key = *key;
+	bucket->value = *value;
+
+	bucket->state = Occupied;
+}
+
+static void recycle_bucket(Bucket *bucket)
+{
+	/* deallocate key and value (RAII/DIRR),
+	 * then clean them by setting them to nil.
+	 */
+	spn_value_release(&bucket->key);
+	spn_value_release(&bucket->value);
+
+	bucket->key = spn_nilval;
+	bucket->value = spn_nilval;
+
+	/* mark as Recycled rather than Fresh because the latter
+	 * would terminate the linear probing prematurely
+	 */
+	bucket->state = Recycled;
+}
+
 struct SpnHashMap {
-	SpnObject   base;
-	unsigned    sizeindex;   /* index into 'sizes' array (see below)   */
-	size_t      keycount;    /* number of keys in the table            */
-	size_t      valcount;    /* number of non-nil values. <= keycount. */
-	Bucket     *buckets;     /* actual array for key-value pairs       */
+	SpnObject  base;
+	size_t     allocsize; /* number of buckets                */
+	size_t     count;     /* number of key-value pairs        */
+	Bucket    *buckets;   /* actual array for key-value pairs */
 };
 
 static void free_hashmap(void *obj);
-static void expand_or_rehash(SpnHashMap *hm, int always_expand);
+static void free_bucket_array(Bucket *buckets, size_t n);
+static void expand_and_rehash(SpnHashMap *hm);
 
-/* Hash table allocation sizes. These are primes of which
- * the ratio asymptotically approaches phi, the golden ratio.
- */
-static const unsigned long sizes[] = {
-	0x0,             0x3,             0x7,             0xD,
-	0x17,            0x29,            0x47,            0x7F,
-	0xBF,            0xFB,            0x17F,           0x277,
-	0x43F,           0x6BB,           0xAF3,           0x11AB,
-	0x1CB7,          0x2EB7,          0x4BF7,          0x79FF,
-	0xC5FB,          0x13FFF,         0x205FF,         0x345F7,
-	0x549EF,         0x88FD5,         0xDD9EF,         0x1669FF,
-	0x2441FF,        0x3AABFF,        0x5EEDFF,        0x9999F5,
-	0xF887FF,        0x19221FB,       0x28AA9D9,       0x41CCBE5,
-	0x6A777F7,       0xAC443EF,       0x116BB9EF,      0x1C2FFDF3,
-	0x2D9BB9FD,      0x49CBB7EF,      0x77676FE5,      0xC13327FF,
-#if ALL_SIZES_FIT
-	0x1389A97E3,     0x1F9CDBDF5,     0x3326855D7,     0x52C3613FF,
-	0x85E9E69EF,     0xD8AD47DF9,     0x15E972E7D5,    0x23744765E9,
-	0x395DBA4BFB,    0x5CD201B1F7,    0x962FBBFDFF,    0xF301BDADF7,
-	0x1893179ABF3,   0x27C333759E9,   0x40564B105F1,   0x68197E85FF9,
-	0xA86FC9967E5,   0x11089481C7E9,  0x1B8F911B2DFB,  0x2C98259CF549
-#endif /* ALL_SIZES_FIT */
-};
 
 static const SpnClass spn_class_hashmap = {
 	sizeof(SpnHashMap),
@@ -97,9 +103,8 @@ SpnHashMap *spn_hashmap_new()
 {
 	SpnHashMap *hm = spn_object_new(&spn_class_hashmap);
 
-	hm->sizeindex = 0;
-	hm->keycount = 0;
-	hm->valcount = 0;
+	hm->allocsize = 0;
+	hm->count = 0;
 	hm->buckets = NULL;
 
 	return hm;
@@ -108,20 +113,12 @@ SpnHashMap *spn_hashmap_new()
 static void free_hashmap(void *obj)
 {
 	SpnHashMap *hm = obj;
-	size_t allocsize = sizes[hm->sizeindex];
-	size_t i;
-
-	for (i = 0; i < allocsize; i++) {
-		spn_value_release(&hm->buckets[i].key);
-		spn_value_release(&hm->buckets[i].value);
-	}
-
-	free(hm->buckets);
+	free_bucket_array(hm->buckets, hm->allocsize);
 }
 
 size_t spn_hashmap_count(SpnHashMap *hm)
 {
-	return hm->valcount;
+	return hm->count;
 }
 
 SpnValue spn_makehashmap(void)
@@ -132,130 +129,85 @@ SpnValue spn_makehashmap(void)
 	return val;
 }
 
-static Bucket *find_key(Bucket *head, const SpnValue *key)
+
+/* Internal functions */
+
+static size_t hash_index(SpnHashMap *hm, const SpnValue *key)
 {
-	Bucket *node = head;
-	assert(node != NULL);
+	/* cannot index into empty table */
+	assert(hm->allocsize > 0);
 
-	do {
-		if (spn_value_equal(&node->key, key)) {
-			return node;
-		}
-
-		node = node->next;
-	} while (node != NULL);
-
-	return NULL;
+	/* TODO: ensure that hm->allocsize is a power of two */
+	return spn_hash_value(key) & (hm->allocsize - 1);
 }
 
-/* This returns '&buckets[headidx]' itself if possible (i. e. if
- * that slot is empty), and searches for a nearby node otherwise.
- * Since we consistently enforce a load factor strictly less than 1
- * (namely, 1 / phi ~= 3 / 5), this search should NEVER, EVER fail.
- *
- * Note that here the load factor means the ratio of slots that
- * contain a key. After deleting some items, it may be the case that
- * this is more than the perceived size of the hash table, i. e. the
- * number of non-nil values, regardless of whether they correspond
- * to a key.
+/* Returns a pointer to the bucket containing 'key',
+ * or NULL if the key is not in the hash table.
  */
-static Bucket *find_next_empty(Bucket *buckets, size_t headidx, size_t allocsize)
+static Bucket *find_key(SpnHashMap *hm, const SpnValue *key)
 {
-	size_t i = headidx, n = allocsize;
+	size_t h;
 
-	assert(headidx < allocsize);
+	/* do not try dividing by zero;
+	 * there are no entries in an empty table.
+	 */
+	if (hm->allocsize == 0) {
+		return NULL;
+	}
 
-	while (n--) {
-		Bucket *node = &buckets[i];
+	/* linear probing */
+	h = hash_index(hm, key);
 
-		if (isnil(&node->key)) {
-			assert(isnil(&node->value));
-			assert(node->next == NULL);
-			return node;
+	while (bucket_is_part_of_cluster(&hm->buckets[h])) {
+		/* only occupied buckets may contain a key-value pair */
+		if (bucket_is_occupied(&hm->buckets[h])
+		 && spn_value_equal(&hm->buckets[h].key, key)) {
+			return &hm->buckets[h];
 		}
 
-		i++;
-
-		/* wrap around end of table */
-		if (i >= allocsize) {
-			i = 0;
+		/* wrap around end of bucket array if necessary */
+		h++;
+		if (h >= hm->allocsize) {
+			h = 0;
 		}
 	}
 
-	assert("No empty slot found, infinite loop detected! Fatal error" == 0);
+	/* key was not found */
 	return NULL;
 }
 
+/* The public getter function */
 SpnValue spn_hashmap_get(SpnHashMap *hm, const SpnValue *key)
 {
-	Bucket *head, *node;
-	size_t index;
-	size_t allocsize = sizes[hm->sizeindex];
-
-	/* avoid division by 0 - an empty map has no values anyway */
-	if (allocsize == 0) {
-		return spn_nilval;
-	}
-
-	/* compute hash and get candidate bucket */
-	index = spn_hash_value(key) % allocsize;
-	head = &hm->buckets[index]; /* not NULL */
-	node = find_key(head, key);
+	Bucket *node = find_key(hm, key);
 	return node ? node->value : spn_nilval;
 }
 
+/* The public setter function */
 void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 {
-	Bucket *bucket, *fresh, *home;
-	unsigned long hash;
-	size_t index;
+	Bucket *bucket = find_key(hm, key);
+	size_t h;
 
-	assert(notnil(key));
-
-	/* Step 0: check degenerate cases and avoid division by 0 */
-	if (sizes[hm->sizeindex] == 0) {
-		/* inserting nil into an empty hash table is a no-op */
-		if (isnil(val)) {
-			return;
-		}
-
-		/* else we will need to make room for the value */
-		expand_or_rehash(hm, 1);
-	}
-
-	hash = spn_hash_value(key);
-	index = hash % sizes[hm->sizeindex];
-
-	/* Step 1: We search for a bucket that already contains the
-	 * key, becaue we need to replace the old value if it exists.
+	/* If key is already found in the table,
+	 * its corresponding value MUST be non-nil!
+	 * (since assigning nil to a value recycles its bucket.)
 	 */
-	bucket = find_key(&hm->buckets[index], key);
-
-	/* If key is already found in the table: */
 	if (bucket != NULL) {
-		/* check all possible cases:
-		 * 1. changing nil to nil is a no-op
-		 * 2. changing nil to non-nil means insertion
-		 * 3. changing non-nil to nil means removal
-		 * 4. changing non-nil to non-nil should be executed,
-		 *    but it doesn't affect the count of the values.
-		 *
-		 * The count of the keys is not changed here, though,
-		 * since we are re-using an existing key if possible.
-		 */
-		if (isnil(&bucket->value) && isnil(val)) {
-			return;
-		} else if (isnil(&bucket->value) && notnil(val)) {
-			hm->valcount++;
-		} else if (notnil(&bucket->value) && isnil(val)) {
-			hm->valcount--;
+		assert(notnil(&bucket->value));
+
+		if (notnil(val)) {
+			/* retain new before releasing old to ensure memory safety. */
+			spn_value_retain(val);
+			spn_value_release(&bucket->value);
+			bucket->value = *val;
+		} else {
+			/* assigning nil to a previously non-nil value: deletion */
+			hm->count--;
+			recycle_bucket(bucket);
 		}
 
-		/* don't touch key, just replace the value */
-		spn_value_retain(val);
-		spn_value_release(&bucket->value);
-		bucket->value = *val;
-
+		/* I'm outta here! */
 		return;
 	}
 
@@ -267,93 +219,97 @@ void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 	}
 
 	/* Step 3: Otherwise we'll need to insert it, so we increase
-	 * the counts and take ownership of the key and the value.
+	 * the count and take ownership of the key and the value.
 	 */
-	hm->keycount++;
-	hm->valcount++;
+	hm->count++;
 
-	spn_value_retain(key);
-	spn_value_retain(val);
-
-	/* When the load factor crosses 1 / phi (aka 5 / 8), we do
-	 * a complete rehash. If it's only the number of keys that
-	 * exceeded the maximal load factor, but the value count is
-	 * smaller than the maximal load factor, then the bucket
-	 * vector is not actually grown. Instead, the non-nil values
-	 * are reinserted into a table of the same size, freeing up
-	 * unused keys.
+	/* When the load factor crosses 1 / phi (approx. 5 / 8),
+	 * we do a complete rehash.
 	 *
-	 * If, however, the number of non-nil values is also greater
-	 * than the maximal load factor, then the array of vectors
-	 * is expanded before rehashing.
-	 *
-	 * This operation invalidates 'index' and 'hm->buckets'...
+	 * This operation invalidates 'hm->buckets'...
 	 */
-	if (8 * hm->keycount > 5 * sizes[hm->sizeindex]) {
-		expand_or_rehash(hm, 0);
+	if (8 * hm->count > 5 * hm->allocsize) {
+		expand_and_rehash(hm);
 	}
 
-	/* ...so we just re-compute them after the reallocation. */
-	index = hash % sizes[hm->sizeindex];
-	home = &hm->buckets[index];
+	/* ...so we just re-compute everything after the reallocation,
+	 * and perform linear probing.
+	 *
+	 * It is safe to call 'hash_index()' here, since count is at
+	 * least 1 because we just incremented it.
+	 */
+	h = hash_index(hm, key);
 
-	/* If the home position of the key is empty, we are done */
-	if (isnil(&home->key)) {
-		assert(isnil(&home->value));
-		assert(home->next == NULL);
+	/* if this assertion fires, then find_key() was
+	 * unable to correctly find an existing key.
+	 */
+	assert(bucket_is_empty(&hm->buckets[h])
+		|| !spn_value_equal(&hm->buckets[h].key, key));
 
-		home->key = *key;
-		home->value = *val;
-		return;
+	/* find first fresh or recycled bucket */
+	while (bucket_is_occupied(&hm->buckets[h])) {
+		/* wrap around end of array if needed */
+		h++;
+		if (h >= hm->allocsize) {
+			h = 0;
+		}
 	}
 
-	/* Else a collision happened, so we pick an empty/unused bucket
-	 * near 'index'. We then fill it in and link it into the chain.
+	/* set key and value of bucket (retaining both the
+	 * key and the value), then mark it as occupied
 	 */
-	fresh = find_next_empty(hm->buckets, index, sizes[hm->sizeindex]);
-	assert(fresh != NULL);
-	assert(fresh != home); /* avoid accidental circular self-references */
-	assert(fresh->next == NULL);
-	assert(isnil(&fresh->key));
-	assert(isnil(&fresh->value));
-
-	/* set key and value */
-	fresh->key = *key;
-	fresh->value = *val;
-
-	/* Insert fresh bucket into 2nd place of list. */
-	fresh->next = home->next;
-	home->next = fresh;
+	insert_into_bucket(&hm->buckets[h], key, val);
 }
 
-static void expand_or_rehash(SpnHashMap *hm, int always_expand)
+/* a helper for 'expand_and_rehash()' which
+ * allocates and initializes a bucket array.
+ */
+static Bucket *alloc_bucket_array(size_t n)
+{
+	Bucket *buckets = spn_malloc(n * sizeof buckets[0]);
+
+	size_t i;
+	for (i = 0; i < n; i++) {
+		buckets[i].key = spn_nilval;
+		buckets[i].value = spn_nilval;
+		buckets[i].state = Fresh;
+	}
+
+	return buckets;
+}
+
+static void free_bucket_array(Bucket *buckets, size_t n)
+{
+	size_t i;
+	for (i = 0; i < n; i++) {
+		spn_value_release(&buckets[i].key);
+		spn_value_release(&buckets[i].value);
+	}
+
+	free(buckets);
+}
+
+static void expand_and_rehash(SpnHashMap *hm)
 {
 	size_t oldsize, newsize, i;
 	Bucket *oldbuckets, *newbuckets;
 
-	oldsize = sizes[hm->sizeindex];
 	oldbuckets = hm->buckets;
+	oldsize = hm->allocsize;
 
-	/* check if there are indeed more values than healthy,
-	 * or it is just that too many keys have been deleted
+	/* Allocation size needs to be a power of two,
+	 * since masking is used for modulo division.
 	 */
-	if (8 * hm->valcount > 5 * oldsize || always_expand) {
-		hm->sizeindex++;
-
-		if (hm->sizeindex >= COUNT(sizes)) {
-			spn_die("exceeded maximal size of hashmap");
-		}
+	if (oldsize == 0) {
+		newsize = 8;
+	} else {
+		newsize = oldsize * 2;
 	}
 
-	newsize = sizes[hm->sizeindex];
-	newbuckets = spn_malloc(newsize * sizeof newbuckets[0]);
+	newbuckets = alloc_bucket_array(newsize);
 
-	/* the new bucket array starts out all empty */
-	for (i = 0; i < newsize; i++) {
-		newbuckets[i].key = spn_nilval;
-		newbuckets[i].value = spn_nilval;
-		newbuckets[i].next = NULL;
-	}
+	hm->buckets = newbuckets;
+	hm->allocsize = newsize;
 
 	/* When expanding, our situation is a little bit better
 	 * than a full-fledged insert, since we know that we are
@@ -364,57 +320,38 @@ static void expand_or_rehash(SpnHashMap *hm, int always_expand)
 	 * are trivially filtered out right within the loop.
 	 */
 	for (i = 0; i < oldsize; i++) {
-		size_t index;
-		Bucket *home, *bucket;
+		size_t h;
 
-		if (isnil(&oldbuckets[i].key)) {
+		/* do not re-insert empty (fresh or recycled) buckets */
+		if (bucket_is_empty(&oldbuckets[i])) {
 			continue;
 		}
 
-		/* If the key exists, but the value is nil, then
-		 * the value is conceptually not in the hash table.
-		 * So we just relinquish ownership of the value
-		 * and continue.
+		/* hash the key, insert into table using linear probing.
+		 * It is safe to call 'hash_index()' because newsize
+		 * is always strictly positive (in fact, it's >= 8).
 		 */
-		if (isnil(&oldbuckets[i].value)) {
-			spn_value_release(&oldbuckets[i].key);
-			continue;
+		h = hash_index(hm, &oldbuckets[i].key);
+
+		while (bucket_is_occupied(&newbuckets[h])) {
+			h++;
+			if (h >= newsize) {
+				h = 0;
+			}
 		}
 
-		/* find slot for new key-value pair */
-		index = spn_hash_value(&oldbuckets[i].key) % newsize;
-		home = &newbuckets[index];
+		/* some sanity checks */
+		assert(newbuckets[h].state == Fresh);
+		assert(bucket_is_occupied(&oldbuckets[i]));
 
-		/* if it's empty yet, we insert it and we're done */
-		if (isnil(&home->key)) {
-			assert(isnil(&home->value));
-			assert(home->next == NULL);
-
-			home->key   = oldbuckets[i].key;
-			home->value = oldbuckets[i].value;
-			continue;
-		}
-
-		/* else we find a nearby empty slot and link it into the list */
-		bucket = find_next_empty(newbuckets, index, newsize);
-
-		assert(bucket != NULL);
-		assert(bucket != home); /* avoid circular references */
-		assert(bucket->next == NULL);
-		assert(isnil(&bucket->key));
-		assert(isnil(&bucket->value));
-
-		/* perform insertion, no fiddling with ownership needed */
-		bucket->key   = oldbuckets[i].key;
-		bucket->value = oldbuckets[i].value;
-
-		/* link it in */
-		bucket->next = home->next;
-		home->next = bucket;
+		/* ownership transfer! */
+		newbuckets[h] = oldbuckets[i];
 	}
 
-	hm->keycount = hm->valcount;
-	hm->buckets = newbuckets;
+	/* we do not need to release individual old buckets
+	 * due to the ownership transfer mentioned above.
+	 * Hence, we just plain 'free()' the bucket array.
+	 */
 	free(oldbuckets);
 }
 
@@ -443,7 +380,7 @@ void spn_hashmap_set_strkey(SpnHashMap *hm, const char *key, const SpnValue *val
 
 size_t spn_hashmap_next(SpnHashMap *hm, size_t cursor, SpnValue *key, SpnValue *val)
 {
-	size_t size = sizes[hm->sizeindex];
+	size_t size = hm->allocsize;
 	size_t i;
 
 	for (i = cursor; i < size; i++) {
