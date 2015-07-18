@@ -386,7 +386,7 @@ size_t spn_hashmap_next(SpnHashMap *hm, size_t cursor, SpnValue *key, SpnValue *
 	for (i = cursor; i < size; i++) {
 		Bucket *bucket = &hm->buckets[i];
 
-		if (notnil(&bucket->value)) {
+		if (bucket_is_occupied(bucket)) {
 			*key = bucket->key;
 			*val = bucket->value;
 			return i + 1;

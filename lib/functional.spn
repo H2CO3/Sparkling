@@ -15,6 +15,12 @@ extern curry = fn (f) {
 // Just a little handy identity function
 extern identity = fn x -> x;
 
+// apply arguments in reverse order
+extern flip = fn f -> fn -> f.apply($.reverse());
+
+// call 'f()' with only first n arguments, ignoring the rest ('const')
+extern ignore = fn f n -> fn -> f.apply($.slice(0, n));
+
 // Operators
 extern op = {
 	concat: fn x y -> x .. y,
