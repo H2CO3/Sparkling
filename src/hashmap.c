@@ -46,6 +46,11 @@ static int bucket_is_occupied(const Bucket *bucket)
 	return bucket->state == Occupied;
 }
 
+static int bucket_is_recycled(const Bucket *bucket)
+{
+	return bucket->state == Recycled;
+}
+
 /* retains key and value */
 static void insert_into_bucket(Bucket *bucket, const SpnValue *key, const SpnValue *value)
 {
@@ -72,16 +77,17 @@ static void recycle_bucket(Bucket *bucket)
 	bucket->value = spn_nilval;
 
 	/* mark as Recycled rather than Fresh because the latter
-	 * would terminate the linear probing prematurely
+	 * would terminate the linear probing sequence prematurely
 	 */
 	bucket->state = Recycled;
 }
 
 struct SpnHashMap {
 	SpnObject  base;
-	size_t     allocsize; /* number of buckets                */
-	size_t     count;     /* number of key-value pairs        */
-	Bucket    *buckets;   /* actual array for key-value pairs */
+	size_t     allocsize;  /* number of buckets                */
+	size_t     count;      /* number of key-value pairs        */
+	size_t     n_recycled; /* number of recycled buckets       */
+	Bucket    *buckets;    /* actual array for key-value pairs */
 };
 
 static void free_hashmap(void *obj);
@@ -105,6 +111,7 @@ SpnHashMap *spn_hashmap_new()
 
 	hm->allocsize = 0;
 	hm->count = 0;
+	hm->n_recycled = 0;
 	hm->buckets = NULL;
 
 	return hm;
@@ -204,6 +211,7 @@ void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 		} else {
 			/* assigning nil to a previously non-nil value: deletion */
 			hm->count--;
+			hm->n_recycled++;
 			recycle_bucket(bucket);
 		}
 
@@ -228,7 +236,7 @@ void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 	 *
 	 * This operation invalidates 'hm->buckets'...
 	 */
-	if (8 * hm->count > 5 * hm->allocsize) {
+	if (8 * (hm->count + hm->n_recycled) > 5 * hm->allocsize) {
 		expand_and_rehash(hm);
 	}
 
@@ -256,8 +264,14 @@ void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 	}
 
 	/* set key and value of bucket (retaining both the
-	 * key and the value), then mark it as occupied
+	 * key and the value), then mark it as occupied.
+	 * If the bucket was Recycled previously (as opposed
+	 * to Fresh), and is now re-used, it's no longer dirty.
 	 */
+	if (bucket_is_recycled(&hm->buckets[h])) {
+		hm->n_recycled--;
+	}
+
 	insert_into_bucket(&hm->buckets[h], key, val);
 }
 
@@ -302,14 +316,17 @@ static void expand_and_rehash(SpnHashMap *hm)
 	 */
 	if (oldsize == 0) {
 		newsize = 8;
+	} else if (8 * hm->count > 5 * oldsize) {
+		newsize = oldsize * 2; /* we actually need more space */
 	} else {
-		newsize = oldsize * 2;
+		newsize = oldsize; /* we only need to get rid of "Recycled" buckets */
 	}
 
 	newbuckets = alloc_bucket_array(newsize);
 
 	hm->buckets = newbuckets;
 	hm->allocsize = newsize;
+	hm->n_recycled = 0; /* after reallocation, no "Recycled" buckets remain */
 
 	/* When expanding, our situation is a little bit better
 	 * than a full-fledged insert, since we know that we are
