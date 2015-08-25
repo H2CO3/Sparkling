@@ -5,6 +5,8 @@ Code:
 	- More documentation									***Urgent***
 	- More testing										***Urgent***
 
+	- Fix performance bug in hash table whereby searching after a lot of deletions
+	  takes quadratic time                                                      DONE
 	- grep for "TODO", "FIXME" and "XXX" in the source files
 	- REFACTOR (especially in vm.c), and try very hard not to exceed the
 		80-character line length limit.
@@ -36,8 +38,8 @@ Compiler:
 		while, do-while or for statement.
 
 Standard library and other libs:
-	- more and better string support (e. g. string replacement, pattern
-	  searching, ...)
+	- more and better string support (e.g. string replacement, pattern
+	  searching, "has prefix/suffix?" operation, trim leading/trailing whitespace, ...)
 	- C99 and POSIX-specific extension APIs (in addition to the "standard"
 		runtime support library)
 		- directory listing ("what files are in directory /X/Y?")
@@ -47,13 +49,16 @@ Standard library and other libs:
 		  timer object; formatting and parsing)
 		- getopt (POSIX and C-style)
 		- process management, especially popen(), getpid(), ...
+		- thread support
 	- functional stuff that requires closure (a la Python's functools)
 	- 'require()' and 'dynld()' should search SPN_LIBDIR for modules
 	- Bindings for popular and useful C libraries:
 		- cURL
 		- SQLite3
-		- a JSON parser/serializer
+		- a JSON parser/serializer                                                      done (YAJL)
+		- an XML parser/serializer
 		- SDL2										done
+		- Date/Time/Calendar support via the ICU library
 		- compression (zip, tar, gz, ...)
 		- PCRE (people apparently love regexes)
 		- a UI/widget library (e.g. GTK+)

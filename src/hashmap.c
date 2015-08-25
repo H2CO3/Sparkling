@@ -19,55 +19,50 @@
 #include "private.h"
 
 
-typedef enum BucketState {
-	Fresh,
-	Occupied,
-	Recycled
-} BucketState;
-
 typedef struct Bucket {
 	SpnValue key;
 	SpnValue value;
-	BucketState state;
 } Bucket;
 
-static int bucket_is_part_of_cluster(const Bucket *bucket)
+static int bucket_is_used(const Bucket *bucket)
 {
-	return bucket->state != Fresh;
+	/* nil key with non-nil val (or vice versa) is not allowed */
+	assert(isnil(&bucket->key) == isnil(&bucket->value));
+	return notnil(&bucket->key);
 }
 
 static int bucket_is_empty(const Bucket *bucket)
 {
-	return bucket->state != Occupied;
-}
-
-static int bucket_is_occupied(const Bucket *bucket)
-{
-	return bucket->state == Occupied;
-}
-
-static int bucket_is_recycled(const Bucket *bucket)
-{
-	return bucket->state == Recycled;
+	assert(isnil(&bucket->key) == isnil(&bucket->value));
+	return isnil(&bucket->key);
 }
 
 /* retains key and value */
-static void insert_into_bucket(Bucket *bucket, const SpnValue *key, const SpnValue *value)
+static void insert_into_bucket(
+	Bucket *bucket,
+	const SpnValue *key,
+	const SpnValue *value,
+	int should_retain
+)
 {
 	assert(bucket_is_empty(bucket));
+	assert(notnil(key));
+	assert(notnil(value));
 
-	spn_value_retain(key);
-	spn_value_retain(value);
+	if (should_retain) {
+		spn_value_retain(key);
+		spn_value_retain(value);
+	}
 
 	bucket->key = *key;
 	bucket->value = *value;
-
-	bucket->state = Occupied;
 }
 
-static void recycle_bucket(Bucket *bucket)
+static void erase_bucket(Bucket *bucket)
 {
-	/* deallocate key and value (RAII/DIRR),
+	assert(bucket_is_used(bucket));
+
+	/* relinquish ownership of key and value (RAII/DIRR),
 	 * then clean them by setting them to nil.
 	 */
 	spn_value_release(&bucket->key);
@@ -75,19 +70,14 @@ static void recycle_bucket(Bucket *bucket)
 
 	bucket->key = spn_nilval;
 	bucket->value = spn_nilval;
-
-	/* mark as Recycled rather than Fresh because the latter
-	 * would terminate the linear probing sequence prematurely
-	 */
-	bucket->state = Recycled;
 }
 
 struct SpnHashMap {
 	SpnObject  base;
-	size_t     allocsize;  /* number of buckets                */
-	size_t     count;      /* number of key-value pairs        */
-	size_t     n_recycled; /* number of recycled buckets       */
-	Bucket    *buckets;    /* actual array for key-value pairs */
+	Bucket    *buckets;         /* actual array for key-value pairs           */
+	size_t     allocsize;       /* number of buckets                          */
+	size_t     count;           /* number of key-value pairs                  */
+	size_t     max_hash_offset; /* global upper bound on number of collisions */
 };
 
 static void free_hashmap(void *obj);
@@ -109,10 +99,10 @@ SpnHashMap *spn_hashmap_new()
 {
 	SpnHashMap *hm = spn_object_new(&spn_class_hashmap);
 
+	hm->buckets = NULL;
 	hm->allocsize = 0;
 	hm->count = 0;
-	hm->n_recycled = 0;
-	hm->buckets = NULL;
+	hm->max_hash_offset = 0;
 
 	return hm;
 }
@@ -139,13 +129,22 @@ SpnValue spn_makehashmap(void)
 
 /* Internal functions */
 
+static size_t modulo_mask(SpnHashMap *hm)
+{
+	/* cannot index into empty table; allocsize must be a power of two */
+	assert(hm->allocsize > 0 && !(hm->allocsize & (hm->allocsize - 1)));
+	return hm->allocsize - 1;
+}
+
 static size_t hash_index(SpnHashMap *hm, const SpnValue *key)
 {
-	/* cannot index into empty table */
-	assert(hm->allocsize > 0);
+	return spn_hash_value(key) & modulo_mask(hm);
+}
 
-	/* TODO: ensure that hm->allocsize is a power of two */
-	return spn_hash_value(key) & (hm->allocsize - 1);
+static int should_rehash(SpnHashMap *hm)
+{
+	/* keep load factor below 0.75 */
+	return hm->allocsize == 0 || hm->count > hm->allocsize * 3 / 4;
 }
 
 /* Returns a pointer to the bucket containing 'key',
@@ -153,7 +152,7 @@ static size_t hash_index(SpnHashMap *hm, const SpnValue *key)
  */
 static Bucket *find_key(SpnHashMap *hm, const SpnValue *key)
 {
-	size_t h;
+	size_t h, hash_offset;
 
 	/* do not try dividing by zero;
 	 * there are no entries in an empty table.
@@ -164,26 +163,57 @@ static Bucket *find_key(SpnHashMap *hm, const SpnValue *key)
 
 	/* linear probing */
 	h = hash_index(hm, key);
+	hash_offset = 0;
 
-	while (bucket_is_part_of_cluster(&hm->buckets[h])) {
+	do {
 		/* only occupied buckets may contain a key-value pair */
-		if (bucket_is_occupied(&hm->buckets[h])
+		if (bucket_is_used(&hm->buckets[h])
 		 && spn_value_equal(&hm->buckets[h].key, key)) {
 			return &hm->buckets[h];
 		}
 
 		/* wrap around end of bucket array if necessary */
-		h++;
-		if (h >= hm->allocsize) {
-			h = 0;
-		}
-	}
+		h = (h + 1) & modulo_mask(hm);
+		hash_offset++;
+	} while (hash_offset <= hm->max_hash_offset);
 
 	/* key was not found */
 	return NULL;
 }
 
-/* The public getter function */
+void insert_nonexistent_norehash(
+	SpnHashMap *hm,
+	const SpnValue *key,
+	const SpnValue *value,
+	int should_retain
+)
+{
+	size_t h, hash_offset;
+
+	assert(should_rehash(hm) == 0);    /* table must be large enough  */
+	assert(hm->count < hm->allocsize); /* there must be empty buckets */
+	assert(find_key(hm, key) == NULL); /* the key must not exist yet  */
+
+	h = hash_index(hm, key);
+	hash_offset = 0;
+
+	/* find an empty bucket */
+	while (bucket_is_used(&hm->buckets[h])) {
+		h = (h + 1) & modulo_mask(hm);
+		hash_offset++;
+	}
+
+	insert_into_bucket(&hm->buckets[h], key, value, should_retain);
+	assert(bucket_is_used(&hm->buckets[h]));
+
+	hm->count++;
+
+	if (hash_offset > hm->max_hash_offset) {
+		hm->max_hash_offset = hash_offset;
+	}
+}
+
+/* key public getter function */
 SpnValue spn_hashmap_get(SpnHashMap *hm, const SpnValue *key)
 {
 	Bucket *node = find_key(hm, key);
@@ -194,14 +224,13 @@ SpnValue spn_hashmap_get(SpnHashMap *hm, const SpnValue *key)
 void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 {
 	Bucket *bucket = find_key(hm, key);
-	size_t h;
 
 	/* If key is already found in the table,
 	 * its corresponding value MUST be non-nil!
 	 * (since assigning nil to a value recycles its bucket.)
 	 */
 	if (bucket != NULL) {
-		assert(notnil(&bucket->value));
+		assert(bucket_is_used(bucket));
 
 		if (notnil(val)) {
 			/* retain new before releasing old to ensure memory safety. */
@@ -211,8 +240,8 @@ void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 		} else {
 			/* assigning nil to a previously non-nil value: deletion */
 			hm->count--;
-			hm->n_recycled++;
-			recycle_bucket(bucket);
+			erase_bucket(bucket);
+			assert(bucket_is_empty(bucket));
 		}
 
 		/* I'm outta here! */
@@ -226,53 +255,16 @@ void spn_hashmap_set(SpnHashMap *hm, const SpnValue *key, const SpnValue *val)
 		return;
 	}
 
-	/* Step 3: Otherwise we'll need to insert it, so we increase
-	 * the count and take ownership of the key and the value.
+	/* Step 3: Otherwise we'll need to insert it.
+	 * When the load factor crosses 3/4, we perform a complete rehash.
+	 * This operation invalidates 'hm->buckets'.
 	 */
-	hm->count++;
-
-	/* When the load factor crosses 1 / phi (approx. 5 / 8),
-	 * we do a complete rehash.
-	 *
-	 * This operation invalidates 'hm->buckets'...
-	 */
-	if (8 * (hm->count + hm->n_recycled) > 5 * hm->allocsize) {
+	if (should_rehash(hm)) {
 		expand_and_rehash(hm);
 	}
 
-	/* ...so we just re-compute everything after the reallocation,
-	 * and perform linear probing.
-	 *
-	 * It is safe to call 'hash_index()' here, since count is at
-	 * least 1 because we just incremented it.
-	 */
-	h = hash_index(hm, key);
-
-	/* if this assertion fires, then find_key() was
-	 * unable to correctly find an existing key.
-	 */
-	assert(bucket_is_empty(&hm->buckets[h])
-		|| !spn_value_equal(&hm->buckets[h].key, key));
-
-	/* find first fresh or recycled bucket */
-	while (bucket_is_occupied(&hm->buckets[h])) {
-		/* wrap around end of array if needed */
-		h++;
-		if (h >= hm->allocsize) {
-			h = 0;
-		}
-	}
-
-	/* set key and value of bucket (retaining both the
-	 * key and the value), then mark it as occupied.
-	 * If the bucket was Recycled previously (as opposed
-	 * to Fresh), and is now re-used, it's no longer dirty.
-	 */
-	if (bucket_is_recycled(&hm->buckets[h])) {
-		hm->n_recycled--;
-	}
-
-	insert_into_bucket(&hm->buckets[h], key, val);
+	/* Finally, the new key is inserted */
+	insert_nonexistent_norehash(hm, key, val, 1);
 }
 
 /* a helper for 'expand_and_rehash()' which
@@ -286,7 +278,6 @@ static Bucket *alloc_bucket_array(size_t n)
 	for (i = 0; i < n; i++) {
 		buckets[i].key = spn_nilval;
 		buckets[i].value = spn_nilval;
-		buckets[i].state = Fresh;
 	}
 
 	return buckets;
@@ -305,28 +296,19 @@ static void free_bucket_array(Bucket *buckets, size_t n)
 
 static void expand_and_rehash(SpnHashMap *hm)
 {
-	size_t oldsize, newsize, i;
-	Bucket *oldbuckets, *newbuckets;
-
-	oldbuckets = hm->buckets;
-	oldsize = hm->allocsize;
+	Bucket *oldbuckets = hm->buckets;
+	size_t oldsize = hm->allocsize;
+	size_t i;
 
 	/* Allocation size needs to be a power of two,
 	 * since masking is used for modulo division.
 	 */
-	if (oldsize == 0) {
-		newsize = 8;
-	} else if (8 * hm->count > 5 * oldsize) {
-		newsize = oldsize * 2; /* we actually need more space */
-	} else {
-		newsize = oldsize; /* we only need to get rid of "Recycled" buckets */
-	}
+	hm->allocsize = oldsize ? oldsize * 2 : 8;
+	hm->buckets = alloc_bucket_array(hm->allocsize);
 
-	newbuckets = alloc_bucket_array(newsize);
-
-	hm->buckets = newbuckets;
-	hm->allocsize = newsize;
-	hm->n_recycled = 0; /* after reallocation, no "Recycled" buckets remain */
+	/* Reset internal state */
+	hm->count = 0;
+	hm->max_hash_offset = 0;
 
 	/* When expanding, our situation is a little bit better
 	 * than a full-fledged insert, since we know that we are
@@ -337,37 +319,15 @@ static void expand_and_rehash(SpnHashMap *hm)
 	 * are trivially filtered out right within the loop.
 	 */
 	for (i = 0; i < oldsize; i++) {
-		size_t h;
-
-		/* do not re-insert empty (fresh or recycled) buckets */
-		if (bucket_is_empty(&oldbuckets[i])) {
-			continue;
+		/* only re-insert non-empty (used) buckets */
+		if (bucket_is_used(&oldbuckets[i])) {
+			/* do not retain - ownership transfer (move) is performed */
+			insert_nonexistent_norehash(hm, &oldbuckets[i].key, &oldbuckets[i].value, 0);
 		}
-
-		/* hash the key, insert into table using linear probing.
-		 * It is safe to call 'hash_index()' because newsize
-		 * is always strictly positive (in fact, it's >= 8).
-		 */
-		h = hash_index(hm, &oldbuckets[i].key);
-
-		while (bucket_is_occupied(&newbuckets[h])) {
-			h++;
-			if (h >= newsize) {
-				h = 0;
-			}
-		}
-
-		/* some sanity checks */
-		assert(newbuckets[h].state == Fresh);
-		assert(bucket_is_occupied(&oldbuckets[i]));
-
-		/* ownership transfer! */
-		newbuckets[h] = oldbuckets[i];
 	}
 
-	/* we do not need to release individual old buckets
-	 * due to the ownership transfer mentioned above.
-	 * Hence, we just plain 'free()' the bucket array.
+	/* no retains were caused by insert_nonexistent_norehash(),
+	 * so we don't need to explicitly release the keys and values.
 	 */
 	free(oldbuckets);
 }
@@ -403,7 +363,7 @@ size_t spn_hashmap_next(SpnHashMap *hm, size_t cursor, SpnValue *key, SpnValue *
 	for (i = cursor; i < size; i++) {
 		Bucket *bucket = &hm->buckets[i];
 
-		if (bucket_is_occupied(bucket)) {
+		if (bucket_is_used(bucket)) {
 			*key = bucket->key;
 			*val = bucket->value;
 			return i + 1;
