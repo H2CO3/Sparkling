@@ -834,8 +834,7 @@ static int rtlb_str_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	pos = strstr(haystack->cstr + off, needle->cstr);
-
-	*ret = makeint(pos != NULL ? pos - haystack->cstr : -1);
+	*ret = pos ? makeint(pos - haystack->cstr) : spn_nilval;
 
 	return 0;
 }
@@ -1846,7 +1845,7 @@ static int rtlb_arr_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		}
 	}
 
-	*ret = makeint(-1);
+	*ret = spn_nilval;
 	return 0;
 }
 
@@ -1895,7 +1894,7 @@ static int rtlb_pfind(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		}
 	}
 
-	*ret = makeint(-1);
+	*ret = spn_nilval;
 	return 0;
 }
 
@@ -2000,7 +1999,7 @@ static int rtlb_aux_bsearch(SpnValue *ret, SpnArray *arr, const SpnValue *elem,
 	 */
 	assert(lower == upper);
 
-	*ret = makeint(-1);
+	*ret = spn_nilval;
 	return 0;
 }
 
@@ -3176,13 +3175,9 @@ static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		break;
 	}
 	case 3: {
-#define FLOATVAL(f) (isint(f) ? intvalue(f) : floatvalue(f))
-
-		double begin = FLOATVAL(&argv[0]);
-		double end   = FLOATVAL(&argv[1]);
-		double step  = FLOATVAL(&argv[2]);
-
-#undef FLOATVAL
+		double begin = spn_floatvalue_f(&argv[0]);
+		double end   = spn_floatvalue_f(&argv[1]);
+		double step  = spn_floatvalue_f(&argv[2]);
 
 		long i;
 		double x;
@@ -3670,7 +3665,7 @@ static void loadlib_math(SpnVMachine *vm)
 	C[3].value = makefloat(M_PHI);
 
 	C[4].name = "M_INF";
-	C[4].value = makefloat(1.0 / 0.0);
+	C[4].value = makefloat(HUGE_VAL); /* should this be 1.0 / 0.0? */
 
 	C[5].name = "M_NAN";
 	C[5].value = makefloat(0.0 / 0.0);
@@ -4226,9 +4221,11 @@ static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *str;
 	long base;
+	long result;
+	char *endp;
 
-	if (argc < 1 || argc > 2) {
-		spn_ctx_runtime_error(ctx, "one or two arguments are required", NULL);
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting two arguments", NULL);
 		return -1;
 	}
 
@@ -4237,20 +4234,37 @@ static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	if (argc == 2 && !isint(&argv[1])) {
-		spn_ctx_runtime_error(ctx, "second argument must be an integer", NULL);
+	if (!isint(&argv[1]) && notnil(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument (base) must be an integer or nil", NULL);
 		return -3;
 	}
 
 	str = stringvalue(&argv[0]);
-	base = argc == 2 ? intvalue(&argv[1]) : 0;
+	base = isint(&argv[1]) ? intvalue(&argv[1]) : 0;
 
-	if (base == 1 || base < 0 || base > 36) {
-		spn_ctx_runtime_error(ctx, "second argument must be zero or between [2...36]", NULL);
+	if (
+		   isint(&argv[1]) && base <= 1 /* 0, 1 or negative base was specified */
+		|| base > 36 /* not enough Latin letters */
+	) {
+		spn_ctx_runtime_error(ctx, "base must be in the range [2...36]", NULL);
 		return -4;
 	}
 
-	*ret = makeint(strtol(str->cstr, NULL, base));
+	errno = 0;
+	result = strtol(str->cstr, &endp, base);
+
+	/* errno != 0 is used instead of errno == ERANGE,
+	 * for defensive programming purposes:
+	 * if a standard library implementation sets errno to other
+	 * values, we will still find the errors using this technique.
+	 */
+	if (endp == str->cstr || *endp != '\0' || errno != 0) {
+		/* error: no conversion, trailing garbage or overflow */
+		*ret = spn_nilval;
+	} else {
+		/* success */
+		*ret = makeint(result);
+	}
 
 	return 0;
 }
@@ -4258,6 +4272,8 @@ static int rtlb_toint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 static int rtlb_tofloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *str;
+	double result;
+	char *endp;
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
@@ -4271,7 +4287,16 @@ static int rtlb_tofloat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	str = stringvalue(&argv[0]);
 
-	*ret = makefloat(strtod(str->cstr, NULL));
+	/* errno = 0; */
+	result = strtod(str->cstr, &endp);
+
+	if (endp == str->cstr	|| *endp != '\0') {
+		/* error: no conversion or trailing garbage */
+		*ret = spn_nilval;
+	} else {
+		/* success (over- and underflow are not considered errors) */
+		*ret = makefloat(result);
+	}
 
 	return 0;
 }

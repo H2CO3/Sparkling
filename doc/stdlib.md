@@ -172,12 +172,12 @@ is to be called on a string as a method like this:
 where `str` is a string object, so the first parameter will always be
 bound to the string itself.
 
-    int find(string haystack, string needle [, int offset])
+    [ int | nil ] find(string haystack, string needle [, int offset])
 
 Searches for the first occurrence of `needle` in `haystack`, beginning from
 the `offset`th character (if given). If `offset` is negative, then it indexes
 the string *backwards,* i. e. the function will start searching from position
-`length - |offset|`, where `length` is the length of the string. Returns -1 if
+`length - |offset|`, where `length` is the length of the string. Returns `nil` if
 the target string could not be found.
 
     string substr(string str, int offset, int length)
@@ -231,19 +231,19 @@ The comparator function takes two arguments: two elements of the array to be
 compared. It must return `true` if its first argument compares less than the
 second one, and `false` otherwise.
 
-    int find(array arr, any element)
+    [ int | nil ] find(array arr, any element)
 
-Returns the index at which `element` is found in the array, or -1 if the
+Returns the index at which `element` is found in the array, or `nil` if the
 element can't be found in the array.
 
-    int pfind(array arr, function predicate)
+    [ int | nil ] pfind(array arr, function predicate)
 
 Returns the index of the first element for which `predicate` returns `true`.
-If no such element can be found, returns `-1`.
+If no such element can be found, returns `nil`.
 
-    int bsearch(array arr, any element [, function comparator])
+    [ int | nil ] bsearch(array arr, any element [, function comparator])
 
-Returns the index of `element` or -1 if the element is not contained in the
+Returns the index of `element` or `nil` if the element is not contained in the
 array. If a `comparator` function is specified, then it will be used to
 determine ordering: it is passed two distinct elements of the array, and it
 must return true if its first argument is "less than" (ordered before) its
@@ -587,17 +587,29 @@ Throws a runtime error upon failure.
 Compiles the AST representation of some already-parsed source code down to
 bytecode, returns the generated Sparkling function.
 
-    int toint(string str)
-    float tofloat(string str)
-    [ int | float ] tonumber(string str)
+    [ int | nil ] toint(string str, [ int | nil ] base)
+    [ float | nil ] tofloat(string str)
+    [ int | float | nil ] tonumber(string str)
 
 These convert the target string to an integer or a floating-point number.
 `tonumber()` tries to guess if the target string is a float or an int by
 searching for a radix point `.` and/or an exponent (`e` or `E`) in it.
 If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 
+`base` must be either `nil` or an integer between 2 and 36. If it is
+`nil`, then `toint()` will attempt to figure out the base based on the
+prefix of the string (e.g. `0x` means hexadecimal, `base = 16`).
+
+These functions return `nil` if the conversion fails because the string
+is not a valid textual representation of a number (e.g. empty string or
+inappropriate digits for base). Additionally, `toint()` returns `nil`
+if the conversion would result in a positive or negative overflow.
+`tofloat()` does not treat over- and underflow as errors; in the case of
+overflow, positive or negative infinity will be returned and underflow
+will result in a zero return value.
+
     any call(function fn, array argv)
-	any apply(function fn, array argv)
+    any apply(function fn, array argv)
 
 Calls the function `fn` with the elements of the `argv` array as arguments,
 returning the return value of `fn` itself. Throws an error if `argv` is not an
