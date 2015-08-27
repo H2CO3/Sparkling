@@ -4305,21 +4305,23 @@ static int rtlb_tonumber(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	SpnString *str;
 
-	if (argc != 1) {
-		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
 		return -1;
 	}
 
 	if (!isstring(&argv[0])) {
-		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		spn_ctx_runtime_error(ctx, "first argument must be a string", NULL);
 		return -2;
 	}
 
 	str = stringvalue(&argv[0]);
 
 	if (strpbrk(str->cstr, ".eE") != NULL) {
-		return rtlb_tofloat(ret, argc, argv, ctx);
+		assert(argc >= 1);
+		return rtlb_tofloat(ret, 1, argv, ctx);
 	} else {
+		assert(argc >= 2);
 		return rtlb_toint(ret, argc, argv, ctx);
 	}
 }

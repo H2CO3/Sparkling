@@ -589,7 +589,7 @@ bytecode, returns the generated Sparkling function.
 
     [ int | nil ] toint(string str, [ int | nil ] base)
     [ float | nil ] tofloat(string str)
-    [ int | float | nil ] tonumber(string str)
+    [ int | float | nil ] tonumber(string str, [ int | nil ] base)
 
 These convert the target string to an integer or a floating-point number.
 `tonumber()` tries to guess if the target string is a float or an int by
@@ -597,8 +597,9 @@ searching for a radix point `.` and/or an exponent (`e` or `E`) in it.
 If it finds one, it invokes `tofloat()`, otherwise it invokes `toint()`.
 
 `base` must be either `nil` or an integer between 2 and 36. If it is
-`nil`, then `toint()` will attempt to figure out the base based on the
-prefix of the string (e.g. `0x` means hexadecimal, `base = 16`).
+`nil`, then `toint()` and `tonumber()` will attempt to figure out the
+base based on the prefix of the string (e.g. `0x` means hexadecimal,
+`base = 16`).
 
 These functions return `nil` if the conversion fails because the string
 is not a valid textual representation of a number (e.g. empty string or
