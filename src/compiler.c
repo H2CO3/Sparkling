@@ -1087,6 +1087,10 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 	cmp->varstack = &vs_this;
 	cmp->nregs = 0;
 
+	/* loop control flow statements across function boundaries don't make sense */
+	cmp->is_in_loop = 0;
+	cmp->jumplist = NULL;
+
 	/* emit 'SPN_INS_FUNCTION' to bytecode */
 	emit_ins_void(cmp, SPN_INS_FUNCTION);
 
