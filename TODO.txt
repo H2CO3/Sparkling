@@ -21,6 +21,10 @@ System/integration/installation:
 
 
 Language, syntax:
+	- Permit variable declarations in the condition of 'if' and 'while' statements
+
+	- Implement macros.
+
 	- optimize chained concatenations (x .. y .. z .. foo .. bar ..quirk)
 		so that they aren't done in separate steps (as specified by the
 		associativity of the .. operator), because creating huge temp

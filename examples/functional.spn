@@ -13,15 +13,15 @@ stdout.printf("%d < %d -> %B\n", a, b, lessThan(a, b));
 stdout.printf("%d > %d -> %B\n", a, b, greaterThan(a, b));
 
 # takes a function 'f' and returns a new function which calls 'f'
-# with the rest of the arguments of 'curry()' and its own arguments.
-fn curry (f) {
+# with the rest of the arguments of 'partial()' and its own arguments.
+fn partial (f) {
 	let rest = $.slice(1);
 	return fn -> f.call(rest.concat($));
 }
 
 let adder = fn -> $.reduce(0, fn a b -> a + b);
 
-let addsix = curry(adder, 1, 2, 3);
+let addsix = partial(adder, 1, 2, 3);
 
 print("(1 + 2 + 3) + (4 + 5 + 6 + 7) = ", addsix(4, 5, 6, 7));
 

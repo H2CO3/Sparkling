@@ -7,7 +7,7 @@
 //
 
 // Partial function application
-extern curry = fn (f) {
+extern partial = fn (f) {
 	let args = $.slice(1);
 	return fn -> f.apply(args.concat($));
 };
