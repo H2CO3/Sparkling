@@ -70,7 +70,7 @@ Why Sparkling?
 - Friendly: automatic memory management
 - Extensible: simple and flexible C API
 - Free: Sparkling is free software, the reference implementation is licensed
-  under the 2-clause BSD License (see LICENSE.txt for details).
+  under the GPL v3 or later (see COPYING for details).
 
 How do I use it?
 ================
