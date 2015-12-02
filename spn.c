@@ -11,9 +11,8 @@
 #include <stdlib.h>
 #include <stdarg.h>
 
-#if USE_READLINE
-#include <readline/readline.h>
-#include <readline/history.h>
+#if USE_LIBEDIT
+#include <editline/readline.h>
 #endif
 
 #if USE_ANSI_COLORS
@@ -345,7 +344,7 @@ static int run_args(int argc, char *argv[], enum cmd_args args)
 	return status;
 }
 
-#if USE_READLINE
+#if USE_LIBEDIT
 static char *history_file_name(void)
 {
 	char *history_path;
@@ -370,20 +369,20 @@ static char *history_file_name(void)
 
 	return history_path;
 }
-#endif /* USE_READLINE */
+#endif /* USE_LIBEDIT */
 
 static int enter_repl(enum cmd_args args)
 {
 	int session_no = 1;
 
-#if USE_READLINE
+#if USE_LIBEDIT
 	char *fhistory = history_file_name();
 #endif
 
 	SpnContext ctx;
 	spn_ctx_init(&ctx);
 
-#if USE_READLINE
+#if USE_LIBEDIT
 	/* try reading the history file */
 	read_history(fhistory);
 #endif
@@ -392,7 +391,7 @@ static int enter_repl(enum cmd_args args)
 		SpnValue ret;
 		int status;
 
-#if USE_READLINE
+#if USE_LIBEDIT
 		char *buf;
 
 		/* 32 characters are enough for 'spn:> ' and the 0-terminator;
@@ -403,7 +402,7 @@ static int enter_repl(enum cmd_args args)
 		static char buf[LINE_MAX];
 #endif
 
-#if USE_READLINE
+#if USE_LIBEDIT
 		sprintf(prompt, "spn:%d> ", session_no);
 		fflush(stdout);
 
@@ -484,7 +483,7 @@ static int enter_repl(enum cmd_args args)
 			spn_value_release(&ret);
 		}
 
-#if USE_READLINE
+#if USE_LIBEDIT
 		free(buf);
 #endif
 
@@ -493,7 +492,7 @@ static int enter_repl(enum cmd_args args)
 
 	spn_ctx_free(&ctx);
 
-#if USE_READLINE
+#if USE_LIBEDIT
 	write_history(fhistory);
 	free(fhistory);
 #endif

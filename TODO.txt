@@ -5,15 +5,21 @@ Code:
 	- More documentation									***Urgent***
 	- More testing										***Urgent***
 
+	- REFACTOR the VM! (dispatch_loop()'s cases into functions)
+		- Do it in a test-driven manner, since it's CRITICAL
+			- One instruction a time, exhaustive testing (cover ALL
+			  code paths!), before AND after
+
 	- Fix performance bug in hash table whereby searching after a lot of deletions
 	  takes quadratic time                                                      DONE
 	- grep for "TODO", "FIXME" and "XXX" in the source files
-	- REFACTOR (especially in vm.c), and try very hard not to exceed the
-		80-character line length limit.
 	- add variable names <-> register mapping to debug information
 	- expose rich debug info to JavaScript API
 	- smarter algorithm in `spn_dbg_get_raw_source_location()` (no linear search)
 	- add and interactive debugger function to the standard library
+
+VM:
+	- Weak references for deallocating cyclic references
 
 System/integration/installation:
 	- invent a (platform-specific) path to store Sparkling library code in
@@ -42,8 +48,10 @@ Compiler:
 		while, do-while or for statement.
 
 Standard library and other libs:
-	- more and better string support (e.g. string replacement, pattern
-	  searching, "has prefix/suffix?" operation, trim leading/trailing whitespace, ...)
+	- more and better string support
+		- Unicode support!
+		- Library: e.g. string replacement, pattern searching,
+		"has prefix/suffix?" operation, trim leading/trailing whitespace, ...
 	- C99 and POSIX-specific extension APIs (in addition to the "standard"
 		runtime support library)
 		- directory listing ("what files are in directory /X/Y?")

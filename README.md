@@ -194,8 +194,8 @@ possible solution, respectively:
 
  - The compiler and/or the linker may need an explicit (or different)
    development sysroot to be specified, perhaps using the `-isysroot` flag.
- - The use of the readline library can be turned off if it isn't installed
-   on your platform (just `make READLINE=0`). This does not affect the behavior
+ - The use of the editline library can be turned off if it isn't installed
+   on your platform (just `make LIBEDIT=0`). This does not affect the behavior
    of the library (since the library itself doesn't depend on any 3rd-party
    libraries), only the usage of the REPL will be less convenient.
  - In order to create a shared library, position-independent code must be

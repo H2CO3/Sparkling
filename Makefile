@@ -1,9 +1,9 @@
 # change this variable only! should be 'debug' or 'release' (without quotes)
 BUILD ?= debug
 
-# this should reflect if libreadline is to be used. Defaulting to yes;
-# if it doesn't compile with readline enabled, then try turning it off.
-READLINE ?= 1
+# this should reflect if libedit is to be used. Defaulting to yes;
+# if it doesn't compile with libedit enabled, then try turning it off.
+LIBEDIT ?= 1
 
 # if the terminal supports ANSI color codes, then the Sparkling REPL
 # will attempt to print error messages and return values in color.
@@ -63,11 +63,11 @@ WARNINGS = -Wall -Wextra -Werror $(EXTRA_WARNINGS)
 CFLAGS += -c -std=c89 -pedantic -fpic -fstrict-aliasing $(WARNINGS) $(DEFINES)
 
 # Enable/disable user-defined features
-ifneq ($(READLINE), 0)
-	DEFINES += -DUSE_READLINE=1
-	LIBS += -lreadline
+ifneq ($(LIBEDIT), 0)
+	DEFINES += -DUSE_LIBEDIT=1
+	LIBS += -ledit
 else
-	DEFINES += -DUSE_READLINE=0
+	DEFINES += -DUSE_LIBEDIT=0
 endif
 
 ifneq ($(ANSI_COLORS), 0)
