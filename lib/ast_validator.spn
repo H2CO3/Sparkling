@@ -13,7 +13,7 @@
 // property getter functions.
 // Then the interpreter could be crashed or otherwise exploited.
 
-var validators = {};
+let validators = {};
 
 fn validateNode (node) {
 	if typeof node != "hashmap" {
@@ -61,7 +61,7 @@ fn validateCompound (node) {
 	// return children.all(fn (child) {
 	// 	 return typeof child == "hashmap" and validateNode(child);
 	// });
-	for (var i = 0; i < children.length; i++) {
+	for let i = 0; i < children.length; i++ {
 		if not validateNode(children[i]) {
 			return false;
 		}
@@ -172,7 +172,7 @@ validators["validators"] = {
 			return false;
 		}
 
-		for (var i = 0; i < children.length; i++) {
+		for let i = 0; i < children.length; i++ {
 			let child = children[i];
 
 			if typeof child != "hashmap" {
@@ -202,7 +202,7 @@ validators["validators"] = {
 			return false;
 		}
 
-		for (var i = 0; i < children.length; i++) {
+		for let i = 0; i < children.length; i++ {
 			let child = children[i];
 
 			if typeof child != "hashmap" {
@@ -301,7 +301,7 @@ validators["validators"] = {
 			return false;
 		}
 
-		for (var i = 0; i < children.length; i++) {
+		for let i = 0; i < children.length; i++ {
 			if not validateNode(children[i]) {
 				return false;
 			}
@@ -338,7 +338,7 @@ validators["validators"] = {
 			return false;
 		}
 
-		for (var i = 0; i < children.length; i++) {
+		for let i = 0; i < children.length; i++ {
 			if not validateNode(children[i]) {
 				return false;
 			}
@@ -354,7 +354,7 @@ validators["validators"] = {
 			return false;
 		}
 
-		for (var i = 0; i < children.length; i++) {
+		for let i = 0; i < children.length; i++ {
 			let child = children[i];
 
 			if typeof child != "hashmap" {
@@ -396,7 +396,7 @@ validators["validators"] = {
 			return false;
 		}
 
-		for (var i = 0; i < declargs.length; i++) {
+		for let i = 0; i < declargs.length; i++ {
 			if typeof declargs[i] != "string" {
 				return false;
 			}

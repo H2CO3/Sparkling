@@ -1,6 +1,6 @@
 # Assignments, multiple assignments
 
-var a, b, c, d, e, f;
+let a, b, c, d, e, f;
 a = 0;
 b = 1;
 c = 2;

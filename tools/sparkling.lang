@@ -37,7 +37,6 @@
 		</context>
 
     <context id="literals" style-ref="literal">
-      <keyword>null</keyword>
       <keyword>nil</keyword>
       <keyword>true</keyword>
       <keyword>false</keyword>
@@ -47,7 +46,6 @@
       <keyword>not</keyword>
       <keyword>and</keyword>
       <keyword>or</keyword>
-      <keyword>var</keyword>
       <keyword>let</keyword>
       <keyword>extern</keyword>
       <keyword>break</keyword>

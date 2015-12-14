@@ -61,10 +61,10 @@
 
 (defvar sparkling-font-lock-keywords
   (list
-   '("\\<\\(and\\|break\\|continue\\|do\\|e\\(lse\\|xtern\\)\\|f\\(n\\|or\\)\\|if\\|let\\|not\\|or\\|return\\|sizeof\\|typeof\\|var\\|while\\)\\>" . font-lock-keyword-face)
+   '("\\<\\(and\\|break\\|continue\\|do\\|e\\(lse\\|xtern\\)\\|f\\(n\\|or\\)\\|if\\|let\\|not\\|or\\|return\\|sizeof\\|typeof\\|while\\)\\>" . font-lock-keyword-face)
    '("\\('\\w*'\\)" . font-lock-variable-name-face)
    '("\\(\\\"\\(\\\\\"\\|[^\\\"]\\)*\\\"\\)" . font-lock-string-face)
-	 '("\\(nil\\|null\\|true\\|false\\)" . font-lock-constant-face)
+	 '("\\(nil\\|true\\|false\\)" . font-lock-constant-face)
    )
   "Syntax highlighting for Sparkling mode"
 )

@@ -1,0 +1,11 @@
+# this used to work but is now removed
+
+let i;
+
+for (i = 0; i < 10; i++) {
+	print(i);
+}
+
+for (let j = 0; j < 10; j++) {
+	print(j);
+}

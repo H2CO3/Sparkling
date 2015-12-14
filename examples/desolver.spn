@@ -9,10 +9,10 @@
 let solvede = fn (a, b, y0, yprime) {
 	let N = 10000;
 	let dx = (b - a) * 1.0 / N;
-	var xv = [], yv = [];
-	var s = y0;
+	let xv = [], yv = [];
+	let s = y0;
 
-	for (var i = 0; i <= N; i++) {
+	for let i = 0; i <= N; i++ {
 		let x = a + i * dx;
 		xv.push(x);
 		yv.push(s);
@@ -93,6 +93,6 @@ if typeof yprime != "function" {
 let sol = solvede(a, b, y0, yprime);
 
 stdout.printf("x\ty\n");
-for (var i = 0; i < sol.x.length; i++) {
+for let i = 0; i < sol.x.length; i++ {
 	stdout.printf("%f\t%f\n", sol.x[i], sol.y[i]);
 }

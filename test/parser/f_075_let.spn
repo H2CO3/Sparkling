@@ -1,0 +1,7 @@
+# 'var' is not a reserved keyword anymore
+
+var a = 13;
+var b = 37;
+var c;
+var d;
+var x = 13, y = 37, z, w = 42;

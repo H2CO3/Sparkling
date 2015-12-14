@@ -27,5 +27,5 @@ let arrayMax = fn (arr) {
 print(arrayMax([ 3, 9, 2, 3, 1, 5, 4 ])); // 9
 
 // Arguments can even be 'nil'!
-var args = [ 1, 2, nil, 4 ];
+let args = [ 1, 2, nil, 4 ];
 print.call(args); // prints "12nil4"

@@ -6,7 +6,7 @@
  * Created by H2CO3 on 30/12/2013
  */
 
-var class = {};
+let class = {};
 
 // Constructor for complex numbers
 let Cplx = fn (self) {
@@ -52,9 +52,9 @@ class["toPolar"] = fn (self) {
 	return Cplx(can2pol(self));
 };
 
-var z1 = Cplx({ re: 1, im: -1 });
-var z2 = Cplx({ re: 2, im:  3 });
-var z3 = Cplx({ r:  2, theta: M_PI / 3 });
+let z1 = Cplx({ re: 1, im: -1 });
+let z2 = Cplx({ re: 2, im:  3 });
+let z3 = Cplx({ r:  2, theta: M_PI / 3 });
 
 stdout.printf("%s + %s = %s\n", z1.cfmt(), z2.cfmt(), z1.add(z2).cfmt());
 stdout.printf("%s - %s = %s\n", z1.cfmt(), z2.cfmt(), z1.sub(z2).cfmt());

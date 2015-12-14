@@ -19,7 +19,7 @@ A type in Sparkling is one of nil, boolean, number (either integer or
 floating-point), function, string, array, hashmap or user info.
 
 §1.4.1. The nil type denotes the lack of any other valid value. Its only
-possible value is `nil`, and a lexical synonym for the value `nil` is `null`.
+possible value is `nil`.
 
 §1.4.2. The boolean type is the result of a logical operation (as in elementary
 logic and Boolean algebra) or that of a comparison. It only has two possible
@@ -191,10 +191,7 @@ described in §1.6), but only in statements and expressions following the
 declaration. The variable is alive from the point where its identifier appears,
 and its value is initially `nil`. If there is an initializer expression, then
 it is evaluated and assigned to the variable. (Note: thus all of the
-statements `var x;`, `var x = nil;` and `var x = x;` mean the same thing).
-An alternate form of the variable declaration statement is using the `let`
-keyword, which is synonymous with `var`. An example of the alternate form is
-`let x = 3, y = 2;`
+statements `let x;`, `let x = nil;` and `let x = x;` mean the same thing).
 
 §2.10.2. It is illegal to declare a variable that has the name of a variable
 which already exists (which is already visible) in a scope inside the same
@@ -475,7 +472,7 @@ value identical to that identifier.
 §3.11.2. Scalar literals
 
 Non-compound (scalar) literals represent a single constant value. These include
-`nil` (or its synonym, `null`); decimal, octal and hexadecimal integer numbers,
+`nil`; decimal, octal and hexadecimal integer numbers,
 character constants (enclosed by apostrophes, interpreted as a big-endian
 integer number composed using the bytes of its characters), floating-point
 numbers, strings (enclosed between double quotation marks), and the Boolean

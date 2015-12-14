@@ -1,6 +1,0 @@
-var a = 13;
-var b = 37;
-var c;
-var d;
-// make sure 'argv' is not a reserved keyword anymore
-var argv = $;

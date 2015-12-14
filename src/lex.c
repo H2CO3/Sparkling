@@ -742,12 +742,10 @@ int spn_token_is_reserved(const char *str)
 		"let",
 		"nil",
 		"not",
-		"null",
 		"or",
 		"return",
 		"true",
 		"typeof",
-		"var",
 		"while"
 	};
 

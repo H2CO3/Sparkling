@@ -36,8 +36,6 @@ Sparkling is influenced by other programming languages, namely:
    think of V8, Nitro, SquirrelFish, SpiderMonkey, etc.), all of them consist
    of dozens or even hundreds of megabytes of sophisticated, overly complex
    code. There isn't any need for that in an embedded scripting language.
-   The only thing that Sparkling borrows from JavaScript is the keyword for
-   declaring variables: `var`.
  - **Other "default" mistakes** that almost every scripting language has had so
    far. For example, the exclusive use of floating-point numbers for arithmetic
    operations, even for integers. It's a well-known fact that floating-point

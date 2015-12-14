@@ -41,37 +41,33 @@ other tokens):
 - `let`
 - `nil`
 - `not`
-- `null`
 - `or`
 - `return`
 - `true`
 - `typeof`
-- `var`
 - `while`
 
 ## Variables
 
-All variables need to be declared with `var` or `let` before they
+All variables need to be declared with `let` before they
 can be used. Variables can be initialized when declared. For example:
 
-    var i = 10;
-    var j;
+    let i = 10;
+    let j;
 
 You can combine multiple declarations by separating them with commas:
 
-    var i, j;
+    let i, j;
     let foo = "bar", bar = "quirk";
 
 An identifier that is undeclared is assumed to refer to a global constant. It
 is not possible to assign to globals (for safety reasons), but it is possible
-to retrieve their value. (This is how function calls work.) Trying to acces an
-undefined global (or a global with the value `nil`) results in a runtime error.
+to retrieve their value. Trying to acces an undefined global or a global with
+the value `nil` results in a runtime error.
 
 Variable names and other identifiers can begin with a lowercase or capital
 English letter  (`a...z`, `A...Z`) or with an underscore (`_`), then any of
 `a...z`, `A...Z`, `0...9`, or `_` follows.
-
-By convention, variables declared with `let` are usually considered constants.
 
 ## Global Constants
 
@@ -118,7 +114,7 @@ character code). Indexing starts from zero.
 
 To get the number of bytes in a string, use the `length` property:
 
-    > var str = "hello"; print(str.length);
+    > let str = "hello"; print(str.length);
     5
 
 Character literals are enclosed between apostrophes: `'a'`
@@ -143,8 +139,8 @@ that can be used in string and character literals:
 
 To create an array you can write array literals:
 
-    var empty = [];
-    var primes = [ 2, 3, 5 ];
+    let empty = [];
+    let primes = [ 2, 3, 5 ];
 
 You can create an array contaning different types of values. Array indexing
 starts with zero.
@@ -154,7 +150,7 @@ starts with zero.
 
 It is also possible to modify an element in the array by assigning to it:
 
-    > var a = ["baz"];
+    > let a = ["baz"];
     > a[0] = "bar";
     > print(a[0]);
     bar
@@ -162,14 +158,14 @@ It is also possible to modify an element in the array by assigning to it:
 To get the number of elements in an array, use the `length` property –
 similarly to strings.
 
-    var arr = [ "foo", "bar", "baz" ];
+    let arr = [ "foo", "bar", "baz" ];
     print(arr.length);
 
 Prints `3`.
 
 To add an element to the array, use `push()`:
 
-	> var a = [];
+	> let a = [];
 	> a.push(1);
 	> a.push(2);
 	> a
@@ -180,7 +176,7 @@ To add an element to the array, use `push()`:
 
 Alternatively, assign to the one-past-last element of the array:
 
-    > var a = [];
+    > let a = [];
     > a[0] = 1;
     > a[a.length] = 2;
     > a
@@ -194,7 +190,7 @@ To remove the last element of a non-empty array, call `pop()`.
 You can remove an element from the middle of an array by calling its `erase`
 method with the appropriate index:
 
-    > var a = [ "foo", "bar", "baz" ];
+    > let a = [ "foo", "bar", "baz" ];
     > a.erase(1);
     > print(a);
     [
@@ -211,11 +207,11 @@ type and value.
 To create a hashmap, use hashmap literals. Keys and values are separated by a
 colon:
 
-    var words = { "cheese": "fromage", "apple": "pomme" };
+    let words = { "cheese": "fromage", "apple": "pomme" };
 
 It is even possible to intermix multiple types:
 
-    var mixed = { 0: "foo", "bar": "baz", 2: "quirk", "lol": 1337 };
+    let mixed = { 0: "foo", "bar": "baz", 2: "quirk", "lol": 1337 };
 
 Here, `"foo"` will have the key 0, `"baz"` corresponds to `"bar"`, `"quirk"` to
 2, and 1337 to `"lol"`.
@@ -260,7 +256,7 @@ Generally though, this shouldn't be needed very frequently.
 Use the `keys` and `values` methods of hashmaps to retrieve an array of
 all keys and all values, respectively. The following code snippet:
 
-    var a = { "foo": "bar", "baz": "quirk" };
+    let a = { "foo": "bar", "baz": "quirk" };
     print(a.keys());
     print(a.values());
 
@@ -299,13 +295,13 @@ Classes and objects can inherit from one another. If a method or property
 cannot be found on a particular object, then its ancestors are searched
 recursively, by means of the `"super"` key:
 
-	var superObj = {
+	let superObj = {
 		"foo": fn (self, n) {
 			print("n = ", n);
 		}
 	};
 
-	var other = {
+	let other = {
 		"super": superObj,
 		"bar": fn (self, k) {
 			print("k = ", k);
@@ -320,7 +316,7 @@ recursively, by means of the `"super"` key:
 Property accessors follow a special structure. A snippet of code is worth a
 thousand words:
 
-    var anObject = {
+    let anObject = {
         "awesumProperty": {
             "get": fn (self /*, name */) {
                 return self["backingMember"];
@@ -384,13 +380,7 @@ inside parentheses. Loops work in the same manner as those in C.
 
 `for` loop:
 
-    for var i = 0; i < 10; ++i { // the scope of i is the loop only
-        print(i);
-    }
-
-`for` loop with parentheses around the loop header:
-
-    for (var i = 0; i < 10; ++i) {
+    for let i = 0; i < 10; ++i { // the scope of i is the loop only
         print(i);
     }
 
@@ -402,7 +392,7 @@ inside parentheses. Loops work in the same manner as those in C.
 
 `do...while` loop:
 
-    var i = 0;
+    let i = 0;
     do {
         print(i++);
     } while i < 10;

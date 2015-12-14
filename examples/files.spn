@@ -7,14 +7,14 @@
  * created by Árpád Goretity on 30/09/2013
  */
 
-var f = fopen("stuff.txt", "wb");
+let f = fopen("stuff.txt", "wb");
 f.write("hello world");
 
 # when the file object is destroyed, it's closed automatically
 f = nil;
 
 f = fopen("stuff.txt", "rb");
-var l = f.getline();
+let l = f.getline();
 print(l);
 
 # so it's also closed upon exit

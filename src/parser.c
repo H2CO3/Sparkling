@@ -468,7 +468,6 @@ static SpnHashMap *parse_stmt(SpnParser *p, int is_global)
 		const char *token;              /* a token corresponding to a production... */
 		SpnHashMap *(*fn)(SpnParser *); /* ...and a parser function that implements it */
 	} parsers[] = {
-		{ "var",      parse_vardecl  },
 		{ "let",      parse_vardecl  },
 		{ "fn",       parse_fnstmt   },
 		{ "if",       parse_if       },
@@ -1012,8 +1011,7 @@ static SpnHashMap *parse_term(SpnParser *p)
 	}
 
 	/* literal nil */
-	if ((token = accept_token_string(p, "nil"))  != NULL
-	 || (token = accept_token_string(p, "null")) != NULL) {
+	if ((token = accept_token_string(p, "nil"))  != NULL) {
 		return ast_new("literal", token->location); /* 'value' is nil by default */
 	}
 
@@ -1557,7 +1555,6 @@ static SpnHashMap *parse_do(SpnParser *p)
 static SpnHashMap *parse_for(SpnParser *p)
 {
 	SpnHashMap *ast, *cond, *incr, *body;
-	int parens = 0;
 
 	/* skip 'for' */
 	SpnToken *token = accept_token_string(p, "for");
@@ -1565,12 +1562,8 @@ static SpnHashMap *parse_for(SpnParser *p)
 
 	ast = ast_new("for", token->location);
 
-	if (accept_token_string(p, "(")) {
-		parens = 1;
-	}
-
 	/* the initialization may be either an expression or a declaration */
-	if (is_at_token(p, "var") || is_at_token(p, "let")) {
+	if (is_at_token(p, "let")) {
 		SpnHashMap *init = parse_vardecl(p);
 
 		if (init == NULL) {
@@ -1617,12 +1610,6 @@ static SpnHashMap *parse_for(SpnParser *p)
 	}
 
 	ast_set_child_xfer(ast, "increment", incr);
-
-	if (parens && accept_token_string(p, ")") == NULL) {
-		parser_error(p, "expecting ')' after for loop header", NULL);
-		spn_object_release(ast);
-		return NULL;
-	}
 
 	body = parse_block_expecting(p, "body of for loop");
 	if (body == NULL) {
@@ -1693,12 +1680,11 @@ static SpnHashMap *parse_vardecl(SpnParser *p)
 	/* 'ast' is the head of the list */
 	SpnHashMap *ast;
 
-	/* skip "var" or "let" keyword */
-	int is_at_var = is_at_token(p, "var");
-	SpnToken *var = accept_token_string(p, is_at_var ? "var" : "let");
-	assert(var != NULL);
+	/* skip "let" keyword */
+	SpnToken *let = accept_token_string(p, "let");
+	assert(let != NULL);
 
-	ast = ast_new("vardecl", var->location);
+	ast = ast_new("vardecl", let->location);
 
 	do {
 		/* 'expr' is the optional initializer expression

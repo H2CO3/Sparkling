@@ -93,7 +93,7 @@ block-statement     = '{' statement (*) '}'
 
 loop-control-flow-statement = ( 'break' | 'continue' ) [ ';' ]
 
-variable-declaration  = 'var' | 'let' IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
+variable-declaration  = 'let' IDENT [ '=' expression ] ( ',' IDENT [ '=' expression ] )(*) ';'
 
 expression-statement  = expression ';'
 
@@ -182,8 +182,7 @@ literal  =   STRING   |
              FLOAT    |
             'true'    |
             'false'   |
-            'nil'     |
-            'null'
+            'nil'
 
 Reserved keywords
 ~~~~~~~~~~~~~~~~~
@@ -191,13 +190,11 @@ Reserved keywords
 and         else       if         return
             extern     let        true
 break       false      nil        typeof
-continue    fn         not        var
-do          for        null       while
-
+continue    fn         not        while
+do          for
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'
-tokens, respectively. Furthermore, 'null' is the same as 'nil' and 'let' is
-the same as 'var'.
+tokens, respectively.
 
 Literal tokens:
 ~~~~~~~~~~~~~~~
