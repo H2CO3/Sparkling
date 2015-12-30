@@ -182,6 +182,9 @@ If you are using Gedit for coding, install the `tools/sparkling.lang` file in
 the appropriate location to have Gedit recognize the syntax of Sparkling and
 apply syntax highlighting on your code.
 
+Notepad++ users can import `tools/sparkling-npp.xml` via
+**Language**->**Define your language...***->**[ Import... ]**
+
 Portability note:
 =================
 The **code** is portable and cross-platform (at least that is my aim), but the
