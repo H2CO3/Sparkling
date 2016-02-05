@@ -108,6 +108,11 @@
  */
 #define MAX_REG_FRAME	256
 
+/* number of bits in long. Might not be provided by <limits.h> */
+#ifndef LONG_BIT
+#define LONG_BIT (sizeof(long) * CHAR_BIT)
+#endif
+
 /* this is a common function so that the disassembler can use it too */
 SPN_API int nth_arg_idx(spn_uword *ip, int idx);
 

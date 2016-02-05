@@ -810,7 +810,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * retained, only its contents should be copied to the
 			 * destination register.
 			 *
-			 * offsets insetad of pointers are used here because
+			 * offsets instead of pointers are used here because
 			 * a function call (in particular, push_frame()) may
 			 * 'realloc()' the stack, thus rendering saved pointers
 			 * invalid.
@@ -2005,19 +2005,20 @@ static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 
 static long bitwise_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 {
-	long a, b;
+	unsigned long a, b; /* avoid UB upon shifting a 1 into the MSB */
 
 	assert(isint(lhs) && isint(rhs));
 
 	a = intvalue(lhs);
 	b = intvalue(rhs);
 
+	/* signed -> unsigned promotion is implementation-defined, not UB */
 	switch (op) {
 	case SPN_INS_AND: return a & b;
 	case SPN_INS_OR:  return a | b;
 	case SPN_INS_XOR: return a ^ b;
-	case SPN_INS_SHL: return a << b;
-	case SPN_INS_SHR: return a >> b;
+	case SPN_INS_SHL: return a << (b % LONG_BIT);
+	case SPN_INS_SHR: return a >> (b % LONG_BIT);
 	default: SHANT_BE_REACHED();
 	}
 

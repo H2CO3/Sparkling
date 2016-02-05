@@ -269,15 +269,8 @@ int spn_ctx_execobjdata(SpnContext *ctx, const void *objdata, size_t objsize, Sp
 
 int spn_ctx_callfunc(SpnContext *ctx, SpnFunction *func, SpnValue *ret, int argc, SpnValue argv[])
 {
-	int status;
-
-	ctx->errtype = SPN_ERROR_OK;
-
-	status = spn_vm_callfunc(ctx->vm, func, ret, argc, argv);
-	if (status != 0) {
-		ctx->errtype = SPN_ERROR_RUNTIME;
-	}
-
+	int status = spn_vm_callfunc(ctx->vm, func, ret, argc, argv);
+	ctx->errtype = status ? SPN_ERROR_RUNTIME : SPN_ERROR_OK;
 	return status;
 }
 
@@ -306,26 +299,14 @@ SpnFunction *spn_ctx_compile_expr(SpnContext *ctx, const char *expr, int debug)
 SpnHashMap *spn_ctx_parse(SpnContext *ctx, const char *src)
 {
 	SpnHashMap *ast = spn_parser_parse(&ctx->parser, src);
-
-	if (ast == NULL) {
-		ctx->errtype = SPN_ERROR_SYNTAX;
-	} else {
-		ctx->errtype = SPN_ERROR_OK;
-	}
-
+	ctx->errtype = ast ? SPN_ERROR_OK : SPN_ERROR_SYNTAX;
 	return ast;
 }
 
 SpnHashMap *spn_ctx_parse_expr(SpnContext *ctx, const char *src)
 {
 	SpnHashMap *ast = spn_parser_parse_expression(&ctx->parser, src);
-
-	if (ast == NULL) {
-		ctx->errtype = SPN_ERROR_SYNTAX;
-	} else {
-		ctx->errtype = SPN_ERROR_OK;
-	}
-
+	ctx->errtype = ast ? SPN_ERROR_OK : SPN_ERROR_SYNTAX;
 	return ast;
 }
 
