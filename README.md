@@ -185,6 +185,8 @@ apply syntax highlighting on your code.
 Notepad++ users can import `tools/sparkling-npp.xml` via
 **Language**->**Define your language...***->**[ Import... ]**
 
+Atom users can run the script `tools/sparkling-atom-install.sh`.
+
 Portability note:
 =================
 The **code** is portable and cross-platform (at least that is my aim), but the
@@ -209,10 +211,9 @@ possible solution, respectively:
    your own. (a properly configured IDE should accept and import the code as-is;
    most notably, if you are on Windows, then you are probably not using GCC or
    clang but an IDE and a compiler of which the name I don't even dare to
-   mention; in this case, drag'n'dropping the `src/` folder into your project
+   mention; in this case, drag 'n dropping the `src/` folder into your project
    should *still* work.)
 
 Happy programming!
 
 -- H2CO3
-

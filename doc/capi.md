@@ -209,7 +209,7 @@ Throws a runtime error if:
 2. if `fn` is a native function and it returns a non-zero status code.
 
 Script functions are tied to their top-level program, so if `fn` is not a
-native funciton, then it should be implemented in a translation unit that
+native function, then it should be implemented in a translation unit that
 has already been executed at least once.
 
 Returns the status code of `fn`.
@@ -221,7 +221,7 @@ It is used by the context API too, for the same purpose.**
 called function failed in some way or another), then your native extension
 function (the caller) is **obliged** to return an error code as well; there's
 no possibility for graceful error recovery. This is required because of an
-implmentation detail: each native function has its own "pseudo-frame" on the
+implementation detail: each native function has its own "pseudo-frame" on the
 call stack in order it to be shown in the stack trace if it returns an error
 status code. If it terminates normally, then this pseudo-frame is, of course,
 popped off of the call stack. If, however, the function reports an error, the
@@ -230,7 +230,7 @@ dummy frame isn't removed (so that the stack trace is complete).
 Now, if a non-native caller function tries to access its frame, this will
 lead to an off-by-one (or two, or however many functions do not follow this
 convention) error, and the caller will operate on the frame of another
-function, corrputing the stack.
+function, corrupting the stack.
 
 For the same reason, you must not attempt to call another function using
 `spn_vm_callfunc()` after a runtime error has occurred.
@@ -263,7 +263,7 @@ If you need user info (e. g. from within an extension function), use the
 These functions return the type, description and location in the source code
 of the last error that occurred in the context. If no error occurred, the error
 type is `SPN_ERROR_OK`, and in this case, the description is a `NULL` pointer,
-and the location is `{ line: 0, colum: 0 }`.
+and the location is `{ line: 0, column: 0 }`.
 
     SpnFunction *spn_ctx_compile_string(SpnContext *ctx, const char *str, int debug);
     SpnFunction *spn_ctx_compile_srcfile(SpnContext *ctx, const char *fname, int debug);
@@ -363,7 +363,7 @@ function, user info, string, array and hashmap. Strings, arrays, hashmaps,
 functions and user info values marked as such are object types (i. e. they have
 their `SPN_FLAG_OBJECT` flag set in the structure). It means that they are
 reference counted. As an implementation detail, it is required that if a native
-extension funcion returns a value of such an object type, then it shall own a
+extension function returns a value of such an object type, then it shall own a
 reference to it (because internally, it will be released by the virtual machine
 when it's not needed anymore). So, if, for example, one of the arguments is
 returned from a function (not impossible), then it should be retained.
@@ -374,7 +374,7 @@ In other words: the following is **wrong:**
     {
         if (argc > 0)
             *ret = argv[0];
-    
+
         return 0;
     }
 
@@ -386,7 +386,7 @@ This is how it should have been done:
             spn_value_retain(&argv[0]);
             *ret = argv[0];
         }
-    
+
         return 0;
     }
 
@@ -415,7 +415,7 @@ variable names, etc.
     void spn_dbg_set_filename(SpnHashMap *debug_info, const char *fname);
 
 By default, the compiler doesn't ask for a filename, even if it is generating
-debug information. (The reationale behind this design decision is that not
+debug information. (The rationale behind this design decision is that not
 all Sparkling programs may have been created from a file, and I didn't want
 to make the compiler api a complete pain to use.)
 

@@ -62,7 +62,7 @@ You can combine multiple declarations by separating them with commas:
 
 An identifier that is undeclared is assumed to refer to a global constant. It
 is not possible to assign to globals (for safety reasons), but it is possible
-to retrieve their value. Trying to acces an undefined global or a global with
+to retrieve their value. Trying to access an undefined global or a global with
 the value `nil` results in a runtime error.
 
 Variable names and other identifiers can begin with a lowercase or capital
@@ -77,7 +77,7 @@ the initializer expression to be non-`nil` (initializing a constant to `nil`
 will result in a runtime error).
 
     extern E_SQUARED = exp(2);
-    
+
     extern my_number = 1 + 2, my_string = "foobar";
 
     extern myLibrary = {
@@ -142,7 +142,7 @@ To create an array you can write array literals:
     let empty = [];
     let primes = [ 2, 3, 5 ];
 
-You can create an array contaning different types of values. Array indexing
+You can create an array containing different types of values. Array indexing
 starts with zero.
 
     > print([ 1, 2, 3, "hello" ][3]);
@@ -275,7 +275,7 @@ may output this:
 
 Sparkling contains syntactic (and somewhat semantic) sugar for treating certain
 values as objects. Some of the built-in types as well as user-defined values
-can be used in an object-oriented manner. More specificallly:
+can be used in an object-oriented manner. More specifically:
 
  - Strings, arrays and functions have built-in properties and a "class
    descriptor" which contains functions. These functions can be used as
@@ -399,7 +399,7 @@ inside parentheses. Loops work in the same manner as those in C.
 
 ## The if statement
 
-You don't need to wrap the condition of the `if` stament in parentheses either.
+You don't need to wrap the condition of the `if` statement in parentheses either.
 However, it is obligatory to use the curly braces around the body of the `if`
 and `else` statements:
 
@@ -631,4 +631,3 @@ libraries/modules/packages, call Sparkling functions from within a native
 extension function, and you can even run a Sparkling function as if it was
 the main program. For information on these features, please consult the
 C API reference in `capi.md`.
-
