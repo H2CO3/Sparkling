@@ -211,7 +211,7 @@ associated with the name cannot be changed after its initialization.
 The expression statement is a statement of which the only purpose is evaluating
 an expression. As a general advice, for clarity's sake, the top-level
 expression of an expression statement should only be a function call, an
-assignment or a pre- or postincrement or -decrement expression.
+assignment or a pre- or post-increment or -decrement expression.
 
 Expression statements are used primarily to perform side effects. Thus, if
 an expression in an expression statement has no side effects, it is allowed
@@ -252,7 +252,7 @@ evaluates and yields its third operand, and the second one stays unevaluated.
 Logical operators have short-circuiting behavior: if the result of the
 expression can be decided after evaluating the first operand, then the second
 operand is not evaluated. I. e., **neither** of the expressions below will
-evaulate `<subexpr>`:
+evaluate `<subexpr>`:
 
 	false && <subexpr>
 
@@ -392,7 +392,7 @@ arguments, and it yields the RHS, discarding the return value of the setter.
 Otherwise, it calls the appropriate getter method on the LHS, passing in the
 property name and yielding the return value of the getter.
 If the method (setter or getter) to be called is not defined in the class
-of the LHS for the proeprty name, or if the LHS has no class, and the LHS is
+of the LHS for the property name, or if the LHS has no class, and the LHS is
 not a hashmap, this operator raises a runtime error. Otherwise, if the LHS is
 a hashmap, then the member-of operator falls back to raw hashmap indexing
 (i. e. it yields or sets the value corresponding to the property name as
@@ -506,4 +506,3 @@ methods and properties can be found in the documentation of the standard
 library. The property `length` is worth mentioning separately. This read-only
 property only exists on strings, arrays and hashmaps, and yields their length
 in terms of bytes, values or key-value pairs, respectively.
-

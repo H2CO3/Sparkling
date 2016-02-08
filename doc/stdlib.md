@@ -91,8 +91,8 @@ that of `printf()` in the C standard library. Valid conversion specifiers are:
  such variable-length format specifier).
 
 If either an unrecognized conversion specifier is encountered, or an argument
-of incorrect (mismatching) type is found, or the argument list is exhaused
-(i. e. there are less convertible arguments passed to this function than the
+of incorrect (mismatching) type is found, or the argument list is exhausted
+(i.e. there are less convertible arguments passed to this function than the
 format string contains conversion specifiers), or the variable-length width
 and/or precision specifiers are not integers, this function throws a runtime
 error.
@@ -167,7 +167,7 @@ Consequently, a function "declared" in this manner:
 
 is to be called on a string as a method like this:
 
-    atr.method(arg_1, arg_2, ...)
+    str.method(arg_1, arg_2, ...)
 
 where `str` is a string object, so the first parameter will always be
 bound to the string itself.
@@ -176,13 +176,13 @@ bound to the string itself.
 
 Searches for the first occurrence of `needle` in `haystack`, beginning from
 the `offset`th character (if given). If `offset` is negative, then it indexes
-the string *backwards,* i. e. the function will start searching from position
+the string *backwards*, i. e. the function will start searching from position
 `length - |offset|`, where `length` is the length of the string. Returns `nil` if
 the target string could not be found.
 
     string substr(string str, int offset, int length)
 
-Creates a stubstring of length `length` starting from position `offset` (i. e.
+Creates a substring of length `length` starting from position `offset` (i. e.
 it copies the region `[offset, offset + length)` from the original string).
 
     string substrto(string str, int length);
@@ -400,7 +400,7 @@ of `zipwith` is roughly equivalent with the following:
         });
     }
 
-The following properties are available on arays:
+The following properties are available on arrays:
 
     int length
 
@@ -438,8 +438,8 @@ values in a particular hashmap.
 5. Real, integer and complex mathematical functions
 ---------------------------------------------------
 
-Function names are self-explanatory. A. k. a., "nobody ain't no time for
-writing the documentation". :) (will do this when I have some spare time.)
+Function names are self-explanatory, A.K.A. *ain't nobody got time* for
+writing the documentation. :) (will do this when I have some spare time.)
 
 Trigonometric functions take the angle in radians, arcus functions return it
 in radians. `round()`, `floor()` and `ceil()` return an `int`. `min()` and
@@ -510,10 +510,10 @@ Returns the value of the environment variable `name`, or `nil` if it's not set.
 
 Runs the command `cmd` in the shell, returns the exit status.
 
-    nil assert(bool cond [, string errmsg])
+    nil assert(bool cond [, string format_errmsg, ...])
 
 Evaluates `cond`, and if it is false, terminates the program, printing the
-error message to the standard error stream.
+formatted error message to the standard error stream.
 
     int time(void)
 
