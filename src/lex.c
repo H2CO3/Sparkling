@@ -739,6 +739,7 @@ int spn_token_is_reserved(const char *str)
 		"fn",
 		"for",
 		"if",
+		"in",
 		"let",
 		"nil",
 		"not",
