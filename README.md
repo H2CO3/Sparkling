@@ -185,6 +185,8 @@ apply syntax highlighting on your code.
 Notepad++ users can import `tools/sparkling-npp.xml` via
 **Language**->**Define your language...***->**[ Import... ]**
 
+Atom users can run the script `tools/sparkling-atom-install.sh`
+
 Portability note:
 =================
 The **code** is portable and cross-platform (at least that is my aim), but the
@@ -215,4 +217,3 @@ possible solution, respectively:
 Happy programming!
 
 -- H2CO3
-

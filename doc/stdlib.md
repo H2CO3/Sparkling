@@ -510,10 +510,10 @@ Returns the value of the environment variable `name`, or `nil` if it's not set.
 
 Runs the command `cmd` in the shell, returns the exit status.
 
-    nil assert(bool cond [, string errmsg])
+    nil assert(bool cond [, string format, ...])
 
 Evaluates `cond`, and if it is false, terminates the program, printing the
-error message to the standard error stream.
+formatted error message to the standard error stream.
 
     int time(void)
 
