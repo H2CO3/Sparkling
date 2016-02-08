@@ -3730,8 +3730,12 @@ static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	if (argc < 1 || argc > 2) {
-		spn_ctx_runtime_error(ctx, "expecting 1 or 2 arguments", NULL);
+	SpnString *fmt;
+	SpnString *res;
+	char *errmsg;
+
+	if (argc < 1) {
+		spn_ctx_runtime_error(ctx, "at least one argument is required", NULL);
 		return -1;
 	}
 
@@ -3740,18 +3744,31 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	if (argc >= 2 && !isstring(&argv[1])) {
-		spn_ctx_runtime_error(ctx, "error message must be a string", NULL);
-		return -2;
+	if (argc >= 2) {
+		if (!isstring(&argv[1])) {
+			spn_ctx_runtime_error(ctx, "error message must be a format string", NULL);
+			return -2;
+		}
+
+		fmt = stringvalue(&argv[1]);
+		res = spn_string_format_obj(fmt, argc - 2, &argv[2], &errmsg);
+
+		if (res == NULL) {
+			const void *args[1];
+			args[0] = errmsg;
+			spn_ctx_runtime_error(ctx, "error in format string: %s", args);
+			free(errmsg);
+			return -3;
+		}
 	}
 
 	/* actual assertion */
 	if (boolvalue(&argv[0]) == 0) {
 		if (argc >= 2) {
 			const void *args[1];
-			SpnString *msg = stringvalue(&argv[1]);
-			args[0] = msg->cstr;
+			args[0] = res->cstr;
 			spn_ctx_runtime_error(ctx, "assertion failed: %s", args);
+			spn_object_release(res);
 		} else {
 			spn_ctx_runtime_error(ctx, "assertion failed", NULL);
 		}
