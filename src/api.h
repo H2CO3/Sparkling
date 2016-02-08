@@ -126,14 +126,6 @@ SPN_API void spn_object_release(void *o);
  * (reference-counted generic values and corresponding types)
  */
 
-/* SPN_TFLG_PENDING denotes an unresolved reference to a global symbol.
- * This type is to be used exclusively in the local symbol table.
- * Any reference to such a symbol makes the Sparkling virtual machine attempt
- * to resolve the reference, and if it succeeds, it updates the symbol in the
- * local symbol table, then it loads the value as usual.
- * If the symbol cannot be resolved, a runtime error is generated.
- */
-
 
 #define SPN_MASK_TTAG 0x00ff
 #define SPN_MASK_FLAG 0xff00

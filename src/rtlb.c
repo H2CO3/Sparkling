@@ -3730,12 +3730,8 @@ static int rtlb_system(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
-	SpnString *fmt;
-	SpnString *res;
-	char *errmsg;
-
 	if (argc < 1) {
-		spn_ctx_runtime_error(ctx, "at least one argument is required", NULL);
+		spn_ctx_runtime_error(ctx, "expecting at least one argument", NULL);
 		return -1;
 	}
 
@@ -3744,39 +3740,42 @@ static int rtlb_assert(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
+	/* actual assertion */
+	if (boolvalue(&argv[0]) != 0) {
+		return 0;
+	}
+
+	/* if this path is reached, the assertion has failed. */
 	if (argc >= 2) {
+		SpnString *fmt;
+		SpnString *assert_errmsg;
+		char *fmt_errmsg;
+		const void *assert_args[1];
+
 		if (!isstring(&argv[1])) {
 			spn_ctx_runtime_error(ctx, "error message must be a format string", NULL);
 			return -2;
 		}
 
 		fmt = stringvalue(&argv[1]);
-		res = spn_string_format_obj(fmt, argc - 2, &argv[2], &errmsg);
+		assert_errmsg = spn_string_format_obj(fmt, argc - 2, &argv[2], &fmt_errmsg);
 
-		if (res == NULL) {
-			const void *args[1];
-			args[0] = errmsg;
-			spn_ctx_runtime_error(ctx, "error in format string: %s", args);
-			free(errmsg);
+		if (assert_errmsg == NULL) {
+			const void *fmt_args[1];
+			fmt_args[0] = fmt_errmsg;
+			spn_ctx_runtime_error(ctx, "error in format string: %s", fmt_args);
+			free(fmt_errmsg);
 			return -3;
 		}
+
+		assert_args[0] = assert_errmsg->cstr;
+		spn_ctx_runtime_error(ctx, "assertion failed: %s", assert_args);
+		spn_object_release(assert_errmsg);
+	} else {
+		spn_ctx_runtime_error(ctx, "assertion failed", NULL);
 	}
 
-	/* actual assertion */
-	if (boolvalue(&argv[0]) == 0) {
-		if (argc >= 2) {
-			const void *args[1];
-			args[0] = res->cstr;
-			spn_ctx_runtime_error(ctx, "assertion failed: %s", args);
-			spn_object_release(res);
-		} else {
-			spn_ctx_runtime_error(ctx, "assertion failed", NULL);
-		}
-
-		return -3;
-	}
-
-	return 0;
+	return -3;
 }
 
 static int rtlb_time(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
