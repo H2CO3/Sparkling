@@ -840,11 +840,11 @@ static int rtlb_str_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 }
 
 /* main _with function, used by startswith() and endswith() */
-static int rtlb_aux_pointswith(SpnValue *ret, int argc, SpnValue *argv, int start, void *ctx)
+static int rtlb_aux_pointswith(SpnValue *ret, int argc, SpnValue *argv, int end, void *ctx)
 {
 	SpnString *haystack, *needle;
 	const char *pos;
-	long offset = 0;
+	long offset;
 
 	if (argc != 2) {
 		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
@@ -860,17 +860,14 @@ static int rtlb_aux_pointswith(SpnValue *ret, int argc, SpnValue *argv, int star
 	needle = stringvalue(&argv[1]);
 
 	if (haystack->len < needle->len) {
-		spn_ctx_runtime_error(ctx, "needle must be shorter than haystack", NULL);
-		return -3;
+		*ret = spn_falseval;
+		return 0;
 	}
 
-	if (start != 0) {
-		offset = haystack->len - needle->len;
-	}
-
+	offset = end ? haystack->len - needle->len : 0;
 	pos = strstr(haystack->cstr + offset, needle->cstr);
-	*ret = pos == haystack->cstr + offset ? spn_trueval : spn_falseval;
 
+	*ret = pos == haystack->cstr + offset ? spn_trueval : spn_falseval;
 	return 0;
 }
 

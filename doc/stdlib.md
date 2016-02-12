@@ -182,8 +182,7 @@ the target string could not be found.
 
     bool startswith(string haystack, string needle)
 
-Returns `true` if the string `haystack` starts with `needle`. `needle` must be
-a shorter string than `haystack`.
+Returns `true` if the string `haystack` starts with `needle`.
 
     bool endswith(string haystack, string needle)
 
