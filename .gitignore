@@ -4,6 +4,10 @@
 
 # Build directory
 bld/*.o
+bld/*.a
+bld/*.dylib
+bld/*.dSYM
+bld/spn
 
 # Specific header created upon build
 spn.h

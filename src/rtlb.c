@@ -839,6 +839,51 @@ static int rtlb_str_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+/* main _with function, used by startswith() and endswith() */
+static int rtlb_aux_pointswith(SpnValue *ret, int argc, SpnValue *argv, int start, void *ctx)
+{
+	SpnString *haystack, *needle;
+	const char *pos;
+	long offset = 0;
+
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "exactly two arguments are required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0]) || !isstring(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "arguments must be strings", NULL);
+		return -2;
+	}
+
+	haystack = stringvalue(&argv[0]);
+	needle = stringvalue(&argv[1]);
+
+	if (haystack->len < needle->len) {
+		spn_ctx_runtime_error(ctx, "needle must be shorter than haystack", NULL);
+		return -3;
+	}
+
+	if (start != 0) {
+		offset = haystack->len - needle->len;
+	}
+
+	pos = strstr(haystack->cstr + offset, needle->cstr);
+	*ret = pos == haystack->cstr + offset ? spn_trueval : spn_falseval;
+
+	return 0;
+}
+
+static int rtlb_startswith(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_pointswith(ret, argc, argv, 0, ctx);
+}
+
+static int rtlb_endswith(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_pointswith(ret, argc, argv, 1, ctx);
+}
+
 /* main substring function, used by substr(), substrto() and substrfrom() */
 static int rtlb_aux_substr(SpnValue *ret, SpnString *str, long begin, long length, SpnContext *ctx)
 {
@@ -1132,6 +1177,8 @@ static void loadlib_string(SpnVMachine *vm)
 	/* Methods */
 	static const SpnExtFunc M[] = {
 		{ "find",       rtlb_str_find   },
+		{ "startswith", rtlb_startswith },
+		{ "endswith",   rtlb_endswith   },
 		{ "substr",     rtlb_substr     },
 		{ "substrto",   rtlb_substrto   },
 		{ "substrfrom", rtlb_substrfrom },
