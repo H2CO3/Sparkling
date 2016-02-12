@@ -100,8 +100,16 @@ There are more public API functions in the `Sparkling` module:
 
  - `compileExpr()` works similarly to `compile()`, but it treats the source
    text as an expression, not as a top-level program nor a statement.
- - `backtrace()` returns an array of strings that contain the names of the
-   functions on the call stack at the last runtime error.
+ - `backtrace()` returns an array of objects describing the state of the
+   call stack at the last runtime error. Each object corresponds to one stack
+	 frame. Stack frame objects have the following keys:
+	 - `function`: the name of the function of which the stack frame this object
+	   identifies.
+	 - `file`: the name of the file in which the function is defined, or "???" if unknown.
+	 - `line`: the line in `file` where the runtime error occurred.
+	 - `column`: the position of character in `line` where the error occurred.
+	 - `address`: the VM address of the runtime error relative to the translation unit
+	   of the function
  - `getGlobal(name)` returns the Sparkling global value with name `name`,
    or `undefined` if it was not found.
  - `setGlobal(name, value)` sets the global named `name` to value `value`.
