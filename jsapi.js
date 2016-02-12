@@ -326,13 +326,40 @@
 		lastErrorLocation: function () {
 			return {
 				line: lastErrorLine(),
-				column: lastErrorColumn()
+				column: lastErrorColumn(),
+				toString: function() {
+					return "L " + this.line + ", C " + this.column;
+				}
 			};
 		},
 
 		backtrace: function () {
+			function parseBacktrace(line) {
+				var parts = line.split("|");
+				var address = parseInt(parts[4], 16);
+
+				return {
+					"function": parts[0],
+					"file": parts[1],
+					"line": parseInt(parts[2], 10) || undefined,
+					"column": parseInt(parts[3], 10) || undefined,
+					"address": address >= 0 ? address : undefined,
+
+					toString: function() {
+						var str = "function " + this["function"] + "()";
+
+						str += this.file !== "???" ? " in " + this.file : "";
+						str += this.line ? ", L " + this.line : "";
+						str += this.column ? ", C " + this.column : "";
+						str += this.address ? ", at address 0x" + this.address.toString(16) : "";
+
+						return str;
+					}
+				};
+			}
+
 			var bt = backtrace();
-			return bt ? bt.split("\n") : [];
+			return bt ? bt.split("\n").map(parseBacktrace) : [];
 		},
 
 		getGlobal: function (name) {

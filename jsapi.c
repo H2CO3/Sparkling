@@ -14,6 +14,7 @@
 
 #include "api.h"
 #include "ctx.h"
+#include "debug.h"
 #include "private.h"
 #include "func.h"
 #include "str.h"
@@ -263,13 +264,27 @@ extern const char *jspn_backtrace(void)
 
 	for (size_t i = 0; i < n; i++) {
 		size_t oldlen = len;
-		size_t slen = strlen(bt[i].function->name);
-		len += slen + 1; // +1 for newline
+		SpnFunction *function = bt[i].function;
+
+		const char *filename = spn_dbg_get_filename(function->env->debug_info);
+		long address = bt[i].exc_address;
+
+		unsigned line   = 0;
+		unsigned column = 0;
+
+		if (function->env->debug_info && address >= 0) {
+			SpnSourceLocation loc = spn_dbg_get_frame_source_location(bt[i]);
+			line   = loc.line;
+			column = loc.column;
+		}
+
+		int slen = snprintf(NULL, 0, "%s|%s|%u|%u|%#lx\n", function->name, filename, line, column, address);
+
 		// I assume realloc()'ing in the Emscripten heap, which
 		// itself is heap-allocated anyway, should not fail...
-		buf = realloc(buf, len);
-		memcpy(buf + oldlen, bt[i].function->name, slen);
-		buf[oldlen + slen] = '\n';
+		len += slen;
+		buf = realloc(buf, len + 1);
+		snprintf(buf + oldlen, slen + 1, "%s|%s|%u|%u|%#lx\n", function->name, filename, line, column, address);
 	}
 
 	// Last newline is overwritten with the terminating 0

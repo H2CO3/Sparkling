@@ -404,7 +404,6 @@ static int enter_repl(enum cmd_args args)
 
 #if USE_LIBEDIT
 		sprintf(prompt, "spn:%d> ", session_no);
-		fflush(stdout);
 
 		if ((buf = readline(prompt)) == NULL) {
 			printf("\n");
