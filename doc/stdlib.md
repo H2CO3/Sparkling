@@ -180,6 +180,15 @@ the string *backwards*, i. e. the function will start searching from position
 `length - |offset|`, where `length` is the length of the string. Returns `nil` if
 the target string could not be found.
 
+    bool startswith(string haystack, string needle)
+
+Returns `true` if the string `haystack` starts with `needle`. `needle` must be
+a shorter string than `haystack`.
+
+    bool endswith(string haystack, string needle)
+
+Same rules as with `startswith()`, only applied at the end of `haystack`.
+
     string substr(string str, int offset, int length)
 
 Creates a substring of length `length` starting from position `offset` (i. e.

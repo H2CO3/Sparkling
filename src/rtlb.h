@@ -15,13 +15,17 @@
 
 /* I/O library
  * ===========
+ * Methods:
+ * --------
+ * getline(), printf()
+ * close()
+ * read(), write()
+ * flush(), tell(), seek(), eof()
+ *
  * Free functions:
  * ---------------
- * getline(), print(), dbgprint(), printf()
- * fopen(), fclose()
- * fprintf(), fgetline()
- * fread(), fwrite()
- * fflush(), ftell(), fseek(), feof()
+ * print(), dbgprint()
+ * fopen()
  * remove(), rename(), tmpfile()
  * readfile()
  *
@@ -34,10 +38,11 @@
  * ==============
  * Methods:
  * --------
- * indexof(), substr(), substrto(), substrfrom()
+ * find(), substr(), substrto(), substrfrom()
+ * startswith(), endswith()
  * split(), repeat()
  * tolower(), toupper()
- * fmtstr()
+ * format()
  *
  * Properties:
  * -----------
@@ -57,6 +62,10 @@
  * insert(), inject(), erase(), concat()
  * push(), pop(), last()
  * swap(), reverse()
+ *
+ * Free functions:
+ * ---------------
+ * zipwith()
  *
  * Properties:
  * -----------
