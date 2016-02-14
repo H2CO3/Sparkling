@@ -839,8 +839,8 @@ static int rtlb_str_find(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
-/* main _with function, used by startswith() and endswith() */
-static int rtlb_aux_pointswith(SpnValue *ret, int argc, SpnValue *argv, int end, void *ctx)
+/* main "_with" function, used by startswith() and endswith() */
+static int rtlb_aux_pointswith(SpnValue *ret, int argc, SpnValue *argv, int end, SpnContext *ctx)
 {
 	SpnString *haystack, *needle;
 	const char *pos;
@@ -1092,6 +1092,94 @@ static int rtlb_repeat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+/* main "is_" function */
+static int rtlb_aux_isfunc(SpnValue *ret, int argc, SpnValue *argv, int func(int c), SpnContext *ctx)
+{
+	SpnString *str;
+	const char *ptr, *end;
+	int boolvalue;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "argument must be a string", NULL);
+		return -2;
+	}
+
+	str = stringvalue(&argv[0]);
+	ptr = str->cstr;
+	end = ptr + str->len;
+
+	while (ptr < end) {
+		if (!(boolvalue = func(*ptr++))) {
+			break;
+		}
+	}
+
+	*ret = boolvalue ? spn_trueval : spn_falseval;
+
+	return 0;
+}
+
+static int rtlb_isalnum(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isalnum, ctx);
+}
+
+static int rtlb_isalpha(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isalpha, ctx);
+}
+
+static int rtlb_isdigit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isdigit, ctx);
+}
+
+static int rtlb_isxdigit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isxdigit, ctx);
+}
+
+static int rtlb_ispunct(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, ispunct, ctx);
+}
+
+static int rtlb_isspace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isspace, ctx);
+}
+
+static int rtlb_isgraph(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isgraph, ctx);
+}
+
+static int rtlb_iscntrl(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, iscntrl, ctx);
+}
+
+static int rtlb_isprint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isprint, ctx);
+}
+
+static int rtlb_islower(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, islower, ctx);
+}
+
+static int rtlb_isupper(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	return rtlb_aux_isfunc(ret, argc, argv, isupper, ctx);
+}
+/* END of "is_" functions */
+
 static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, SpnContext *ctx)
 {
 	const char *p, *end;
@@ -1181,6 +1269,17 @@ static void loadlib_string(SpnVMachine *vm)
 		{ "substrfrom", rtlb_substrfrom },
 		{ "split",      rtlb_split      },
 		{ "repeat",     rtlb_repeat     },
+		{ "isalnum",    rtlb_isalnum    },
+		{ "isalpha",    rtlb_isalpha    },
+		{ "isdigit",    rtlb_isdigit    },
+		{ "isxdigit",   rtlb_isxdigit   },
+		{ "ispunct",    rtlb_ispunct    },
+		{ "isspace",    rtlb_isspace    },
+		{ "isgraph",    rtlb_isgraph    },
+		{ "iscntrl",    rtlb_iscntrl    },
+		{ "isprint",    rtlb_isprint    },
+		{ "islower",    rtlb_islower    },
+		{ "isupper",    rtlb_isupper    },
 		{ "tolower",    rtlb_tolower    },
 		{ "toupper",    rtlb_toupper    },
 		{ "format",     rtlb_format     }

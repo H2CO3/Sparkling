@@ -193,8 +193,8 @@ Same rules as with `startswith()`, only applied at the end of `haystack`.
 Creates a substring of length `length` starting from position `offset` (i. e.
 it copies the region `[offset, offset + length)` from the original string).
 
-    string substrto(string str, int length);
-    string substrfrom(string str, int offset);
+    string substrto(string str, int length)
+    string substrfrom(string str, int offset)
 
 These are equivalent with `substr(str, 0, length)` and with
 `substr(str, offset, length - offset)`, respectively.
@@ -209,6 +209,13 @@ included in the returned substrings. Using a different wording:
     string repeat(string str, int n)
 
 Concatenates `str` with itself `n` times and returns the result.
+
+    bool isspace(string str)
+
+Returns `true` if the string contains only whitespaces (" " or "\\t").
+Along with `isspace()` are also available the other `ctype.h` functions:  
+`isalnum()`, `isalpha()`, `isdigit()`, `isxdigit()`, `ispunct()`,
+`isgraph()`, `iscntrl()`, `isprint()`, `islower()` and `isupper()`.
 
     string tolower(string str)
     string toupper(string str)
