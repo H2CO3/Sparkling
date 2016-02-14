@@ -41,6 +41,9 @@
  * find(), substr(), substrto(), substrfrom()
  * startswith(), endswith()
  * split(), repeat()
+ * isalnum(), isalpha(), isdigit(), isxdigit(), ispunct(), isspace()
+ * isgraph(), iscntrl(), isprint()
+ * islower(), isupper()
  * tolower(), toupper()
  * format()
  *
