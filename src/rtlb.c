@@ -1125,21 +1125,24 @@ static int rtlb_aux_isfunc(SpnValue *ret, int argc, SpnValue *argv, int func(int
 }
 
 /* Definition of "is_" wrapper */
-#define RTLB_CTYPE_FUNC(name) static int rtlb_is##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) { return rtlb_aux_isfunc(ret, argc, argv, is##name, ctx); }
+#define RTLB_IS_FUNC(name)                                                     \
+static int rtlb_is##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) { \
+	return rtlb_aux_isfunc(ret, argc, argv, is##name, ctx);                    \
+}
 
-RTLB_CTYPE_FUNC(alnum)
-RTLB_CTYPE_FUNC(alpha)
-RTLB_CTYPE_FUNC(digit)
-RTLB_CTYPE_FUNC(xdigit)
-RTLB_CTYPE_FUNC(punct)
-RTLB_CTYPE_FUNC(space)
-RTLB_CTYPE_FUNC(graph)
-RTLB_CTYPE_FUNC(cntrl)
-RTLB_CTYPE_FUNC(print)
-RTLB_CTYPE_FUNC(lower)
-RTLB_CTYPE_FUNC(upper)
+RTLB_IS_FUNC(alnum)
+RTLB_IS_FUNC(alpha)
+RTLB_IS_FUNC(digit)
+RTLB_IS_FUNC(xdigit)
+RTLB_IS_FUNC(punct)
+RTLB_IS_FUNC(space)
+RTLB_IS_FUNC(graph)
+RTLB_IS_FUNC(cntrl)
+RTLB_IS_FUNC(print)
+RTLB_IS_FUNC(lower)
+RTLB_IS_FUNC(upper)
 
-#undef RTLB_CTYPE_FUNC
+#undef RTLB_IS_FUNC
 /* END of "is_" functions */
 
 static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, SpnContext *ctx)
@@ -2814,33 +2817,39 @@ static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 }
 
 /* Let's try refactoring this as well */
-#define RTLB_CTYPE_FUNC(name) static int rtlb_##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) { return rtlb_aux_unmath(ret, argc, argv, ctx, name); }
+#define RTLB_UNMATH_FUNC(name)                                                 \
+static int rtlb_##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) {   \
+	return rtlb_aux_unmath(ret, argc, argv, ctx, name);                        \
+}
 
-RTLB_CTYPE_FUNC(sqrt)
-RTLB_CTYPE_FUNC(exp)
-RTLB_CTYPE_FUNC(log)
-RTLB_CTYPE_FUNC(log10)
-RTLB_CTYPE_FUNC(sin)
-RTLB_CTYPE_FUNC(cos)
-RTLB_CTYPE_FUNC(tan)
-RTLB_CTYPE_FUNC(sinh)
-RTLB_CTYPE_FUNC(cosh)
-RTLB_CTYPE_FUNC(tanh)
-RTLB_CTYPE_FUNC(asin)
-RTLB_CTYPE_FUNC(acos)
-RTLB_CTYPE_FUNC(atan)
+RTLB_UNMATH_FUNC(sqrt)
+RTLB_UNMATH_FUNC(exp)
+RTLB_UNMATH_FUNC(log)
+RTLB_UNMATH_FUNC(log10)
+RTLB_UNMATH_FUNC(sin)
+RTLB_UNMATH_FUNC(cos)
+RTLB_UNMATH_FUNC(tan)
+RTLB_UNMATH_FUNC(sinh)
+RTLB_UNMATH_FUNC(cosh)
+RTLB_UNMATH_FUNC(tanh)
+RTLB_UNMATH_FUNC(asin)
+RTLB_UNMATH_FUNC(acos)
+RTLB_UNMATH_FUNC(atan)
 
-#undef RTLB_CTYPE_FUNC
+#undef RTLB_UNMATH_FUNC
 
-/* Redefining CTYPE_FUNC for these special cases */
-#define RTLB_CTYPE_FUNC(name) static int rtlb_##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) { return rtlb_aux_unmath(ret, argc, argv, ctx, rtlb_aux_##name); }
+/* Redefining UNMATH_FUNC for these special cases */
+#define RTLB_UNMATH_FUNC(name)                                                 \
+static int rtlb_##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) {   \
+	return rtlb_aux_unmath(ret, argc, argv, ctx, rtlb_aux_##name);             \
+}
 
-RTLB_CTYPE_FUNC(cbrt)
-RTLB_CTYPE_FUNC(exp2)
-RTLB_CTYPE_FUNC(exp10)
-RTLB_CTYPE_FUNC(log2)
+RTLB_UNMATH_FUNC(cbrt)
+RTLB_UNMATH_FUNC(exp2)
+RTLB_UNMATH_FUNC(exp10)
+RTLB_UNMATH_FUNC(log2)
 
-#undef RTLB_CTYPE_FUNC
+#undef RTLB_UNMATH_FUNC
 /* end of (lesser) horror */
 
 static int rtlb_atan2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
