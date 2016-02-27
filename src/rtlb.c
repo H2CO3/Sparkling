@@ -1124,60 +1124,25 @@ static int rtlb_aux_isfunc(SpnValue *ret, int argc, SpnValue *argv, int func(int
 	return 0;
 }
 
-static int rtlb_isalnum(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isalnum, ctx);
+/* Definition of "is_" wrapper */
+#define RTLB_IS_FUNC(name)                                                     \
+static int rtlb_is##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) { \
+	return rtlb_aux_isfunc(ret, argc, argv, is##name, ctx);                    \
 }
 
-static int rtlb_isalpha(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isalpha, ctx);
-}
+RTLB_IS_FUNC(alnum)
+RTLB_IS_FUNC(alpha)
+RTLB_IS_FUNC(digit)
+RTLB_IS_FUNC(xdigit)
+RTLB_IS_FUNC(punct)
+RTLB_IS_FUNC(space)
+RTLB_IS_FUNC(graph)
+RTLB_IS_FUNC(cntrl)
+RTLB_IS_FUNC(print)
+RTLB_IS_FUNC(lower)
+RTLB_IS_FUNC(upper)
 
-static int rtlb_isdigit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isdigit, ctx);
-}
-
-static int rtlb_isxdigit(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isxdigit, ctx);
-}
-
-static int rtlb_ispunct(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, ispunct, ctx);
-}
-
-static int rtlb_isspace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isspace, ctx);
-}
-
-static int rtlb_isgraph(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isgraph, ctx);
-}
-
-static int rtlb_iscntrl(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, iscntrl, ctx);
-}
-
-static int rtlb_isprint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isprint, ctx);
-}
-
-static int rtlb_islower(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, islower, ctx);
-}
-
-static int rtlb_isupper(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_isfunc(ret, argc, argv, isupper, ctx);
-}
+#undef RTLB_IS_FUNC
 /* END of "is_" functions */
 
 static int rtlb_aux_trcase(SpnValue *ret, int argc, SpnValue *argv, int upc, SpnContext *ctx)
@@ -2851,92 +2816,41 @@ static int rtlb_aux_unmath(SpnValue *ret, int argc, SpnValue *argv, SpnContext *
 	return 0;
 }
 
-/* I've done my best refactoring this. Still utterly ugly. Any suggestions? */
-static int rtlb_sqrt(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, sqrt);
+/* Let's try refactoring this as well */
+#define RTLB_UNMATH_FUNC(name)                                                 \
+static int rtlb_##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) {   \
+	return rtlb_aux_unmath(ret, argc, argv, ctx, name);                        \
 }
 
-static int rtlb_cbrt(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, rtlb_aux_cbrt);
+RTLB_UNMATH_FUNC(sqrt)
+RTLB_UNMATH_FUNC(exp)
+RTLB_UNMATH_FUNC(log)
+RTLB_UNMATH_FUNC(log10)
+RTLB_UNMATH_FUNC(sin)
+RTLB_UNMATH_FUNC(cos)
+RTLB_UNMATH_FUNC(tan)
+RTLB_UNMATH_FUNC(sinh)
+RTLB_UNMATH_FUNC(cosh)
+RTLB_UNMATH_FUNC(tanh)
+RTLB_UNMATH_FUNC(asin)
+RTLB_UNMATH_FUNC(acos)
+RTLB_UNMATH_FUNC(atan)
+
+#undef RTLB_UNMATH_FUNC
+
+/* Redefining UNMATH_FUNC for these special cases */
+#define RTLB_UNMATH_FUNC(name)                                                 \
+static int rtlb_##name(SpnValue *ret, int argc, SpnValue *argv, void *ctx) {   \
+	return rtlb_aux_unmath(ret, argc, argv, ctx, rtlb_aux_##name);             \
 }
 
-static int rtlb_exp(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, exp);
-}
+RTLB_UNMATH_FUNC(cbrt)
+RTLB_UNMATH_FUNC(exp2)
+RTLB_UNMATH_FUNC(exp10)
+RTLB_UNMATH_FUNC(log2)
 
-static int rtlb_exp2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, rtlb_aux_exp2);
-}
-
-static int rtlb_exp10(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, rtlb_aux_exp10);
-}
-
-static int rtlb_log(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, log);
-}
-
-static int rtlb_log2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, rtlb_aux_log2);
-}
-
-static int rtlb_log10(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, log10);
-}
-
-static int rtlb_sin(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, sin);
-}
-
-static int rtlb_cos(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, cos);
-}
-
-static int rtlb_tan(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, tan);
-}
-
-static int rtlb_sinh(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, sinh);
-}
-
-static int rtlb_cosh(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, cosh);
-}
-
-static int rtlb_tanh(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, tanh);
-}
-
-static int rtlb_asin(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, asin);
-}
-
-static int rtlb_acos(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, acos);
-}
-
-static int rtlb_atan(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
-{
-	return rtlb_aux_unmath(ret, argc, argv, ctx, atan);
-}
-/* end of horror */
+#undef RTLB_UNMATH_FUNC
+/* end of (lesser) horror */
 
 static int rtlb_atan2(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
