@@ -1,7 +1,7 @@
 What is Sparkling?
 ==================
 Sparkling is a little C-style scripting language I've started as a pet project
-back in late 2012. It has evolved into a quite serious code base now, so I'm
+back in late 2012. It has evolved into an active enough project since then, so I'm
 opensourcing it in the hope that 1. it will be useful for the community, and
 2. others seeing the potential in it will help me make it better.
 
@@ -15,11 +15,11 @@ Sparkling is influenced by other programming languages, namely:
  - **C, above all.** C is a wonderful programming language, it's well-balanced
    between a high-level and a low-level language. It has enough but not too
    much abstraction. Its syntax is clear, concise and well-structured. Quite a
-   lot of languages inherit some of C's design patterns, especially syntax.
+   lot of languages inherit some of C's design decisions, especially its syntax.
  - **Lua.** Being small, compact, fast and embeddable was a primary goal while
    I have been designing Sparkling. In addition, having a separate operator
    for concatenation is *just inevitable.*
- - **Python.** Python has dynamic *and* strong typing. That's good because it's
+ - **Python.** Python has dynamic *and* strict typing. That's good because it's
    convenient and safe at the same time. Following this pattern, Sparkling has
    a strict strong type sytem, but variables don't have types, only values do,
    so any value can be stored in a variable, and runtime checks enforce the
