@@ -2,44 +2,63 @@ TODOs
 ~~~~~
 
 Code:
+-----
 	- More documentation									***Urgent***
 	- More testing										***Urgent***
 
-	- REFACTOR the VM! (dispatch_loop()'s cases into functions)
+	- REFACTOR the VM! (dispatch_loop()'s cases into functions, in particular)
 		- Do it in a test-driven manner, since it's CRITICAL
 			- One instruction a time, exhaustive testing (cover ALL
 			  code paths!), before AND after
 
-	- Fix performance bug in hash table whereby searching after a lot of deletions
-	  takes quadratic time                                                      DONE
 	- grep for "TODO", "FIXME" and "XXX" in the source files
 	- add variable names <-> register mapping to debug information
 	- expose rich debug info to JavaScript API
 	- smarter algorithm in `spn_dbg_get_raw_source_location()` (no linear search)
 	- add and interactive debugger function to the standard library
 
-VM:
-	- Weak references for deallocating cyclic references
+Language:
+---------
+ * Syntax:
+  - only one syntax for 'for' loops (no parens) and functions
+	- What to do with `!`, `&&`, `||` vs. `not`, `and`, `or`?
+		('not' is superior to '!' for readability reasons, but
+		we don't want redundancy in the syntax.)
+	- 'typeof' should be a stdlib function rather than an operator?
 
-System/integration/installation:
-	- invent a (platform-specific) path to store Sparkling library code in
-	  (e.g. functional stuff, the current contents of verifyAST.spn, etc.)			DONE
-
-
-Language, syntax:
+ * Semantics:
+  - For-in loop on collections rather than C-style "init; condition; increment;" loop
+	
 	- Permit variable declarations in the condition of 'if' and 'while' statements
 
-	- Implement macros.
+  - Allow mutation of upvalues of a closure
 
-	- optimize chained concatenations (x .. y .. z .. foo .. bar ..quirk)
+  - Pattern matching, switch/match-case
+
+  - hoist function declarations to the top of the translation unit in order to
+    get rid of the awkwardness of self-referential class constructors?
+    (e.g. examples/complex.spn)
+
+  - Remove explicit type specifiers from format strings; just use %v like Go does
+   * XXX: what to do with C API calls to the string formatting functions?
+    They do need type info in the format string...
+
+  - Macros?
+
+  - multiple return values or tuples
+
+	- optimize chained concatenations (x .. y .. z .. foo .. bar .. quirk)
 		so that they aren't done in separate steps (as specified by the
 		associativity of the .. operator), because creating huge temp
 		strings in O(n ^ 2) is wasteful. Instead, these should be somehow
 		compiled into one great CONCAT_ALL(x, y, z, foo, bar, quirk)
-		instruction (yes, this needs VM support too)
+		instruction (this may need VM support)
 
+  - "operator overloading" of some sort... (on user-defined hashmap objects)
+	
 Compiler:
-	- support for warnings
+---------
+	- support for warnings?
 	- Issue a warning if a top-level expression (i. e. an expression statement)
 		is neither a function call, an assignment nor an increment/decrement
 		operation. Nothing else should be used as an expression statement,
@@ -47,9 +66,16 @@ Compiler:
 	- Issue a warning when an assignment is used in the condition of an if,
 		while, do-while or for statement.
 
+VM:
+---
+	- Weak references for deallocating cyclic references
+
+
 Standard library and other libs:
+--------------------------------
 	- more and better string support
-		- Unicode support!
+		- Unicode support! proper string API (with grapheme clusters and stuff)
+			* also stop using strings as generic byte buffers
 		- Library: e.g. string replacement, pattern searching,
 		"has prefix/suffix?" operation, trim leading/trailing whitespace, ...
 	- C99 and POSIX-specific extension APIs (in addition to the "standard"
@@ -64,7 +90,7 @@ Standard library and other libs:
 		- thread support
 	- functional stuff that requires closure (a la Python's functools)
 	- 'require()' and 'dynld()' should search SPN_LIBDIR for modules
-	- Bindings for popular and useful C libraries:
+	- Bindings for popular and useful C libraries for a variety of use cases, e.g.:
 		- cURL
 		- SQLite3
 		- a JSON parser/serializer                                                      done (YAJL)
@@ -74,3 +100,4 @@ Standard library and other libs:
 		- compression (zip, tar, gz, ...)
 		- PCRE (people apparently love regexes)
 		- a UI/widget library (e.g. GTK+)
+		- etc.
