@@ -622,7 +622,7 @@ with `spn_ctx_callfunc()`, as described above.
 When you no longer need access to the Sparkling engine, you must free the
 context object in order to reclaim all resources:
 
-    spn_context_free(&ctx);
+    spn_ctx_free(&ctx);
 
 # Advanced C API concepts
 

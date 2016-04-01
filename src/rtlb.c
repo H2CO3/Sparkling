@@ -226,9 +226,8 @@ static int rtlb_print(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	int i;
 	for (i = 0; i < argc; i++) {
-		spn_value_print(&argv[i]);
+		spn_value_print(stdout, &argv[i]);
 	}
-
 	printf("\n");
 
 	return 0;
@@ -238,9 +237,8 @@ static int rtlb_dbgprint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	int i;
 	for (i = 0; i < argc; i++) {
-		spn_debug_print(&argv[i]);
+		spn_debug_print(stdout, &argv[i]);
 	}
-
 	printf("\n");
 
 	return 0;
@@ -348,6 +346,38 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		free(errmsg);
 		return -3;
 	}
+
+	return 0;
+}
+
+static int rtlb_fprint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	SpnFileHandle *hndl;
+	int i;
+
+	if (argc < 1) {
+		spn_ctx_runtime_error(ctx, "at least one argument is required", NULL);
+		return -1;
+	}
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
+		return -2;
+	}
+
+	hndl = fhandle_from_hashmap(&argv[0]);
+	if (hndl == NULL) {
+		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
+		return -3;
+	}
+	if (hndl->f == NULL) {
+		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
+		return -4;
+	}
+
+	for (i = 1; i < argc; i++) {
+		spn_value_print(hndl->f, &argv[i]);
+	}
+	fprintf(hndl->f, "\n");
 
 	return 0;
 }
@@ -474,7 +504,7 @@ static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	int error;
 
 	if (argc != 1) {
-		spn_ctx_runtime_error(ctx, "expecting one argument", NULL);
+		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
 		return -1;
 	}
 
@@ -749,6 +779,7 @@ static void loadlib_io(SpnVMachine *vm)
 		{ "close",    rtlb_fclose   },
 		{ "getline",  rtlb_getline  },
 		{ "printf",   rtlb_printf   },
+		{ "print",    rtlb_fprint   },
 		{ "read",     rtlb_fread    },
 		{ "write",    rtlb_fwrite   },
 		{ "flush",    rtlb_fflush   },

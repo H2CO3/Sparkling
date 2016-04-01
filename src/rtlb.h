@@ -17,7 +17,7 @@
  * ===========
  * Methods:
  * --------
- * getline(), printf()
+ * getline(), printf(), print()
  * close()
  * read(), write()
  * flush(), tell(), seek(), eof()
