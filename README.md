@@ -2,7 +2,8 @@ What is Sparkling?
 ==================
 Sparkling is a little C-style scripting language I've started as a pet project
 back in late 2012. It has evolved into an active enough project since then, so I'm
-opensourcing it in the hope that 1. it will be useful for the community, and
+open-sourcing it in the hopes that  
+1. it will be useful for the community, and
 2. others seeing the potential in it will help me make it better.
 
 On the one hand, the name "Sparkling" comes from my intent to make the language
@@ -21,7 +22,7 @@ Sparkling is influenced by other programming languages, namely:
    for concatenation is *just inevitable.*
  - **Python.** Python has dynamic *and* strict typing. That's good because it's
    convenient and safe at the same time. Following this pattern, Sparkling has
-   a strict strong type sytem, but variables don't have types, only values do,
+   a strict strong type system, but variables don't have types, only values do,
    so any value can be stored in a variable, and runtime checks enforce the
    correctness of operations.
  - **Design errors of JavaScript.** JavaScript is a horrible language in my
@@ -41,7 +42,7 @@ Sparkling is influenced by other programming languages, namely:
    operations, even for integers. It's a well-known fact that floating-point
    computations aren't always exact, they behave in a quite counter-intuitive
    manner and they can even be significantly slower than integer operations.
-   Another thing is *garbage collection.* It seems to be the silver bullet of
+   Another thing is *garbage collection*. It seems to be the silver bullet of
    automatic memory management when it comes to scripting languages, but it
    has some definitive, serious downsides. Non-deterministic behavior is one,
    speed is two, memory overhead is three, the difficulty of a decent
