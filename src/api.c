@@ -364,100 +364,100 @@ unsigned long spn_hash_value(const SpnValue *key)
 	return 0;
 }
 
-static void print_array(SpnArray *array, int level);
-static void print_hashmap(SpnHashMap *hm, int level);
+static void print_array(FILE *stream, SpnArray *array, int level);
+static void print_hashmap(FILE *stream, SpnHashMap *hm, int level);
 
-static void print_indent(int level)
+static void print_indent(FILE *stream, int level)
 {
 	int i;
 	for (i = 0; i < level; i++) {
-		printf("    ");
+		fprintf(stream, "    ");
 	}
 }
 
-static void inner_aux_print(const SpnValue *val, int level)
+static void inner_aux_print(FILE *stream, const SpnValue *val, int level)
 {
 	if (isarray(val)) {
-		print_array(arrayvalue(val), level);
+		print_array(stream, arrayvalue(val), level);
 	} else if (ishashmap(val)) {
-		print_hashmap(hashmapvalue(val), level);
+		print_hashmap(stream, hashmapvalue(val), level);
 	} else {
-		spn_debug_print(val);
+		spn_debug_print(stream, val);
 	}
 }
 
-static void print_array(SpnArray *array, int level)
+static void print_array(FILE *stream, SpnArray *array, int level)
 {
 	size_t i;
 	size_t n = spn_array_count(array);
 
-	printf("[\n");
+	fprintf(stream, "[\n");
 
 	for (i = 0; i < n; i++) {
 		SpnValue val = spn_array_get(array, i);
 
-		print_indent(level + 1);
-		inner_aux_print(&val, level + 1);
-		printf("\n");
+		print_indent(stream, level + 1);
+		inner_aux_print(stream, &val, level + 1);
+		fprintf(stream, "\n");
 	}
 
-	print_indent(level);
-	printf("]");
+	print_indent(stream, level);
+	fprintf(stream, "]");
 }
 
-static void print_hashmap(SpnHashMap *hm, int level)
+static void print_hashmap(FILE *stream, SpnHashMap *hm, int level)
 {
 	SpnValue key, val;
 	size_t i = 0;
 
-	printf("{\n");
+	fprintf(stream, "{\n");
 
 	while ((i = spn_hashmap_next(hm, i, &key, &val)) != 0) {
-		print_indent(level + 1);
+		print_indent(stream, level + 1);
 
-		inner_aux_print(&key, level + 1);
-		printf(": ");
-		inner_aux_print(&val, level + 1);
-		printf("\n");
+		inner_aux_print(stream, &key, level + 1);
+		fprintf(stream, ": ");
+		inner_aux_print(stream, &val, level + 1);
+		fprintf(stream, "\n");
 	}
 
-	print_indent(level);
-	printf("}");
+	print_indent(stream, level);
+	fprintf(stream, "}");
 }
 
-void spn_value_print(const SpnValue *val)
+void spn_value_print(FILE *stream, const SpnValue *val)
 {
 	switch (valtype(val)) {
 	case SPN_TTAG_NIL: {
-		fputs("nil", stdout);
+		fputs("nil", stream);
 		break;
 	}
 	case SPN_TTAG_BOOL: {
-		fputs(boolvalue(val) ? "true" : "false", stdout);
+		fputs(boolvalue(val) ? "true" : "false", stream);
 		break;
 	}
 	case SPN_TTAG_NUMBER: {
 		if (isfloat(val)) {
-			printf("%.*g", DBL_DIG, floatvalue(val));
+			fprintf(stream, "%.*g", DBL_DIG, floatvalue(val));
 		} else {
-			printf("%ld", intvalue(val));
+			fprintf(stream, "%ld", intvalue(val));
 		}
 
 		break;
 	}
 	case SPN_TTAG_STRING: {
 		SpnString *s = stringvalue(val);
-		fputs(s->cstr, stdout);
+		fputs(s->cstr, stream);
 		break;
 	}
 	case SPN_TTAG_ARRAY: {
 		SpnArray *array = objvalue(val);
-		print_array(array, 0);
+		print_array(stream, array, 0);
 		break;
 	}
 	case SPN_TTAG_HASHMAP: {
 		SpnHashMap *hashmap = objvalue(val);
-		print_hashmap(hashmap, 0);
+		print_hashmap(stream, hashmap, 0);
 		break;
 	}
 	case SPN_TTAG_FUNC: {
@@ -470,12 +470,12 @@ void spn_value_print(const SpnValue *val)
 			p = func->repr.bc;
 		}
 
-		printf("<function %p>", p);
+		fprintf(stream, "<function %p>", p);
 		break;
 	}
 	case SPN_TTAG_USERINFO: {
 		void *ptr = isobject(val) ? objvalue(val) : ptrvalue(val);
-		printf("<userinfo %p>", ptr);
+		fprintf(stream, "<userinfo %p>", ptr);
 		break;
 	}
 	default:
@@ -484,23 +484,23 @@ void spn_value_print(const SpnValue *val)
 	}
 }
 
-void spn_debug_print(const SpnValue *val)
+void spn_debug_print(FILE *stream, const SpnValue *val)
 {
 	switch (valtype(val)) {
 	case SPN_TTAG_STRING:
 		/* TODO: do proper escaping */
-		printf("\"");
-		spn_value_print(val);
-		printf("\"");
+		fprintf(stream, "\"");
+		spn_value_print(stream, val);
+		fprintf(stream, "\"");
 		break;
 	case SPN_TTAG_ARRAY:
-		printf("<array %p>", objvalue(val));
+		fprintf(stream, "<array %p>", objvalue(val));
 		break;
 	case SPN_TTAG_HASHMAP:
-		printf("<hashmap %p>", objvalue(val));
+		fprintf(stream, "<hashmap %p>", objvalue(val));
 		break;
 	default:
-		spn_value_print(val);
+		spn_value_print(stream, val);
 		break;
 	}
 }
@@ -509,10 +509,10 @@ void spn_repl_print(const SpnValue *val)
 {
 	switch (valtype(val)) {
 	case SPN_TTAG_STRING:
-		spn_debug_print(val);
+		spn_debug_print(stdout, val);
 		break;
 	default:
-		spn_value_print(val);
+		spn_value_print(stdout, val);
 		break;
 	}
 }

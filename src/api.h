@@ -250,10 +250,11 @@ SPN_API int spn_values_comparable(const SpnValue *lhs, const SpnValue *rhs);
 SPN_API unsigned long spn_hash_bytes(const void *data, size_t n);
 SPN_API unsigned long spn_hash_value(const SpnValue *obj);
 
-/* prints the user-readable representation of a value to stdout */
-SPN_API void spn_value_print(const SpnValue *val);
-SPN_API void spn_debug_print(const SpnValue *val);
+/* prints the user-readable representation of a value to a given stream */
+SPN_API void spn_value_print(FILE *stream, const SpnValue *val);
+SPN_API void spn_debug_print(FILE *stream, const SpnValue *val);
 SPN_API void spn_repl_print(const SpnValue *val);
+/* the only exception being REPL, which automatically redirects to stdout */
 
 /* returns a string describing a particular type */
 SPN_API const char *spn_type_name(int type);

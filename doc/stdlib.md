@@ -83,7 +83,7 @@ that of `printf()` in the C standard library. Valid conversion specifiers are:
  it is assumed to be this maximal width. This should not cause the truncation
  of the significant digits of the converted number, it may only cause the
  padding to be truncated. Otherwise, the conversion is performed as if by the
- `%e` or `%f` conversion specifiers amd `printf()` in the C standard library.
+ `%e` or `%f` conversion specifiers and `printf()` in the C standard library.
  - `%B` formats a Boolean value. Prints either `true` or `false`.
  - Width and precision may both be specified as `*`, in which case the actual
  width or precision is determined by looking at the next argument of the
@@ -100,6 +100,11 @@ error.
 `printf()` returns the number of bytes written to the stream as an integer.
 
 <!-- this comment is needed because Markdown sucks. -->
+
+    nil print(hashmap file, ...)
+
+This version of `print()` exists in case you want to just print towards a
+stream other than `stdout`.
 
     string getline(hashmap file)
 
@@ -212,7 +217,7 @@ Concatenates `str` with itself `n` times and returns the result.
 
     bool isspace(string str)
 
-Returns `true` if the string contains only whitespaces (" " or "\\t").
+Returns `true` if the string contains only whitespaces (`' '` or `'\\t'`).
 Along with `isspace()` are also available the other `ctype.h` functions:  
 `isalnum()`, `isalpha()`, `isdigit()`, `isxdigit()`, `ispunct()`,
 `isgraph()`, `iscntrl()`, `isprint()`, `islower()` and `isupper()`.
