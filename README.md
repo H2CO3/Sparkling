@@ -2,7 +2,8 @@ What is Sparkling?
 ==================
 Sparkling is a little C-style scripting language I've started as a pet project
 back in late 2012. It has evolved into an active enough project since then, so I'm
-open-sourcing it in the hopes that  
+open-sourcing it in the hopes that
+
 1. it will be useful for the community, and
 2. others seeing the potential in it will help me make it better.
 
