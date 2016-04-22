@@ -181,7 +181,7 @@ static Bucket *find_key(SpnHashMap *hm, const SpnValue *key)
 	return NULL;
 }
 
-void insert_nonexistent_norehash(
+static void insert_nonexistent_norehash(
 	SpnHashMap *hm,
 	const SpnValue *key,
 	const SpnValue *value,
