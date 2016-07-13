@@ -145,6 +145,7 @@
  * require()
  * dynld()
  * backtrace()
+ * typeof()
  *
  * Methods:
  * --------

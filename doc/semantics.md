@@ -340,10 +340,6 @@ negated value.
 §3.8.5. The `~` operator. It takes an integer operand and yields the its
 bitwise complement.
 
-§3.8.8. The `typeof` operator. Yields a string representation of the type of
-its operand. Thus, one of the strings "nil", "bool", "number", "function",
-"string", "array", "hashmap" or "userinfo" will be returned.
-
 §3.9. Postfix operators
 
 §3.9.1. The postfix `++` operator. It increments its numeric operand by one,

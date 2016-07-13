@@ -24,7 +24,6 @@ Language:
 	- What to do with `!`, `&&`, `||` vs. `not`, `and`, `or`?
 		('not' is superior to '!' for readability reasons, but
 		we don't want redundancy in the syntax.)
-	- 'typeof' should be a stdlib function rather than an operator?
 
  * Semantics:
   - For-in loop on collections rather than C-style "init; condition; increment;" loop

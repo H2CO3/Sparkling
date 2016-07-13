@@ -193,9 +193,6 @@ static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nam
 
 static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, SpnValue *name);
 
-/* type information, reflection */
-static SpnValue typeof_value(SpnValue *val);
-
 /* generating a runtime error (message) */
 static void runtime_error(SpnVMachine *vm, spn_uword *ip, const char *fmt, const void *args[]);
 
@@ -1275,16 +1272,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			break;
 		}
-		case SPN_INS_TYPEOF: {
-			SpnValue *a = VALPTR(vm->sp, OPA(ins));
-			SpnValue *b = VALPTR(vm->sp, OPB(ins));
-
-			SpnValue res = typeof_value(b);
-			spn_value_release(a);
-			*a = res;
-
-			break;
-		}
 		case SPN_INS_CONCAT: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
@@ -2273,10 +2260,4 @@ static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, Spn
 	/* method was not found at all, return nil */
 	*result = spn_nilval;
 	return 1;
-}
-
-static SpnValue typeof_value(SpnValue *val)
-{
-	const char *type = spn_type_name(val->type);
-	return makestring_nocopy(type);
 }

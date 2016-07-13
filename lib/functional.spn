@@ -44,7 +44,6 @@ extern op = {
 	un_minus: fn x -> -x,
 	log_not: fn x -> !x,
 	bit_not: fn x -> ~x,
-	typeof: fn x -> typeof x,
 	index: fn obj index -> obj[index],
 };
 

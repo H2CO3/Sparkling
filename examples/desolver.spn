@@ -85,7 +85,7 @@ let ast = {
 // of the form y' = RHS
 let yprime = compileast(ast);
 
-if typeof yprime != "function" {
+if typeof(yprime) != "function" {
 	stderr.printf("%s\n", yprime);
 	return -1;
 }

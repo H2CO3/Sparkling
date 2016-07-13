@@ -142,8 +142,7 @@ prefix-expr           = (
                         '--'      |
                         '!'       |
                         'not'     |
-                        '~'       |
-                        'typeof'  )
+                        '~'       )
                       prefix-expr ) | postfix-expr /* right-assoc */
 
 postfix-expr = (
@@ -189,8 +188,8 @@ Reserved keywords
 
 and         else       if         return
             extern     let        true
-break       false      nil        typeof
-continue    fn         not        while
+break       false      nil        while
+continue    fn         not
 do          for
 
 The 'not', 'and' and 'or' keywords are equivalent with the '!', '&&' and '||'

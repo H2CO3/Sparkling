@@ -199,13 +199,11 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 			break;
 		}
 		case SPN_INS_BITNOT:
-		case SPN_INS_LOGNOT:
-		case SPN_INS_TYPEOF: {
+		case SPN_INS_LOGNOT: {
 			/* and once again... this array trick is convenient! */
 			static const char *const opnames[] = {
 				"bitnot",
 				"lognot",
-				"typeof"
 			};
 
 			int opidx = opcode - SPN_INS_BITNOT;

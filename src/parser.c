@@ -791,7 +791,6 @@ static SpnHashMap *parse_prefix(SpnParser *p)
 		{ "!",      "not"      },
 		{ "not",    "not"      },
 		{ "~",      "bit_not"  },
-		{ "typeof", "typeof"   }
 	};
 
 	SpnHashMap *child, *ast;

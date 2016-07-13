@@ -662,6 +662,10 @@ This function returns the stack trace, as an array of strings, which are
 the names of the currently active functions, at the point of execution
 where it is called.
 
+    string typeof(any value)
+
+Returns a type string describing the type of `value`.
+
     any identity([arg])
 
 Returns its unmodified argument, `arg`, if it exists. Returns `nil` otherwise.

@@ -4509,6 +4509,20 @@ static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_typeof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	const char *type;
+
+	if (argc != 1) {
+		spn_ctx_runtime_error(ctx, "expecting exactly 1 argument", NULL);
+		return -1;
+	}
+
+	type = spn_type_name(argv[0].type);
+	*ret = makestring_nocopy(type);
+	return 0;
+}
+
 /*
  * Dynamic loading support
  */
@@ -4587,6 +4601,7 @@ static void loadlib_sysutil(SpnVMachine *vm)
 		{ "require",    rtlb_require    },
 		{ "dynld",      rtlb_dynld      },
 		{ "backtrace",  rtlb_backtrace  },
+		{ "typeof",     rtlb_typeof     },
 	};
 
 	/* Methods */

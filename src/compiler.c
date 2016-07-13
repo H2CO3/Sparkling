@@ -2647,7 +2647,6 @@ static int compile_unary(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 	int idx = -1, nvars;
 
 	static const NodeAndOpcode opcode_map[] = {
-		{ "typeof",   SPN_INS_TYPEOF },
 		{ "not",      SPN_INS_LOGNOT },
 		{ "bit_not",  SPN_INS_BITNOT },
 		{ "un_minus", SPN_INS_NEG    },
@@ -2962,7 +2961,6 @@ static int compile_expr(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 		{ "un_minus",  compile_unminus             },
 		{ "not",       compile_unary               },
 		{ "bit_not",   compile_unary               },
-		{ "typeof",    compile_unary               },
 
 		/* ... and the conditional expression */
 		{ "condexpr",  compile_condexpr            }

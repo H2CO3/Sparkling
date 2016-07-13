@@ -44,7 +44,6 @@ other tokens):
 - `or`
 - `return`
 - `true`
-- `typeof`
 - `while`
 
 ## Variables
@@ -366,7 +365,6 @@ This is a short list of the most important operators:
  * `+=`, `-=`, `*=`, `/=`, `..=`, `&=`, `|=`, `^=`, `<<=`, `>>=` - compound
 assignments
  * `?:` - conditional operator
- * `typeof` - type information, yields a type string
  * `.`: property access (calls getter or setter if exists)
  * `&&`, `||`: logical AND and OR
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators

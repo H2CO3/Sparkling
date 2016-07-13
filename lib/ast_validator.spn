@@ -16,7 +16,7 @@
 let validators = {};
 
 fn validateNode (node) {
-	if typeof node != "hashmap" {
+	if typeof(node) != "hashmap" {
 		return false;
 	}
 
@@ -26,13 +26,13 @@ fn validateNode (node) {
 
 	let nodeType = node["type"];
 
-	if typeof nodeType != "string" {
+	if typeof(nodeType) != "string" {
 		return false;
 	}
 
 	let validatorFunc = validators["validators"][nodeType];
 
-	if typeof validatorFunc == "function" {
+	if typeof(validatorFunc) == "function" {
 		return validatorFunc(node);
 	}
 
@@ -42,7 +42,7 @@ fn validateNode (node) {
 fn validateCompound (node) {
 	let children = node["children"];
 
-	if typeof children != "array" {
+	if typeof(children) != "array" {
 		return false;
 	}
 
@@ -59,7 +59,7 @@ fn validateCompound (node) {
 	// so it cannot be altered without messing the VM itself.
 	//
 	// return children.all(fn (child) {
-	// 	 return typeof child == "hashmap" and validateNode(child);
+	// 	 return typeof(child) == "hashmap" and validateNode(child);
 	// });
 	for let i = 0; i < children.length; i++ {
 		if not validateNode(children[i]) {
@@ -168,14 +168,14 @@ validators["validators"] = {
 	"vardecl": fn (node) {
 		let children = node["children"];
 
-		if typeof children != "array" {
+		if typeof(children) != "array" {
 			return false;
 		}
 
 		for let i = 0; i < children.length; i++ {
 			let child = children[i];
 
-			if typeof child != "hashmap" {
+			if typeof(child) != "hashmap" {
 				return false;
 			}
 
@@ -183,7 +183,7 @@ validators["validators"] = {
 				return false;
 			}
 
-			if typeof child["name"] != "string" {
+			if typeof(child["name"]) != "string" {
 				return false;
 			}
 
@@ -198,14 +198,14 @@ validators["validators"] = {
 	"constdecl": fn (node) {
 		let children = node["children"];
 
-		if typeof children != "array" {
+		if typeof(children) != "array" {
 			return false;
 		}
 
 		for let i = 0; i < children.length; i++ {
 			let child = children[i];
 
-			if typeof child != "hashmap" {
+			if typeof(child) != "hashmap" {
 				return false;
 			}
 
@@ -213,7 +213,7 @@ validators["validators"] = {
 				return false;
 			}
 
-			if typeof child["name"] != "string" {
+			if typeof(child["name"]) != "string" {
 				return false;
 			}
 
@@ -276,7 +276,6 @@ validators["validators"] = {
 	"un_minus": validatePrefix,
 	"not":      validatePrefix,
 	"bit_not":  validatePrefix,
-	"typeof":   validatePrefix,
 
 	// Postfix expressions
 	"post_inc": validatePostIncDec,
@@ -287,7 +286,7 @@ validators["validators"] = {
 	},
 
 	"memberof" : fn (node) {
-		return validateNode(node["object"]) and typeof node["name"] == "string";
+		return validateNode(node["object"]) and typeof(node["name"]) == "string";
 	},
 
 	"call": fn (node) {
@@ -297,7 +296,7 @@ validators["validators"] = {
 
 		let children = node["children"];
 
-		if typeof children != "array" {
+		if typeof(children) != "array" {
 			return false;
 		}
 
@@ -312,7 +311,7 @@ validators["validators"] = {
 
 	// Terms, primitives, literals
 	"literal": fn (node) {
-		let valueType = typeof node["value"];
+		let valueType = typeof(node["value"]);
 		let types = {
 			"nil":    true,
 			"bool":   true,
@@ -324,7 +323,7 @@ validators["validators"] = {
 	},
 
 	"ident": fn (node) {
-		return typeof node["name"] == "string";
+		return typeof(node["name"]) == "string";
 	},
 
 	"argv": fn (node) {
@@ -334,7 +333,7 @@ validators["validators"] = {
 	"array": fn (node) {
 		let children = node["children"];
 
-		if typeof children != "array" {
+		if typeof(children) != "array" {
 			return false;
 		}
 
@@ -350,14 +349,14 @@ validators["validators"] = {
 	"hashmap": fn (node) {
 		let children = node["children"];
 
-		if typeof children != "array" {
+		if typeof(children) != "array" {
 			return false;
 		}
 
 		for let i = 0; i < children.length; i++ {
 			let child = children[i];
 
-			if typeof child != "hashmap" {
+			if typeof(child) != "hashmap" {
 				return false;
 			}
 
@@ -378,7 +377,7 @@ validators["validators"] = {
 	},
 
 	"function": fn (node) {
-		if node["name"] != nil and typeof node["name"] != "string" {
+		if node["name"] != nil and typeof(node["name"]) != "string" {
 			return false;
 		}
 
@@ -392,12 +391,12 @@ validators["validators"] = {
 
 		let declargs = node["declargs"];
 
-		if typeof declargs != "array" {
+		if typeof(declargs) != "array" {
 			return false;
 		}
 
 		for let i = 0; i < declargs.length; i++ {
-			if typeof declargs[i] != "string" {
+			if typeof(declargs[i]) != "string" {
 				return false;
 			}
 		}
@@ -408,7 +407,7 @@ validators["validators"] = {
 
 // Public API
 extern validate_ast = fn (node) {
-	if typeof node != "hashmap" {
+	if typeof(node) != "hashmap" {
 		return false;
 	}
 

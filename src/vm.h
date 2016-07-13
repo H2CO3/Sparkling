@@ -283,7 +283,6 @@ enum spn_vm_ins {
 	SPN_INS_SHR,      /* a = b >> c                           */
 	SPN_INS_BITNOT,   /* a = ~b                               */
 	SPN_INS_LOGNOT,   /* a = !b                               */
-	SPN_INS_TYPEOF,   /* a = typeof(b)                        */
 	SPN_INS_CONCAT,   /* a = b .. c                           */
 	SPN_INS_LDCONST,  /* a = <constant> (IV)                  */
 	SPN_INS_LDSYM,    /* a = local symtab[b] (V)              */

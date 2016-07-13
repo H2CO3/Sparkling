@@ -1,0 +1,7 @@
+// typeof is now a function
+let s = typeof("foo");
+let n = typeof(42);
+let z = typeof(nil);
+let a = typeof([]);
+let h = typeof({});
+let f = typeof(typeof);

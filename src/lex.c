@@ -746,7 +746,6 @@ int spn_token_is_reserved(const char *str)
 		"or",
 		"return",
 		"true",
-		"typeof",
 		"while"
 	};
 

@@ -8,5 +8,3 @@ a = -b;
 c = ~c;
 d = !d;
 d = not d;
-
-let t = typeof a;
