@@ -1128,7 +1128,7 @@ static int rtlb_aux_isfunc(SpnValue *ret, int argc, SpnValue *argv, int func(int
 {
 	SpnString *str;
 	const char *ptr, *end;
-	int boolvalue;
+	int boolvalue = 0; /* empty strings aren't "is*anything" */
 
 	if (argc != 1) {
 		spn_ctx_runtime_error(ctx, "exactly one argument is required", NULL);
