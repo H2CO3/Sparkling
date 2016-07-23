@@ -31,10 +31,19 @@ typedef struct Bytecode {
 
 /* bidirectional hash table: maps indices to values and values to indices */
 typedef struct RoundTripStore {
-	SpnArray *fwd;	    /* forward (index -> value) mapping */
-	SpnHashMap *inv;	/* inverse (value -> index) mapping */
-	int maxsize;	    /* maximal size during lifetime     */
+	SpnArray *fwd;    /* forward (index -> value) mapping */
+	SpnHashMap *inv;  /* inverse (value -> index) mapping */
+	int maxsize;      /* maximal size during lifetime     */
 } RoundTripStore;
+
+/* managing round-trip stores */
+static void rts_init(RoundTripStore *rts);
+static int rts_add(RoundTripStore *rts, SpnValue val);
+static SpnValue rts_getval(RoundTripStore *rts, int idx); /* returns nil if not found */
+static int rts_getidx(RoundTripStore *rts, SpnValue val); /* returns < 0 if not found */
+static int rts_count(RoundTripStore *rts);
+static void rts_delete_top(RoundTripStore *rts, int newsize);
+static void rts_free(RoundTripStore *rts);
 
 /* linked list for storing offsets and types
  * of 'break' and 'continue' statements
@@ -61,21 +70,23 @@ typedef struct UpvalChain {
 } UpvalChain;
 
 /* if you ever add a member to this structure, consider adding it to the
- * scope context info as well if necessary (and extend the 'save_scope()'
- * and 'restore_scope()' functions accordingly).
+ * scope context info as well if necessary (and extend the 'save_function_scope()'
+ * and 'restore_function_scope()' functions accordingly).
  */
 struct SpnCompiler {
 	Bytecode               bc;
 	char                  *errmsg;
-	int                    tmpidx;      /* (I)    */
-	int                    nregs;       /* (II)   */
-	RoundTripStore        *symtab;      /* (III)  */
-	RoundTripStore        *varstack;    /* (IV)   */
-	struct jump_stmt_list *jumplist;    /* (V)    */
-	int                    is_in_loop;  /* (VI)   */
-	UpvalChain            *upval_chain; /* (VII)  */
-	SpnSourceLocation      error_loc;   /* (VIII) */
-	SpnHashMap            *debug_info;  /* (IX)   */
+	int                    tmpidx;               /* (I)    */
+	int                    nregs;                /* (II)   */
+	RoundTripStore        *symtab;               /* (III)  */
+	RoundTripStore        *varstack;             /* (IV)   */
+	int                    parent_loop_varcount; /* (V)    */
+	int                    parent_init_varcount; /* (VI)   */
+	struct jump_stmt_list *jumplist;             /* (VII)  */
+	int                    is_in_loop;           /* (VIII) */
+	UpvalChain            *upval_chain;          /* (IX)   */
+	SpnSourceLocation      error_loc;            /* (X)    */
+	SpnHashMap            *debug_info;           /* (XI)   */
 };
 
 /* Remarks:
@@ -94,14 +105,27 @@ struct SpnCompiler {
  * (III) - (IV): array of local symbols and stack of file-scope and local
  * (block-scope) variable names and the corresponding register indices
  *
- * (V): link list for storing the offsets and types of unconditional
+ * (V): number of entries in 'varstack' in the enclosing (parent) loop
+ * (if exists) of the scope currently being compiled. Necessary for
+ * generating RAII-style cleanup code before a "break" or "continue"
+ * statement for variables in the scope of the innermost loop.
+ *
+ * (VI): number of entries in 'varstack' in the enclosing (parent) loop
+ * (if exists) of the current scope _after_ the initialization (in the
+ * case of for and - later - while loops) but _before_ the loop body.
+ * This is necessary as "break" statements should clean up all the
+ * variables declared in the loop body _and_ in the initializer, whereas
+ * "continue" statements should not touch the variables declared in the
+ * initializer, they should only deallocate those defined in the body proper.
+ *
+ * (VII): link list for storing the offsets and types of unconditional
  * control flow statements 'break' and 'continue'
  *
- * (VI): Boolean flag which is nonzero inside a loop and zero outside a
+ * (VIII): Boolean flag which is nonzero inside a loop and zero outside a
  * loop. It is used to limit the use of 'break' and 'continue' to loop bodies
  * (since it doesn't make sense to 'break' or 'continue' outside a loop).
  *
- * (VII): the UpvalChain link list forms a stack. Each node contains two
+ * (IX): the UpvalChain link list forms a stack. Each node contains two
  * arrays: they contain the same 'spn_uword's (the "upvalue descriptors"),
  * that describe which variables in the scope of the containing function are
  * referred to as upvalues in the function corresponding to a given node.
@@ -111,10 +135,10 @@ struct SpnCompiler {
  * the latter is used for generating the SPN_INS_CLOSURE instruction _after_
  * the compilation of the function body.
  *
- * (VIII): error_loc is the location information for the AST node for which
+ * (X): error_loc is the location information for the AST node for which
  * a compiler error occurred.
  *
- * (IX): the debug information maps bytecode addresses to line and character
+ * (XI): the debug information maps bytecode addresses to line and character
  * numbers, and register numbers to variable names.
  * This member may be NULL, in which case no debug information is emitted.
  */
@@ -123,30 +147,80 @@ struct SpnCompiler {
  * this has to be preserved (saved and restored) across the compilation of
  * function bodies.
  */
-typedef struct ScopeInfo {
+typedef struct FunctionScopeInfo {
 	int                    tmpidx;
 	int                    nregs;
 	RoundTripStore        *varstack;
+	int                    parent_loop_varcount;
+	int                    parent_init_varcount;
 	struct jump_stmt_list *jumplist;
 	int                    is_in_loop;
-} ScopeInfo;
+} FunctionScopeInfo;
 
-static void save_scope(SpnCompiler *cmp, ScopeInfo *sci)
+static void save_function_scope(SpnCompiler *cmp, FunctionScopeInfo *sci)
 {
-	sci->tmpidx     = cmp->tmpidx;
-	sci->nregs      = cmp->nregs;
-	sci->varstack   = cmp->varstack;
-	sci->jumplist   = cmp->jumplist;
-	sci->is_in_loop = cmp->is_in_loop;
+	sci->tmpidx               = cmp->tmpidx;
+	sci->nregs                = cmp->nregs;
+	sci->varstack             = cmp->varstack;
+	sci->parent_loop_varcount = cmp->parent_loop_varcount;
+	sci->parent_init_varcount = cmp->parent_init_varcount;
+	sci->jumplist             = cmp->jumplist;
+	sci->is_in_loop           = cmp->is_in_loop;
 }
 
-static void restore_scope(SpnCompiler *cmp, ScopeInfo *sci)
+static void restore_function_scope(SpnCompiler *cmp, FunctionScopeInfo *sci)
 {
-	cmp->tmpidx     = sci->tmpidx;
-	cmp->nregs      = sci->nregs;
-	cmp->varstack   = sci->varstack;
-	cmp->jumplist   = sci->jumplist;
-	cmp->is_in_loop = sci->is_in_loop;
+	cmp->tmpidx               = sci->tmpidx;
+	cmp->nregs                = sci->nregs;
+	cmp->varstack             = sci->varstack;
+	cmp->parent_loop_varcount = sci->parent_loop_varcount;
+	cmp->parent_init_varcount = sci->parent_init_varcount;
+	cmp->jumplist             = sci->jumplist;
+	cmp->is_in_loop           = sci->is_in_loop;
+}
+
+/* Structure representing whether the compilation is inside a loop body,
+ * and other loop-related information such as the number of locals in
+ * the enclosing loop (if any) of the current scope, and the list of
+ * "break" and "continue" jumps in the form of a jumplist to be fixed up.
+ */
+typedef struct LoopState {
+	int                    parent_loop_varcount;
+	int                    parent_init_varcount;
+	struct jump_stmt_list *jumplist;
+	int                    is_in_loop;
+} LoopState;
+
+static void save_loop_state(SpnCompiler *cmp, LoopState *ls)
+{
+	ls->parent_loop_varcount = cmp->parent_loop_varcount;
+	ls->parent_init_varcount = cmp->parent_init_varcount;
+	ls->jumplist             = cmp->jumplist;
+	ls->is_in_loop           = cmp->is_in_loop;
+}
+
+static void restore_loop_state(SpnCompiler *cmp, LoopState *ls)
+{
+	cmp->parent_loop_varcount = ls->parent_loop_varcount;
+	cmp->parent_init_varcount = ls->parent_init_varcount;
+	cmp->jumplist             = ls->jumplist;
+	cmp->is_in_loop           = ls->is_in_loop;
+}
+
+static void init_loop_state_no_parent(SpnCompiler *cmp)
+{
+	cmp->parent_loop_varcount = -1; /* < 0 means 'no loops in any parent scope */
+	cmp->parent_init_varcount = -1;
+	cmp->jumplist = NULL;
+	cmp->is_in_loop = 0;
+}
+
+static void init_loop_state_in_parent(SpnCompiler *cmp)
+{
+	cmp->parent_loop_varcount = rts_count(cmp->varstack);
+	cmp->parent_init_varcount = rts_count(cmp->varstack);
+	cmp->jumplist = NULL;
+	cmp->is_in_loop = 1;
 }
 
 /*****************************
@@ -281,8 +355,7 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast);
 static int compile_for(SpnCompiler *cmp, SpnHashMap *ast);
 static int compile_if(SpnCompiler *cmp, SpnHashMap *ast);
 
-static int compile_break(SpnCompiler *cmp, SpnHashMap *ast);
-static int compile_continue(SpnCompiler *cmp, SpnHashMap *ast);
+static int compile_loop_jump(SpnCompiler *cmp, SpnHashMap *ast); /* break & continue */
 static int compile_vardecl(SpnCompiler *cmp, SpnHashMap *ast);
 static int compile_const(SpnCompiler *cmp, SpnHashMap *ast);
 static int compile_return(SpnCompiler *cmp, SpnHashMap *ast);
@@ -421,22 +494,13 @@ static void bytecode_init(Bytecode *bc);
 static void bytecode_append(Bytecode *bc, spn_uword *words, size_t n);
 static void append_cstring(Bytecode *bc, const char *str, size_t len);
 
-/* managing round-trip stores */
-static void rts_init(RoundTripStore *rts);
-static int rts_add(RoundTripStore *rts, SpnValue val);
-static SpnValue rts_getval(RoundTripStore *rts, int idx); /* returns nil if not found */
-static int rts_getidx(RoundTripStore *rts, SpnValue val); /* returns < 0 if not found */
-static int rts_count(RoundTripStore *rts);
-static void rts_delete_top(RoundTripStore *rts, int newsize);
-static void rts_free(RoundTripStore *rts);
-
 SpnCompiler *spn_compiler_new(void)
 {
 	SpnCompiler *cmp = spn_malloc(sizeof(*cmp));
 
+	init_loop_state_no_parent(cmp);
+
 	cmp->errmsg = NULL;
-	cmp->jumplist = NULL;
-	cmp->is_in_loop = 0;
 	cmp->upval_chain = NULL;
 	cmp->error_loc.line = 0;
 	cmp->error_loc.column = 0;
@@ -458,6 +522,10 @@ SpnFunction *spn_compiler_compile(SpnCompiler *cmp, SpnHashMap *ast, int debug)
 	if (compile_program(cmp, ast)) {
 		/* should be at global scope when compilation is done */
 		assert(cmp->upval_chain == NULL);
+		assert(cmp->parent_loop_varcount < 0);
+		assert(cmp->parent_init_varcount < 0);
+		assert(cmp->jumplist == NULL);
+		assert(cmp->is_in_loop == 0);
 
 		/* success. transfer ownership of cmp->bc.insns
 		 * and that of cmp->debug_info to the result.
@@ -717,6 +785,17 @@ static void emit_symtab_entry_long(SpnCompiler *cmp, enum spn_local_symbol opcod
 	bytecode_append(&cmp->bc, &ins, 1);
 }
 
+/* cleans up the range of temporary registers and/or registers of
+ * locals fallen out of scope by storing nil into them.
+ */
+static void cleanup_registers(SpnCompiler *cmp, int first_regidx, int past_last_regidx)
+{
+	/* do not emit redundant / no-op cleanup instruction */
+	if (first_regidx < past_last_regidx) {
+		emit_ins_AB(cmp, SPN_INS_CLEAN, first_regidx, past_last_regidx);
+	}
+}
+
 
 /* round-trip stores */
 static void rts_init(RoundTripStore *rts)
@@ -824,17 +903,17 @@ static int compile(SpnCompiler *cmp, SpnHashMap *ast)
 		const char *node;
 		int (*fn)(SpnCompiler *, SpnHashMap *);
 	} compilers[] = {
-		{ "block",     compile_block    },
-		{ "if",        compile_if       },
-		{ "for",       compile_for      },
-		{ "while",     compile_while    },
-		{ "do",        compile_do       },
-		{ "return",    compile_return   },
-		{ "vardecl",   compile_vardecl  },
-		{ "constdecl", compile_const    },
-		{ "break",     compile_break    },
-		{ "continue",  compile_continue },
-		{ "empty",     compile_empty    }
+		{ "block",     compile_block     },
+		{ "if",        compile_if        },
+		{ "for",       compile_for       },
+		{ "while",     compile_while     },
+		{ "do",        compile_do        },
+		{ "return",    compile_return    },
+		{ "vardecl",   compile_vardecl   },
+		{ "constdecl", compile_const     },
+		{ "break",     compile_loop_jump },
+		{ "continue",  compile_loop_jump },
+		{ "empty",     compile_empty     }
 	};
 
 	assert(ast != NULL);
@@ -979,12 +1058,22 @@ static int compile_program(SpnCompiler *cmp, SpnHashMap *ast)
 	/* set up the maximal number of registers needed at global scope */
 	cmp->nregs = 0;
 
+	/* no parent loop (nothing encloses the top-level program) */
+	init_loop_state_no_parent(cmp);
+
 	/* compile children; on error, clean up and return error */
 	if (compile_children(cmp, ast) == 0) {
 		rts_free(&symtab);
 		rts_free(&glbvars);
 		return 0;
 	}
+
+	/* We don't need to explicitly clean up registers corresponding
+	 * to variables declared at the top-level scope: when this scope
+	 * ends, the program returns and everything is released automatically.
+	 *
+	 * cleanup_registers(cmp, 0, rts_count(cmp->varstack));
+	 */
 
 	/* unconditionally append 'return nil;', just in case */
 	append_return_nil(cmp);
@@ -1040,11 +1129,18 @@ static int compile_block(SpnCompiler *cmp, SpnHashMap *ast)
 	 * remain in the stack.
 	 */
 	int old_stack_size = rts_count(cmp->varstack);
+	int new_stack_size;
 
 	/* compile children */
 	int success = compile_children(cmp, ast);
 
-	/* and now remove the variables declared in the scope of this block */
+	/* now release the local variables declared in this block,
+	 * and remove them from the variable stack too.
+	 */
+	new_stack_size = rts_count(cmp->varstack);
+	assert(new_stack_size >= old_stack_size);
+
+	cleanup_registers(cmp, old_stack_size, new_stack_size);
 	rts_delete_top(cmp->varstack, old_stack_size);
 
 	return success;
@@ -1058,7 +1154,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 
 	SymtabEntry *entry;
 	RoundTripStore vs_this;
-	ScopeInfo sci;
+	FunctionScopeInfo sci;
 	SpnValue offval;
 
 	/* obtain argument list, (optional) function name and body */
@@ -1079,8 +1175,9 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 
 	/* save scope context data: local variables, temporary register stack
 	 * pointer, maximal number of registers, innermost loop offset
+	 * and number of variables in the enclosing loop (if any).
 	 */
-	save_scope(cmp, &sci);
+	save_function_scope(cmp, &sci);
 
 	/* init new local variable stack and register counter */
 	rts_init(&vs_this);
@@ -1088,8 +1185,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 	cmp->nregs = 0;
 
 	/* loop control flow statements across function boundaries don't make sense */
-	cmp->is_in_loop = 0;
-	cmp->jumplist = NULL;
+	init_loop_state_no_parent(cmp);
 
 	/* emit 'SPN_INS_FUNCTION' to bytecode */
 	emit_ins_void(cmp, SPN_INS_FUNCTION);
@@ -1123,7 +1219,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 			compiler_error(cmp, ast, "argument '%s' already declared", args);
 
 			rts_free(&vs_this);
-			restore_scope(cmp, &sci);
+			restore_function_scope(cmp, &sci);
 			upval_chain_pop(cmp);
 
 			return 0;
@@ -1133,7 +1229,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 	/* compile body */
 	if (compile(cmp, body) == 0) {
 		rts_free(&vs_this);
-		restore_scope(cmp, &sci);
+		restore_function_scope(cmp, &sci);
 		upval_chain_pop(cmp);
 
 		return 0;
@@ -1157,7 +1253,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 
 	/* free local var stack, restore scope context data */
 	rts_free(&vs_this);
-	restore_scope(cmp, &sci);
+	restore_function_scope(cmp, &sci);
 	upval_chain_pop(cmp);
 
 	if (regcount > MAX_REG_FRAME) {
@@ -1210,31 +1306,36 @@ static int compile_while(SpnCompiler *cmp, SpnHashMap *ast)
 	spn_uword ins[2] = { 0 }; /* stub */
 	spn_sword off_cond, off_cndjmp, off_body, off_jmpback, off_end;
 
-	/* save old loop state */
-	int is_in_loop = cmp->is_in_loop;
-	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
-
 	SpnHashMap *condition = ast_get_child_byname(ast, "cond");
 	SpnHashMap *body = ast_get_child_byname(ast, "body");
 
+	/* save old loop state */
+	LoopState loop_state;
+	save_loop_state(cmp, &loop_state);
+
 	/* set up new loop state */
-	cmp->is_in_loop = 1;
-	cmp->jumplist = NULL;
+	init_loop_state_in_parent(cmp);
 
 	/* save offset of condition */
 	off_cond = cmp->bc.len;
 
 	/* compile condition
-	 * on error, clean up, restore jumplist
+	 * on error, clean up, restore loop state
 	 * no need to free it -- it's empty so far
 	 */
 	if (compile_expr_toplevel(cmp, condition, &cndidx) == 0) {
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
 
 	off_cndjmp = cmp->bc.len;
+
+	/* Once variable declarations in the condition of 'while' loops
+	 * are permitted, here we should insert code that sets the
+	 * cmp->parent_init_varcount variable to rts_count(cmp->varstack),
+	 * so that "continue" statements won't erroneously nil out
+	 * variables declared in the loop header.
+	 */
 
 	/* append jump over the loop body if condition is false (stub) */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
@@ -1243,10 +1344,9 @@ static int compile_while(SpnCompiler *cmp, SpnHashMap *ast)
 
 	/* compile loop body */
 	if (compile(cmp, body) == 0) {
-		/* clean up and restore jumplist */
+		/* clean up and restore loop state */
 		free_jumplist(cmp->jumplist);
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
 
@@ -1266,9 +1366,8 @@ static int compile_while(SpnCompiler *cmp, SpnHashMap *ast)
 	/* fix up dummy jumps, free jump list on the fly */
 	fix_and_free_jump_list(cmp, off_end, off_cond);
 
-	/* restore original jump list */
-	cmp->jumplist = orig_jumplist;
-	cmp->is_in_loop = is_in_loop;
+	/* restore original loop state */
+	restore_loop_state(cmp, &loop_state);
 
 	return 1;
 }
@@ -1280,22 +1379,20 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 	spn_uword ins[2];
 	int reg = -1;
 
-	/* save old loop state */
-	int is_in_loop = cmp->is_in_loop;
-	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
-
 	SpnHashMap *condition = ast_get_child_byname(ast, "cond");
 	SpnHashMap *body = ast_get_child_byname(ast, "body");
 
+	/* save old loop state */
+	LoopState loop_state;
+	save_loop_state(cmp, &loop_state);
+
 	/* set up new loop state */
-	cmp->is_in_loop = 1;
-	cmp->jumplist = NULL;
+	init_loop_state_in_parent(cmp);
 
 	/* compile body; clean up jump list on error */
 	if (compile(cmp, body) == 0) {
 		free_jumplist(cmp->jumplist);
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
 
@@ -1304,8 +1401,7 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 	/* compile condition, clean up jump list on error */
 	if (compile_expr_toplevel(cmp, condition, &reg) == 0) {
 		free_jumplist(cmp->jumplist);
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
 
@@ -1322,9 +1418,8 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 	/* fix up continue and break statements, free jump list on the fly */
 	fix_and_free_jump_list(cmp, off_end, off_cond);
 
-	/* restore original jump list */
-	cmp->jumplist = orig_jumplist;
-	cmp->is_in_loop = is_in_loop;
+	/* restore original loop state */
+	restore_loop_state(cmp, &loop_state);
 
 	return 1;
 }
@@ -1342,12 +1437,14 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	SpnHashMap *body = ast_get_child_byname(ast, "body");
 
 	/* save old loop state */
-	int is_in_loop = cmp->is_in_loop;
-	struct jump_stmt_list *orig_jumplist = cmp->jumplist;
+	LoopState loop_state;
+	save_loop_state(cmp, &loop_state);
 
-	/* set up new loop state */
-	cmp->is_in_loop = 1;
-	cmp->jumplist = NULL;
+	/* Set up new loop state. Doing this _before_ compiling the initializer
+	 * makes 'break' magically (and correctly) free the variables declared in
+	 * the initializer when a 'break' statement is encountered.
+	 */
+	init_loop_state_in_parent(cmp);
 
 	/* we want that the scope of variables declared in the initialization
 	 * be limited to the loop body, so here we save the variable stack size
@@ -1360,16 +1457,20 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	 * because 'init' may be an expression or a variable declaration
 	 */
 	if (compile(cmp, init) == 0) {
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
+
+	/* store number of local variables between initialization and the
+	 * loop body, so that "continue" statements work properly.
+	 */
+	 cmp->parent_init_varcount = rts_count(cmp->varstack);
+	 assert(cmp->parent_init_varcount >= cmp->parent_loop_varcount);
 
 	/* compile condition, clean up on error likewise */
 	off_cond = cmp->bc.len;
 	if (compile_expr_toplevel(cmp, cond, &regidx) == 0) {
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
 
@@ -1381,8 +1482,7 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	off_body_begin = cmp->bc.len;
 	if (compile(cmp, body) == 0) {
 		free_jumplist(cmp->jumplist);
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
 
@@ -1390,8 +1490,7 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	off_incmt = cmp->bc.len;
 	if (compile_expr_toplevel(cmp, icmt, NULL) == 0) {
 		free_jumplist(cmp->jumplist);
-		cmp->jumplist = orig_jumplist;
-		cmp->is_in_loop = is_in_loop;
+		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
 
@@ -1417,9 +1516,8 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	/* get rid of variables declared in the initialization of the loop */
 	rts_delete_top(cmp->varstack, old_stack_size);
 
-	/* restore jump state */
-	cmp->jumplist = orig_jumplist;
-	cmp->is_in_loop = is_in_loop;
+	/* restore loop state */
+	restore_loop_state(cmp, &loop_state);
 
 	return 1;
 }
@@ -1478,7 +1576,7 @@ static int compile_if(SpnCompiler *cmp, SpnHashMap *ast)
 	return 1;
 }
 
-/* helper function for 'compile_break()' and 'compile_continue()' */
+/* helper function for 'compile_loop_jump()' */
 static void prepend_jumplist_node(SpnCompiler *cmp, spn_sword offset, int is_break)
 {
 	struct jump_stmt_list *jump = spn_malloc(sizeof(*jump));
@@ -1498,38 +1596,38 @@ static void free_jumplist(struct jump_stmt_list *hdr)
 	}
 }
 
-static int compile_break(SpnCompiler *cmp, SpnHashMap *ast)
+static int compile_loop_jump(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	/* dummy jump instruction */
 	spn_uword ins[2] = { 0 };
 
-	/* it doesn't make sense to 'break' outside a loop */
+	/* "break" or "continue" */
+	const char *type = ast_get_type(ast);
+
+	/* 1 for "break", 0 for "continue" */
+	int is_break = type_equal(type, "break");
+
+	/* "break" releases variables declared in the loop initializer; "continue" doesn't. */
+	int first_regidx = is_break ? cmp->parent_loop_varcount : cmp->parent_init_varcount;
+
+	/* it doesn't make sense to 'break' or 'continue' outside a loop */
 	if (cmp->is_in_loop == 0) {
-		compiler_error(cmp, ast, "'break' is only meaningful inside a loop", NULL);
+		const void *args[1];
+		args[0] = type;
+		compiler_error(cmp, ast, "'%s' is only meaningful inside a loop", args);
 		return 0;
 	}
 
-	/* add link list node with current offset */
-	prepend_jumplist_node(cmp, cmp->bc.len, 1);
-
-	/* then append dummy jump instruction */
-	bytecode_append(&cmp->bc, ins, COUNT(ins));
-
-	return 1;
-}
-
-static int compile_continue(SpnCompiler *cmp, SpnHashMap *ast)
-{
-	spn_uword ins[2] = { 0 };
-
-	/* it doesn't make sense to 'continue' outside a loop either */
-	if (cmp->is_in_loop == 0) {
-		compiler_error(cmp, ast, "'continue' is only meaningful inside a loop", NULL);
-		return 0;
-	}
+	/* Release all variables declared in the loop body.
+	 * In the case of a "break" statement, also release the variables
+	 * declared in the loop header/initializer.
+	 * In the case of a "continue" statement, the variables declared
+	 * in the loop header must _not_ be released.
+	 */
+	cleanup_registers(cmp, first_regidx, rts_count(cmp->varstack));
 
 	/* add link list node with current offset */
-	prepend_jumplist_node(cmp, cmp->bc.len, 0);
+	prepend_jumplist_node(cmp, cmp->bc.len, is_break);
 
 	/* then append dummy jump instruction */
 	bytecode_append(&cmp->bc, ins, COUNT(ins));
@@ -1649,15 +1747,44 @@ static int compile_expr_toplevel(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 	int reg = dst != NULL ? *dst : -1;
 
 	/* set the lowest index that can be used as a temporary register
-	 * to the number of variables (local or global, depending on scope)
+	 * to the number of variables (local or global, depending on scope).
+	 * We also need this tmpidx for later use in the cleanup code,
+	 * which is necessary because cmp->tmpidx may be modified by the
+	 * various compiler functions, in particular unused expression
+	 * results may go into temporary registers, which would result in
+	 * them not being cleaned up at the end of the top-level expression.
 	 */
-	cmp->tmpidx = rts_count(cmp->varstack);
+	int tmpidx = rts_count(cmp->varstack);
+	cmp->tmpidx = tmpidx;
 
 	/* actually compile expression */
 	if (compile_expr(cmp, ast, &reg)) {
 		if (dst != NULL) {
 			*dst = reg;
 		}
+
+		/* clean up temporaries in order for RAII to behave correctly.
+		 * For the sake of simplicity of the compiler, we don't store
+		 * _exactly_ how many temporary registers the expression
+		 * required. Instead, we nil out _every_ register between
+		 * cmp->tmpidx and cmp->nregs, which potentially sets some
+		 * already-dead / unused registers to nil, but we don't care
+		 * about this redundancy. It doesn't do any harm to local
+		 * variables, since tmpidx >= the register index of a local
+		 * variable implies that the variable already went out of scope.
+		 *
+		 * NOTA BENE: if we ever allow arbitrary statements, in particular
+		 * blocks and loops, if-then-else and match statements within
+		 * expressions, we need to re-think this, as we will then need to:
+		 *
+		 *   1. Clean up everything in the block, including local
+		 *      variables declared therein; and
+		 *   2. Clean up the block scope after a break or continue statement;
+		 *   3. Pay special attention to variables declared in the condition
+		 *      of if, for, while and match statements.
+		 *
+		 */
+		cleanup_registers(cmp, tmpidx, cmp->nregs);
 
 		return 1;
 	}

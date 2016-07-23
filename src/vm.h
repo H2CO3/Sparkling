@@ -299,7 +299,8 @@ enum spn_vm_ins {
 	SPN_INS_LDUPVAL,  /* a = upvalues[b];                     */
 	SPN_INS_METHOD,   /* a = classes[b][c] (VIII)             */
 	SPN_INS_PROPGET,  /* a = classes[b].getter(b, c) (IX)     */
-	SPN_INS_PROPSET   /* classes[a].setter(a, b, c) (X)       */
+	SPN_INS_PROPSET,  /* classes[a].setter(a, b, c) (X)       */
+	SPN_INS_CLEAN     /* [a...b) = nil; a <= b                */
 };
 
 /* Remarks:

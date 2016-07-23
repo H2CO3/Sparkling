@@ -1805,6 +1805,21 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			runtime_error(vm, ip - 1, "value of type %s has no setter for property '%s'", args);
 			return -1;
 		}
+		case SPN_INS_CLEAN: {
+			int begin = OPA(ins);
+			int end   = OPB(ins);
+			int i;
+
+			assert(begin <= end && "beginning of register range is past its end");
+
+			for (i = begin; i < end; i++) {
+				SpnValue *val = VALPTR(vm->sp, i);
+				spn_value_release(val);
+				*val = spn_nilval;
+			}
+
+			break;
+		}
 		default: /* I am sorry for the indentation here. */
 			{
 				unsigned long lopcode = opcode;

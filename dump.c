@@ -423,6 +423,11 @@ static int disasm_exec(spn_uword *bc, size_t textlen)
 				opa, opb, opc, opa, opb, opc);
 			break;
 		}
+		case SPN_INS_CLEAN: {
+			int opa = OPA(ins), opb = OPB(ins);
+			printf("clean\t[r%d, r%d)\n", opa, opb);
+			break;
+		}
 		default:
 			spn_die(
 				"error disassembling bytecode: "
