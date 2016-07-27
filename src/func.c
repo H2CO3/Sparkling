@@ -11,6 +11,7 @@
 #include <assert.h>
 
 #include "func.h"
+#include "private.h"
 
 
 static int equal_func(void *lp, void *rp)
@@ -94,9 +95,11 @@ static void free_func(void *obj)
 static const SpnClass spn_class_func = {
 	sizeof(SpnFunction),
 	SPN_CLASS_UID_FUNCTION,
+	"function",
 	equal_func,
 	NULL,
 	hash_func,
+	NULL, /* TODO: implement description */
 	free_func
 };
 
@@ -199,34 +202,26 @@ SpnFunction *spn_func_new_closure(SpnFunction *prototype)
 
 /* convenience value constructors */
 
-static SpnValue func_to_val(SpnFunction *func)
-{
-	SpnValue ret;
-	ret.type = SPN_TYPE_FUNC;
-	ret.v.o = func;
-	return ret;
-}
-
 SpnValue spn_makescriptfunc(const char *name, spn_uword *bc, SpnFunction *env)
 {
 	SpnFunction *func = spn_func_new_script(name, bc, env);
-	return func_to_val(func);
+	return makeobject(func);
 }
 
 SpnValue spn_maketopprgfunc(const char *name, spn_uword *bc, size_t nwords, SpnHashMap *debug)
 {
 	SpnFunction *func = spn_func_new_topprg(name, bc, nwords, debug);
-	return func_to_val(func);
+	return makeobject(func);
 }
 
 SpnValue spn_makenativefunc(const char *name, int (*fn)(SpnValue *, int, SpnValue *, void *))
 {
 	SpnFunction *func = spn_func_new_native(name, fn);
-	return func_to_val(func);
+	return makeobject(func);
 }
 
 SpnValue spn_makeclosure(SpnFunction *prototype)
 {
 	SpnFunction *func = spn_func_new_closure(prototype);
-	return func_to_val(func);
+	return makeobject(func);
 }

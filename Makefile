@@ -29,7 +29,7 @@ ifeq ($(OPSYS), darwin)
 
 	CC = clang
 	CFLAGS = -isysroot $(SYSROOT)
-	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error-deprecated-declarations -Wno-error=missing-field-initializers
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error=deprecated-declarations -Wno-error=missing-field-initializers
 	LDFLAGS = -isysroot $(SYSROOT) -w
 	DYNLDFLAGS = -isysroot $(SYSROOT) -w -dynamiclib
 	LTO_FLAG = -flto

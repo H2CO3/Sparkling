@@ -126,9 +126,7 @@ void spn_ctx_setuserinfo(SpnContext *ctx, void *info)
  */
 static void add_to_programs(SpnContext *ctx, SpnFunction *fn)
 {
-	SpnValue val;
-	val.type = SPN_TYPE_FUNC;
-	val.v.o = fn;
+	SpnValue val = makeobject(fn);
 	spn_array_push(ctx->programs, &val);
 }
 
@@ -355,11 +353,6 @@ SpnHashMap *spn_ctx_getglobals(SpnContext *ctx)
 	return spn_vm_getglobals(ctx->vm);
 }
 
-SpnHashMap *spn_ctx_getclasses(SpnContext *ctx)
-{
-	return spn_vm_getclasses(ctx->vm);
-}
-
 /* Load non-native parts of the standard library */
 void spn_ctx_load_script_stdlib(SpnContext *ctx)
 {
@@ -385,7 +378,7 @@ void spn_ctx_load_script_stdlib(SpnContext *ctx)
 #if USE_DYNAMIC_LOADING
 void spn_ctx_add_dynmod(SpnContext *ctx, void *handle)
 {
-	SpnValue val = makeweakuserinfo(handle);
+	SpnValue val = makerawptr(handle);
 	spn_array_push(ctx->dynmods, &val);
 }
 #endif /* USE_DYNAMIC_LOADING */

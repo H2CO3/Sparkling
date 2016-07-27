@@ -73,12 +73,14 @@ enum {
 };
 
 typedef struct SpnClass {
-	size_t instsz;                   /* sizeof(instance)                    */
-	unsigned long UID;               /* unique identifier of the class      */
-	int (*equal)(void *, void *);    /* non-zero: equal, zero: different    */
-	int (*compare)(void *, void *);  /* -1, +1, 0: lhs is <, >, == to rhs   */
-	unsigned long (*hashfn)(void *); /* cache the hash if immutable!        */
-	void (*destructor)(void *);      /* shouldn't call free on its argument */
+	size_t instsz;                     /* sizeof(instance)                    */
+	unsigned long UID;                 /* unique identifier of the class      */
+	const char *name;                  /* unique name of the class            */
+	int (*equal)(void *, void *);      /* non-zero: equal, zero: different    */
+	int (*compare)(void *, void *);    /* -1, +1, 0: lhs is <, >, == to rhs   */
+	unsigned long (*hashfn)(void *);   /* cache the hash if immutable!        */
+	char *(*description)(void *, int); /* returns normal or debug description */
+	void (*destructor)(void *);        /* shouldn't call free on its argument */
 } SpnClass;
 
 typedef struct SpnObject {
@@ -105,6 +107,12 @@ SPN_API int spn_object_equal(void *lp, void *rp);
  * returns -1 if lhs < rhs, 0 if lhs == rhs, 1 if lhs > rhs
  */
 SPN_API int spn_object_cmp(void *lp, void *rp);
+
+/* Returns a dynamically allocatd string describing the object instance.
+ * If 'debug' is true (nonzero), it returns the debug description.
+ * The returned string must be free()'d.
+ */
+SPN_API char *spn_object_description(SpnObject *obj, int debug);
 
 /* these reference counting functions are called quite often.
  * for the sake of speed, they should probably be inlined. C89 doesn't have
@@ -135,17 +143,13 @@ enum {
 	SPN_TTAG_NIL,
 	SPN_TTAG_BOOL,
 	SPN_TTAG_NUMBER,	 /* floating-point if 'FLOAT' flag is set */
-	SPN_TTAG_STRING,
-	SPN_TTAG_ARRAY,
-	SPN_TTAG_HASHMAP,
-	SPN_TTAG_FUNC,
-	SPN_TTAG_USERINFO /* strong pointer when 'OBJECT' flag is set	 */
+	SPN_TTAG_RAWPTR,   /* "weak user info"                      */
+	SPN_TTAG_OBJECT    /* reference-counted pointer type        */
 };
 
 /* additional type information flags */
 enum {
-	SPN_FLAG_OBJECT = 1 << 8, /* type is an object type   */
-	SPN_FLAG_FLOAT  = 1 << 9  /* number is floating-point */
+	SPN_FLAG_FLOAT  = 1 << 8  /* number is floating-point */
 };
 
 /* complete type definitions */
@@ -154,35 +158,37 @@ enum {
 	SPN_TYPE_BOOL               = SPN_TTAG_BOOL,
 	SPN_TYPE_INT                = SPN_TTAG_NUMBER,
 	SPN_TYPE_FLOAT              = SPN_TTAG_NUMBER   | SPN_FLAG_FLOAT,
-	SPN_TYPE_FUNC               = SPN_TTAG_FUNC     | SPN_FLAG_OBJECT,
-	SPN_TYPE_STRING             = SPN_TTAG_STRING   | SPN_FLAG_OBJECT,
-	SPN_TYPE_ARRAY              = SPN_TTAG_ARRAY    | SPN_FLAG_OBJECT,
-	SPN_TYPE_HASHMAP            = SPN_TTAG_HASHMAP  | SPN_FLAG_OBJECT,
-	SPN_TYPE_WEAKUSERINFO       = SPN_TTAG_USERINFO,
-	SPN_TYPE_STRGUSERINFO       = SPN_TTAG_USERINFO | SPN_FLAG_OBJECT
+	SPN_TYPE_RAWPTR             = SPN_TTAG_RAWPTR,
+	SPN_TYPE_OBJECT             = SPN_TTAG_OBJECT
 };
 
 /* type checking */
-#define spn_isobject(val)   ((((val)->type) & SPN_FLAG_OBJECT) != 0)
 #define spn_typetag(t)      ((t) & SPN_MASK_TTAG)
 #define spn_typeflag(t)     ((t) & SPN_MASK_FLAG)
 #define spn_valtype(val)    (spn_typetag((val)->type))
 #define spn_valflag(val)    (spn_typeflag((val)->type))
+#define spn_classuid(val)   (((SpnObject *)(val)->v.o)->isa->UID)
+#define spn_classname(val)  (((SpnObject *)(val)->v.o)->isa->name)
+
 
 #define spn_isnil(val)          (spn_valtype(val) == SPN_TTAG_NIL)
 #define spn_isbool(val)         (spn_valtype(val) == SPN_TTAG_BOOL)
 #define spn_isnumber(val)       (spn_valtype(val) == SPN_TTAG_NUMBER)
-#define spn_isstring(val)       (spn_valtype(val) == SPN_TTAG_STRING)
-#define spn_isarray(val)        (spn_valtype(val) == SPN_TTAG_ARRAY)
-#define spn_ishashmap(val)      (spn_valtype(val) == SPN_TTAG_HASHMAP)
-#define spn_isfunc(val)         (spn_valtype(val) == SPN_TTAG_FUNC)
-#define spn_isuserinfo(val)     (spn_valtype(val) == SPN_TTAG_USERINFO)
+#define spn_israwptr(val)       (spn_valtype(val) == SPN_TTAG_RAWPTR)
+#define spn_isobject(val)       (spn_valtype(val) == SPN_TTAG_OBJECT)
+
+#define spn_isstring(val)       (spn_isobject(val) && spn_classuid(val) == SPN_CLASS_UID_STRING)
+#define spn_isarray(val)        (spn_isobject(val) && spn_classuid(val) == SPN_CLASS_UID_ARRAY)
+#define spn_ishashmap(val)      (spn_isobject(val) && spn_classuid(val) == SPN_CLASS_UID_HASHMAP)
+#define spn_isfunc(val)         (spn_isobject(val) && spn_classuid(val) == SPN_CLASS_UID_FUNCTION)
+#define spn_isfilehandle(val)   (spn_isobject(val) && spn_classuid(val) == SPN_CLASS_UID_FILEHANDLE)
+#define spn_issymtabentry(val)  (spn_isobject(val) && spn_classuid(val) == SPN_CLASS_UID_SYMTABENTRY)
+#define spn_issymbolstub(val)   (spn_isobject(val) && spn_classuid(val) == SPN_CLASS_UID_SYMBOLSTUB)
+
 
 #define spn_notnil(val)         (spn_valtype(val) != SPN_TTAG_NIL)
 #define spn_isint(val)          (spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) == 0))
 #define spn_isfloat(val)        (spn_isnumber(val) && ((((val)->type) & SPN_FLAG_FLOAT) != 0))
-#define spn_isweakuserinfo(val) (spn_isuserinfo(val) && !spn_isobject(val))
-#define spn_isstrguserinfo(val) (spn_isuserinfo(val) &&  spn_isobject(val))
 
 /* getting the value of a tagged union. These do *not* check the type.
  * More of these macros can be found in headers implementing specific
@@ -200,7 +206,7 @@ typedef struct SpnValue {
 		int    b;   /* Boolean value */
 		long   i;   /* integer value */
 		double f;   /* float value   */
-		void  *p;   /* user info     */
+		void  *p;   /* pointer value */
 		void  *o;   /* object value  */
 	} v;
 } SpnValue;
@@ -221,8 +227,8 @@ SPN_API double spn_floatvalue_f(SpnValue *val);
 SPN_API SpnValue spn_makebool(int b);
 SPN_API SpnValue spn_makeint(long i);
 SPN_API SpnValue spn_makefloat(double f);
-SPN_API SpnValue spn_makeweakuserinfo(void *p);
-SPN_API SpnValue spn_makestrguserinfo(void *o);
+SPN_API SpnValue spn_makerawptr(void *p);
+SPN_API SpnValue spn_makeobject(void *o);
 
 /* 'nil' and Boolean constants */
 SPN_API const SpnValue spn_nilval;
@@ -256,8 +262,11 @@ SPN_API void spn_debug_print(FILE *stream, const SpnValue *val);
 SPN_API void spn_repl_print(const SpnValue *val);
 /* the only exception being REPL, which automatically redirects to stdout */
 
-/* returns a string describing a particular type */
-SPN_API const char *spn_type_name(int type);
+/* returns a string describing an SPN_TTAG_* type tag */
+SPN_API const char *spn_typetag_name(int ttag);
+
+/* returns a string describing the type of an SpnValue */
+SPN_API const char *spn_value_type_name(const SpnValue *val);
 
 
 /*

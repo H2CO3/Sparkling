@@ -97,9 +97,11 @@ static unsigned long symstub_hash(void *obj)
 static const SpnClass SymbolStub_class = {
 	sizeof(SymbolStub),
 	SPN_CLASS_UID_SYMBOLSTUB,
+	"SymbolStub",
 	symstub_equal,
 	NULL,
 	symstub_hash,
+	NULL, /* TODO: implement description */
 	NULL
 };
 
@@ -109,12 +111,12 @@ SpnValue make_symstub(const char *name)
 {
 	SymbolStub *obj = spn_object_new(&SymbolStub_class);
 	obj->name = name;
-	return makestrguserinfo(obj);
+	return makeobject(obj);
 }
 
 int is_symstub(const SpnValue *val)
 {
-	if (isstrguserinfo(val)) {
+	if (isobject(val)) {
 		SpnObject *obj = objvalue(val);
 		return spn_object_member_of_class(obj, &SymbolStub_class);
 	}

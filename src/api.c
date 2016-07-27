@@ -64,6 +64,36 @@ int spn_object_cmp(void *lp, void *rp)
 	return lhs->isa->compare(lhs, rhs);
 }
 
+char *spn_object_description(SpnObject *obj, int debug)
+{
+	char *str;
+
+	if (obj->isa->description) {
+		return obj->isa->description(obj, debug);
+	}
+
+	/* for classes that don't implement 'description()', use a default format:
+	 * '<' + class name + ' ' + "0x" + pointer value in hex + '>' + '\0'
+	 * an overly generous size of CHAR_BIT * sizeof(size_t) is used for the size of
+	 * the hexadecimal representation of the pointer because I don't want to
+	 * think about dividing by 4 (bits per hex digit) and worry about correctly
+	 * rounding it up and potentially having a buffer overflow error.
+	 * Oh, and let's hope sizeof(unsigned long) >= sizeof(SpnObject *)...
+	 */
+	assert(sizeof(unsigned long) >= sizeof(obj));
+	str = spn_malloc(1 + strlen(obj->isa->name) + 1 + 2 + sizeof(unsigned long) * CHAR_BIT + 1 + 1);
+
+	sprintf(
+		str,
+		"<%s 0x%0*lx>",
+		obj->isa->name,
+		(int)(sizeof(unsigned long) * CHAR_BIT + 3) / 4, /* 4 bits per hex digit, rounded up */
+		(unsigned long)(obj)
+	);
+
+	return str;
+}
+
 void *spn_object_new(const SpnClass *isa)
 {
 	SpnObject *obj = spn_malloc(isa->instsz);
@@ -137,18 +167,18 @@ SpnValue spn_makefloat(double f)
 	return ret;
 }
 
-SpnValue spn_makeweakuserinfo(void *p)
+SpnValue spn_makerawptr(void *p)
 {
 	SpnValue ret;
-	ret.type = SPN_TYPE_WEAKUSERINFO;
+	ret.type = SPN_TYPE_RAWPTR;
 	ret.v.p = p;
 	return ret;
 }
 
-SpnValue spn_makestrguserinfo(void *o)
+SpnValue spn_makeobject(void *o)
 {
 	SpnValue ret;
-	ret.type = SPN_TYPE_STRGUSERINFO;
+	ret.type = SPN_TYPE_OBJECT;
 	ret.v.o = o;
 	return ret;
 }
@@ -161,10 +191,6 @@ const SpnValue spn_trueval  = { SPN_TYPE_BOOL, { 1 } };
 void spn_value_retain(const SpnValue *val)
 {
 	if (isobject(val)) {
-		assert(isstring(val) || isarray(val)
-		   || ishashmap(val) || isfunc(val)
-		   || isuserinfo(val));
-
 		spn_object_retain(objvalue(val));
 	}
 }
@@ -172,10 +198,6 @@ void spn_value_retain(const SpnValue *val)
 void spn_value_release(const SpnValue *val)
 {
 	if (isobject(val)) {
-		assert(isstring(val) || isarray(val)
-		   || ishashmap(val) || isfunc(val)
-		   || isuserinfo(val));
-
 		spn_object_release(objvalue(val));
 	}
 }
@@ -208,26 +230,9 @@ int spn_value_equal(const SpnValue *lhs, const SpnValue *rhs)
 	case SPN_TTAG_NIL:    { return 1; /* nil can only be nil */ }
 	case SPN_TTAG_BOOL:   { return boolvalue(lhs) == boolvalue(rhs); }
 	case SPN_TTAG_NUMBER: { return numeric_equal(lhs, rhs); }
+	case SPN_TTAG_RAWPTR: { return ptrvalue(lhs) == ptrvalue(rhs); }
+	case SPN_TTAG_OBJECT: { return spn_object_equal(objvalue(lhs), objvalue(rhs)); }
 
-	case SPN_TTAG_STRING:
-	case SPN_TTAG_ARRAY:
-	case SPN_TTAG_HASHMAP:
-	case SPN_TTAG_FUNC: {
-		return spn_object_equal(objvalue(lhs), objvalue(rhs));
-	}
-
-	case SPN_TTAG_USERINFO: {
-		/* an object can not equal a non-object */
-		if (isobject(lhs) != isobject(rhs)) {
-			return 0;
-		}
-
-		if (isobject(lhs)) {
-			return spn_object_equal(objvalue(lhs), objvalue(rhs));
-		} else {
-			return ptrvalue(lhs) == ptrvalue(rhs);
-		}
-	}
 	default:
 		SHANT_BE_REACHED();
 	}
@@ -277,6 +282,7 @@ int spn_value_compare(const SpnValue *lhs, const SpnValue *rhs)
 	}
 
 	/* else assume comparable objects */
+	assert(isobject(lhs) && isobject(rhs));
 	return spn_object_cmp(objvalue(lhs), objvalue(rhs));
 }
 
@@ -340,22 +346,13 @@ unsigned long spn_hash_value(const SpnValue *key)
 		/* the hash value of an integer is itself */
 		return intvalue(key);
 	}
-	case SPN_TTAG_STRING:
-	case SPN_TTAG_ARRAY:
-	case SPN_TTAG_HASHMAP:
-	case SPN_TTAG_FUNC: {
+	case SPN_TTAG_RAWPTR: {
+		return (unsigned long)(ptrvalue(key));
+	}
+	case SPN_TTAG_OBJECT: {
 		SpnObject *obj = objvalue(key);
 		unsigned long (*hashfn)(void *) = obj->isa->hashfn;
 		return hashfn ? hashfn(obj) : (unsigned long)(obj);
-	}
-	case SPN_TTAG_USERINFO: {
-		if (isobject(key)) {
-			SpnObject *obj = objvalue(key);
-			unsigned long (*hashfn)(void *) = obj->isa->hashfn;
-			return hashfn ? hashfn(obj) : (unsigned long)(obj);
-		}
-
-		return (unsigned long)(ptrvalue(key));
 	}
 	default:
 		SHANT_BE_REACHED();
@@ -364,8 +361,7 @@ unsigned long spn_hash_value(const SpnValue *key)
 	return 0;
 }
 
-static void print_array(FILE *stream, SpnArray *array, int level);
-static void print_hashmap(FILE *stream, SpnHashMap *hm, int level);
+/* Helpers for printing values */
 
 static void print_indent(FILE *stream, int level)
 {
@@ -374,6 +370,9 @@ static void print_indent(FILE *stream, int level)
 		fprintf(stream, "    ");
 	}
 }
+
+static void print_array(FILE *stream, SpnArray *array, int level);
+static void print_hashmap(FILE *stream, SpnHashMap *hm, int level);
 
 static void inner_aux_print(FILE *stream, const SpnValue *val, int level)
 {
@@ -425,7 +424,9 @@ static void print_hashmap(FILE *stream, SpnHashMap *hm, int level)
 	fprintf(stream, "}");
 }
 
-void spn_value_print(FILE *stream, const SpnValue *val)
+/* Actually printing values */
+
+static void spn_value_print_internal(FILE *stream, const SpnValue *val, int debug)
 {
 	switch (valtype(val)) {
 	case SPN_TTAG_NIL: {
@@ -445,37 +446,30 @@ void spn_value_print(FILE *stream, const SpnValue *val)
 
 		break;
 	}
-	case SPN_TTAG_STRING: {
-		SpnString *s = stringvalue(val);
-		fputs(s->cstr, stream);
+	case SPN_TTAG_RAWPTR: {
+		fprintf(stream, "<pointer %p>", ptrvalue(val));
 		break;
 	}
-	case SPN_TTAG_ARRAY: {
-		SpnArray *array = objvalue(val);
-		print_array(stream, array, 0);
-		break;
-	}
-	case SPN_TTAG_HASHMAP: {
-		SpnHashMap *hashmap = objvalue(val);
-		print_hashmap(stream, hashmap, 0);
-		break;
-	}
-	case SPN_TTAG_FUNC: {
-		SpnFunction *func = funcvalue(val);
-		void *p;
-
-		if (func->native) {
-			p = (void *)(ptrdiff_t)(func->repr.fn);
-		} else {
-			p = func->repr.bc;
+	case SPN_TTAG_OBJECT: {
+		/* TODO: do not special-case arrays and hashmaps */
+		switch (classuid(val)) {
+		case SPN_CLASS_UID_ARRAY: {
+			print_array(stream, arrayvalue(val), 0);
+			break;
+		}
+		case SPN_CLASS_UID_HASHMAP: {
+			print_hashmap(stream, hashmapvalue(val), 0);
+			break;
+		}
+		default:
+			{
+				char *description = spn_object_description(objvalue(val), debug);
+				fputs(description, stream);
+				free(description);
+				break;
+			}
 		}
 
-		fprintf(stream, "<function %p>", p);
-		break;
-	}
-	case SPN_TTAG_USERINFO: {
-		void *ptr = isobject(val) ? objvalue(val) : ptrvalue(val);
-		fprintf(stream, "<userinfo %p>", ptr);
 		break;
 	}
 	default:
@@ -484,54 +478,46 @@ void spn_value_print(FILE *stream, const SpnValue *val)
 	}
 }
 
+void spn_value_print(FILE *stream, const SpnValue *val)
+{
+	spn_value_print_internal(stream, val, 0 /* false, do not debug */);
+}
+
 void spn_debug_print(FILE *stream, const SpnValue *val)
 {
-	switch (valtype(val)) {
-	case SPN_TTAG_STRING:
-		/* TODO: do proper escaping */
-		fprintf(stream, "\"");
-		spn_value_print(stream, val);
-		fprintf(stream, "\"");
-		break;
-	case SPN_TTAG_ARRAY:
-		fprintf(stream, "<array %p>", objvalue(val));
-		break;
-	case SPN_TTAG_HASHMAP:
-		fprintf(stream, "<hashmap %p>", objvalue(val));
-		break;
-	default:
-		spn_value_print(stream, val);
-		break;
-	}
+	spn_value_print_internal(stream, val, 1 /* true, debug */);
 }
 
 void spn_repl_print(const SpnValue *val)
 {
-	switch (valtype(val)) {
-	case SPN_TTAG_STRING:
-		spn_debug_print(stdout, val);
-		break;
-	default:
-		spn_value_print(stdout, val);
-		break;
-	}
+	/* only print strings in debug format by default */
+	spn_value_print_internal(stdout, val, isstring(val));
 }
 
-const char *spn_type_name(int type)
+const char *spn_typetag_name(int ttag)
 {
 	/* XXX: black magic, relies on the order of enum members */
 	static const char *const typenames[] = {
 		"nil",
 		"bool",
 		"number",
-		"string",
-		"array",
-		"hashmap",
-		"function",
-		"userinfo"
+		"pointer",
+		"object",
 	};
 
-	return typenames[typetag(type)];
+	assert(ttag < COUNT(typenames));
+	return typenames[ttag];
+}
+
+const char *spn_value_type_name(const SpnValue *val)
+{
+	/* For objects, return the class name */
+	if (isobject(val)) {
+		return classname(val);
+	}
+
+	/* For primitives, just do a table lookup */
+	return spn_typetag_name(valtype(val));
 }
 
 

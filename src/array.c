@@ -26,12 +26,14 @@ struct SpnArray {
 	size_t    allocsize;   /* allocation (actual) size          */
 };
 
-static void free_array(void *obj);
 
+static void free_array(void *obj);
 
 static const SpnClass spn_class_array = {
 	sizeof(SpnArray),
 	SPN_CLASS_UID_ARRAY,
+	"array",
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -195,8 +197,5 @@ void spn_array_setsize(SpnArray *arr, size_t newsize)
 /* convenience value constructor */
 SpnValue spn_makearray(void)
 {
-	SpnValue ret;
-	ret.type = SPN_TYPE_ARRAY;
-	ret.v.o = spn_array_new();
-	return ret;
+	return makeobject(spn_array_new());
 }

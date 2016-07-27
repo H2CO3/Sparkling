@@ -292,10 +292,7 @@ static SpnHashMap *ast_new(const char *type, SpnSourceLocation loc)
  */
 static void ast_set_child_xfer(SpnHashMap *node, const char *key, SpnHashMap *child)
 {
-	SpnValue val;
-	val.type = SPN_TYPE_HASHMAP;
-	val.v.o = child;
-
+	SpnValue val = makeobject(child);
 	ast_set_property(node, key, &val);
 	spn_object_release(child);
 }
@@ -316,10 +313,7 @@ static SpnArray *ast_get_children(SpnHashMap *node)
 static void ast_push_child_xfer(SpnHashMap *node, SpnHashMap *child)
 {
 	SpnArray *children = ast_get_children(node);
-
-	SpnValue vchild;
-	vchild.type = SPN_TYPE_HASHMAP;
-	vchild.v.o = child;
+	SpnValue vchild = makeobject(child);
 
 	spn_array_push(children, &vchild);
 	spn_object_release(child);
@@ -541,8 +535,7 @@ static SpnHashMap *parse_function(SpnParser *p)
 		return NULL;
 	}
 
-	declargsval.type = SPN_TYPE_ARRAY;
-	declargsval.v.o = declargs;
+	declargsval = makeobject(declargs);
 
 	/* Parse function body */
 	arrow = accept_token_string(p, "->");
@@ -1843,8 +1836,7 @@ static SpnHashMap *parse_fnstmt(SpnParser *p)
 		return NULL;
 	}
 
-	declargsval.type = SPN_TYPE_ARRAY;
-	declargsval.v.o = declargs;
+	declargsval = makeobject(declargs);
 
 	/* parse function body */
 	body = parse_block_expecting(p, "function body");

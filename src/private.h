@@ -30,23 +30,27 @@
 #define isnil(val)      spn_isnil(val)
 #define isbool(val)     spn_isbool(val)
 #define isnum(val)      spn_isnumber(val)
+#define israwptr(val)   spn_israwptr(val)
+#define isobject(val)   spn_isobject(val)
 #define isstring(val)   spn_isstring(val)
 #define isarray(val)    spn_isarray(val)
 #define ishashmap(val)  spn_ishashmap(val)
 #define isfunc(val)     spn_isfunc(val)
-#define isuserinfo(val) spn_isuserinfo(val)
 
-#define isobject(val)   spn_isobject(val)
+#define isfilehandle(val)  spn_isfilehandle(val)
+#define issymtabentry(val) spn_issymtabentry(val)
+#define issymbolstub(val)  spn_issymbolstub(val)
+
 #define typetag(t)      spn_typetag(t)
 #define typeflag(t)     spn_typeflag(t)
 #define valtype(val)    spn_valtype(val)
 #define valflag(val)    spn_valflag(val)
+#define classuid(val)        spn_classuid(val)
+#define classname(val)       spn_classname(val)
 
 #define notnil(val)         spn_notnil(val)
 #define isint(val)          spn_isint(val)
 #define isfloat(val)        spn_isfloat(val)
-#define isweakuserinfo(val) spn_isweakuserinfo(val)
-#define isstrguserinfo(val) spn_isstrguserinfo(val)
 
 #define boolvalue(val)      spn_boolvalue(val)
 #define intvalue(val)       spn_intvalue(val)
@@ -65,9 +69,9 @@
 #define makescriptfunc(n, b, e) spn_makescriptfunc((n), (b), (e))
 #define maketopprgfunc(n, b, w) spn_maketopprgfunc((n), (b), (w))
 #define makenativefunc(n, f)    spn_makenativefunc((n), (f))
-#define makeweakuserinfo(p)     spn_makeweakuserinfo(p)
-#define makestrguserinfo(o)     spn_makestrguserinfo(o)
 #define makeclosure(p)          spn_makeclosure(p)
+#define makerawptr(p)           spn_makerawptr(p)
+#define makeobject(p)           spn_makeobject(p)
 
 /* invokes spn_string_new(s) */
 #define makestring(s)    spn_makestring(s)

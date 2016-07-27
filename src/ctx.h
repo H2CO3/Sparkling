@@ -102,7 +102,6 @@ SPN_API SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast, int d
 SPN_API void        spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc  fns[],  size_t n);
 SPN_API void        spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtValue vals[], size_t n);
 SPN_API SpnHashMap *spn_ctx_getglobals(SpnContext *ctx);
-SPN_API SpnHashMap *spn_ctx_getclasses(SpnContext *ctx);
 SPN_API void        spn_ctx_load_script_stdlib(SpnContext *ctx);
 
 #if USE_DYNAMIC_LOADING

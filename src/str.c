@@ -21,15 +21,18 @@
 
 static int compare_strings(void *lhs, void *rhs);
 static int equal_strings(void *lhs, void *rhs);
-static void free_string(void *obj);
 static unsigned long hash_string(void *obj);
+static char *describe_string(void *obj, int debug);
+static void free_string(void *obj);
 
 static const SpnClass spn_class_string = {
 	sizeof(SpnString),
 	SPN_CLASS_UID_STRING,
+	"string",
 	equal_strings,
 	compare_strings,
 	hash_string,
+	describe_string,
 	free_string
 };
 
@@ -91,6 +94,24 @@ static unsigned long hash_string(void *obj)
 	return str->hash;
 }
 
+static char *describe_string(void *obj, int debug)
+{
+	SpnString *str = obj;
+
+	if (debug) {
+		/* debug description: quote + string + quote
+		 * TODO: properly escape quotes, backslashes, control characters, etc.
+		 */
+		const void *args[1];
+		args[0] = str->cstr;
+		return spn_string_format_cstr("\"%s\"", NULL, args);
+	} else {
+		char *buf = spn_malloc(str->len + 1);
+		memcpy(buf, str->cstr, str->len);
+		buf[str->len] = 0;
+		return buf;
+	}
+}
 
 SpnString *spn_string_new(const char *cstr)
 {
@@ -181,14 +202,14 @@ static void append_string(struct string_builder *bld, const char *str, size_t le
 /* an upper bound for number of characters required to print an integer:
  * number of bits, +1 for sign, +2 for base prefix
  */
-#define PR_LONG_DIGITS (sizeof(long) * CHAR_BIT + 3)
+#define PR_LONG_DIGITS (sizeof(long) * CHAR_BIT + 1 + 2)
 
 enum format_flags {
 	FLAG_ZEROPAD        = 1 << 0, /* pad field width with zeroes, not spaces */
 	FLAG_NEGATIVE       = 1 << 1, /* the number to be printed is negative    */
 	FLAG_EXPLICITSIGN   = 1 << 2, /* always print '+' or '-' sign            */
 	FLAG_PADSIGN        = 1 << 3, /* prepend space if negative               */
-	FLAG_BASEPREFIX     = 1 << 4, /* prepend "0b", "0" or "0x" prefix        */
+	FLAG_BASEPREFIX     = 1 << 4, /* prepend "0b", "0o" or "0x" prefix       */
 	FLAG_CAPS           = 1 << 5  /* print 'A'...'Z' instead of 'a'...'z'    */
 };
 
@@ -201,6 +222,7 @@ enum format_flags {
 			*--bg = '0';                 \
 			break;                       \
 		case 8:                          \
+			*--bg = 'o';                 \
 			*--bg = '0';                 \
 			break;                       \
 		case 10:                         \
@@ -219,7 +241,7 @@ static int prefix_length(unsigned base)
 {
 	switch (base) {
 	case 2:  return 2; /* "0b" */
-	case 8:  return 1; /* "0"  */
+	case 8:  return 2; /* "0o" */
 	case 10: return 0; /* none */
 	case 16: return 2; /* "0x" */
 	default: abort(); return -1;
@@ -378,13 +400,13 @@ static void format_errmsg(char **msg, enum format_error_kind kind, int argidx, .
 
 	switch (kind) {
 	case TYPE_MISMATCH: {
-		int expect = va_arg(args, int);
-		int actual = va_arg(args, int);
+		const char *expected_typestr = va_arg(args, const char *);
+		SpnValue *actual_value = va_arg(args, SpnValue *);
 
 		const void *argv[3];
 		argv[0] = &argidx;
-		argv[1] = spn_type_name(expect);
-		argv[2] = spn_type_name(actual);
+		argv[1] = expected_typestr;
+		argv[2] = spn_value_type_name(actual_value);
 
 		*msg = spn_string_format_cstr("type mismatch in argument %i: expected %s, got %s", NULL, argv);
 		break;
@@ -445,8 +467,8 @@ static int append_format(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TYPE_STRING,
-					val->type
+					"string",
+					val
 				);
 				return -1;
 			}
@@ -497,8 +519,8 @@ static int append_format(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TTAG_NUMBER,
-					val->type
+					spn_typetag_name(SPN_TTAG_NUMBER),
+					val
 				);
 				return -1;
 			}
@@ -565,8 +587,8 @@ static int append_format(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TTAG_NUMBER,
-					val->type
+					spn_typetag_name(SPN_TTAG_NUMBER),
+					val
 				);
 				return -1;
 			}
@@ -627,8 +649,8 @@ static int append_format(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TTAG_NUMBER,
-					val->type
+					spn_typetag_name(SPN_TTAG_NUMBER),
+					val
 				);
 				return -1;
 			}
@@ -690,8 +712,8 @@ static int append_format(
 					errmsg,
 					TYPE_MISMATCH,
 					*argidx,
-					SPN_TTAG_BOOL,
-					val->type
+					spn_typetag_name(SPN_TTAG_BOOL),
+					val
 				);
 				return -1;
 			}
@@ -775,7 +797,7 @@ static char *make_format_string(
 		s++;
 
 		/* Actually parse the format string.
-		 * '#' flag: prepend base prefix (0b, 0, 0x)
+		 * '#' flag: prepend base prefix (0b, 0o, 0x)
 		 */
 		if (*s == '#') {
 			args.flags |= FLAG_BASEPREFIX;
@@ -825,8 +847,8 @@ static char *make_format_string(
 						errmsg,
 						TYPE_MISMATCH,
 						argidx,
-						SPN_TTAG_NUMBER,
-						widthptr->type
+						spn_typetag_name(SPN_TTAG_NUMBER),
+						widthptr
 					);
 					free(bld.buf);
 					return NULL;
@@ -879,8 +901,8 @@ static char *make_format_string(
 							errmsg,
 							TYPE_MISMATCH,
 							argidx,
-							SPN_TTAG_NUMBER,
-							precptr->type
+							spn_typetag_name(SPN_TTAG_NUMBER),
+							precptr
 						);
 						free(bld.buf);
 						return NULL;
@@ -958,34 +980,26 @@ SpnString *spn_string_format_obj(SpnString *fmt, int argc, SpnValue *argv, char 
 
 /* convenience value constructors */
 
-static SpnValue string_to_val(SpnString *str)
-{
-	SpnValue ret;
-	ret.type = SPN_TYPE_STRING;
-	ret.v.o = str;
-	return ret;
-}
-
 SpnValue spn_makestring(const char *s)
 {
 	SpnString *str = spn_string_new(s);
-	return string_to_val(str);
+	return makeobject(str);
 }
 
 SpnValue spn_makestring_len(const char *s, size_t len)
 {
 	SpnString *str = spn_string_new_len(s, len);
-	return string_to_val(str);
+	return makeobject(str);
 }
 
 SpnValue spn_makestring_nocopy(const char *s)
 {
 	SpnString *str = spn_string_new_nocopy(s, 0);
-	return string_to_val(str);
+	return makeobject(str);
 }
 
 SpnValue spn_makestring_nocopy_len(const char *s, size_t len, int dealloc)
 {
 	SpnString *str = spn_string_new_nocopy_len(s, len, dealloc);
-	return string_to_val(str);
+	return makeobject(str);
 }

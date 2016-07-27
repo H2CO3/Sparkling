@@ -84,10 +84,11 @@ static void free_hashmap(void *obj);
 static void free_bucket_array(Bucket *buckets, size_t n);
 static void expand_and_rehash(SpnHashMap *hm);
 
-
 static const SpnClass spn_class_hashmap = {
 	sizeof(SpnHashMap),
 	SPN_CLASS_UID_HASHMAP,
+	"hashmap",
+	NULL,
 	NULL,
 	NULL,
 	NULL,
@@ -120,10 +121,7 @@ size_t spn_hashmap_count(SpnHashMap *hm)
 
 SpnValue spn_makehashmap(void)
 {
-	SpnValue val;
-	val.type = SPN_TYPE_HASHMAP;
-	val.v.o = spn_hashmap_new();
-	return val;
+	return makeobject(spn_hashmap_new());
 }
 
 
@@ -340,10 +338,7 @@ void spn_hashmap_delete(SpnHashMap *hm, const SpnValue *key)
 SpnValue spn_hashmap_get_strkey(SpnHashMap *hm, const char *key)
 {
 	SpnString key_str = spn_string_emplace_nonretained_for_hashmap(key);
-
-	SpnValue key_val;
-	key_val.type = SPN_TYPE_STRING;
-	key_val.v.o = &key_str;
+	SpnValue key_val = makeobject(&key_str);
 
 	return spn_hashmap_get(hm, &key_val);
 }

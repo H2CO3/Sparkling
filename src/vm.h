@@ -140,28 +140,20 @@ SPN_API ptrdiff_t spn_vm_exception_addr(SpnVMachine *vm);
  */
 SPN_API SpnHashMap *spn_vm_getglobals(SpnVMachine *vm);
 
-/* Returns the class descriptor table of the VM.
- * You can use the returned array to add, modify or remove the class
- * of a certain object. A class descriptor must be a hashmap (SpnHashMap value).
- *
- * The returned global class descriptor must be either indexed using one of
- * the SPN_TTAG_* enums (as integers), or by a hashmap or a user info object.
- * The philosophy behind this decision is that all objects of the same class
- * have the same type, conceptually. Primitive types (numbers, strings, etc.)
- * have their own, limited set of possible values. Custom objects, however,
- * are best realized using either hashmaps, or maybe even user info objects,
- * so not all hashmap or user info instances have to belong to the same "type".
+/* Returns the a class descriptor corresponding to the given class UID.
+ * You can use the returned hashmap to add, modify or remove methods
+ * in a certain class. A class descriptor must be a hashmap (SpnHashMap
+ * value).  If no class descriptor exists for the supplied UID, it is
+ * created and returned on-demand.
  *
  * Class descriptors must only be indexed with identifiers (strings that meet
- * the requirements of an identifier, e. g. no special characters or spaces)
- * or using the special integer values in the 'spn_method_index' enum.
+ * the requirements of an identifier, e. g. no special characters or spaces).
  * Each value in a class descriptor must be a function (SpnFunction value).
  *
  * Similarly to 'spn_vm_getglobals()', the returned pointer is non-owning
  * (you must not use it after the VM is freed nor should you release it).
  */
-
-SPN_API SpnHashMap *spn_vm_getclasses(SpnVMachine *vm);
+SPN_API SpnHashMap *spn_vm_class_for_uid(SpnVMachine *vm, unsigned long UID);
 
 
 /* layout of a Sparkling bytecode file:

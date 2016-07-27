@@ -231,12 +231,12 @@ static void init_loop_state_in_parent(SpnCompiler *cmp)
  * the code of the compiler. Namely, symbol table entries were represented
  * in a quite, khm, "particular" way inside the SpnCompiler struct:
  * - String literals were stored as SpnStrings (that's fine);
- * - Stubs that reference global symbols were stored as SpnValues of type
- *	SPN_TYPE_FUNCTION, with their name set to the symbol name. This is
+ * - Stubs that reference global symbols were stored as SpnValues of
+ *	function type, with their name set to the symbol name. This is
  * 	conceptually wrong because global symbols can be of any type, not
  * 	just functions.
  * - Symbols corresponding to unnamed lambdas in the current translation unit
- * 	were stored as integers (SpnValue of type SPN_TYPE_NUMBER), since an
+ * 	were stored as integers (SpnValue of type SPN_TYPE_INT), since an
  * 	integer offset unambiguously identifies such an unnamed function, but
  * 	an SpnValue of function type cannot store integers. This is also wrong
  * 	conceptually.
@@ -310,9 +310,11 @@ static void symtabentry_free(void *obj)
 static const SpnClass SymtabEntry_class = {
 	sizeof(SymtabEntry),
 	SPN_CLASS_UID_SYMTABENTRY,
+	"SymtabEntry",
 	symtabentry_equal,
 	NULL,
 	symtabentry_hash,
+	NULL, /* TODO: implement description */
 	symtabentry_free
 };
 
@@ -342,6 +344,14 @@ static SymtabEntry *symtabentry_new_function(ptrdiff_t offset, SpnString *name)
 	return entry;
 }
 
+/* A structure representing the range of registers [first, plast).
+ * Used for describing the target of of RAII-style cleanup operations.
+ */
+typedef struct RegisterRange {
+	int first; /* first register to clean up */
+	int plast; /* past-the-end, exclusive    */
+} RegisterRange;
+
 /****************************************/
 
 /* compile_*() functions return nonzero on success, 0 on error */
@@ -367,9 +377,18 @@ static void compile_string_literal(SpnCompiler *cmp, SpnValue str, int *dst);
 /* 'dst' is a pointer to 'int' that will be filled with the index of the
  * destination register (i. e. the one holding the result of the expression)
  * pass 'NULL' if you don't need this information (e. g. when an expression
- * is merely evaluated for its side effects)
+ * is merely evaluated for its side effects).
+ * 'cleanup_range' is a pointer that will contain, upon successful return,
+ * the range of temporaries that were used for compiling 'ast'.
+ * Upon failure, the pointed object is not touched. Pass NULL if you do not
+ * need this information.
  */
-static int compile_expr_toplevel(SpnCompiler *cmp, SpnHashMap *ast, int *dst);
+static int compile_expr_toplevel(
+	SpnCompiler *cmp,
+	SpnHashMap *ast,
+	int *dst,
+	RegisterRange *temp_range
+);
 
 /* dst is the preferred destination register index. Pass a pointer to
  * a non-negative 'int' to force the function to emit an instruction
@@ -788,11 +807,11 @@ static void emit_symtab_entry_long(SpnCompiler *cmp, enum spn_local_symbol opcod
 /* cleans up the range of temporary registers and/or registers of
  * locals fallen out of scope by storing nil into them.
  */
-static void cleanup_registers(SpnCompiler *cmp, int first_regidx, int past_last_regidx)
+static void cleanup_registers(SpnCompiler *cmp, RegisterRange range)
 {
 	/* do not emit redundant / no-op cleanup instruction */
-	if (first_regidx < past_last_regidx) {
-		emit_ins_AB(cmp, SPN_INS_CLEAN, first_regidx, past_last_regidx);
+	if (range.first < range.plast) {
+		emit_ins_AB(cmp, SPN_INS_CLEAN, range.first, range.plast);
 	}
 }
 
@@ -898,6 +917,7 @@ static int compile(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	size_t i;
 	const char *nodetype = ast_get_type(ast);
+	RegisterRange temp_range;
 
 	static const struct {
 		const char *node;
@@ -928,7 +948,12 @@ static int compile(SpnCompiler *cmp, SpnHashMap *ast)
 	}
 
 	/* if the node was neither of the known statements, assume an expression */
-	return compile_expr_toplevel(cmp, ast, NULL);
+	if (compile_expr_toplevel(cmp, ast, NULL, &temp_range)) {
+		cleanup_registers(cmp, temp_range);
+		return 1;
+	}
+
+	return 0;
 }
 
 /* returns zero on success, nonzero on error */
@@ -939,8 +964,9 @@ static int write_symtab(SpnCompiler *cmp)
 	for (i = 0; i < nsyms; i++) {
 		SpnValue sym = rts_getval(cmp->symtab, i);
 
-		switch (valtype(&sym)) {
-		case SPN_TTAG_STRING: {
+		assert(isobject(&sym));
+		switch (classuid(&sym)) {
+		case SPN_CLASS_UID_STRING: {
 			/* string literal */
 
 			SpnString *str = stringvalue(&sym);
@@ -952,7 +978,7 @@ static int write_symtab(SpnCompiler *cmp)
 			append_cstring(&cmp->bc, str->cstr, str->len);
 			break;
 		}
-		case SPN_TTAG_USERINFO: {
+		case SPN_CLASS_UID_SYMTABENTRY: {
 			SymtabEntry *entry = objvalue(&sym);
 
 			switch (entry->type) {
@@ -995,7 +1021,7 @@ static int write_symtab(SpnCompiler *cmp)
 			{
 				/* got something that's not supposed to be there */
 				const void *args[1];
-				args[0] = spn_type_name(valtype(&sym));
+				args[0] = spn_value_type_name(&sym);
 				compiler_error(cmp, 0, "wrong symbol type %s in write_symtab()", args);
 				return -1;
 			}
@@ -1137,10 +1163,15 @@ static int compile_block(SpnCompiler *cmp, SpnHashMap *ast)
 	/* now release the local variables declared in this block,
 	 * and remove them from the variable stack too.
 	 */
-	new_stack_size = rts_count(cmp->varstack);
-	assert(new_stack_size >= old_stack_size);
+	RegisterRange locals_range;
 
-	cleanup_registers(cmp, old_stack_size, new_stack_size);
+	new_stack_size = rts_count(cmp->varstack);
+	assert(old_stack_size <= new_stack_size);
+
+	locals_range.first = old_stack_size;
+	locals_range.plast = new_stack_size;
+
+	cleanup_registers(cmp, locals_range);
 	rts_delete_top(cmp->varstack, old_stack_size);
 
 	return success;
@@ -1198,7 +1229,7 @@ static int compile_funcdef(SpnCompiler *cmp, SpnHashMap *ast, int *symidx, SpnAr
 
 	/* create a local symtab entry for the function */
 	entry = symtabentry_new_function(hdroff, funcname);
-	offval = makestrguserinfo(entry);
+	offval = makeobject(entry);
 	*symidx = rts_add(cmp->symtab, offval);
 	spn_object_release(entry);
 
@@ -1309,6 +1340,8 @@ static int compile_while(SpnCompiler *cmp, SpnHashMap *ast)
 	SpnHashMap *condition = ast_get_child_byname(ast, "cond");
 	SpnHashMap *body = ast_get_child_byname(ast, "body");
 
+	RegisterRange temp_range;
+
 	/* save old loop state */
 	LoopState loop_state;
 	save_loop_state(cmp, &loop_state);
@@ -1321,9 +1354,9 @@ static int compile_while(SpnCompiler *cmp, SpnHashMap *ast)
 
 	/* compile condition
 	 * on error, clean up, restore loop state
-	 * no need to free it -- it's empty so far
+	 * no need to free jump list -- it's empty so far
 	 */
-	if (compile_expr_toplevel(cmp, condition, &cndidx) == 0) {
+	if (compile_expr_toplevel(cmp, condition, &cndidx, &temp_range) == 0) {
 		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
@@ -1366,6 +1399,9 @@ static int compile_while(SpnCompiler *cmp, SpnHashMap *ast)
 	/* fix up dummy jumps, free jump list on the fly */
 	fix_and_free_jump_list(cmp, off_end, off_cond);
 
+	/* clean up temporary registers used for evaluating the condition */
+	cleanup_registers(cmp, temp_range);
+
 	/* restore original loop state */
 	restore_loop_state(cmp, &loop_state);
 
@@ -1381,6 +1417,8 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 
 	SpnHashMap *condition = ast_get_child_byname(ast, "cond");
 	SpnHashMap *body = ast_get_child_byname(ast, "body");
+
+	RegisterRange temp_range;
 
 	/* save old loop state */
 	LoopState loop_state;
@@ -1399,7 +1437,7 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 	off_cond = cmp->bc.len;
 
 	/* compile condition, clean up jump list on error */
-	if (compile_expr_toplevel(cmp, condition, &reg) == 0) {
+	if (compile_expr_toplevel(cmp, condition, &reg, &temp_range) == 0) {
 		free_jumplist(cmp->jumplist);
 		restore_loop_state(cmp, &loop_state);
 		return 0;
@@ -1418,6 +1456,9 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 	/* fix up continue and break statements, free jump list on the fly */
 	fix_and_free_jump_list(cmp, off_end, off_cond);
 
+	/* clean up temporary registers used for evaluating the condition */
+	cleanup_registers(cmp, temp_range);
+
 	/* restore original loop state */
 	restore_loop_state(cmp, &loop_state);
 
@@ -1427,7 +1468,6 @@ static int compile_do(SpnCompiler *cmp, SpnHashMap *ast)
 static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 {
 	int regidx = -1;
-	int old_stack_size;
 	spn_sword off_cond, off_incmt, off_body_begin, off_body_end, off_cond_jmp, off_uncd_jmp;
 	spn_uword jmpins[2] = { 0 }; /* dummy */
 
@@ -1435,6 +1475,8 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	SpnHashMap *cond = ast_get_child_byname(ast, "cond");
 	SpnHashMap *icmt = ast_get_child_byname(ast, "increment");
 	SpnHashMap *body = ast_get_child_byname(ast, "body");
+
+	RegisterRange init_var_range, cond_temp_range, icmt_temp_range;
 
 	/* save old loop state */
 	LoopState loop_state;
@@ -1449,7 +1491,7 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	/* we want that the scope of variables declared in the initialization
 	 * be limited to the loop body, so here we save the variable stack size
 	 */
-	old_stack_size = rts_count(cmp->varstack);
+	init_var_range.first = rts_count(cmp->varstack);
 
 	/* compile initialization ouside the loop;
 	 * restore jump list on error (no need to free, here it's empty)
@@ -1462,14 +1504,16 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	}
 
 	/* store number of local variables between initialization and the
-	 * loop body, so that "continue" statements work properly.
+	 * loop body, so that "continue" statements and cleanup work properly.
 	 */
-	 cmp->parent_init_varcount = rts_count(cmp->varstack);
-	 assert(cmp->parent_init_varcount >= cmp->parent_loop_varcount);
+	init_var_range.plast = rts_count(cmp->varstack);
+
+	cmp->parent_init_varcount = init_var_range.plast;
+	assert(cmp->parent_init_varcount >= cmp->parent_loop_varcount);
 
 	/* compile condition, clean up on error likewise */
 	off_cond = cmp->bc.len;
-	if (compile_expr_toplevel(cmp, cond, &regidx) == 0) {
+	if (compile_expr_toplevel(cmp, cond, &regidx, &cond_temp_range) == 0) {
 		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
@@ -1488,11 +1532,14 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 
 	/* compile incrementing expression */
 	off_incmt = cmp->bc.len;
-	if (compile_expr_toplevel(cmp, icmt, NULL) == 0) {
+	if (compile_expr_toplevel(cmp, icmt, NULL, &icmt_temp_range) == 0) {
 		free_jumplist(cmp->jumplist);
 		restore_loop_state(cmp, &loop_state);
 		return 0;
 	}
+
+	/* clean up temporaries used by incrementing expression */
+	cleanup_registers(cmp, icmt_temp_range);
 
 	/* compile unconditional jump back to the condition */
 	off_uncd_jmp = cmp->bc.len;
@@ -1513,8 +1560,12 @@ static int compile_for(SpnCompiler *cmp, SpnHashMap *ast)
 	/* 3. patch break and continue instructions */
 	fix_and_free_jump_list(cmp, off_body_end, off_incmt);
 
+	/* clen up temporary registers used for evaluating the condition */
+	cleanup_registers(cmp, cond_temp_range);
+
 	/* get rid of variables declared in the initialization of the loop */
-	rts_delete_top(cmp->varstack, old_stack_size);
+	cleanup_registers(cmp, init_var_range);
+	rts_delete_top(cmp->varstack, init_var_range.first);
 
 	/* restore loop state */
 	restore_loop_state(cmp, &loop_state);
@@ -1534,8 +1585,10 @@ static int compile_if(SpnCompiler *cmp, SpnHashMap *ast)
 	SpnHashMap *br_then = ast_get_child_byname(ast, "then");
 	SpnHashMap *br_else = ast_get_child_byname_optional(ast, "else");
 
+	RegisterRange temp_range;
+
 	/* compile condition */
-	if (compile_expr_toplevel(cmp, cond, &condidx) == 0) {
+	if (compile_expr_toplevel(cmp, cond, &condidx, &temp_range) == 0) {
 		return 0;
 	}
 
@@ -1572,6 +1625,9 @@ static int compile_if(SpnCompiler *cmp, SpnHashMap *ast)
 
 	cmp->bc.insns[off_jmp_b4_else + 0] = SPN_MKINS_VOID(SPN_INS_JMP);
 	cmp->bc.insns[off_jmp_b4_else + 1] = len_else;
+
+	/* clean up temporary registers used for evaluating the condition */
+	cleanup_registers(cmp, temp_range);
 
 	return 1;
 }
@@ -1610,6 +1666,8 @@ static int compile_loop_jump(SpnCompiler *cmp, SpnHashMap *ast)
 	/* "break" releases variables declared in the loop initializer; "continue" doesn't. */
 	int first_regidx = is_break ? cmp->parent_loop_varcount : cmp->parent_init_varcount;
 
+	RegisterRange cleanup_range;
+
 	/* it doesn't make sense to 'break' or 'continue' outside a loop */
 	if (cmp->is_in_loop == 0) {
 		const void *args[1];
@@ -1624,7 +1682,9 @@ static int compile_loop_jump(SpnCompiler *cmp, SpnHashMap *ast)
 	 * In the case of a "continue" statement, the variables declared
 	 * in the loop header must _not_ be released.
 	 */
-	cleanup_registers(cmp, first_regidx, rts_count(cmp->varstack));
+	cleanup_range.first = first_regidx;
+	cleanup_range.plast = rts_count(cmp->varstack);
+	cleanup_registers(cmp, cleanup_range);
 
 	/* add link list node with current offset */
 	prepend_jumplist_node(cmp, cmp->bc.len, is_break);
@@ -1640,6 +1700,8 @@ static int compile_vardecl(SpnCompiler *cmp, SpnHashMap *ast)
 	SpnArray *children = ast_get_children(ast);
 	size_t n = spn_array_count(children);
 	size_t i;
+
+	RegisterRange temp_range;
 
 	/* bring all variables in scope (each child represents a variable) */
 	for (i = 0; i < n; i++) {
@@ -1674,9 +1736,17 @@ static int compile_vardecl(SpnCompiler *cmp, SpnHashMap *ast)
 
 		/* only compile initializer expression if exists */
 		if (init != NULL) {
-			if (compile_expr_toplevel(cmp, init, &idx) == 0) {
+			if (compile_expr_toplevel(cmp, init, &idx, &temp_range) == 0) {
 				return 0;
 			}
+
+			/* Clean up temporary registers used for evaluating the initializer.
+			 * This is guaranteed not to prematurely release the value stored
+			 * in the now-initialized variable since we have already added it
+			 * to the variable stack, hance its register is not a temporary.
+			 */
+			assert(idx < temp_range.first && "variable register index must not be in temporary range");
+			cleanup_registers(cmp, temp_range);
 		}
 	}
 
@@ -1699,7 +1769,9 @@ static int compile_const(SpnCompiler *cmp, SpnHashMap *ast)
 		SpnString *name = ast_get_string(child, "name");
 		SpnHashMap *init = ast_get_child_byname(child, "init");
 
-		if (compile_expr_toplevel(cmp, init, &regidx) == 0) {
+		RegisterRange temp_range;
+
+		if (compile_expr_toplevel(cmp, init, &regidx, &temp_range) == 0) {
 			return 0;
 		}
 
@@ -1708,6 +1780,9 @@ static int compile_const(SpnCompiler *cmp, SpnHashMap *ast)
 
 		/* append 0-terminated name of the symbol */
 		append_cstring(&cmp->bc, name->cstr, name->len);
+
+		/* clean up temporary registers used for evaluating the initializer */
+		cleanup_registers(cmp, temp_range);
 	}
 
 	return 1;
@@ -1719,7 +1794,11 @@ static int compile_return(SpnCompiler *cmp, SpnHashMap *ast)
 	SpnHashMap *expression = ast_get_child_byname_optional(ast, "expr");
 	if (expression != NULL) {
 		int dst = -1;
-		if (compile_expr_toplevel(cmp, expression, &dst) == 0) {
+
+		/* no need to clean up temporary registers: returning from a function
+		 * makes the VM release all registers in the stack frame of the function.
+		 */
+		if (compile_expr_toplevel(cmp, expression, &dst, NULL) == 0) {
 			return 0;
 		}
 
@@ -1742,7 +1821,12 @@ static int compile_empty(SpnCompiler *cmp, SpnHashMap *ast)
  * statement, or an expression which is part of the the header of a for
  * statement.
  */
-static int compile_expr_toplevel(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
+static int compile_expr_toplevel(
+	SpnCompiler *cmp,
+	SpnHashMap *ast,
+	int *dst,
+	RegisterRange *temp_range
+)
 {
 	int reg = dst != NULL ? *dst : -1;
 
@@ -1784,7 +1868,10 @@ static int compile_expr_toplevel(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 		 *      of if, for, while and match statements.
 		 *
 		 */
-		cleanup_registers(cmp, tmpidx, cmp->nregs);
+		if (temp_range) {
+			temp_range->first = tmpidx;
+			temp_range->plast = cmp->nregs;
+		}
 
 		return 1;
 	}
@@ -2323,7 +2410,7 @@ static int compile_ident(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 
 			SpnString *varname_str = stringvalue(&varname);
 			SymtabEntry *entry = symtabentry_new_global(varname_str);
-			SpnValue stub = makestrguserinfo(entry);
+			SpnValue stub = makeobject(entry);
 
 			sym = rts_getidx(cmp->symtab, stub);
 			if (sym < 0) {
@@ -2408,7 +2495,8 @@ static int compile_literal(SpnCompiler *cmp, SpnHashMap *ast, int *dst)
 
 		break;
 	}
-	case SPN_TTAG_STRING:
+	case SPN_TTAG_OBJECT: /* only string literals are stored as objects */
+		assert(isstring(&value));
 		compile_string_literal(cmp, value, dst);
 		break;
 	default:

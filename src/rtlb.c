@@ -54,24 +54,10 @@
 #define M_PHI      1.61803398874989484820458683436563811
 #endif
 
-/* Returns the class descriptor for a type tag
- * 'typetag' is one of the SPN_TTAG_* enum members.
- */
-static SpnHashMap *get_class_for_typetag(SpnVMachine *vm, int typetag)
-{
-	SpnHashMap *classes = spn_vm_getclasses(vm);
-
-	SpnValue indexval = makeint(typetag);
-	SpnValue classval = spn_hashmap_get(classes, &indexval);
-
-	assert(ishashmap(&classval));
-	return hashmapvalue(&classval);
-}
-
 /* Adds methods to the class of a type. */
-static void load_methods(SpnVMachine *vm, int typetag, const SpnExtFunc fns[], size_t n)
+static void load_methods(SpnVMachine *vm, unsigned long classuid, const SpnExtFunc fns[], size_t n)
 {
-	SpnHashMap *classdesc = get_class_for_typetag(vm, typetag);
+	SpnHashMap *classdesc = spn_vm_class_for_uid(vm, classuid);
 
 	size_t i;
 	for (i = 0; i < n; i++) {
@@ -134,9 +120,11 @@ static void fhandle_free(void *obj);
 static const SpnClass spn_class_fhandle = {
 	sizeof(SpnFileHandle),
 	SPN_CLASS_UID_FILEHANDLE,
+	"file",
 	NULL, /* pointer-wise identity */
 	NULL, /* <, > not applicable   */
 	NULL, /* hash = object address */
+	NULL, /* default description   */
 	fhandle_free
 };
 
@@ -166,60 +154,9 @@ static void fhandle_free(void *obj)
 	}
 }
 
-/* The key with which the file handle user info object
- * is associated in a file descriptor hashmap
- */
-#define FILE_HANDLE_KEY "file"
-
-/* the name of the global hashmap that contains file methods */
-#define FILE_LIB_NAME "File"
-
-/* wraps a C 'FILE *' stream into a hashmap */
-static SpnValue make_fhandle_hashmap(SpnHashMap *globals, FILE *f, int close)
+static SpnValue make_fhandle(FILE *f, int should_close)
 {
-	SpnValue ret = makehashmap();
-	SpnHashMap *hm = hashmapvalue(&ret);
-
-	SpnFileHandle *hndl = fhandle_new(f, close);
-	SpnValue hval = makestrguserinfo(hndl);
-	SpnValue fclass = spn_hashmap_get_strkey(globals, FILE_LIB_NAME);
-
-	spn_hashmap_set_strkey(hm, FILE_HANDLE_KEY, &hval);
-	spn_object_release(hndl);
-
-	/* set the "prototype" of our file object to the global File class */
-	spn_hashmap_set_strkey(hm, "super", &fclass);
-
-	return ret;
-}
-
-/* Extracts an SpnFileHandle descriptor from a hashmap.
- * Returns the file descriptor object if found, or NULL
- * if it wasn't found or if it isn't a valid file handle.
- * 'hmv' must always point to an SpnValue of type hashmap.
- */
-static SpnFileHandle *fhandle_from_hashmap(SpnValue *hmv)
-{
-	SpnValue val;
-	SpnHashMap *hm;
-	SpnObject *obj;
-
-	assert(ishashmap(hmv));
-	hm = hashmapvalue(hmv);
-
-	val = spn_hashmap_get_strkey(hm, FILE_HANDLE_KEY);
-
-	if (!isstrguserinfo(&val)) {
-		return NULL;
-	}
-
-	obj = objvalue(&val);
-
-	if (!spn_object_member_of_class(obj, &spn_class_fhandle)) {
-		return NULL;
-	}
-
-	return objvalue(&val);
+	return makeobject(fhandle_new(f, should_close));
 }
 
 static int rtlb_print(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
@@ -264,8 +201,7 @@ static int rtlb_fopen(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	fp = fopen(fname->cstr, mode->cstr);
 
 	if (fp != NULL) {
-		SpnHashMap *globals = spn_ctx_getglobals(ctx);
-		*ret = make_fhandle_hashmap(globals, fp, 1);
+		*ret = make_fhandle(fp, 1);
 	}
 
 	/* on error, implicitly return nil */
@@ -282,16 +218,12 @@ static int rtlb_fclose(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
+	hndl = objvalue(&argv[0]);
 
 	/* safely close the associated C stream pointer */
 	fhandle_close(hndl);
@@ -310,7 +242,7 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
@@ -320,13 +252,8 @@ static int rtlb_printf(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
+	hndl = objvalue(&argv[0]);
 	fmt = stringvalue(&argv[1]);
-
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
 
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
@@ -359,16 +286,12 @@ static int rtlb_fprint(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		spn_ctx_runtime_error(ctx, "at least one argument is required", NULL);
 		return -1;
 	}
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
+	hndl = objvalue(&argv[0]);
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
 		return -4;
@@ -391,17 +314,12 @@ static int rtlb_getline(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
-
+	hndl = objvalue(&argv[0]);
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
 		return -4;
@@ -422,7 +340,7 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
@@ -432,13 +350,8 @@ static int rtlb_fread(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
+	hndl = objvalue(&argv[0]);
 	n = intvalue(&argv[1]);
-
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
 
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
@@ -469,7 +382,7 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
@@ -479,13 +392,8 @@ static int rtlb_fwrite(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
+	hndl = objvalue(&argv[0]);
 	str = stringvalue(&argv[1]);
-
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
 
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
@@ -508,16 +416,12 @@ static int rtlb_fflush(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
+	hndl = objvalue(&argv[0]);
 
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
@@ -538,17 +442,12 @@ static int rtlb_ftell(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
-
+	hndl = objvalue(&argv[0]);
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
 		return -4;
@@ -571,7 +470,7 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "first argument must be a file object", NULL);
 		return -2;
 	}
@@ -586,14 +485,9 @@ static int rtlb_fseek(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
+	hndl = objvalue(&argv[0]);
 	off = intvalue(&argv[1]);
 	whence = stringvalue(&argv[2]);
-
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
 
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
@@ -629,16 +523,12 @@ static int rtlb_feof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	if (!ishashmap(&argv[0])) {
+	if (!isfilehandle(&argv[0])) {
 		spn_ctx_runtime_error(ctx, "argument must be a file object", NULL);
 		return -2;
 	}
 
-	hndl = fhandle_from_hashmap(&argv[0]);
-	if (hndl == NULL) {
-		spn_ctx_runtime_error(ctx, "file object contains no valid handle", NULL);
-		return -3;
-	}
+	hndl = objvalue(&argv[0]);
 
 	if (hndl->f == NULL) {
 		spn_ctx_runtime_error(ctx, "file object is closed", NULL);
@@ -700,8 +590,7 @@ static int rtlb_tmpfile(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	FILE *fp = tmpfile();
 
 	if (fp != NULL) {
-		SpnHashMap *globals = spn_ctx_getglobals(ctx);
-		*ret = make_fhandle_hashmap(globals, fp, 1);
+		*ret = make_fhandle(fp, 1);
 	}
 
 	/* on error, implicitly return nil */
@@ -788,26 +677,23 @@ static void loadlib_io(SpnVMachine *vm)
 		{ "eof",      rtlb_feof     },
 	};
 
-	SpnHashMap *globals = spn_vm_getglobals(vm);
-
 	/* Constants */
 	SpnExtValue C[3];
 
-	/* Add file methods first so that we can use them... */
-	spn_vm_addlib_cfuncs(vm, FILE_LIB_NAME, M, COUNT(M));
+	/* Add file methods first */
+	load_methods(vm, SPN_CLASS_UID_FILEHANDLE, M, COUNT(M));
 
-	/* ...in 'make_fhandle_hashmap()'.
-	 * Also, specify false (0) for the 'close' argument of this function:
+	/* Specify false (0) for the 'close' argument of this function:
 	 * standard streams are implicitly closed when the program exits.
 	 */
 	C[0].name = "stdin";
-	C[0].value = make_fhandle_hashmap(globals, stdin, 0);
+	C[0].value = make_fhandle(stdin, 0);
 
 	C[1].name = "stdout";
-	C[1].value = make_fhandle_hashmap(globals, stdout, 0);
+	C[1].value = make_fhandle(stdout, 0);
 
 	C[2].name = "stderr";
-	C[2].value = make_fhandle_hashmap(globals, stderr, 0);
+	C[2].value = make_fhandle(stderr, 0);
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
 	spn_vm_addlib_values(vm, NULL, C, COUNT(C));
@@ -1049,9 +935,7 @@ static int rtlb_split(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	arr = spn_array_new();
-
-	ret->type = SPN_TYPE_ARRAY;
-	ret->v.o = arr;
+	*ret = makeobject(arr);
 
 	s = haystack->cstr;
 	t = strstr(s, needle->cstr);
@@ -1240,8 +1124,7 @@ static int rtlb_format(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	res = spn_string_format_obj(fmt, argc - 1, &argv[1], &errmsg);
 
 	if (res != NULL) {
-		ret->type = SPN_TYPE_STRING;
-		ret->v.o = res;
+		*ret = makeobject(res);
 	} else {
 		const void *args[1];
 		args[0] = errmsg;
@@ -1281,7 +1164,7 @@ static void loadlib_string(SpnVMachine *vm)
 		{ "format",     rtlb_format     }
 	};
 
-	load_methods(vm, SPN_TTAG_STRING, M, COUNT(M));
+	load_methods(vm, SPN_CLASS_UID_STRING, M, COUNT(M));
 }
 
 /*****************
@@ -1341,8 +1224,8 @@ static int rtlb_aux_partition(SpnArray *a, int left, int right,
 		} else {
 			if (!spn_values_comparable(&ith_elem, &pivot)) {
 				const void *args[2];
-				args[0] = spn_type_name(ith_elem.type);
-				args[1] = spn_type_name(pivot.type);
+				args[0] = spn_value_type_name(&ith_elem);
+				args[1] = spn_value_type_name(&pivot);
 
 				spn_ctx_runtime_error(
 					ctx,
@@ -1663,8 +1546,7 @@ static int rtlb_array_filter(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		}
 	}
 
-	ret->type = SPN_TYPE_ARRAY;
-	ret->v.o = filt;
+	*ret = makeobject(filt);
 	return 0;
 }
 
@@ -1710,8 +1592,7 @@ static int rtlb_array_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		spn_value_release(&result);
 	}
 
-	ret->type = SPN_TYPE_ARRAY;
-	ret->v.o = mapped;
+	*ret = makeobject(mapped);
 	return 0;
 }
 
@@ -2068,8 +1949,8 @@ static int rtlb_aux_bsearch_compare(SpnValue vals[2], SpnFunction *predicate, Sp
 	}
 
 	/* if the values are not orderable, we're in trouble */
-	args[0] = spn_type_name(vals[0].type);
-	args[1] = spn_type_name(vals[1].type);
+	args[0] = spn_value_type_name(&vals[0]);
+	args[1] = spn_value_type_name(&vals[1]);
 	spn_ctx_runtime_error(ctx, "cannot compare values of type %s and %s", args);
 	return -3;
 }
@@ -2363,7 +2244,7 @@ static int rtlb_concat(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 			const void *args[2];
 			int argidx = i + 1;
 			args[0] = &argidx;
-			args[1] = spn_type_name(argv[i].type);
+			args[1] = spn_value_type_name(&argv[i]);
 			spn_ctx_runtime_error(ctx, "arguments must be arrays (arg %i was %s)", args);
 			spn_value_release(ret);
 			return -1;
@@ -2467,7 +2348,7 @@ static void loadlib_array(SpnVMachine *vm)
 	};
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
-	load_methods(vm, SPN_TTAG_ARRAY, M, COUNT(M));
+	load_methods(vm, SPN_CLASS_UID_ARRAY, M, COUNT(M));
 }
 
 /*******************
@@ -2546,8 +2427,7 @@ static int rtlb_hashmap_map(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		spn_value_release(&tmp);
 	}
 
-	ret->type = SPN_TYPE_HASHMAP;
-	ret->v.o = result;
+	*ret = makeobject(result);
 
 	return 0;
 }
@@ -2598,8 +2478,7 @@ static int rtlb_hashmap_filter(SpnValue *ret, int argc, SpnValue *argv, void *ct
 		}
 	}
 
-	ret->type = SPN_TYPE_HASHMAP;
-	ret->v.o = result;
+	*ret = makeobject(result);
 
 	return 0;
 }
@@ -2701,7 +2580,7 @@ static void loadlib_hashmap(SpnVMachine *vm)
 	};
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
-	load_methods(vm, SPN_TTAG_HASHMAP, M, COUNT(M));
+	load_methods(vm, SPN_CLASS_UID_HASHMAP, M, COUNT(M));
 }
 
 
@@ -3284,8 +3163,7 @@ static int rtlb_range(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1; /* silence "used uninitialized" warning */
 	}
 
-	ret->type = SPN_TYPE_ARRAY;
-	ret->v.o = range;
+	*ret = makeobject(range);
 
 	return 0;
 }
@@ -3985,7 +3863,7 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, SpnContext *c
 
 	hm = spn_hashmap_new();
 
-	/* make an SpnArray out of the returned struct tm */
+	/* make an SpnHashMap out of the returned struct tm */
 	val = makeint(ts->tm_sec);
 	spn_hashmap_set_strkey(hm, "sec", &val);
 
@@ -4013,9 +3891,8 @@ static int rtlb_aux_gettm(SpnValue *ret, int argc, SpnValue *argv, SpnContext *c
 	val = makebool(ts->tm_isdst > 0);
 	spn_hashmap_set_strkey(hm, "isdst", &val);
 
-	/* return the array */
-	ret->type = SPN_TYPE_HASHMAP;
-	ret->v.o = hm;
+	/* return the hashmap */
+	*ret = makeobject(hm);
 
 	return 0;
 }
@@ -4175,8 +4052,8 @@ static int rtlb_aux_parse(SpnValue *ret, int argc, SpnValue *argv, void *ctx, in
 		return -1;
 	}
 
-	ret->type = SPN_TYPE_HASHMAP;
-	ret->v.o = ast;
+	*ret = makeobject(ast);
+
 	return 0;
 }
 
@@ -4214,8 +4091,7 @@ static int rtlb_compilestr(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	}
 
 	/* return function, make it owning */
-	ret->type = SPN_TYPE_FUNC;
-	ret->v.o = fn;
+	*ret = makeobject(fn);
 	spn_value_retain(ret);
 
 	return 0;
@@ -4268,8 +4144,7 @@ static int rtlb_exprtofn(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	ret->type = SPN_TYPE_FUNC;
-	ret->v.o = fn;
+	*ret = makeobject(fn);
 	spn_value_retain(ret);
 
 	return 0;
@@ -4316,8 +4191,8 @@ static int rtlb_compileast(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -3;
 	}
 
-	ret->type = SPN_TYPE_FUNC;
-	ret->v.o = fn;
+	*ret = makeobject(fn);
+
 	return 0;
 }
 
@@ -4504,8 +4379,7 @@ static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 
 	free(bt);
 
-	ret->type = SPN_TYPE_ARRAY;
-	ret->v.o = fnames;
+	*ret = makeobject(fnames);
 	return 0;
 }
 
@@ -4518,7 +4392,7 @@ static int rtlb_typeof(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 		return -1;
 	}
 
-	type = spn_type_name(argv[0].type);
+	type = spn_value_type_name(&argv[0]);
 	*ret = makestring_nocopy(type);
 	return 0;
 }
@@ -4611,71 +4485,31 @@ static void loadlib_sysutil(SpnVMachine *vm)
 	};
 
 	/* Constants */
-	SpnExtValue C[4];
-	SpnHashMap *classes = spn_vm_getclasses(vm);
+	SpnExtValue C[5];
 
-	SpnValue stringindex  = makeint(SPN_TTAG_STRING),
-	         arrayindex   = makeint(SPN_TTAG_ARRAY),
-	         hashmapindex = makeint(SPN_TTAG_HASHMAP),
-	         funcindex    = makeint(SPN_TTAG_FUNC);
+	C[0].name = "string";
+	C[0].value = makeobject(spn_vm_class_for_uid(vm, SPN_CLASS_UID_STRING));
 
-	C[0].name = "String";
-	C[0].value = spn_hashmap_get(classes, &stringindex);
+	C[1].name = "array";
+	C[1].value = makeobject(spn_vm_class_for_uid(vm, SPN_CLASS_UID_ARRAY));
 
-	C[1].name = "Array";
-	C[1].value = spn_hashmap_get(classes, &arrayindex);
+	C[2].name = "hashmap";
+	C[2].value = makeobject(spn_vm_class_for_uid(vm, SPN_CLASS_UID_HASHMAP));
 
-	C[2].name = "HashMap";
-	C[2].value = spn_hashmap_get(classes, &hashmapindex);
+	C[3].name = "function";
+	C[3].value = makeobject(spn_vm_class_for_uid(vm, SPN_CLASS_UID_FUNCTION));
 
-	C[3].name = "Function";
-	C[3].value = spn_hashmap_get(classes, &funcindex);
+	C[4].name = "file";
+	C[4].value = makeobject(spn_vm_class_for_uid(vm, SPN_CLASS_UID_FILEHANDLE));
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
 	spn_vm_addlib_values(vm, NULL, C, COUNT(C));
-	load_methods(vm, SPN_TTAG_FUNC, M, COUNT(M));
+	load_methods(vm, SPN_CLASS_UID_FUNCTION, M, COUNT(M));
 }
 
-
-/* By default, only strings, arrays hashmaps and functions are considered
- * "object-like", while nil, booleans and numbers are not.
- * (Frankly, why would you ever call a method on a boolean?)
- * User info values can only have their methods and properties defined
- * instance-wise.
- */
-static void init_stdlib_classes(SpnVMachine *vm)
-{
-	SpnHashMap *classes = spn_vm_getclasses(vm);
-
-	SpnValue stringclass  = makehashmap(),
-	         arrayclass   = makehashmap(),
-	         hashmapclass = makehashmap(),
-	         funcclass    = makehashmap();
-
-	SpnValue stringindex  = makeint(SPN_TTAG_STRING),
-	         arrayindex   = makeint(SPN_TTAG_ARRAY),
-	         hashmapindex = makeint(SPN_TTAG_HASHMAP),
-	         funcindex    = makeint(SPN_TTAG_FUNC);
-
-	spn_hashmap_set(classes, &stringindex,  &stringclass);
-	spn_hashmap_set(classes, &arrayindex,   &arrayclass);
-	spn_hashmap_set(classes, &hashmapindex, &hashmapclass);
-	spn_hashmap_set(classes, &funcindex,    &funcclass);
-
-	spn_value_release(&stringclass);
-	spn_value_release(&arrayclass);
-	spn_value_release(&hashmapclass);
-	spn_value_release(&funcclass);
-}
 
 void spn_load_native_stdlib(SpnVMachine *vm)
 {
-	/* it is important to initialize the classes _before_
-	 * loading standard libraries so that library loading
-	 * functions can make use of them freely.
-	 */
-	init_stdlib_classes(vm);
-
 	loadlib_io(vm);
 	loadlib_string(vm);
 	loadlib_array(vm);

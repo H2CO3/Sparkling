@@ -69,6 +69,16 @@
 #endif
 
 
+/* Magic property names:
+ *  "super" for super object/class
+ *  "get" for property getter
+ *  "set" for property setter
+ */
+#define SPECIAL_PROPERTY_NAME_SUPER "super"
+#define SPECIAL_PROPERTY_NAME_GET   "get"
+#define SPECIAL_PROPERTY_NAME_SET   "set"
+
+
 /* An index into the array of local symbol tables is used instead of a
  * pointer to the symtab struct itself because that array may be
  * 'realloc()'ated, and then we have an invalid pointer once again
@@ -99,10 +109,6 @@ struct SpnVMachine {
 
 	SpnHashMap *glbsymtab;  /* global symbol table          */
 	SpnHashMap *classes;    /* class descriptors            */
-
-	SpnValue    supername;  /* the string "super"           */
-	SpnValue    getname;    /* the string "get"             */
-	SpnValue    setname;    /* the string "set"             */
 
 	char       *errmsg;     /* last (runtime) error message */
 	int         haserror;   /* whether an error occurred    */
@@ -214,10 +220,6 @@ SpnVMachine *spn_vm_new(void)
 	vm->glbsymtab = spn_hashmap_new();
 	vm->classes   = spn_hashmap_new();
 
-	vm->supername = makestring_nocopy("super");
-	vm->getname   = makestring_nocopy("get");
-	vm->setname   = makestring_nocopy("set");
-
 	/* set up error reporting and context info */
 	vm->errmsg = NULL;
 	vm->haserror = 0;
@@ -232,14 +234,9 @@ void spn_vm_free(SpnVMachine *vm)
 	free_frames(vm);
 	free(vm->stack);
 
-	/* free the global symbol table and all class descirptors */
+	/* free the global symbol table and all class descriptors */
 	spn_object_release(vm->glbsymtab);
 	spn_object_release(vm->classes);
-
-	/* free special string indices */
-	spn_value_release(&vm->supername);
-	spn_value_release(&vm->getname);
-	spn_value_release(&vm->setname);
 
 	/* free the error message buffer */
 	free(vm->errmsg);
@@ -337,10 +334,20 @@ SpnHashMap *spn_vm_getglobals(SpnVMachine *vm)
 	return vm->glbsymtab;
 }
 
-/* get the class descriptor table of the VM */
-SpnHashMap *spn_vm_getclasses(SpnVMachine *vm)
+SpnHashMap *spn_vm_class_for_uid(SpnVMachine *vm, unsigned long UID)
 {
-	return vm->classes;
+	SpnValue uidval = makeint(UID);
+	SpnValue classval = spn_hashmap_get(vm->classes, &uidval);
+
+	/* if class is not found, lazy-load it */
+	if (isnil(&classval)) {
+		classval = makehashmap();
+		spn_hashmap_set(vm->classes, &uidval, &classval);
+		spn_value_release(&classval);
+	}
+
+	assert(ishashmap(&classval) && "class descriptor must be a hashmap");
+	return hashmapvalue(&classval);
 }
 
 static void free_frames(SpnVMachine *vm)
@@ -450,7 +457,7 @@ void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc
 			spn_die(
 				"global '%s' already exists but is not a hashmap (%s)",
 				libname,
-				spn_type_name(valtype(&libval))
+				spn_value_type_name(&libval)
 			);
 		}
 
@@ -486,7 +493,7 @@ void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValu
 			spn_die(
 				"global '%s' already exists but is not a hashmap (%s)",
 				libname,
-				spn_type_name(valtype(&libval))
+				spn_value_type_name(&libval)
 			);
 		}
 
@@ -830,7 +837,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* check if value is really a function */
 			if (!isfunc(&func)) {
 				const void *args[1];
-				args[0] = spn_type_name(func.type);
+				args[0] = spn_value_type_name(&func);
 				runtime_error(
 					vm,
 					ip - 1,
@@ -1100,8 +1107,8 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			if (!spn_values_comparable(b, c)) {
 				const void *args[2];
-				args[0] = spn_type_name(b->type);
-				args[1] = spn_type_name(c->type);
+				args[0] = spn_value_type_name(b);
+				args[1] = spn_value_type_name(c);
 
 				runtime_error(
 					vm,
@@ -1286,8 +1293,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			res = spn_string_concat(stringvalue(b), stringvalue(c));
 
 			spn_value_release(a);
-			a->type = SPN_TYPE_STRING;
-			a->v.o = res;
+			*a = makeobject(res);
 
 			break;
 		}
@@ -1411,8 +1417,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * by the strong 'hdr->argv' pointer.
 			 */
 			spn_value_release(a);
-			a->type = SPN_TYPE_ARRAY;
-			a->v.o = hdr->argv;
+			*a = makeobject(hdr->argv);
 			spn_value_retain(a);
 
 			break;
@@ -1467,7 +1472,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				*a = makeint(ch);
 			} else {
 				const void *args[1];
-				args[0] = spn_type_name(b->type);
+				args[0] = spn_value_type_name(b);
 				runtime_error(vm, ip - 1, "cannot subscript value of type %s", args);
 				return -1;
 			}
@@ -1512,7 +1517,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				}
 			} else {
 				const void *args[1];
-				args[0] = spn_type_name(a->type);
+				args[0] = spn_value_type_name(a);
 				runtime_error(vm, ip - 1, "cannot index value of type %s", args);
 				return -1;
 			}
@@ -1620,8 +1625,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * realloc()'ed, and consequently, pointers into the
 			 * stack frame are not invalidated.
 			 */
-			prototype_val->type = SPN_TYPE_FUNC; /* redundant */
-			prototype_val->v.o = closure;
+			*prototype_val = makeobject(closure);
 
 			for (i = 0; i < n_upvals; i++) {
 				spn_uword upval_desc = *ip++;
@@ -1691,7 +1695,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				break;
 			}
 
-			args[0] = spn_type_name(b->type);
+			args[0] = spn_value_type_name(b);
 			runtime_error(vm, ip - 1, "object of type %s has no class", args);
 			return -1;
 		}
@@ -1713,7 +1717,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (lookup_member(vm, &accval, pself, prname)) {
 				if (ishashmap(&accval)) {
 					SpnHashMap *accessors = hashmapvalue(&accval);
-					gval = spn_hashmap_get(accessors, &vm->getname);
+					gval = spn_hashmap_get_strkey(accessors, SPECIAL_PROPERTY_NAME_GET);
 
 					if (isfunc(&gval)) {
 						/* copy the arguments because calling the getter may
@@ -1742,7 +1746,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			 * flow reached this point, that means that no getter has
 			 * been found, consequently no function could be called.
 			 */
-			if (ishashmap(pself) && lookup_member(vm, &tmp, pself, prname)) {
+			if (lookup_member(vm, &tmp, pself, prname)) {
 				spn_value_retain(&tmp);
 				spn_value_release(result);
 				*result = tmp;
@@ -1752,7 +1756,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* at this point, the value had neither a class nor an
 			 * appropriate getter function, and it's not a hashmap
 			 */
-			args[0] = spn_type_name(pself->type);
+			args[0] = spn_value_type_name(pself);
 			args[1] = stringvalue(prname)->cstr;
 			runtime_error(vm, ip - 1, "value of type %s has no getter for property '%s'", args);
 			return -1;
@@ -1770,7 +1774,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			if (lookup_member(vm, &accval, pself, prname)) {
 				if (ishashmap(&accval)) {
 					SpnHashMap *accessors = hashmapvalue(&accval);
-					sval = spn_hashmap_get(accessors, &vm->setname);
+					sval = spn_hashmap_get_strkey(accessors, SPECIAL_PROPERTY_NAME_SET);
 
 					if (isfunc(&sval)) {
 						SpnFunction *setter = funcvalue(&sval);
@@ -1800,7 +1804,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			}
 
 			/* if 'self' is not a hashmap, though, there's no more hope */
-			args[0] = spn_type_name(pself->type);
+			args[0] = spn_value_type_name(pself);
 			args[1] = stringvalue(prname)->cstr;
 			runtime_error(vm, ip - 1, "value of type %s has no setter for property '%s'", args);
 			return -1;
@@ -2075,7 +2079,7 @@ static int indexing_array_check(
 
 	if (!isint(vidx)) {
 		const void *args[1];
-		args[0] = spn_type_name(vidx->type);
+		args[0] = spn_value_type_name(vidx);
 		runtime_error(vm, ip, "indexing array with non-integer value of type %s", args);
 		return -1;
 	}
@@ -2106,7 +2110,7 @@ static int indexing_string_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vstr,
 
 	if (!isint(vidx)) {
 		const void *args[1];
-		args[0] = spn_type_name(vidx->type);
+		args[0] = spn_value_type_name(vidx);
 		runtime_error(vm, ip, "indexing string with non-integer value of type %s", args);
 		return -1;
 	}
@@ -2158,8 +2162,8 @@ static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nam
 {
 	const char *name = stringvalue(nameval)->cstr;
 
-	switch (valtype(pself)) {
-	case SPN_TTAG_STRING: {
+	switch (classuid(pself)) {
+	case SPN_CLASS_UID_STRING: {
 		if (strcmp(name, "length") == 0) {
 			size_t length = stringvalue(pself)->len;
 			spn_value_release(dstreg);
@@ -2169,7 +2173,7 @@ static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nam
 
 		break;
 	}
-	case SPN_TTAG_ARRAY: {
+	case SPN_CLASS_UID_ARRAY: {
 		if (strcmp(name, "length") == 0) {
 			SpnArray *arr = arrayvalue(pself);
 			size_t length = spn_array_count(arr);
@@ -2180,7 +2184,7 @@ static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nam
 
 		break;
 	}
-	case SPN_TTAG_HASHMAP: {
+	case SPN_CLASS_UID_HASHMAP: {
 		if (strcmp(name, "length") == 0) {
 			SpnHashMap *hm = hashmapvalue(pself);
 			size_t length = spn_hashmap_count(hm);
@@ -2202,13 +2206,11 @@ static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nam
  * 'root' is passed by-value so that it can safely
  * be overwritten while searching the object chain.
  */
-static int lookup_member_chained(SpnVMachine *vm, SpnValue *result, SpnValue root, SpnValue *name)
+static int lookup_member_chained(SpnVMachine *vm, SpnValue *result, SpnHashMap *root, SpnValue *name)
 {
-	assert(ishashmap(&root));
-
-	do {
-		SpnHashMap *roothm = hashmapvalue(&root);
-		SpnValue tmp = spn_hashmap_get(roothm, name);
+	while (1) {
+		SpnValue tmp = spn_hashmap_get(root, name);
+		SpnValue super;
 
 		/* found something non-nil? return it! */
 		if (notnil(&tmp)) {
@@ -2217,8 +2219,14 @@ static int lookup_member_chained(SpnVMachine *vm, SpnValue *result, SpnValue roo
 		}
 
 		/* else, try super object/class */
-		root = spn_hashmap_get(roothm, &vm->supername);
-	} while (ishashmap(&root));
+		super = spn_hashmap_get_strkey(root, SPECIAL_PROPERTY_NAME_SUPER);
+
+		if (ishashmap(&super)) {
+			root = hashmapvalue(&super);
+		} else {
+			break;
+		}
+	}
 
 	/* not found anywhere in the chain */
 	return 0;
@@ -2226,48 +2234,29 @@ static int lookup_member_chained(SpnVMachine *vm, SpnValue *result, SpnValue roo
 
 static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, SpnValue *name)
 {
-	SpnValue root; /* member lookup starts here */
-	int typetag = valtype(pself);
-	SpnValue tagval = makeint(typetag);
-
+	SpnHashMap *root; /* member lookup starts here */
 	assert(isstring(name));
 
-	switch (typetag) {
-	case SPN_TTAG_HASHMAP:
-		/* hashmap methods are looked up in the hashmap object itself */
-		root = *pself;
-		break;
-	case SPN_TTAG_USERINFO:
-		/* user info values have a per-instance class lookup mechanism */
-		root = spn_hashmap_get(vm->classes, pself);
-		break;
-	default:
-		/* and other values share a per-type class descriptor */
-		root = spn_hashmap_get(vm->classes, &tagval);
-		break;
-	}
-
-	/* user info instance or primitive type has no class */
-	if (!ishashmap(&root)) {
+	/* primitive types have no class */
+	if (!isobject(pself)) {
+		*result = spn_nilval;
 		return 0;
 	}
 
-	/* search chain of objects/classes for the method */
+	/* search chain of classes for the method/property */
+	root = spn_vm_class_for_uid(vm, classuid(pself));
+
 	if (lookup_member_chained(vm, result, root, name)) {
 		return 1;
 	}
 
-	/* method wasn't found in whole object/class chain; as a last resort,
-	 * and only if it is a hashmap, try looking it up in the hashmap class
+	/* method/property wasn't found in class chain; as a last resort,
+	 * if the object is a hashmap, try looking it up in the hashmap object itself
 	 */
 	if (ishashmap(pself)) {
-		root = spn_hashmap_get(vm->classes, &tagval);
+		root = hashmapvalue(pself);
 
-		/* if hashmaps have a class (this is normally the case), _and_ the
-		 * class or any of the superclasses thereof contains the method,
-		 * then return it. Else just fall through and return nil.
-		 */
-		if (ishashmap(&root) && lookup_member_chained(vm, result, root, name)) {
+		if (lookup_member_chained(vm, result, root, name)) {
 			return 1;
 		}
 	}

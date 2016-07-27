@@ -630,8 +630,7 @@ static int dump_ast_of_files(int argc, char *argv[])
 			break;
 		}
 
-		astval.type = SPN_TYPE_HASHMAP;
-		astval.v.o = ast;
+		astval = makeobject(ast);
 		spn_repl_print(&astval);
 		spn_object_release(ast);
 
