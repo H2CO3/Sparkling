@@ -191,12 +191,6 @@ static int indexing_array_check(
 static int indexing_string_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vstr, SpnValue *vidx);
 static int indexing_hashmap_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vidx);
 
-/* return value:
- * non-zero if the property is a special built-in and it was processed successfully,
- * 0 otherwise.
- */
-static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nameval);
-
 static int lookup_member(SpnVMachine *vm, SpnValue *result, SpnValue *pself, SpnValue *name);
 
 /* generating a runtime error (message) */
@@ -303,6 +297,11 @@ SpnStackFrame *spn_vm_stacktrace(SpnVMachine *vm, size_t *size)
 		/* see the comment before the declaration of SpnStackFrame
 		 * for an explanation of the way the exception address is
 		 * computed.
+		 *
+		 * If the calling frame represents a native function, and
+		 * so if buf[i - 1].return_address is -1, then subtracting
+		 * 1 from it will also make it negative, which means "native
+		 * function", so there's no need to check that condition.
 		 */
 		if (i > 0) {
 			frame->exc_address = buf[i - 1].return_address - 1;
@@ -444,73 +443,88 @@ int spn_vm_callfunc(
 	return dispatch_loop(vm, entry, retval);
 }
 
+static SpnHashMap *namespace_for_libname(SpnVMachine *vm, const char *libname)
+{
+	SpnValue libval;
+
+	/* NULL library name means 'add to global namespace' */
+	if (libname == NULL) {
+		return vm->glbsymtab;
+	}
+
+	/* attempt to get namespace descriptor hashmap */
+	libval = spn_hashmap_get_strkey(vm->glbsymtab, libname);
+
+	/* namespace must be either a hashmap or nonexistent */
+	if (notnil(&libval) && !ishashmap(&libval)) {
+		spn_die(
+			"global '%s' already exists but is not a hashmap (%s)",
+			libname,
+			spn_value_type_name(&libval)
+		);
+	}
+
+	/* if library does not exist it must be created */
+	if (isnil(&libval)) {
+		libval = makehashmap();
+		spn_hashmap_set_strkey(vm->glbsymtab, libname, &libval);
+		spn_value_release(&libval); /* still alive, was retained */
+	}
+
+	assert(ishashmap(&libval));
+	return hashmapvalue(&libval);
+}
+
 void spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc fns[], size_t n)
 {
-	SpnHashMap *storage;
+	SpnHashMap *namespace = namespace_for_libname(vm, libname);
 	size_t i;
-
-	/* a NULL libname means that the functions will be global */
-	if (libname != NULL) {
-		SpnValue libval = spn_hashmap_get_strkey(vm->glbsymtab, libname);
-
-		if (notnil(&libval) && !ishashmap(&libval)) {
-			spn_die(
-				"global '%s' already exists but is not a hashmap (%s)",
-				libname,
-				spn_value_type_name(&libval)
-			);
-		}
-
-		/* if library does not exist it must be created */
-		if (isnil(&libval)) {
-			libval = makehashmap();
-			spn_hashmap_set_strkey(vm->glbsymtab, libname, &libval);
-			spn_value_release(&libval); /* still alive, was retained */
-		}
-
-		storage = hashmapvalue(&libval);
-	} else {
-		storage = vm->glbsymtab;
-	}
 
 	for (i = 0; i < n; i++) {
 		SpnValue val = makenativefunc(fns[i].name, fns[i].fn);
-		spn_hashmap_set_strkey(storage, fns[i].name, &val);
+		spn_hashmap_set_strkey(namespace, fns[i].name, &val);
 		spn_value_release(&val);
 	}
 }
 
 void spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValue vals[], size_t n)
 {
-	SpnHashMap *storage;
+	SpnHashMap *namespace = namespace_for_libname(vm, libname);
 	size_t i;
 
-	/* a NULL libname means that the functions will be global */
-	if (libname != NULL) {
-		SpnValue libval = spn_hashmap_get_strkey(vm->glbsymtab, libname);
-
-		if (notnil(&libval) && !ishashmap(&libval)) {
-			spn_die(
-				"global '%s' already exists but is not a hashmap (%s)",
-				libname,
-				spn_value_type_name(&libval)
-			);
-		}
-
-		/* if library does not exist it must be created */
-		if (isnil(&libval)) {
-			libval = makehashmap();
-			spn_hashmap_set_strkey(vm->glbsymtab, libname, &libval);
-			spn_value_release(&libval); /* still alive, was retained */
-		}
-
-		storage = hashmapvalue(&libval);
-	} else {
-		storage = vm->glbsymtab;
-	}
-
 	for (i = 0; i < n; i++) {
-		spn_hashmap_set_strkey(storage, vals[i].name, &vals[i].value);
+		spn_hashmap_set_strkey(namespace, vals[i].name, &vals[i].value);
+	}
+}
+
+void spn_vm_addlib_properties(
+	SpnVMachine *vm,
+	unsigned long classuid,
+	const SpnExtProperty props[],
+	size_t n
+)
+{
+	SpnHashMap *class = spn_vm_class_for_uid(vm, classuid);
+
+	size_t i;
+	for (i = 0; i < n; i++) {
+		SpnValue propval = makehashmap();
+		SpnHashMap *prop = objvalue(&propval);
+
+		if (props[i].get) {
+			SpnValue getval = makenativefunc(SPECIAL_PROPERTY_NAME_GET, props[i].get);
+			spn_hashmap_set_strkey(prop, SPECIAL_PROPERTY_NAME_GET, &getval);
+			spn_value_release(&getval);
+		}
+
+		if (props[i].set) {
+			SpnValue setval = makenativefunc(SPECIAL_PROPERTY_NAME_SET, props[i].set);
+			spn_hashmap_set_strkey(prop, SPECIAL_PROPERTY_NAME_SET, &setval);
+			spn_value_release(&setval);
+		}
+
+		spn_hashmap_set_strkey(class, props[i].name, &propval);
+		spn_value_release(&propval);
 	}
 }
 
@@ -1709,11 +1723,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 
 			assert(isstring(prname));
 
-			/* if this is a special property, treat it as such */
-			if (get_builtin_property(result, pself, prname)) {
-				break;
-			}
-
 			if (lookup_member(vm, &accval, pself, prname)) {
 				if (ishashmap(&accval)) {
 					SpnHashMap *accessors = hashmapvalue(&accval);
@@ -2144,59 +2153,6 @@ static int indexing_hashmap_check(SpnVMachine *vm, spn_uword *ip, SpnValue *vidx
 	if (isnil(vidx)) {
 		runtime_error(vm, ip, "hashmap index cannot be nil", NULL);
 		return -1;
-	}
-
-	return 0;
-}
-
-/* XXX: this function *MUST NOT* use 'spn_vm_callfunc()' or
- * reallocate the call stack in any way, since it is passed
- * pointers pointing straight within the active stack frame!
- *
- * XXX: So, if we ever implement destructors, the calls to the
- * 'spn_value_release()' function will potentially call the
- * destructor of whatever originally was in 'dstreg', and
- * that can invalidate the stack, so this will no longer work.
- */
-static int get_builtin_property(SpnValue *dstreg, SpnValue *pself, SpnValue *nameval)
-{
-	const char *name = stringvalue(nameval)->cstr;
-
-	switch (classuid(pself)) {
-	case SPN_CLASS_UID_STRING: {
-		if (strcmp(name, "length") == 0) {
-			size_t length = stringvalue(pself)->len;
-			spn_value_release(dstreg);
-			*dstreg = makeint(length);
-			return 1;
-		}
-
-		break;
-	}
-	case SPN_CLASS_UID_ARRAY: {
-		if (strcmp(name, "length") == 0) {
-			SpnArray *arr = arrayvalue(pself);
-			size_t length = spn_array_count(arr);
-			spn_value_release(dstreg);
-			*dstreg = makeint(length);
-			return 1;
-		}
-
-		break;
-	}
-	case SPN_CLASS_UID_HASHMAP: {
-		if (strcmp(name, "length") == 0) {
-			SpnHashMap *hm = hashmapvalue(pself);
-			size_t length = spn_hashmap_count(hm);
-			spn_value_release(dstreg);
-			*dstreg = makeint(length);
-			return 1;
-		}
-
-		break;
-	}
-	default:
-		break;
 	}
 
 	return 0;

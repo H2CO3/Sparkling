@@ -348,6 +348,21 @@ void spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtVal
 	spn_vm_addlib_values(ctx->vm, libname, vals, n);
 }
 
+void spn_ctx_addlib_properties(
+	SpnContext *ctx,
+	unsigned long classuid,
+	const SpnExtProperty props[],
+	size_t n
+)
+{
+	spn_vm_addlib_properties(ctx->vm, classuid, props, n);
+}
+
+SpnHashMap *spn_ctx_class_for_uid(SpnContext *ctx, unsigned long UID)
+{
+	return spn_vm_class_for_uid(ctx->vm, UID);
+}
+
 SpnHashMap *spn_ctx_getglobals(SpnContext *ctx)
 {
 	return spn_vm_getglobals(ctx->vm);

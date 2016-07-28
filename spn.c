@@ -641,7 +641,7 @@ static int dump_ast_of_files(int argc, char *argv[])
 	return status;
 }
 
-static void print_version()
+static void print_version(void)
 {
 	printf("Sparkling build %s, copyright (C) 2013-2016, Árpád Goretity\n\n", REPL_VERSION);
 }

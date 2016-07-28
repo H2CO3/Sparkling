@@ -101,6 +101,16 @@ SPN_API SpnFunction *spn_ctx_compile_ast(SpnContext *ctx, SpnHashMap *ast, int d
 /* accessors for library functions, other globals and class descriptors */
 SPN_API void        spn_ctx_addlib_cfuncs(SpnContext *ctx, const char *libname, const SpnExtFunc  fns[],  size_t n);
 SPN_API void        spn_ctx_addlib_values(SpnContext *ctx, const char *libname, const SpnExtValue vals[], size_t n);
+
+SPN_API void spn_ctx_addlib_properties(
+	SpnContext *ctx,
+	unsigned long classuid,
+	const SpnExtProperty props[],
+	size_t n
+);
+
+SPN_API SpnHashMap *spn_ctx_class_for_uid(SpnContext *ctx, unsigned long UID);
+
 SPN_API SpnHashMap *spn_ctx_getglobals(SpnContext *ctx);
 SPN_API void        spn_ctx_load_script_stdlib(SpnContext *ctx);
 

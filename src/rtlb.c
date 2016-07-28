@@ -22,6 +22,7 @@
 #include "array.h"
 #include "hashmap.h"
 #include "ctx.h"
+#include "debug.h"
 #include "private.h"
 
 #ifndef LINE_MAX
@@ -660,7 +661,7 @@ static void loadlib_io(SpnVMachine *vm)
 		{ "remove",   rtlb_remove   },
 		{ "rename",   rtlb_rename   },
 		{ "tmpfile",  rtlb_tmpfile  },
-		{ "readfile", rtlb_readfile }
+		{ "readfile", rtlb_readfile },
 	};
 
 	/* File methods */
@@ -1136,6 +1137,27 @@ static int rtlb_format(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_str_length(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting exactly 2 arguments", NULL);
+		return -1;
+	}
+
+	if (!isstring(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "'self' argument must be a string", NULL);
+		return -2;
+	}
+
+	if (!isstring(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be a property name", NULL);
+		return -3;
+	}
+
+	*ret = makeint(stringvalue(&argv[0])->len);
+	return 0;
+}
+
 static void loadlib_string(SpnVMachine *vm)
 {
 	/* Methods */
@@ -1161,10 +1183,16 @@ static void loadlib_string(SpnVMachine *vm)
 		{ "isupper",    rtlb_isupper    },
 		{ "tolower",    rtlb_tolower    },
 		{ "toupper",    rtlb_toupper    },
-		{ "format",     rtlb_format     }
+		{ "format",     rtlb_format     },
+	};
+
+	/* Properties */
+	static const SpnExtProperty P[] = {
+		{ "length", rtlb_str_length, NULL }, /* readonly */
 	};
 
 	load_methods(vm, SPN_CLASS_UID_STRING, M, COUNT(M));
+	spn_vm_addlib_properties(vm, SPN_CLASS_UID_STRING, P, COUNT(P));
 }
 
 /*****************
@@ -2316,10 +2344,31 @@ static int rtlb_zipwith(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_array_length(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting exactly 2 arguments", NULL);
+		return -1;
+	}
+
+	if (!isarray(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "'self' argument must be an array", NULL);
+		return -2;
+	}
+
+	if (!isstring(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be a property name", NULL);
+		return -3;
+	}
+
+	*ret = makeint(spn_array_count(arrayvalue(&argv[0])));
+	return 0;
+}
+
 static void loadlib_array(SpnVMachine *vm)
 {
 	static const SpnExtFunc F[] = {
-		{ "zipwith", rtlb_zipwith }
+		{ "zipwith", rtlb_zipwith },
 	};
 
 	/* Methods */
@@ -2344,11 +2393,17 @@ static void loadlib_array(SpnVMachine *vm)
 		{ "pop",        rtlb_pop           },
 		{ "last",       rtlb_last          },
 		{ "swap",       rtlb_swap          },
-		{ "reverse",    rtlb_reverse       }
+		{ "reverse",    rtlb_reverse       },
+	};
+
+	/* Properties */
+	static const SpnExtProperty P[] = {
+		{ "length", rtlb_array_length, NULL }, /* readonly */
 	};
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
 	load_methods(vm, SPN_CLASS_UID_ARRAY, M, COUNT(M));
+	spn_vm_addlib_properties(vm, SPN_CLASS_UID_ARRAY, P, COUNT(P));
 }
 
 /*******************
@@ -2564,23 +2619,51 @@ static int rtlb_zip(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 	return 0;
 }
 
+static int rtlb_hashmap_length(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
+{
+	if (argc != 2) {
+		spn_ctx_runtime_error(ctx, "expecting exactly 2 arguments", NULL);
+		return -1;
+	}
+
+	if (!ishashmap(&argv[0])) {
+		spn_ctx_runtime_error(ctx, "'self' argument must be a hashmap", NULL);
+		return -2;
+	}
+
+	if (!isstring(&argv[1])) {
+		spn_ctx_runtime_error(ctx, "second argument must be a property name", NULL);
+		return -3;
+	}
+
+	*ret = makeint(spn_hashmap_count(hashmapvalue(&argv[0])));
+	return 0;
+}
+
 static void loadlib_hashmap(SpnVMachine *vm)
 {
 	/* Free functions */
 	static const SpnExtFunc F[] = {
-		{ "zip",     rtlb_zip }
+		{ "zip",     rtlb_zip },
 	};
 
+	/* Methods */
 	static const SpnExtFunc M[] = {
 		{ "foreach", rtlb_hashmap_foreach },
 		{ "map",     rtlb_hashmap_map     },
 		{ "filter",  rtlb_hashmap_filter  },
 		{ "keys",    rtlb_keys            },
-		{ "values",  rtlb_values          }
+		{ "values",  rtlb_values          },
+	};
+
+	/* Properties */
+	static const SpnExtProperty P[] = {
+		{ "length", rtlb_hashmap_length, NULL }, /* readonly */
 	};
 
 	spn_vm_addlib_cfuncs(vm, NULL, F, COUNT(F));
 	load_methods(vm, SPN_CLASS_UID_HASHMAP, M, COUNT(M));
+	spn_vm_addlib_properties(vm, SPN_CLASS_UID_HASHMAP, P, COUNT(P));
 }
 
 
@@ -3612,7 +3695,7 @@ static void loadlib_math(SpnVMachine *vm)
 		{ "cplx_conj", rtlb_cplx_conj   },
 		{ "cplx_abs",  rtlb_cplx_abs    },
 		{ "can2pol",   rtlb_can2pol     },
-		{ "pol2can",   rtlb_pol2can     }
+		{ "pol2can",   rtlb_pol2can     },
 	};
 
 	/* Constants */
@@ -4368,18 +4451,51 @@ static int rtlb_backtrace(SpnValue *ret, int argc, SpnValue *argv, void *ctx)
 {
 	size_t n, i;
 	SpnStackFrame *bt = spn_ctx_stacktrace(ctx, &n);
-	SpnArray *fnames = spn_array_new();
+	SpnArray *frames = spn_array_new();
 
 	/* 'i' starts at 1: exclude own stack frame */
 	for (i = 1; i < n; i++) {
-		SpnValue name = makestring(bt[i].function->name);
-		spn_array_push(fnames, &name);
-		spn_value_release(&name);
+		SpnHashMap *frame = spn_hashmap_new();
+		SpnValue frame_val = makeobject(frame);
+
+		SpnFunction *func = bt[i].function;
+		SpnHashMap *debug_info = func->env ? func->env->debug_info : NULL;
+		ptrdiff_t exc_addr = bt[i].exc_address;    /* negative means Not Available */
+		ptrdiff_t ret_addr = bt[i].return_address; /* negative means Not Available */
+
+		SpnValue func_name = makestring(func->name);
+		SpnValue file_name = makestring(spn_dbg_get_filename(debug_info));
+		SpnValue exc_addr_val = exc_addr < 0 ? spn_nilval : makeint(exc_addr);
+		SpnValue ret_addr_val = ret_addr < 0 ? spn_nilval : makeint(ret_addr);
+		SpnValue stack_ptr = makerawptr(bt[i].sp);
+		SpnValue line = spn_nilval;
+		SpnValue column = spn_nilval;
+
+		if (debug_info && exc_addr >= 0) {
+			/* line/column #0 means Not Available */
+			SpnSourceLocation loc = spn_dbg_get_frame_source_location(bt[i]);
+			line   = loc.line   == 0 ? spn_nilval : makeint(loc.line);
+			column = loc.column == 0 ? spn_nilval : makeint(loc.column);
+		}
+
+		spn_hashmap_set_strkey(frame, "function", &func_name);
+		spn_hashmap_set_strkey(frame, "file", &file_name);
+		spn_hashmap_set_strkey(frame, "exc_addr", &exc_addr_val);
+		spn_hashmap_set_strkey(frame, "ret_addr", &ret_addr_val);
+		spn_hashmap_set_strkey(frame, "stack_ptr", &stack_ptr);
+		spn_hashmap_set_strkey(frame, "line", &line);
+		spn_hashmap_set_strkey(frame, "column", &column);
+
+		spn_value_release(&func_name);
+		spn_value_release(&file_name);
+
+		spn_array_push(frames, &frame_val);
+		spn_object_release(frame);
 	}
 
 	free(bt);
 
-	*ret = makeobject(fnames);
+	*ret = makeobject(frames);
 	return 0;
 }
 
@@ -4481,7 +4597,7 @@ static void loadlib_sysutil(SpnVMachine *vm)
 	/* Methods */
 	static const SpnExtFunc M[] = {
 		{ "call",  rtlb_call },
-		{ "apply", rtlb_call }
+		{ "apply", rtlb_call },
 	};
 
 	/* Constants */

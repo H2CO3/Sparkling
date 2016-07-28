@@ -41,6 +41,13 @@ typedef struct SpnExtValue {
 	SpnValue value;
 } SpnExtValue;
 
+/* A structure representing property getters and setters. */
+typedef struct SpnExtProperty {
+	const char *name;
+	int (*get)(SpnValue *, int, SpnValue *, void *);
+	int (*set)(SpnValue *, int, SpnValue *, void *);
+} SpnExtProperty;
+
 /* the virtual machine */
 typedef struct SpnVMachine SpnVMachine;
 
@@ -103,9 +110,23 @@ SPN_API int spn_vm_callfunc(
 
 /* These functions copy both the names of the values and the library name,
  * so 'libname' and 'fns[i].name' can be safely destroyed after the call.
+ * 'libname' may be null, in which case the functions and values are added
+ * to the global namespace.
  */
 SPN_API void  spn_vm_addlib_cfuncs(SpnVMachine *vm, const char *libname, const SpnExtFunc  fns[],  size_t n);
 SPN_API void  spn_vm_addlib_values(SpnVMachine *vm, const char *libname, const SpnExtValue vals[], size_t n);
+
+/* Adds 'n' properties represented by 'props' to the class with unique ID 'classuid'.
+ * Both the 'get' and 'set' members of SpnExtProperty are optional: if any of these
+ * function pointers is NULL, the corresponding accessor will not be generated.
+ * It is therefore possible to implement read-only or write-only properties.
+ */
+SPN_API void  spn_vm_addlib_properties(
+	SpnVMachine *vm,
+	unsigned long classuid,
+	const SpnExtProperty props[],
+	size_t n
+);
 
 /* get and set context info (arbitrarily usable pointer) */
 SPN_API void *spn_vm_getcontext(SpnVMachine *vm);
