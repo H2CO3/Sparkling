@@ -494,7 +494,7 @@ static int lex_number(SpnLexer *lexer, SpnToken *token)
 
 		if (!isdigit(end[0])) {
 			/* error: missing exponent part */
-			lexer_error(lexer, "exponent in floating-point literal is missing", NULL);
+			lexer_error(lexer, "missing exponent in floating-point literal", NULL);
 			return 0;
 		}
 

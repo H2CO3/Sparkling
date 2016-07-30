@@ -142,7 +142,7 @@ SPN_API void spn_object_release(void *o);
 enum {
 	SPN_TTAG_NIL,
 	SPN_TTAG_BOOL,
-	SPN_TTAG_NUMBER,	 /* floating-point if 'FLOAT' flag is set */
+	SPN_TTAG_NUMBER,   /* floating-point if 'FLOAT' flag is set */
 	SPN_TTAG_RAWPTR,   /* "weak user info"                      */
 	SPN_TTAG_OBJECT    /* reference-counted pointer type        */
 };
@@ -157,7 +157,7 @@ enum {
 	SPN_TYPE_NIL                = SPN_TTAG_NIL,
 	SPN_TYPE_BOOL               = SPN_TTAG_BOOL,
 	SPN_TYPE_INT                = SPN_TTAG_NUMBER,
-	SPN_TYPE_FLOAT              = SPN_TTAG_NUMBER   | SPN_FLAG_FLOAT,
+	SPN_TYPE_FLOAT              = SPN_TTAG_NUMBER | SPN_FLAG_FLOAT,
 	SPN_TYPE_RAWPTR             = SPN_TTAG_RAWPTR,
 	SPN_TYPE_OBJECT             = SPN_TTAG_OBJECT
 };
