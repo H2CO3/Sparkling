@@ -44,7 +44,7 @@ static SpnContext *get_global_context(void)
 			{ "jseval",               jspn_jseval          }
 		};
 
-		spn_ctx_addlib_cfuncs(jspn_global_ctx, NULL, lib, sizeof lib / sizeof lib[0]);
+		spn_ctx_addlib_cfuncs(jspn_global_ctx, NULL, lib, COUNT(lib));
 	}
 
 	return jspn_global_ctx;
@@ -111,7 +111,7 @@ extern int jspn_compile(const char *src)
 		return ERROR_INDEX;
 	}
 
-	return add_to_values((SpnValue){ .type = SPN_TYPE_FUNC, .v.o = fn });
+	return add_to_values(makeobject(fn));
 }
 
 extern int jspn_compileExpr(const char *src)
@@ -121,7 +121,7 @@ extern int jspn_compileExpr(const char *src)
 		return ERROR_INDEX;
 	}
 
-	return add_to_values((SpnValue){ .type = SPN_TYPE_FUNC, .v.o = fn });
+	return add_to_values(makeobject(fn));
 }
 
 extern int jspn_parse(const char *src)
@@ -131,7 +131,7 @@ extern int jspn_parse(const char *src)
 		return ERROR_INDEX;
 	}
 
-	SpnValue val = { .type = SPN_TYPE_HASHMAP, .v.o = ast };
+	SpnValue val = makeobject(ast);
 	int index = add_to_values(val);
 	spn_object_release(ast);
 	return index;
@@ -144,7 +144,7 @@ extern int jspn_parseExpr(const char *src)
 		return ERROR_INDEX;
 	}
 
-	SpnValue val = { .type = SPN_TYPE_HASHMAP, .v.o = ast };
+	SpnValue val = makeobject(ast);
 	int index = add_to_values(val);
 	spn_object_release(ast);
 	return index;
@@ -161,7 +161,7 @@ extern int jspn_compileAST(int astIndex)
 		return ERROR_INDEX;
 	}
 
-	return add_to_values((SpnValue){ .type = SPN_TYPE_FUNC, .v.o = fn });
+	return add_to_values(makeobject(fn));
 }
 
 extern int jspn_call(int func_index, int argv_index)
@@ -307,7 +307,11 @@ extern int jspn_addBool(int b)
 
 extern int jspn_addNumber(double x)
 {
-	return add_to_values(floor(x) == x ? makeint(x) : makefloat(x));
+	return add_to_values(
+		  LONG_MIN <= x && x <= LONG_MAX && (long)(x) == x
+		? makeint((long)x)
+		: makefloat(x)
+	);
 }
 
 extern int jspn_addString(const char *str)
@@ -328,7 +332,7 @@ extern int jspn_addArrayWithIndexBuffer(int32_t *indexBuffer, size_t n_objects)
 		spn_array_push(array, &val);
 	}
 
-	int result_index = add_to_values((SpnValue){ .type = SPN_TYPE_ARRAY, .v.o = array });
+	int result_index = add_to_values(makeobject(array));
 	spn_object_release(array);
 	return result_index;
 }
@@ -345,7 +349,7 @@ extern int jspn_addDictionaryWithIndexBuffer(int32_t *indexBuffer, size_t n_key_
 		spn_hashmap_set(dict, &key, &val);
 	}
 
-	int result_index = add_to_values((SpnValue){ .type = SPN_TYPE_HASHMAP, .v.o = dict });
+	int result_index = add_to_values(makeobject(dict));
 	spn_object_release(dict);
 	return result_index;
 }
@@ -355,6 +359,12 @@ extern int jspn_typeAtIndex(int index)
 {
 	SpnValue val = value_by_index(index);
 	return valtype(&val);
+}
+
+extern const char *jspn_valueTypeNameAtIndex(int index)
+{
+	SpnValue val = value_by_index(index);
+	return spn_value_type_name(&val);
 }
 
 extern int jspn_getBool(int index)
@@ -386,7 +396,7 @@ extern int jspn_addWrapperFunction(int funcIndex)
 		wrapperGenerator = spn_ctx_compile_string(
 			get_global_context(),
 			"let funcIndex = $[0];"
-			"return fn {"
+			"return fn () {"
 			"	let args = $.map(jspn_valueToIndex);"
 			"	return jspn_callWrappedFunc(funcIndex, args);"
 			"};",
@@ -401,7 +411,7 @@ extern int jspn_addWrapperFunction(int funcIndex)
 		get_global_context(),                  // context
 		wrapperGenerator,                      // callee
 		&wrapper,                              // return value
-		sizeof indexVal / sizeof indexVal[0],  // argc
+		COUNT(indexVal),                       // argc
 		indexVal                               // argv
 	);
 

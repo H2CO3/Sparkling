@@ -54,14 +54,22 @@
 	var addNumber = Module.cwrap('jspn_addNumber', 'number', ['number']);
 	var addString = Module.cwrap('jspn_addString', 'number', ['string']);
 
+	// We are trying to be robust with this function and check for
+	// auto-boxed variants of primitive boolean, number and string values.
 	var addObject = function (val) {
 		// unfortunately, typeof null === 'object'...
 		if (val === null) {
 			return addNil();
+		} else if (val instanceof Boolean) {
+			return addBool(val.valueOf());
+		} else if (val instanceof Number) {
+			return addNumber(val.valueOf());
+		} else if (val instanceof String) {
+			return addString(val.toString());
 		} else if (val instanceof Array) {
 			return addArray(val);
-		} else if (val instanceof SparklingUserInfo) {
-			return addUserInfo(val);
+		} else if (val instanceof SparklingNonSerializable) {
+			return addNonSerializable(val);
 		} else {
 			return addDictionary(val);
 		}
@@ -106,7 +114,7 @@
 		return result;
 	};
 
-	var addUserInfo = function (val) {
+	var addNonSerializable = function (val) {
 		return val.index;
 	};
 
@@ -152,22 +160,16 @@
 		var TYPE_NIL      = 0,
 		    TYPE_BOOL     = 1,
 		    TYPE_NUMBER   = 2,
-		    TYPE_STRING   = 3,
-		    TYPE_ARRAY    = 4,
-		    TYPE_HASHMAP  = 5,
-		    TYPE_FUNC     = 6,
-		    TYPE_USERINFO = 7;
+		    TYPE_RAWPTR   = 3,
+		    TYPE_OBJECT   = 4;
 		*/
 
 		var conversionFunctions = [
-			function () { return undefined; },
+			getNil,
 			getBool,
 			getNumber,
-			getString,
-			getArray,
-			getHashmap,
-			getFunction,
-			getUserInfo
+			getNonSerializable,
+			getObject
 		];
 
 		var typeErrorFn = function () {
@@ -181,6 +183,11 @@
 	};
 
 	var typeAtIndex = Module.cwrap('jspn_typeAtIndex', 'number', ['number']);
+	var valueTypeNameAtIndex = Module.cwrap('jspn_valueTypeNameAtIndex', 'string', ['number']);
+
+	var getNil = function (index) {
+		return undefined;
+	};
 
 	// Module.cwrap seems <s>not to interpret the 'boolean'
 	// return type correctly</s> not to support 'boolean' at all,
@@ -195,15 +202,29 @@
 	var getNumber = Module.cwrap('jspn_getNumber', 'number', ['number']);
 	var getString = Module.cwrap('jspn_getString', 'string', ['number']);
 
-	function SparklingUserInfo(index) {
+	function SparklingNonSerializable(index) {
 		this.index = index;
 		return this;
 	}
 
 	// Just returns a wrapper object
-	var getUserInfo = function (index) {
-		return new SparklingUserInfo(index);
+	var getNonSerializable = function (index) {
+		return new SparklingNonSerializable(index);
 	};
+
+	var getObject = function (index) {
+		var typeName = valueTypeNameAtIndex(index);
+
+		var typewiseGetters = {
+			'string':   getString,
+			'array':    getArray,
+			'hashmap':  getHashmap,
+			'function': getFunction
+		};
+
+		var getter = typewiseGetters[typeName] || getNonSerializable;
+		return getter(index);
+	}
 
 	var getArray = function (index) {
 		var i;
