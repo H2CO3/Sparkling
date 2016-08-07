@@ -29,14 +29,14 @@ ifeq ($(OPSYS), darwin)
 
 	CC = clang
 	CFLAGS = -isysroot $(SYSROOT)
-	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error=deprecated-declarations -Wno-error=missing-field-initializers
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-logical-op-parentheses -Wimplicit-fallthrough -Wno-unused-parameter -Wno-error=deprecated-declarations -Wno-missing-field-initializers
 	LDFLAGS = -isysroot $(SYSROOT) -w
 	DYNLDFLAGS = -isysroot $(SYSROOT) -w -dynamiclib
 	LTO_FLAG = -flto
 	DYNEXT = dylib
 else
 	CC = gcc
-	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-error=parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter -Wno-error=missing-field-initializers -Wno-error=pedantic
+	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter -Wno-missing-field-initializers -Wno-error=pedantic
 	LIBS = -lm
 	LDFLAGS = -lrt -ldl
 	DYNLDFLAGS = -lm -lrt -ldl -shared
@@ -106,7 +106,7 @@ $(LIB): $(OBJECTS)
 $(DYNLIB): $(OBJECTS)
 	$(LD) -o $@ $^ $(DYNLDFLAGS)
 
-$(REPL): spn.o dump.o $(OBJECTS)
+$(REPL): repl.o dump.o $(OBJECTS)
 	$(LD) -o $@ $^ $(LDFLAGS) $(LIBS)
 
 install: all
@@ -123,8 +123,8 @@ install: all
 $(OBJDIR)/%.o: $(SRCDIR)/%.c
 	$(CC) $(CFLAGS) -o $@ $<
 
-spn.o: spn.c
-	printf "#define REPL_VERSION \"%s\"\n" $(shell git rev-parse --short HEAD) > spn.h
+repl.o: repl.c
+	printf "#define REPL_VERSION \"%s\"\n" $(shell git rev-parse --short HEAD) > repl.h
 	$(CC) $(CFLAGS) -I$(SRCDIR) -o $@ $<
 
 dump.o: dump.c
@@ -139,7 +139,7 @@ src/stdmodules.inc:
 
 clean:
 	rm -f $(OBJECTS) $(LIB) $(DYNLIB) $(REPL) \
-		spn.o spn.h dump.o gmon.out \
+		repl.o repl.h dump.o gmon.out \
 		src/stdmodules.inc \
 		.DS_Store \
 		$(SRCDIR)/.DS_Store \

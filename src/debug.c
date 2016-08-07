@@ -10,7 +10,7 @@
 
 #include "debug.h"
 #include "array.h"
-#include "private.h"
+#include "misc.h"
 
 SpnHashMap *spn_dbg_new(void)
 {

@@ -1,15 +1,15 @@
 /*
- * private.h
+ * misc.h
  * Sparkling, a lightweight C-style scripting language
  *
  * Created by Árpád Goretity on 14/09/2013
  * Licensed under the 2-clause BSD License
  *
- * Private parts of the Sparkling API
+ * Miscellaneous parts of the Sparkling private API
  */
 
-#ifndef SPN_PRIVATE_H
-#define SPN_PRIVATE_H
+#ifndef SPN_MISC_H
+#define SPN_MISC_H
 
 #include <assert.h>
 #include <stdarg.h>
@@ -173,4 +173,4 @@ SPN_API const char *spn_dynamic_load_error(void);
 
 #endif /* USE_DYNAMIC_LOADING */
 
-#endif /* SPN_PRIVATE_H */
+#endif /* SPN_MISC_H */

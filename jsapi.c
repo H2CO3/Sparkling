@@ -15,7 +15,7 @@
 #include "api.h"
 #include "ctx.h"
 #include "debug.h"
-#include "private.h"
+#include "misc.h"
 #include "func.h"
 #include "str.h"
 #include "array.h"

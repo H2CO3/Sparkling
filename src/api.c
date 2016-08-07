@@ -19,7 +19,7 @@
 #include "compiler.h"
 #include "str.h"
 #include "vm.h"
-#include "private.h"
+#include "misc.h"
 #include "array.h"
 #include "hashmap.h"
 #include "func.h"

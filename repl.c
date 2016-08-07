@@ -1,5 +1,5 @@
 /*
- * spn.c
+ * repl.c
  * The Sparkling interpreter
  * Created by Árpád Goretity on 05/10/2013.
  *
@@ -27,13 +27,9 @@
 #define CLR_RST ""
 #endif
 
+#include "repl.h"
 #include "spn.h"
-#include "array.h"
-#include "str.h"
-#include "func.h"
-#include "ctx.h"
-#include "debug.h"
-#include "private.h"
+#include "misc.h"
 #include "dump.h"
 
 #define N_CMDS     6

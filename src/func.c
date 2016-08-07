@@ -11,7 +11,7 @@
 #include <assert.h>
 
 #include "func.h"
-#include "private.h"
+#include "misc.h"
 
 
 static int equal_func(void *lp, void *rp)

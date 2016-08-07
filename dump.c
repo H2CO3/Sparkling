@@ -10,7 +10,7 @@
 #include <stdarg.h>
 
 #include "dump.h"
-#include "private.h"
+#include "misc.h"
 
 
 /* hopefully there'll be no more than 4096 levels of nested function bodies.

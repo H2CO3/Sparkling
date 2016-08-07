@@ -14,9 +14,10 @@
 #include <stdarg.h>
 
 #include "parser.h"
+#include "ast.h"
 #include "lex.h"
 #include "str.h"
-#include "private.h"
+#include "misc.h"
 #include "array.h"
 
 /* for 'accept_multi()' */
@@ -234,139 +235,6 @@ static int setup_parser(SpnParser *p, const char *src)
 	p->errmsg = spn_lexer_steal_errmsg(&p->lexer);
 	p->error = 1;
 	return -1;
-}
-
-/* AST writer API
- * --------------
- *
- * These functions help building the abstract syntax tree.
- */
-
-/* returns non-zero if nodes of type 'type' need a child array */
-static int ast_type_needs_children(const char *type);
-
-/*
- * The set of possible keys, node types etc. is generally known at
- * compile time (if one is messing around with generating ASTs at runtime,
- * that is memory-safe anyway so the warning below doesn't concern him.)
- * Hence, we mostly use 'makestring_nocopy()' so as to avoid extraneous
- * dynamic allocation. This, however, means that we need to use string
- * literals (that have static storage duration) so the strings are not
- * deallocated (or otherwise invalidated) prematurely.
- */
-static void ast_set_property(SpnHashMap *node, const char *key, const SpnValue *val)
-{
-	SpnValue pname = makestring_nocopy(key);
-	spn_hashmap_set(node, &pname, val);
-	spn_value_release(&pname);
-}
-
-/* Similarly, 'type' must also be a string literal in this function */
-static SpnHashMap *ast_new(const char *type, SpnSourceLocation loc)
-{
-	SpnHashMap *node = spn_hashmap_new();
-
-	SpnValue vtype = makestring_nocopy(type);
-	SpnValue line = makeint(loc.line);
-	SpnValue col = makeint(loc.column);
-
-	ast_set_property(node, "type", &vtype);
-	ast_set_property(node, "line", &line);
-	ast_set_property(node, "column", &col);
-
-	spn_value_release(&vtype);
-
-	/* if the node an explicit 'children' array, add it */
-	if (ast_type_needs_children(type)) {
-		SpnValue children = makearray();
-		ast_set_property(node, "children", &children);
-		spn_value_release(&children);
-	}
-
-	return node;
-}
-
-/* Sets 'child' as the child of parent 'node'.
- * This transfers ownership ("xfer"), releases 'child'!
- * 'key' must be a string literal too.
- */
-static void ast_set_child_xfer(SpnHashMap *node, const char *key, SpnHashMap *child)
-{
-	SpnValue val = makeobject(child);
-	ast_set_property(node, key, &val);
-	spn_object_release(child);
-}
-
-/* Returns the 'children' array of 'node'.
- * Naturally, the returned pointer is *non-owning*.
- */
-static SpnArray *ast_get_children(SpnHashMap *node)
-{
-	SpnValue val = spn_hashmap_get_strkey(node, "children");
-	assert(isarray(&val));
-	return arrayvalue(&val);
-}
-
-/* Adds 'child' to the children array of 'node'.
- * Transfers ownership - releases 'child'!
- */
-static void ast_push_child_xfer(SpnHashMap *node, SpnHashMap *child)
-{
-	SpnArray *children = ast_get_children(node);
-	SpnValue vchild = makeobject(child);
-
-	spn_array_push(children, &vchild);
-	spn_object_release(child);
-}
-
-/* This returns a *non-owning* pointer to a newly appended child */
-static SpnHashMap *ast_append_child(SpnHashMap *node, const char *type, SpnSourceLocation loc)
-{
-	SpnHashMap *child = ast_new(type, loc);
-	ast_push_child_xfer(node, child);
-	return child;
-}
-
-static int ast_type_needs_children(const char *type)
-{
-	/* this array contains the node types that need an
-	 * explicit 'children' array because they may have
-	 * an arbitrary number of children.
-	 */
-	static const char *const partypes[] = {
-		"block",
-		"program",
-		"call",
-		"vardecl",
-		"constdecl",
-		"array",
-		"hashmap"
-	};
-
-	size_t i;
-	for (i = 0; i < COUNT(partypes); i++) {
-		if (strcmp(type, partypes[i]) == 0) {
-			return 1;
-		}
-	}
-
-	return 0;
-}
-
-/* If 'expr' is a function expression, then sets its name to 'name'. */
-static void set_name_if_is_function(SpnHashMap *expr, SpnValue name)
-{
-	SpnString *type;
-	SpnValue typeval = spn_hashmap_get_strkey(expr, "type");
-
-	assert(isstring(&typeval));
-	type = stringvalue(&typeval);
-
-	assert(isstring(&name));
-
-	if (strcmp(type->cstr, "function") == 0) {
-		ast_set_property(expr, "name", &name);
-	}
 }
 
 /* returns a string literal with the name

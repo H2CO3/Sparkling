@@ -16,7 +16,7 @@
 #include <stdarg.h>
 
 #include "str.h"
-#include "private.h"
+#include "misc.h"
 
 
 static int compare_strings(void *lhs, void *rhs);

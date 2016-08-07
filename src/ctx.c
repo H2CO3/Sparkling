@@ -10,7 +10,7 @@
 
 #include "ctx.h"
 #include "func.h"
-#include "private.h"
+#include "misc.h"
 #include "debug.h"
 
 

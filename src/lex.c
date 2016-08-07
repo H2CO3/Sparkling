@@ -15,7 +15,7 @@
 
 #include "lex.h"
 #include "str.h"
-#include "private.h"
+#include "misc.h"
 
 
 #define RESERVED_ENTRY(w) { w, sizeof(w) - 1 }

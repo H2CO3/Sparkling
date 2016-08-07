@@ -18,9 +18,11 @@
 #include "str.h"
 #include "array.h"
 #include "hashmap.h"
-#include "private.h"
+#include "misc.h"
 #include "func.h"
 #include "debug.h"
+#include "ast.h"
+#include "misc.h"
 
 
 typedef struct Bytecode {
@@ -405,84 +407,6 @@ static void compiler_error(SpnCompiler *cmp, SpnHashMap *ast, const char *fmt, c
 static int max(int x, int y)
 {
 	return x > y ? x : y;
-}
-
-/* Helper functions for walking the AST and
- * obtaining various properties thereof along the way
- */
-static SpnString *ast_get_string(SpnHashMap *ast, const char *key)
-{
-	SpnValue value = spn_hashmap_get_strkey(ast, key);
-	assert(isstring(&value));
-	return stringvalue(&value);
-}
-
-static SpnString *ast_get_string_optional(SpnHashMap *ast, const char *key)
-{
-	SpnValue value = spn_hashmap_get_strkey(ast, key);
-	assert(isstring(&value) || isnil(&value));
-	return isstring(&value) ? stringvalue(&value) : NULL;
-}
-
-static SpnArray *ast_get_array(SpnHashMap *ast, const char *key)
-{
-	SpnValue value = spn_hashmap_get_strkey(ast, key);
-	assert(isarray(&value));
-	return arrayvalue(&value);
-}
-
-/* used for getting the type of an AST node.
- * Returns a (non-owning) pointer to the type string inside the AST node.
- */
-static const char *ast_get_type(SpnHashMap *ast)
-{
-	SpnString *typestr = ast_get_string(ast, "type");
-	return typestr->cstr;
-}
-
-/* returns nonzero if the two node type strings are equal, and zero otherwise */
-static int type_equal(const char *p, const char *q)
-{
-	return strcmp(p, q) == 0;
-}
-
-static SpnArray *ast_get_children(SpnHashMap *ast)
-{
-	return ast_get_array(ast, "children");
-}
-
-static SpnHashMap *ast_get_nth_child(SpnArray *children, size_t index)
-{
-	SpnValue child_val = spn_array_get(children, index);
-	assert(ishashmap(&child_val));
-	return hashmapvalue(&child_val);
-}
-
-static SpnHashMap *ast_get_child_byname(SpnHashMap *ast, const char *key)
-{
-	SpnValue child = spn_hashmap_get_strkey(ast, key);
-	assert(ishashmap(&child));
-	return hashmapvalue(&child);
-}
-
-static SpnHashMap *ast_get_child_byname_optional(SpnHashMap *ast, const char *key)
-{
-	SpnValue child = spn_hashmap_get_strkey(ast, key);
-	assert(ishashmap(&child) || isnil(&child));
-	return ishashmap(&child) ? hashmapvalue(&child) : NULL;
-}
-
-static SpnHashMap *ast_shallow_copy(SpnHashMap *ast)
-{
-	size_t cursor = 0;
-	SpnValue key, val;
-	SpnHashMap *dup = spn_hashmap_new();
-
-	while ((cursor = spn_hashmap_next(ast, cursor, &key, &val)) != 0) {
-		spn_hashmap_set(dup, &key, &val);
-	}
-
-	return dup;
 }
 
 /* these functions execute "push" and "pop" operations on the operand stack

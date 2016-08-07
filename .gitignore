@@ -10,4 +10,4 @@ bld/*.dSYM
 bld/spn
 
 # Specific header created upon build
-spn.h
+repl.h

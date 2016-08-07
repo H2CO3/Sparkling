@@ -15,7 +15,7 @@
 #include <assert.h>
 
 #include "array.h"
-#include "private.h"
+#include "misc.h"
 #include "str.h"
 
 

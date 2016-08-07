@@ -16,7 +16,7 @@
 #include "vm.h"
 #include "str.h"
 #include "func.h"
-#include "private.h"
+#include "misc.h"
 
 /* stack management macros
  * 0th slot: header

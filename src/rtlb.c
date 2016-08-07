@@ -23,7 +23,7 @@
 #include "hashmap.h"
 #include "ctx.h"
 #include "debug.h"
-#include "private.h"
+#include "misc.h"
 
 #ifndef LINE_MAX
 #define LINE_MAX 0x1000

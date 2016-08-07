@@ -16,7 +16,7 @@
 
 #include "hashmap.h"
 #include "str.h"
-#include "private.h"
+#include "misc.h"
 
 
 typedef struct Bucket {

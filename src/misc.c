@@ -1,18 +1,18 @@
 /*
- * private.c
+ * misc.c
  * Sparkling, a lightweight C-style scripting language
  *
  * Created by Árpád Goretity on 14/09/2013
  * Licensed under the 2-clause BSD License
  *
- * Private parts of the Sparkling API
+ * Miscellaneous parts of the Sparkling private API
  */
 
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
 
-#include "private.h"
+#include "misc.h"
 
 int nth_arg_idx(spn_uword *ip, int idx)
 {
