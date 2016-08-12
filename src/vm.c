@@ -12,6 +12,7 @@
 #include <stdarg.h>
 #include <assert.h>
 #include <stddef.h>
+#include <math.h>
 
 #include "vm.h"
 #include "str.h"
@@ -855,7 +856,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				runtime_error(
 					vm,
 					ip - 1,
-					"attempt to call value of type %s",
+					"cannot call non-function value of type %s",
 					args
 				);
 				return -1;
@@ -1144,7 +1145,8 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 		case SPN_INS_ADD:
 		case SPN_INS_SUB:
 		case SPN_INS_MUL:
-		case SPN_INS_DIV: {
+		case SPN_INS_DIV:
+		case SPN_INS_MOD: {
 			SpnValue *a = VALPTR(vm->sp, OPA(ins));
 			SpnValue *b = VALPTR(vm->sp, OPB(ins));
 			SpnValue *c = VALPTR(vm->sp, OPC(ins));
@@ -1155,7 +1157,7 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 				return -1;
 			}
 
-			if (opcode == SPN_INS_DIV) {
+			if (opcode == SPN_INS_DIV || opcode == SPN_INS_MOD) {
 				if (isint(b) && isint(c) && intvalue(c) == 0) {
 					runtime_error(vm, ip - 1, "division by zero", NULL);
 					return -1;
@@ -1168,29 +1170,6 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			/* clean and update destination register */
 			spn_value_release(a);
 			*a = res;
-
-			break;
-		}
-		case SPN_INS_MOD: {
-			SpnValue *a = VALPTR(vm->sp, OPA(ins));
-			SpnValue *b = VALPTR(vm->sp, OPB(ins));
-			SpnValue *c = VALPTR(vm->sp, OPC(ins));
-			long res;
-
-			if (!isint(b) || !isint(c)) {
-				runtime_error(vm, ip - 1, "modulo division on non-integers", NULL);
-				return -1;
-			}
-
-			if (intvalue(c) == 0) {
-				runtime_error(vm, ip - 1, "modulo division by zero", NULL);
-				return -1;
-			}
-
-			res = intvalue(b) % intvalue(c);
-
-			spn_value_release(a);
-			*a = makeint(res);
 
 			break;
 		}
@@ -1695,23 +1674,34 @@ static int dispatch_loop(SpnVMachine *vm, spn_uword *ip, SpnValue *retvalptr)
 			SpnValue *b = VALPTR(vm->sp, OPB(ins)); /* object, 'self' */
 			SpnValue *c = VALPTR(vm->sp, OPC(ins)); /* method name    */
 			SpnValue tmp;
-			const void *args[1]; /* for error reporting */
+
+			assert(isstring(c));
 
 			/* lookup_member returns true if 'pself' is a hashtable or
 			 * if it has a class. In this case, 'result' will contain
-			 * the value for 'name'. (it may not be a function, in
-			 * which case, INS_CALL will throw an error anyway.
+			 * the value for 'name'.
 			 */
-			if (lookup_member(vm, &tmp, b, c)) {
-				spn_value_retain(&tmp);
-				spn_value_release(a);
-				*a = tmp;
-				break;
+			if (lookup_member(vm, &tmp, b, c) == 0) {
+				const void *args[1];
+				args[0] = spn_value_type_name(b);
+				runtime_error(vm, ip - 1, "object of type %s has no class", args);
+				return -1;
 			}
 
-			args[0] = spn_value_type_name(b);
-			runtime_error(vm, ip - 1, "object of type %s has no class", args);
-			return -1;
+			/* a non-function may not be called as a method */
+			if (!isfunc(&tmp)) {
+				const void *args[2];
+				args[0] = stringvalue(c)->cstr;
+				args[1] = spn_value_type_name(&tmp);
+				runtime_error(vm, ip - 1, "cannot call member '%s' of type %s as a method", args);
+				return -1;
+			}
+
+			spn_value_retain(&tmp);
+			spn_value_release(a);
+			*a = tmp;
+
+			break;
 		}
 		case SPN_INS_PROPGET: {
 			SpnValue *result = VALPTR(vm->sp, OPA(ins));
@@ -1988,8 +1978,8 @@ static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 	assert(isnum(lhs) && isnum(rhs));
 
 	if (isfloat(lhs) || isfloat(rhs)) {
-		double a = isfloat(lhs) ? floatvalue(lhs) : intvalue(lhs);
-		double b = isfloat(rhs) ? floatvalue(rhs) : intvalue(rhs);
+		double a = spn_floatvalue_f(lhs);
+		double b = spn_floatvalue_f(rhs);
 		double y;
 
 		switch (op) {
@@ -1997,6 +1987,7 @@ static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 		case SPN_INS_SUB: y = a - b; break;
 		case SPN_INS_MUL: y = a * b; break;
 		case SPN_INS_DIV: y = a / b; break;
+		case SPN_INS_MOD: y = fmod(a, b); break;
 		default: y = 0; SHANT_BE_REACHED();
 		}
 
@@ -2011,6 +2002,7 @@ static SpnValue arith_op(const SpnValue *lhs, const SpnValue *rhs, int op)
 		case SPN_INS_SUB: y = a - b; break;
 		case SPN_INS_MUL: y = a * b; break;
 		case SPN_INS_DIV: y = a / b; break;
+		case SPN_INS_MOD: y = a % b; break;
 		default: y = 0; SHANT_BE_REACHED();
 		}
 

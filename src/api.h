@@ -217,8 +217,8 @@ typedef struct SpnValue {
  * a double which is outside the range of long to a long is
  * undefined behavior.
  */
-SPN_API long spn_intvalue_f(SpnValue *val);
-SPN_API double spn_floatvalue_f(SpnValue *val);
+SPN_API long spn_intvalue_f(const SpnValue *val);
+SPN_API double spn_floatvalue_f(const SpnValue *val);
 
 /* Convenience constructors
  * Again, more of these constructors are implemented for each

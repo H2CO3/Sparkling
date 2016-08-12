@@ -125,7 +125,7 @@ void spn_object_release(void *o)
 /*
  * Value API
  */
-long spn_intvalue_f(SpnValue *val)
+long spn_intvalue_f(const SpnValue *val)
 {
 	if (spn_isint(val)) {
 		return spn_intvalue(val);
@@ -134,7 +134,7 @@ long spn_intvalue_f(SpnValue *val)
 	return spn_floatvalue(val);
 }
 
-double spn_floatvalue_f(SpnValue *val)
+double spn_floatvalue_f(const SpnValue *val)
 {
 	if (spn_isfloat(val)) {
 		return spn_floatvalue(val);
