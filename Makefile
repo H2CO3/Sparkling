@@ -38,7 +38,7 @@ else
 	CC = gcc
 	EXTRA_WARNINGS = -Wno-error=unused-function -Wno-error=sign-compare -Wno-parentheses -Wno-error=pointer-to-int-cast -Wno-error=uninitialized -Wno-unused-parameter -Wno-missing-field-initializers -Wno-error=pedantic
 	LIBS = -lm
-	LDFLAGS = -lrt -ldl
+	LDFLAGS = -lrt -ldl -rdynamic
 	DYNLDFLAGS = -lm -lrt -ldl -shared
 	DYNEXT = so
 	DEFINES += -D_XOPEN_SOURCE=700
