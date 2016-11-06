@@ -366,6 +366,7 @@ This is a short list of the most important operators:
 assignments
  * `?:` - conditional operator
  * `.`: property access (calls getter or setter if exists)
+ * `::`: raw member access by name: `foo::bar` desugars to `foo["bar"]` and it doesn't call getters or setters.
  * `&&`, `||`: logical AND and OR
  * `==`, `!=`, `<=`, `>=`, `<`, `>`: comparison operators
  * `&`, `|`, `^`: bitwise AND, OR and XOR
@@ -552,7 +553,7 @@ on error.
 
 If a program has run successfully, then its return value will be in
 `retVal`. You must relinquish ownership of this value if you no longer need it
-by calling `spn_value_release()` on it (since SpnValue are reference counted).
+by calling `spn_value_release()` on it (since `SpnValue`s are reference counted).
 
     SpnValue retval;
     if (spn_ctx_execstring(&ctx, "return \"Hello world!\";", &retval) == 0) {
