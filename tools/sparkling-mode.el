@@ -6,6 +6,38 @@
 ;;; Code:
 (defvar sparkling-mode-hook nil)
 
+;; Local variables
+(defgroup sparkling nil
+  "Major mode for editing Sparkling code."
+  :prefix "sparkling-"
+  :group 'languages)
+
+(defcustom sparkling-indent-offset 4
+  "*Indentation offset for `sparkling-mode'."
+  :type 'integer
+  :group 'sparkling
+  :safe #'integerp)
+
+(defcustom sparkling-mode-hook nil
+  "Hooks called on Sparkling mode."
+  :type 'hook
+  :group 'sparkling)
+
+(eval-when-compile
+  ;; Silence compilation warning about `compilation-error-regexp-alist' defined
+  ;; in compile.el.
+  (require 'compile))
+
+(eval-and-compile
+  (if (fboundp 'setq-local)
+      (defalias 'sparkling--setq-local 'setq-local)
+    (defmacro sparkling--setq-local (var val)
+      `(set (make-local-variable (quote ,var)) ,val)))
+
+  ;; Backward compatibility for Emacsen < 24.1
+  (unless (fboundp 'prog-mode)
+    (define-derived-mode prog-mode fundamental-mode "Prog")))
+
 (defun sparkling-eval-replace-expr (start end)
   "Evaluate the contents of the selected region (or the region between START and END) as an expression and replace it with the result."
   (interactive "r")
@@ -56,9 +88,6 @@
   "Keymap for Sparkling major mode"
 )
 
-;; automatically turn it on
-(add-to-list 'auto-mode-alist '("\\.spn\\'" . sparkling-mode))
-
 (defvar sparkling-font-lock-keywords
   (list
    '("\\<\\(and\\|break\\|continue\\|do\\|e\\(lse\\|xtern\\)\\|f\\(n\\|or\\)\\|if\\|let\\|not\\|or\\|return\\|sizeof\\|while\\)\\>" . font-lock-keyword-face)
@@ -69,7 +98,7 @@
   "Syntax highlighting for Sparkling mode"
 )
 
-(set-face-foreground 'font-lock-string-face "Gold")
+;; (set-face-foreground 'font-lock-string-face "Gold")
 
 ;; Indentation
 
@@ -97,38 +126,35 @@
 
 ;; Syntax table
 (defvar sparkling-mode-syntax-table
-  (let ((sparkling-mode-syntax-table (make-syntax-table)))
+  (with-syntax-table (copy-syntax-table)
 	;; This is added so entity names with underscores can be more easily parsed
-    (modify-syntax-entry ?_ "w" sparkling-mode-syntax-table)
-
+    (modify-syntax-entry ?_ "w")
 	;; C-style comments
-    (modify-syntax-entry ?/ ". 124b" sparkling-mode-syntax-table)
-    (modify-syntax-entry ?# "< b" sparkling-mode-syntax-table)
-    (modify-syntax-entry ?* ". 23" sparkling-mode-syntax-table)
-    (modify-syntax-entry ?\n "> b" sparkling-mode-syntax-table)
-    sparkling-mode-syntax-table)
-  "Syntax table for sparkling-mode"
-)
+    (modify-syntax-entry ?/ ". 124b")
+    (modify-syntax-entry ?# "< b")
+    (modify-syntax-entry ?* ". 23")
+    (modify-syntax-entry ?\n "> b")
+    (syntax-table))
+  "`sparkling-mode' Syntax table")
 
-;; for auto-commenting, auto-uncommenting
-(setq comment-start "//")
-
-(define-derived-mode sparkling-mode fundamental-mode "Sparkling"
+(define-derived-mode sparkling-mode prog-mode "Sparkling"
   "Major mode for Sparkling source"
-  (make-local-variable 'sparkling-indent-offset)
-  (set (make-local-variable 'font-lock-defaults) '(sparkling-font-lock-keywords))
-  (set (make-local-variable 'indent-line-function) 'sparkling-indent-line)
+  :syntax-table sparkling-mode-syntax-table
+  :group 'sparkling
+  (sparkling--setq-local font-lock-defaults '(sparkling-font-lock-keywords
+                                              nil ;; keywords-only
+                                              nil ;; case-fold
+                                              nil ;; syntax-alist
+                                              nil ;; syntax-begin
+                                              ))
+  (sparkling--setq-local indent-line-function 'sparkling-indent-line)
+  (sparkling--setq-local comment-start "//")
+  (sparkling--setq-local comment-use-syntax t)
 )
 
-(defvar sparkling-indent-offset 4
-  "*Indentation offset for `sparkling-mode'.")
-
-(set (make-local-variable 'font-lock-defaults) '(sparkling-font-lock-keywords))
-(set (make-local-variable 'indent-line-function) 'sparkling-indent-line)
-
-(setq major-mode 'sparkling-mode)
-(setq mode-name "Sparkling")
-(run-hooks 'sparkling-mode-hook)
+;; automatically turn it on
+(add-to-list 'auto-mode-alist '("\\.spn\\'" . sparkling-mode))
+;; (add-to-list 'interpreter-mode-alist '("spn" . sparkling-mode))
 
 (provide 'sparkling-mode)
 ;;; sparkling-mode.el ends here
