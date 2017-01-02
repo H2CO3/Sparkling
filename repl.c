@@ -639,7 +639,7 @@ static int dump_ast_of_files(int argc, char *argv[])
 
 static void print_version(void)
 {
-	printf("Sparkling build %s, copyright (C) 2013-2016, Árpád Goretity\n\n", REPL_VERSION);
+	printf("Sparkling build %s, copyright (C) 2013-2017, Árpád Goretity\n\n", REPL_VERSION);
 }
 
 int main(int argc, char *argv[])

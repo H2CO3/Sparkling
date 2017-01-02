@@ -117,7 +117,7 @@ SPN_API void        spn_ctx_load_script_stdlib(SpnContext *ctx);
 #if USE_DYNAMIC_LOADING
 
 /* helper for adding a dynamic library to the context,
- * so that it will be closed correctly upon destuction.
+ * so that it will be closed correctly upon destruction.
  */
 SPN_API void spn_ctx_add_dynmod(SpnContext *ctx, void *handle);
 
