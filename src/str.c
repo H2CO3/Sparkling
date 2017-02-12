@@ -618,7 +618,8 @@ static int append_format(
 		break;
 	}
 	case 'e':
-	case 'f': {
+	case 'f':
+	case 'g': {
 		char buf[
 			DBL_MAX_10_EXP + /* number of decimal digits in exponent */
 			DBL_DIG +        /* number of decimal digits in mantissa */
