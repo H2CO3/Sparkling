@@ -864,5 +864,5 @@ long spn_token_to_integer(SpnToken *token)
 		break;
 	}
 
-	return strtol(value, NULL, base);
+	return strtoul(value, NULL, base);
 }
